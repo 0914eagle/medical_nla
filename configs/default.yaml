@@ -1,0 +1,49 @@
+run_name: pilot
+seed: 17
+
+paths:
+  code_root: /home/eagle0914/medical_nla
+  artifact_root: /data1/heejae/medical_nla
+  activation_dir: /data1/heejae/medical_nla/activations
+  result_dir: /data1/heejae/medical_nla/results
+  report_dir: /data1/heejae/medical_nla/reports
+  cache_dir: /data1/heejae/hf_cache
+
+source_model:
+  model_id: google/gemma-3-12b-it
+  dtype: bfloat16
+  device_map: cuda
+  trust_remote_code: true
+  layer: 24
+  hidden_state_index_offset: 0
+
+activation:
+  # last_token, token_index, or token_span. token_index/span can be supplied per row.
+  position_mode: last_token
+  default_token_index: null
+  default_token_span: null
+  batch_size: 1
+
+nla_model:
+  # TODO: fill after selecting the public OpenNLA checkpoint.
+  model_id: TODO_OPENNLA_MODEL_ID
+  adapter_id: null
+  dtype: bfloat16
+  device_map: cuda
+  trust_remote_code: true
+  placeholder_token: <ACT>
+  # If query_template contains "{activation}", that placeholder is replaced with
+  # one or more placeholder tokens. Otherwise the activation placeholders are
+  # prepended on their own line before the query.
+  query_template: "Describe what the model activation represents: {prompt}"
+  normalization: none
+
+generation:
+  do_sample: false
+  max_new_tokens: 256
+  temperature: null
+  top_p: null
+
+inputs:
+  general: data/prompts_general.jsonl
+  medical: data/prompts_medical.jsonl

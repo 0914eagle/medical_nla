@@ -1,0 +1,28 @@
+[project]
+name = "medical-nla"
+version = "0.1.0"
+description = "OpenNLA-style activation extraction and inputs_embeds injection pipeline for medical-domain diagnostics."
+requires-python = ">=3.11"
+dependencies = [
+  "accelerate>=0.33",
+  "datasets>=2.20",
+  "jinja2>=3.1",
+  "peft>=0.12",
+  "pyyaml>=6.0",
+  "torch>=2.3",
+  "transformers>=4.44",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.5",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,23 @@
+.venv/
+.uv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+
+# Keep code in git; keep large/runtime artifacts outside the repo.
+activations/
+checkpoints/
+datasets/
+logs/
+models/
+outputs/
+results/
+reports/
+
+*.pt
+*.safetensors
+*.bin
+*.ckpt
+
+.DS_Store
