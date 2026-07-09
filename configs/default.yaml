@@ -14,7 +14,7 @@ source_model:
   dtype: bfloat16
   device_map: cuda
   trust_remote_code: true
-  layer: 24
+  layer: 32
   hidden_state_index_offset: 0
 
 activation:
@@ -25,18 +25,17 @@ activation:
   batch_size: 1
 
 nla_model:
-  # TODO: fill after selecting the public OpenNLA checkpoint.
-  model_id: TODO_OPENNLA_MODEL_ID
+  model_id: kitft/nla-gemma3-12b-L32-av
+  ar_model_id: kitft/nla-gemma3-12b-L32-ar
   adapter_id: null
   dtype: bfloat16
   device_map: cuda
   trust_remote_code: true
-  placeholder_token: <ACT>
-  # If query_template contains "{activation}", that placeholder is replaced with
-  # one or more placeholder tokens. Otherwise the activation placeholders are
-  # prepended on their own line before the query.
-  query_template: "Describe what the model activation represents: {prompt}"
-  normalization: none
+  sidecar_filename: nla_meta.yaml
+  # NLA sidecar values are mandatory. These optional fields are only for hard
+  # failure if the downloaded sidecar does not match the intended Gemma-3-12B run.
+  expected_d_model: 3840
+  expected_injection_token_id: 246566
 
 generation:
   do_sample: false

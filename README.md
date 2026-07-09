@@ -1,6 +1,6 @@
 # medical_nla
 
-OpenNLA-style two-pass inference pipeline for diagnosing how a general-domain NLA behaves on medical prompts.
+Natural Language Autoencoder (NLA) two-pass inference pipeline for diagnosing how released Gemma-3 NLAs behave on medical prompts.
 
 The code is intended to live at:
 
@@ -27,17 +27,18 @@ uv pip install -e ".[dev]"
 
 Install the CUDA-compatible PyTorch build required by the server before or after this step if the default resolver does not select the right wheel.
 
-## Required Manual Step
+## NLA Checkpoint
 
-Fill these fields in `configs/default.yaml` after selecting the public OpenNLA checkpoint/repo:
+This repo is configured for the released Gemma-3-12B NLA checkpoints from
+[kitft/natural_language_autoencoders](https://github.com/kitft/natural_language_autoencoders):
 
-- `nla_model.model_id`
-- `nla_model.adapter_id`, if the checkpoint is a LoRA adapter
-- `nla_model.placeholder_token`
-- `nla_model.query_template`
-- any normalization/projection behavior documented by the OpenNLA repo
+- AV: `kitft/nla-gemma3-12b-L32-av`
+- AR: `kitft/nla-gemma3-12b-L32-ar`
+- source model: `google/gemma-3-12b-it`
+- extraction layer: `32`
+- d_model: `3840`
 
-Record the source repo findings in `NOTES.md` before running full experiments.
+The AV prompt template, injection token ids, and injection scale are loaded from the checkpoint's `nla_meta.yaml` sidecar at runtime. Do not hardcode or locally edit these values unless debugging a sidecar mismatch.
 
 ## Run
 
@@ -50,7 +51,8 @@ python -m src.extract_activations \
   --run-name pilot_general
 ```
 
-Pass 2 injects saved activations into the NLA prompt via `inputs_embeds`:
+Pass 2 injects saved activations into the AV prompt via `inputs_embeds`.
+The code downloads `nla_meta.yaml`, uses the sidecar prompt exactly, tokenizes it with one-step `apply_chat_template(..., tokenize=True)`, rescales the activation to the sidecar `injection_scale`, verifies injection-token neighbors, and parses `<explanation>...</explanation>`:
 
 ```bash
 python -m src.run_nla \
@@ -75,4 +77,6 @@ pytest
 
 ## Notes
 
-SGLang and vLLM are intentionally not used. The pipeline uses pure `transformers`, extracts hidden states in a first pass, unloads Gemma, then loads the NLA model for generation.
+SGLang and vLLM are intentionally not used by default. The pipeline uses pure `transformers`, extracts Gemma hidden states in a first pass, unloads Gemma, then loads the NLA AV model for generation. This avoids the SGLang Gemma-3 `input_embeds` wrapper/radix-cache pitfalls documented upstream, at the cost of lower throughput.
+
+If outputs are mostly CJK text or describe the injection marker itself, treat that as a likely injection failure and check the sidecar, injection scale, prompt template, and token position first.

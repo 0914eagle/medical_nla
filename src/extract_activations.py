@@ -17,6 +17,17 @@ def chat_text(tokenizer, prompt: str) -> str:
     return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
 
+def chat_tokens(tokenizer, prompt: str) -> dict[str, torch.Tensor]:
+    messages = [{"role": "user", "content": prompt}]
+    input_ids = tokenizer.apply_chat_template(
+        messages,
+        tokenize=True,
+        add_generation_prompt=True,
+        return_tensors="pt",
+    )
+    return {"input_ids": input_ids, "attention_mask": torch.ones_like(input_ids)}
+
+
 def select_activation(
     hidden_state: torch.Tensor,
     attention_mask: torch.Tensor,
@@ -90,7 +101,7 @@ def main() -> None:
         row_id = str(row["id"])
         prompt = row["prompt"]
         text = chat_text(tokenizer, prompt)
-        encoded = tokenizer(text, return_tensors="pt", padding=False)
+        encoded = chat_tokens(tokenizer, prompt)
         encoded = {k: v.to(model.device) for k, v in encoded.items()}
         with torch.inference_mode():
             outputs = model(**encoded, output_hidden_states=True, use_cache=False)

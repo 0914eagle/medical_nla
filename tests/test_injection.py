@@ -2,6 +2,7 @@ import pytest
 import torch
 
 from src.injection import find_token_positions, replace_placeholder_embeddings
+from src.nla import NlaSidecar, find_verified_injection_positions, scale_activation_for_nla
 
 
 def test_find_token_positions():
@@ -85,3 +86,23 @@ def test_l2_normalization():
     )
 
     assert torch.allclose(result.inputs_embeds[0], torch.tensor([0.6, 0.8]))
+
+
+def test_nla_neighbor_verified_position():
+    sidecar = NlaSidecar(
+        d_model=2,
+        injection_char="x",
+        injection_token_id=99,
+        injection_left_neighbor_id=10,
+        injection_right_neighbor_id=11,
+        actor_prompt_template="{injection_char}",
+        injection_scale=5.0,
+        path="/tmp/nla_meta.yaml",
+    )
+
+    assert find_verified_injection_positions([10, 99, 11, 99, 12], sidecar) == [1]
+
+
+def test_nla_activation_scale():
+    scaled = scale_activation_for_nla(torch.tensor([3.0, 4.0]), 10.0)
+    assert torch.allclose(scaled, torch.tensor([6.0, 8.0]))
