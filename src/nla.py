@@ -106,10 +106,14 @@ def build_nla_prompt(tokenizer: Any, sidecar: NlaSidecar) -> tuple[str, list[int
         tokenize=True,
         add_generation_prompt=True,
     )
-    if isinstance(encoded, dict):
+    if hasattr(encoded, "input_ids"):
+        encoded = encoded.input_ids
+    elif isinstance(encoded, dict):
         encoded = encoded["input_ids"]
     if isinstance(encoded, torch.Tensor):
         encoded = encoded.detach().cpu().flatten().tolist()
+    elif encoded and isinstance(encoded[0], list):
+        encoded = encoded[0]
     return content, encoded
 
 

@@ -25,7 +25,12 @@ def chat_tokens(tokenizer, prompt: str) -> dict[str, torch.Tensor]:
         add_generation_prompt=True,
         return_tensors="pt",
     )
-    input_ids = encoded["input_ids"] if isinstance(encoded, dict) else encoded
+    if hasattr(encoded, "input_ids"):
+        input_ids = encoded.input_ids
+    elif isinstance(encoded, dict):
+        input_ids = encoded["input_ids"]
+    else:
+        input_ids = encoded
     return {"input_ids": input_ids, "attention_mask": torch.ones_like(input_ids)}
 
 
