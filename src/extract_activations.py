@@ -19,12 +19,13 @@ def chat_text(tokenizer, prompt: str) -> str:
 
 def chat_tokens(tokenizer, prompt: str) -> dict[str, torch.Tensor]:
     messages = [{"role": "user", "content": prompt}]
-    input_ids = tokenizer.apply_chat_template(
+    encoded = tokenizer.apply_chat_template(
         messages,
         tokenize=True,
         add_generation_prompt=True,
         return_tensors="pt",
     )
+    input_ids = encoded["input_ids"] if isinstance(encoded, dict) else encoded
     return {"input_ids": input_ids, "attention_mask": torch.ones_like(input_ids)}
 
 

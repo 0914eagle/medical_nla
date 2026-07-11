@@ -101,12 +101,16 @@ def load_nla_sidecar(
 
 def build_nla_prompt(tokenizer: Any, sidecar: NlaSidecar) -> tuple[str, list[int]]:
     content = sidecar.actor_prompt_template.format(injection_char=sidecar.injection_char)
-    input_ids = tokenizer.apply_chat_template(
+    encoded = tokenizer.apply_chat_template(
         [{"role": "user", "content": content}],
         tokenize=True,
         add_generation_prompt=True,
     )
-    return content, input_ids
+    if isinstance(encoded, dict):
+        encoded = encoded["input_ids"]
+    if isinstance(encoded, torch.Tensor):
+        encoded = encoded.detach().cpu().flatten().tolist()
+    return content, encoded
 
 
 def find_verified_injection_positions(input_ids: list[int] | torch.Tensor, sidecar: NlaSidecar) -> list[int]:
