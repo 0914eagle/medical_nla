@@ -100,7 +100,8 @@ CUDA_VISIBLE_DEVICES=9 python score_reconstruction_mse.py \
            /data1/heejae/medical_nla/results/pilot_general_v3.jsonl \
   --ar kitft/nla-gemma3-12b-L32-ar \
   --out /data1/heejae/medical_nla/scored/v3 \
-  --nla-inference-path /data1/heejae/nla-inference
+  --nla-inference-path /data1/heejae/nla-inference \
+  --high-norm-threshold 120000
 ```
 
 Outputs:
@@ -108,6 +109,8 @@ Outputs:
 - `scored.jsonl`
 - `mse_vs_confab.png`
 - `summary.md`
+
+The original `12000` high-norm cutoff is a conservative warning threshold from non-Gemma examples. Gemma-3-12B L32 activations are often around the sidecar `injection_scale=80000`, so use a Gemma-appropriate threshold such as `120000` for summary statistics unless a norm histogram says otherwise.
 
 ## Notes
 

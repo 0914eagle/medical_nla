@@ -30,5 +30,11 @@ def test_summary_excludes_high_norm_rows():
         {"domain": "medical", "confab_regex": True, "recon_mse": 3.0, "high_norm_flag": True},
     ]
     summary = summarize_scored_rows(rows)
+    assert "High-norm threshold: 12000" in summary
     assert "High-norm rows excluded from summary statistics: 1" in summary
     assert "| medical | True | 1 | 0.3000 |" in summary
+
+
+def test_summary_reports_custom_high_norm_threshold():
+    summary = summarize_scored_rows([], high_norm_threshold=120000)
+    assert "High-norm threshold: 120000" in summary

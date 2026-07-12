@@ -80,6 +80,16 @@ def main() -> None:
     parser.add_argument("--cache-dir", default="/data1/heejae/hf_cache")
     parser.add_argument("--nla-inference-path", default=None)
     parser.add_argument("--mse-equivalent-margin", type=float, default=0.1)
+    parser.add_argument(
+        "--high-norm-threshold",
+        type=float,
+        default=12000.0,
+        help=(
+            "Rows above this activation_norm are marked high_norm_flag and excluded from "
+            "summary stats. The original 12000 default is conservative for Qwen-style "
+            "runs; Gemma-3 L32 often needs a much higher threshold such as 120000."
+        ),
+    )
     args = parser.parse_args()
 
     out_dir = Path(args.out)
@@ -105,7 +115,8 @@ def main() -> None:
                     "recon_mse": mse,
                     "recon_cos": float(cos),
                     "confab_regex": confab_regex(str(row.get("prompt", "")), explanation),
-                    "high_norm_flag": high_norm_flag(row),
+                    "high_norm_flag": high_norm_flag(row, threshold=args.high_norm_threshold),
+                    "high_norm_threshold": args.high_norm_threshold,
                     "cjk_frac": cjk_frac_for_row(row),
                 }
             )
@@ -119,7 +130,11 @@ def main() -> None:
     write_jsonl(out_dir / "scored.jsonl", scored)
     plot_rows(scored, out_dir / "mse_vs_confab.png")
     (out_dir / "summary.md").write_text(
-        summarize_scored_rows(scored, margin=args.mse_equivalent_margin),
+        summarize_scored_rows(
+            scored,
+            margin=args.mse_equivalent_margin,
+            high_norm_threshold=args.high_norm_threshold,
+        ),
         encoding="utf-8",
     )
 

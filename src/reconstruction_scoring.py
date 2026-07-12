@@ -147,7 +147,11 @@ def validate_mse(mse: float, row_id: str) -> None:
         )
 
 
-def summarize_scored_rows(rows: list[dict[str, Any]], margin: float = 0.1) -> str:
+def summarize_scored_rows(
+    rows: list[dict[str, Any]],
+    margin: float = 0.1,
+    high_norm_threshold: float = HIGH_NORM_THRESHOLD,
+) -> str:
     cells: dict[tuple[str, bool], list[float]] = defaultdict(list)
     excluded = 0
     for row in rows:
@@ -185,6 +189,7 @@ def summarize_scored_rows(rows: list[dict[str, Any]], margin: float = 0.1) -> st
     lines = [
         "# AR Reconstruction MSE Summary",
         "",
+        f"High-norm threshold: {high_norm_threshold:g}",
         f"High-norm rows excluded from summary statistics: {excluded}",
         "",
         "| domain | confab_regex | n | mean_recon_mse |",

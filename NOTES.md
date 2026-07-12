@@ -51,6 +51,9 @@ AR scoring:
 - `critic.reconstruct(explanation: str) -> torch.Tensor` is also available and returns the raw predicted vector.
 - Input vector to `score()` is the raw original activation. Do not apply AV `injection_scale`. `NLACritic.score()` internally normalizes both predicted and original vectors to sidecar `mse_scale` and returns final MSE in `[0, 4]`.
 - AR prompt template is raw tokenizer input, not chat-template processed; `NLACritic.reconstruct()` uses `tokenizer(..., add_special_tokens=True)` as required by the upstream implementation.
+- `injection_scale=80000` for Gemma-3-12B is intentional, not a typo. The upstream `nla-inference.py` documents this as a consequence of Gemma-3 scaled embeddings inflating residual-stream norms.
+- The `high_norm_threshold=12000` pilot default came from a Qwen-style warning example and is too low for Gemma-3 L32 runs where ordinary norms are around the sidecar injection scale. For Gemma-3 L32 summaries, rerun scoring with `--high-norm-threshold 120000` unless a fresh norm histogram suggests a better cutoff.
+- Low `recon_mse` from `NLACritic.score()` is not caused by raw activation norms being large; the method normalizes both vectors before computing `2 * (1 - cos)`.
 
 ## Server paths
 
