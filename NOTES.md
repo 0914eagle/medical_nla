@@ -38,6 +38,19 @@ AR scoring:
 - The AR reconstructs explanation text back to an activation vector.
 - Directional MSE after both vectors are normalized to `sqrt(d_model)` equals `2 * (1 - cosine_similarity)`.
 - Cosine around 0.9 is a good decode; around 0.5 is mediocre; around 0 is orthogonal.
+- Lightweight AR inference repo: `github.com/kitft/nla-inference`
+- `NLACritic` import path: `from nla_inference import NLACritic`
+- Install expected on the GPU server:
+  - `cd /data1/heejae`
+  - `git clone https://github.com/kitft/nla-inference`
+  - `cd nla-inference`
+  - `pip install -e .`
+- Constructor signature confirmed from source: `NLACritic(checkpoint_dir: str | Path, *, device: str = "cpu", dtype: torch.dtype = torch.bfloat16)`.
+- The constructor expects a local HF-format AR checkpoint directory containing `nla_meta.yaml`, `model-*.safetensors`, and `value_head.safetensors`; if starting from HF repo id, call `huggingface_hub.snapshot_download()` first.
+- Scoring method signature confirmed from source: `critic.score(explanation: str, original: np.ndarray | torch.Tensor) -> tuple[float, float]`, returning `(direction_mse, cosine_similarity)`.
+- `critic.reconstruct(explanation: str) -> torch.Tensor` is also available and returns the raw predicted vector.
+- Input vector to `score()` is the raw original activation. Do not apply AV `injection_scale`. `NLACritic.score()` internally normalizes both predicted and original vectors to sidecar `mse_scale` and returns final MSE in `[0, 4]`.
+- AR prompt template is raw tokenizer input, not chat-template processed; `NLACritic.reconstruct()` uses `tokenizer(..., add_special_tokens=True)` as required by the upstream implementation.
 
 ## Server paths
 
@@ -64,3 +77,17 @@ Record `nvidia-smi` memory after:
 - Default to two-pass execution because Gemma-3-12B-IT plus NLA may not fit in 32GB VRAM simultaneously.
 - Do not add quantization unless explicitly approved, because it can change activation values.
 - If SGLang is revisited later, Gemma-3 needs `--attention-backend fa3`, the upstream Gemma multimodal `input_embeds` patch, and `--disable-radix-cache`.
+
+## Confab regex proxy
+
+The AR reconstruction scoring script uses a deliberately narrow regex proxy for confabulation, not a real groundedness label. Current terms are based on observed v3-style clinical hallucination patterns:
+
+- `fever`
+- `chills`
+- `elevated wbc`
+- `white blood cell`
+- `creatinine`
+- `urinalysis`
+- `sepsis`
+- `pneumonia`
+- `ace inhibitor`

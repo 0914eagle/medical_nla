@@ -75,6 +75,40 @@ Run tests:
 pytest
 ```
 
+## AR Reconstruction Scoring
+
+Install the lightweight AR helper on the GPU server:
+
+```bash
+source /data1/heejae/uv/medical_nla/bin/activate
+cd /data1/heejae
+git clone https://github.com/kitft/nla-inference
+cd nla-inference
+pip install -e .
+```
+
+If editable install is unavailable, the scoring script can still import the standalone file with `--nla-inference-path /data1/heejae/nla-inference`.
+
+Then score AV outputs against the original activation vectors:
+
+```bash
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+
+CUDA_VISIBLE_DEVICES=9 python score_reconstruction_mse.py \
+  --inputs /data1/heejae/medical_nla/results/pilot_medical_v3.jsonl \
+           /data1/heejae/medical_nla/results/pilot_general_v3.jsonl \
+  --ar kitft/nla-gemma3-12b-L32-ar \
+  --out /data1/heejae/medical_nla/scored/v3 \
+  --nla-inference-path /data1/heejae/nla-inference
+```
+
+Outputs:
+
+- `scored.jsonl`
+- `mse_vs_confab.png`
+- `summary.md`
+
 ## Notes
 
 SGLang and vLLM are intentionally not used by default. The pipeline uses pure `transformers`, extracts Gemma hidden states in a first pass, unloads Gemma, then loads the NLA AV model for generation. This avoids the SGLang Gemma-3 `input_embeds` wrapper/radix-cache pitfalls documented upstream, at the cost of lower throughput.
