@@ -152,18 +152,22 @@ Substring mapping rule:
 Run extraction and AV on entity positions:
 
 ```bash
+python scripts/make_entity_position_variants.py \
+  --input data/prompts_medical_entities.jsonl \
+  --output data/prompts_medical_position_variants.jsonl
+
 CUDA_VISIBLE_DEVICES=8 python -m src.extract_activations \
   --config configs/default.yaml \
-  --input data/prompts_medical_entities.jsonl \
-  --run-name pilot_medical_entities_v1
+  --input data/prompts_medical_position_variants.jsonl \
+  --run-name pilot_medical_position_variants_v1
 
 CUDA_VISIBLE_DEVICES=9 python -m src.run_nla \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/activations/pilot_medical_entities_v1/manifest.jsonl \
-  --output /data1/heejae/medical_nla/results/pilot_medical_entities_v1.jsonl
+  --manifest /data1/heejae/medical_nla/activations/pilot_medical_position_variants_v1/manifest.jsonl \
+  --output /data1/heejae/medical_nla/results/pilot_medical_position_variants_v1.jsonl
 ```
 
-Compare against `pilot_medical_v3.jsonl` by `id`: last-token outputs should be format-driven; entity-position outputs should be more content-driven if the NLA can read the relevant medical activation.
+This creates 200 rows: 50 format last-token controls plus 50 each for `first_subtoken`, `last_subtoken`, and `span_mean`. Compare by `base_id`: format outputs should be format-driven; entity-position outputs should be more content-driven if the NLA can read the relevant medical activation.
 
 ## Notes
 

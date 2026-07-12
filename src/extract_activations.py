@@ -219,6 +219,7 @@ def main() -> None:
             manifest_path,
             {
                 "id": row_id,
+                "base_id": row.get("base_id", row_id),
                 "prompt": prompt,
                 "chat_text": text,
                 "activation_path": str(activation_path),
@@ -226,6 +227,7 @@ def main() -> None:
                 "layer": layer,
                 "hidden_state_index": hidden_state_index,
                 "position": position,
+                "position_family": row.get("position_family"),
                 "position_mode": row.get("position_mode") or cfg["activation"].get("position_mode"),
                 "target_text": row.get("target_text"),
                 "target_text_strategy": row.get("target_text_strategy")
