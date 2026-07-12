@@ -18,10 +18,14 @@ source_model:
   hidden_state_index_offset: 0
 
 activation:
-  # last_token, token_index, or token_span. token_index/span can be supplied per row.
+  # last_token, token_index, token_span, or target_text.
+  # target_text maps a substring to tokenizer offsets; default strategy takes
+  # the final subword token in the matched span.
   position_mode: last_token
   default_token_index: null
   default_token_span: null
+  target_text_strategy: last_subtoken
+  target_text_occurrence: 0
   batch_size: 1
 
 nla_model:

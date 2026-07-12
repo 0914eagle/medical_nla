@@ -138,6 +138,33 @@ A full replacement template is also supported with `--actor-prompt-template-file
 
 Compare `pilot_medical_v3.jsonl` with `pilot_medical_v3_medprompt.jsonl` for the same `id`s. This does not require rerunning Gemma activation extraction.
 
+## Entity-Position Probe
+
+The v3 run used `position_mode=last_token`, which often captures the assistant-answer boundary or response-format state. To test content-bearing positions, use `data/prompts_medical_entities.jsonl`. Each row has a `target_text` substring such as `warfarin`, `ST elevations`, or `beta-lactam antibiotics`.
+
+Substring mapping rule:
+
+- find the target substring in the chat-templated prompt text, case-insensitive
+- use tokenizer `offset_mapping` to find all subword tokens overlapping that character span
+- default `target_text_strategy=last_subtoken`
+- alternatives: `first_subtoken`, `span`, `span_mean`
+
+Run extraction and AV on entity positions:
+
+```bash
+CUDA_VISIBLE_DEVICES=8 python -m src.extract_activations \
+  --config configs/default.yaml \
+  --input data/prompts_medical_entities.jsonl \
+  --run-name pilot_medical_entities_v1
+
+CUDA_VISIBLE_DEVICES=9 python -m src.run_nla \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/activations/pilot_medical_entities_v1/manifest.jsonl \
+  --output /data1/heejae/medical_nla/results/pilot_medical_entities_v1.jsonl
+```
+
+Compare against `pilot_medical_v3.jsonl` by `id`: last-token outputs should be format-driven; entity-position outputs should be more content-driven if the NLA can read the relevant medical activation.
+
 ## Notes
 
 SGLang and vLLM are intentionally not used by default. The pipeline uses pure `transformers`, extracts Gemma hidden states in a first pass, unloads Gemma, then loads the NLA AV model for generation. This avoids the SGLang Gemma-3 `input_embeds` wrapper/radix-cache pitfalls documented upstream, at the cost of lower throughput.

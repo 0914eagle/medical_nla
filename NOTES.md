@@ -98,3 +98,7 @@ The AR reconstruction scoring script uses a deliberately narrow regex proxy for 
 ## Prompt-sensitivity probe
 
 For checking whether AV descriptions are driven by question format rather than biomedical content, rerun `src.run_nla` on existing activation manifests with `--actor-prompt-suffix-file`. This preserves the sidecar default injection-token neighborhood and appends the medical instruction. Full replacement with `--actor-prompt-template-file` is supported, but the custom template must contain `{injection_char}` and must tokenize so that the injection char is surrounded by the same sidecar neighbor token ids. Use `--dump-actor-prompt-template` to inspect the exact default template before editing.
+
+## Entity-position extraction
+
+The v3 pilot used last-token activations, which appear to encode answer-format state rather than biomedical content. `data/prompts_medical_entities.jsonl` adds a `target_text` substring per medical prompt. Extraction resolves it by chat-template text substring matching plus tokenizer `offset_mapping`. Default rule is `last_subtoken` because biomedical terms can split into multiple subwords; `span_mean` is available as a robustness check.
