@@ -1,0 +1,3 @@
+<concept>{injection_char}</concept>
+
+Describe the medical diagnosis, clinical finding, mechanism, or treatment-related content represented by this activation vector. Focus on the concrete biomedical content rather than the question format or answer style. If the activation does not contain specific medical content, say so directly.

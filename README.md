@@ -112,6 +112,32 @@ Outputs:
 
 The original `12000` high-norm cutoff is a conservative warning threshold from non-Gemma examples. Gemma-3-12B L32 activations are often around the sidecar `injection_scale=80000`, so use a Gemma-appropriate threshold such as `120000` for summary statistics unless a norm histogram says otherwise.
 
+## Prompt-Sensitivity Probe
+
+To test whether AV outputs are format-driven by the default prompt, rerun verbalization against the same saved activations with a medical-content-focused actor prompt suffix. First inspect the sidecar default prompt:
+
+```bash
+python -m src.run_nla \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/activations/pilot_medical_v3/manifest.jsonl \
+  --output /tmp/unused.jsonl \
+  --dump-actor-prompt-template
+```
+
+The safest probe preserves the sidecar default prompt and appends a medical instruction, so the `{injection_char}` neighborhood from `nla_meta.yaml` is unchanged:
+
+```bash
+CUDA_VISIBLE_DEVICES=9 python -m src.run_nla \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/activations/pilot_medical_v3/manifest.jsonl \
+  --output /data1/heejae/medical_nla/results/pilot_medical_v3_medprompt.jsonl \
+  --actor-prompt-suffix-file prompts/medical_actor_prompt_suffix.txt
+```
+
+A full replacement template is also supported with `--actor-prompt-template-file`, but it must preserve `{injection_char}` in the same token neighborhood expected by `nla_meta.yaml`; otherwise the neighbor check fails loudly.
+
+Compare `pilot_medical_v3.jsonl` with `pilot_medical_v3_medprompt.jsonl` for the same `id`s. This does not require rerunning Gemma activation extraction.
+
 ## Notes
 
 SGLang and vLLM are intentionally not used by default. The pipeline uses pure `transformers`, extracts Gemma hidden states in a first pass, unloads Gemma, then loads the NLA AV model for generation. This avoids the SGLang Gemma-3 `input_embeds` wrapper/radix-cache pitfalls documented upstream, at the cost of lower throughput.

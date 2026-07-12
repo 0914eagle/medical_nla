@@ -44,6 +44,7 @@ def load_nla_sidecar(
     filename: str = "nla_meta.yaml",
     expected_d_model: int | None = None,
     expected_injection_token_id: int | None = None,
+    validate_prompt: bool = True,
 ) -> NlaSidecar:
     path = hf_hub_download(model_id, filename=filename, cache_dir=cache_dir)
     meta = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
@@ -90,17 +91,25 @@ def load_nla_sidecar(
             f"{sidecar.injection_char!r}: live={live_ids}, sidecar={[sidecar.injection_token_id]}"
         )
 
-    prompt_text, input_ids = build_nla_prompt(tokenizer, sidecar)
-    positions = find_verified_injection_positions(input_ids, sidecar)
-    if len(positions) != 1:
-        raise ValueError(
-            f"Canonical NLA prompt should contain exactly one verified injection position; got {positions}."
-        )
+    if validate_prompt:
+        prompt_text, input_ids = build_nla_prompt(tokenizer, sidecar)
+        positions = find_verified_injection_positions(input_ids, sidecar)
+        if len(positions) != 1:
+            raise ValueError(
+                f"Canonical NLA prompt should contain exactly one verified injection position; got {positions}."
+            )
     return sidecar
 
 
-def build_nla_prompt(tokenizer: Any, sidecar: NlaSidecar) -> tuple[str, list[int]]:
-    content = sidecar.actor_prompt_template.format(injection_char=sidecar.injection_char)
+def build_nla_prompt(
+    tokenizer: Any,
+    sidecar: NlaSidecar,
+    actor_prompt_template: str | None = None,
+) -> tuple[str, list[int]]:
+    template = actor_prompt_template or sidecar.actor_prompt_template
+    if "{injection_char}" not in template:
+        raise ValueError("NLA actor prompt template must contain {injection_char}.")
+    content = template.format(injection_char=sidecar.injection_char)
     encoded = tokenizer.apply_chat_template(
         [{"role": "user", "content": content}],
         tokenize=True,
@@ -153,8 +162,13 @@ def build_nla_inputs_embeds(
     sidecar: NlaSidecar,
     activation: torch.Tensor,
     device: torch.device | str,
+    actor_prompt_template: str | None = None,
 ) -> NlaInjectionResult:
-    prompt_text, input_ids_list = build_nla_prompt(tokenizer, sidecar)
+    prompt_text, input_ids_list = build_nla_prompt(
+        tokenizer,
+        sidecar,
+        actor_prompt_template=actor_prompt_template,
+    )
     positions = find_verified_injection_positions(input_ids_list, sidecar)
     if len(positions) != 1:
         raise ValueError(f"Expected one verified injection position, got {positions}.")

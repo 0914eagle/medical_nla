@@ -94,3 +94,7 @@ The AR reconstruction scoring script uses a deliberately narrow regex proxy for 
 - `sepsis`
 - `pneumonia`
 - `ace inhibitor`
+
+## Prompt-sensitivity probe
+
+For checking whether AV descriptions are driven by question format rather than biomedical content, rerun `src.run_nla` on existing activation manifests with `--actor-prompt-suffix-file`. This preserves the sidecar default injection-token neighborhood and appends the medical instruction. Full replacement with `--actor-prompt-template-file` is supported, but the custom template must contain `{injection_char}` and must tokenize so that the injection char is surrounded by the same sidecar neighbor token ids. Use `--dump-actor-prompt-template` to inspect the exact default template before editing.
