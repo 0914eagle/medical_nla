@@ -102,3 +102,7 @@ For checking whether AV descriptions are driven by question format rather than b
 ## Entity-position extraction
 
 The v3 pilot used last-token activations, which appear to encode answer-format state rather than biomedical content. `data/prompts_medical_entities.jsonl` adds a `target_text` substring per medical prompt. Extraction resolves it by chat-template text substring matching plus tokenizer `offset_mapping`. Default rule is `last_subtoken` because biomedical terms can split into multiple subwords; `span_mean` is available as a robustness check. Use `scripts/make_entity_position_variants.py` to produce a 200-row format-vs-entity comparison file with `format_last`, `first_subtoken`, `last_subtoken`, and `span_mean` variants.
+
+## Non-diagnostic baseline
+
+`data/prompts_medical_nondiagnostic_entities.jsonl` controls for oracle entity tagging by selecting generic tokens such as `patient`, `woman`, `Describe`, or `Explain`. If this baseline also recovers diagnoses at high rates, the entity-token result is less specific. If it does not, the diagnostic entity result is stronger evidence that content-bearing positions matter.

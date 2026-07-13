@@ -169,6 +169,24 @@ CUDA_VISIBLE_DEVICES=9 python -m src.run_nla \
 
 This creates 200 rows: 50 format last-token controls plus 50 each for `first_subtoken`, `last_subtoken`, and `span_mean`. Compare by `base_id`: format outputs should be format-driven; entity-position outputs should be more content-driven if the NLA can read the relevant medical activation.
 
+## Non-Diagnostic Position Baseline
+
+To control for oracle entity tagging, run the same `target_text` extraction on non-diagnostic tokens such as `patient`, `woman`, `Describe`, or `Explain`. This tests whether medical content appears because the selected entity truly carries content, or because any token in the prompt already carries the full diagnosis.
+
+```bash
+CUDA_VISIBLE_DEVICES=8 python -m src.extract_activations \
+  --config configs/default.yaml \
+  --input data/prompts_medical_nondiagnostic_entities.jsonl \
+  --run-name pilot_medical_nondiagnostic_v1
+
+CUDA_VISIBLE_DEVICES=9 python -m src.run_nla \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/activations/pilot_medical_nondiagnostic_v1/manifest.jsonl \
+  --output /data1/heejae/medical_nla/results/pilot_medical_nondiagnostic_v1.jsonl
+```
+
+Expected control: diagnostic `entity_span_mean` should recover target medical content far more often than this non-diagnostic baseline.
+
 ## Notes
 
 SGLang and vLLM are intentionally not used by default. The pipeline uses pure `transformers`, extracts Gemma hidden states in a first pass, unloads Gemma, then loads the NLA AV model for generation. This avoids the SGLang Gemma-3 `input_embeds` wrapper/radix-cache pitfalls documented upstream, at the cost of lower throughput.
