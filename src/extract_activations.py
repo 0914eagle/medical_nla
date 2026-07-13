@@ -12,6 +12,22 @@ from .jsonl import append_jsonl, read_jsonl
 from .modeling import load_causal_lm, load_tokenizer
 
 
+PASSTHROUGH_FIELDS = [
+    "variant",
+    "source_id",
+    "primary_target",
+    "distractor_target",
+    "correct_dx",
+    "distractor_dx",
+    "distractor_position",
+    "distractor_strength",
+    "condition",
+    "condition_order",
+    "insertion_type",
+    "notes",
+]
+
+
 def chat_text(tokenizer, prompt: str) -> str:
     messages = [{"role": "user", "content": prompt}]
     return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -215,9 +231,7 @@ def main() -> None:
         )
         activation_path = out_dir / f"{row_id}.pt"
         torch.save(activation, activation_path)
-        append_jsonl(
-            manifest_path,
-            {
+        manifest_row = {
                 "id": row_id,
                 "base_id": row.get("base_id", row_id),
                 "prompt": prompt,
@@ -236,8 +250,11 @@ def main() -> None:
                 "target_char_span": row.get("target_char_span"),
                 "dtype": str(activation.dtype),
                 "shape": list(activation.shape),
-            },
-        )
+        }
+        for field in PASSTHROUGH_FIELDS:
+            if field in row:
+                manifest_row[field] = row.get(field)
+        append_jsonl(manifest_path, manifest_row)
 
     del model
     torch.cuda.empty_cache()

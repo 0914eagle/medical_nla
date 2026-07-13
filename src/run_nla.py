@@ -14,6 +14,22 @@ from .modeling import load_causal_lm, load_tokenizer
 from .nla import build_nla_inputs_embeds, cjk_fraction, extract_explanation, load_nla_sidecar
 
 
+PASSTHROUGH_FIELDS = [
+    "variant",
+    "source_id",
+    "primary_target",
+    "distractor_target",
+    "correct_dx",
+    "distractor_dx",
+    "distractor_position",
+    "distractor_strength",
+    "condition",
+    "condition_order",
+    "insertion_type",
+    "notes",
+]
+
+
 def generation_kwargs(cfg: dict) -> dict:
     gen = dict(cfg["generation"])
     return {k: v for k, v in gen.items() if v is not None}
@@ -127,9 +143,7 @@ def main() -> None:
         )
         raw_text = tokenizer.decode(generated[0], skip_special_tokens=False)
         explanation, parsed_explanation = extract_explanation(raw_text)
-        append_jsonl(
-            output_path,
-            {
+        result_row = {
                 "id": row["id"],
                 "base_id": row.get("base_id", row["id"]),
                 "prompt": row["prompt"],
@@ -157,8 +171,11 @@ def main() -> None:
                 "sidecar_path": sidecar.path,
                 "gen_config": gen_kwargs,
                 "timestamp": datetime.now(UTC).isoformat(),
-            },
-        )
+        }
+        for field in PASSTHROUGH_FIELDS:
+            if field in row:
+                result_row[field] = row.get(field)
+        append_jsonl(output_path, result_row)
 
     del model
     torch.cuda.empty_cache()
