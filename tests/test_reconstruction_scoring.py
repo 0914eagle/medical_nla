@@ -15,7 +15,7 @@ def test_confab_regex_requires_missing_prompt_term():
     prompt = "A patient has cough."
     explanation = "This vector refers to pneumonia and fever."
     assert confab_regex(prompt, explanation)
-    assert not confab_regex("The prompt mentions pneumonia.", explanation)
+    assert not confab_regex("The prompt mentions pneumonia and fever.", explanation)
 
 
 def test_high_norm_flag_threshold():
