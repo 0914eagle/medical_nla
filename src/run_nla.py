@@ -38,6 +38,14 @@ PASSTHROUGH_FIELDS = [
     "specific_aliases",
     "nonspecific_aliases",
     "diagnosis_aliases",
+    "source",
+    "patient_id",
+    "diagnosis_id",
+    "diagnosis_name",
+    "cue_targets",
+    "cue_types",
+    "cue_evidence_ids",
+    "cue_evidence_entries",
     "notes",
 ]
 

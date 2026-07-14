@@ -1,1 +1,1 @@
-"""Utility scripts for medical NLA experiments."""
+"""Repository-local utility scripts."""
