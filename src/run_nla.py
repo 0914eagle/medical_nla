@@ -26,6 +26,13 @@ PASSTHROUGH_FIELDS = [
     "condition",
     "condition_order",
     "insertion_type",
+    "target_role",
+    "cue_index",
+    "nonspecific_target",
+    "specific_target",
+    "nonspecific_expected",
+    "specific_expected",
+    "diagnostic_shift",
     "notes",
 ]
 
