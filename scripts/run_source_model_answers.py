@@ -39,6 +39,10 @@ SOURCE_DIAGNOSIS_ALIASES = {
 }
 
 
+def case_id(case: dict) -> str:
+    return case.get("id") or case["base_id"]
+
+
 def read_jsonl(path: Path) -> list[dict]:
     rows = []
     with path.open(encoding="utf-8") as f:
@@ -142,6 +146,7 @@ def main() -> None:
 
     out_rows = []
     for case in read_jsonl(Path(args.input)):
+        cid = case_id(case)
         prompt = source_answer_prompt(case["specific_prompt"])
         encoded = chat_inputs(tokenizer, prompt, model.device)
         input_len = int(encoded["input_ids"].shape[-1])
@@ -154,17 +159,18 @@ def main() -> None:
             )
         answer_ids = generated[0, input_len:]
         answer = tokenizer.decode(answer_ids, skip_special_tokens=True).strip()
-        broad_aliases = SPECIFIC_ALIASES.get(case["id"], [])
+        broad_aliases = case.get("specific_aliases") or SPECIFIC_ALIASES.get(cid, [])
         broad_hits = alias_hits(answer, broad_aliases)
-        diagnosis_aliases = SOURCE_DIAGNOSIS_ALIASES.get(case["id"], broad_aliases)
+        diagnosis_aliases = case.get("diagnosis_aliases") or SOURCE_DIAGNOSIS_ALIASES.get(cid, broad_aliases)
         diagnosis_hits = alias_hits(answer, diagnosis_aliases)
         out_rows.append(
             {
-                "id": case["id"],
+                "id": cid,
+                "category": case.get("category"),
                 "prompt": case["specific_prompt"],
                 "source_answer_prompt": prompt,
                 "specific_expected": case["specific_expected"],
-                "diagnostic_shift": case["diagnostic_shift"],
+                "diagnostic_shift": case.get("diagnostic_shift"),
                 "answer": answer,
                 "answer_aliases": diagnosis_aliases,
                 "answer_hits": diagnosis_hits,

@@ -27,15 +27,37 @@ def write_jsonl(path: Path, rows: Iterable[dict]) -> None:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def case_id(case: dict) -> str:
+    return case.get("id") or case["base_id"]
+
+
+def specific_targets(case: dict) -> list[str]:
+    if "specific_targets" in case:
+        return list(case["specific_targets"])
+    return [case["specific_cue_1"], case["specific_cue_2"], case["specific_cue_3"]]
+
+
+def diagnostic_shift(case: dict) -> str:
+    if "diagnostic_shift" in case:
+        return case["diagnostic_shift"]
+    return f"{case['nonspecific_target'].replace(' ', '_')}_to_{case['specific_expected'].replace(' ', '_')}"
+
+
 def common_fields(case: dict) -> dict:
-    return {
-        "base_id": case["id"],
+    fields = {
+        "base_id": case_id(case),
+        "category": case.get("category"),
         "nonspecific_target": case["nonspecific_target"],
+        "specific_targets": specific_targets(case),
         "nonspecific_expected": case["nonspecific_expected"],
         "specific_expected": case["specific_expected"],
-        "diagnostic_shift": case["diagnostic_shift"],
+        "diagnostic_shift": diagnostic_shift(case),
         "notes": case.get("notes"),
     }
+    for key in ("specific_aliases", "nonspecific_aliases", "diagnosis_aliases"):
+        if key in case:
+            fields[key] = case[key]
+    return fields
 
 
 def extraction_row(
@@ -51,7 +73,7 @@ def extraction_row(
 ) -> dict:
     return {
         **common_fields(case),
-        "id": f"{case['id']}__{variant}",
+        "id": f"{case_id(case)}__{variant}",
         "variant": variant,
         "condition": condition,
         "target_role": target_role,
@@ -91,7 +113,7 @@ def expanded_rows(case: dict) -> list[dict]:
             target_role="nonspecific_cue",
         ),
     ]
-    for idx, target in enumerate(case["specific_targets"], start=1):
+    for idx, target in enumerate(specific_targets(case), start=1):
         rows.append(
             extraction_row(
                 case,

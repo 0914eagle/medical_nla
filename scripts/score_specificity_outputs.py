@@ -77,6 +77,13 @@ def hits(text: str, aliases: list[str]) -> list[str]:
     return [term for term in aliases if contains_term(text, term)]
 
 
+def aliases(row: dict, key: str, fallback: dict[str, list[str]]) -> list[str]:
+    values = row.get(key)
+    if values:
+        return list(values)
+    return fallback.get(row["base_id"], [])
+
+
 def classify_case(case_rows: dict[str, dict]) -> str:
     nonspecific_full = case_rows.get("specific_full_nonspecific_cue", {})
     full_format = case_rows.get("specific_full_format", {})
@@ -168,14 +175,16 @@ def main() -> None:
     for row in read_jsonl(Path(args.input)):
         base_id = row["base_id"]
         output = row.get("nla_output", "")
-        specific_hits = hits(output, SPECIFIC_ALIASES.get(base_id, []))
-        nonspecific_hits = hits(output, NONSPECIFIC_ALIASES.get(base_id, []))
+        specific_aliases = aliases(row, "specific_aliases", SPECIFIC_ALIASES)
+        nonspecific_aliases = aliases(row, "nonspecific_aliases", NONSPECIFIC_ALIASES)
+        specific_hits = hits(output, specific_aliases)
+        nonspecific_hits = hits(output, nonspecific_aliases)
         scored.append(
             {
                 **row,
                 "variant": variant(row),
-                "specific_aliases": SPECIFIC_ALIASES.get(base_id, []),
-                "nonspecific_aliases": NONSPECIFIC_ALIASES.get(base_id, []),
+                "specific_aliases": specific_aliases,
+                "nonspecific_aliases": nonspecific_aliases,
                 "specific_hits": specific_hits,
                 "nonspecific_hits": nonspecific_hits,
                 "specific_hit": bool(specific_hits),

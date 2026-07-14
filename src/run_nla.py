@@ -28,11 +28,16 @@ PASSTHROUGH_FIELDS = [
     "insertion_type",
     "target_role",
     "cue_index",
+    "category",
     "nonspecific_target",
     "specific_target",
+    "specific_targets",
     "nonspecific_expected",
     "specific_expected",
     "diagnostic_shift",
+    "specific_aliases",
+    "nonspecific_aliases",
+    "diagnosis_aliases",
     "notes",
 ]
 
