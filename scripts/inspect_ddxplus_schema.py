@@ -8,6 +8,7 @@ the conversion step can be configured without guessing.
 from __future__ import annotations
 
 import argparse
+import ast
 import csv
 import json
 from collections import Counter
@@ -53,7 +54,10 @@ def parse_maybe_json(value: Any) -> Any:
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            return value
+            try:
+                return ast.literal_eval(text)
+            except (SyntaxError, ValueError):
+                return value
     return value
 
 

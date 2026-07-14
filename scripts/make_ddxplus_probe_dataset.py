@@ -11,6 +11,7 @@ matching is stable.
 from __future__ import annotations
 
 import argparse
+import ast
 import csv
 import json
 import random
@@ -78,7 +79,10 @@ def parse_maybe_json(value: Any) -> Any:
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            return value
+            try:
+                return ast.literal_eval(text)
+            except (SyntaxError, ValueError):
+                return value
     return value
 
 
@@ -149,7 +153,26 @@ def meta_text(meta: dict[str, Any], fallback: str) -> str:
 def possible_value_label(meta: dict[str, Any], value_id: str | None) -> str | None:
     if value_id is None:
         return None
-    for label_key in ("value_meaning", "value_label", "meaning"):
+    value_meaning = meta.get("value_meaning")
+    if isinstance(value_meaning, dict):
+        value_meta = value_meaning.get(value_id)
+        if isinstance(value_meta, str):
+            return value_meta
+        if isinstance(value_meta, dict):
+            for label_key in (
+                "en",
+                "label",
+                "name",
+                "value",
+                "text",
+                "meaning",
+                "value_meaning",
+                "value_label",
+            ):
+                label = value_meta.get(label_key)
+                if isinstance(label, str) and label.strip():
+                    return label
+    for label_key in ("value_label", "meaning"):
         label = meta.get(label_key)
         if isinstance(label, str) and label.strip():
             return label

@@ -48,3 +48,39 @@ def test_make_ddxplus_probe_case_prefers_symptoms_and_variants():
     assert rows[0]["target_text_strategy"] == "span_mean"
     assert rows[-1]["position_mode"] == "last_token"
     assert rows[-1]["diagnosis_aliases"] == ["Pulmonary embolism"]
+
+
+def test_make_ddxplus_probe_case_parses_ddxplus_literal_and_value_meaning():
+    evidence_meta = {
+        "E_53": {"question_en": "Do you have pain somewhere?", "is_antecedent": False},
+        "E_55": {
+            "question_en": "Where is the pain located?",
+            "is_antecedent": False,
+            "value_meaning": {"V_29": {"en": "chest"}},
+            "possible-values": [],
+        },
+        "E_91": {
+            "question_en": "Do you have a fever?",
+            "is_antecedent": False,
+            "value_meaning": {},
+            "possible-values": [],
+        },
+    }
+    row = {
+        "PATHOLOGY": "Pneumonia",
+        "EVIDENCES": "['E_53', 'E_55_@_V_29', 'E_91']",
+    }
+
+    case = make_case(
+        row,
+        row_index=1,
+        evidence_meta=evidence_meta,
+        rng=random.Random(1),
+        prefer_symptoms=True,
+        max_cues=3,
+    )
+
+    assert case is not None
+    assert "E_55" in case["cue_evidence_ids"]
+    assert not any(target.startswith("'") or target.startswith("[") for target in case["cue_targets"])
+    assert any("chest" in target for target in case["cue_targets"])
