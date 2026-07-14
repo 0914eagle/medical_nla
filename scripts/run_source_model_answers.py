@@ -23,6 +23,21 @@ from scripts.score_specificity_outputs import SPECIFIC_ALIASES, contains_term
 from src.config import ensure_dir, load_config
 from src.modeling import load_causal_lm, load_tokenizer
 
+SOURCE_DIAGNOSIS_ALIASES = {
+    "shift_001": ["meningitis", "meningeal"],
+    "shift_002": ["wernicke", "thiamine", "vitamin b1", "b1 deficiency"],
+    "shift_003": ["aortic dissection", "dissection"],
+    "shift_004": ["pheochromocytoma"],
+    "shift_005": ["deep vein thrombosis", "dvt"],
+    "shift_006": ["infective endocarditis", "endocarditis"],
+    "shift_007": ["pulmonary embolism", "pe"],
+    "shift_008": ["appendicitis"],
+    "shift_009": ["subarachnoid hemorrhage", "subarachnoid", "sah"],
+    "shift_010": ["stroke", "cerebrovascular accident", "cva"],
+    "shift_011": ["pneumonia"],
+    "shift_012": ["hemolysis", "hemolytic", "prehepatic"],
+}
+
 
 def read_jsonl(path: Path) -> list[dict]:
     rows = []
@@ -63,25 +78,41 @@ def alias_hits(text: str, aliases: list[str]) -> list[str]:
     return [alias for alias in aliases if contains_term(text, alias)]
 
 
+def source_answer_prompt(prompt: str) -> str:
+    return (
+        "Answer the clinical question with the most likely diagnosis or syndrome "
+        "first, in one short sentence. Then give one brief reason.\n\n"
+        f"Question: {prompt}"
+    )
+
+
 def write_summary(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    hits = [bool(row["answer_hit"]) for row in rows]
+    hits = [bool(row["diagnosis_hit"]) for row in rows]
+    broad_hits = [bool(row["broad_hit"]) for row in rows]
     with path.open("w", encoding="utf-8") as f:
         f.write("# Source Model Answer Baseline\n\n")
-        f.write("Lexical screening only; not claim-level clinical grading.\n\n")
+        f.write("Lexical screening only; not claim-level clinical grading.\n")
+        f.write(
+            "`diagnosis_hit` uses diagnosis-level aliases only; `broad_hit` also "
+            "includes cue/symptom aliases used for NLA screening.\n\n"
+        )
         f.write(f"- n: {len(rows)}\n")
-        f.write(f"- answer_hit: {sum(hits)}/{len(rows)}\n")
-        f.write(f"- answer_hit_rate: {mean(hits):.3f}\n\n")
-        f.write("| case | expected | hit | hits | answer |\n")
-        f.write("|---|---|---:|---|---|\n")
+        f.write(f"- diagnosis_hit: {sum(hits)}/{len(rows)}\n")
+        f.write(f"- diagnosis_hit_rate: {mean(hits):.3f}\n")
+        f.write(f"- broad_hit: {sum(broad_hits)}/{len(rows)}\n")
+        f.write(f"- broad_hit_rate: {mean(broad_hits):.3f}\n\n")
+        f.write("| case | expected | diagnosis_hit | diagnosis_hits | broad_hits | answer |\n")
+        f.write("|---|---|---:|---|---|---|\n")
         for row in rows:
             answer = row["answer"].replace("\n", " ")
             if len(answer) > 220:
                 answer = answer[:217] + "..."
             f.write(
                 f"| {row['id']} | {row['specific_expected']} | "
-                f"{'Y' if row['answer_hit'] else 'N'} | "
-                f"{', '.join(row['answer_hits']) or '-'} | "
+                f"{'Y' if row['diagnosis_hit'] else 'N'} | "
+                f"{', '.join(row['diagnosis_hits']) or '-'} | "
+                f"{', '.join(row['broad_hits']) or '-'} | "
                 f"{answer} |\n"
             )
 
@@ -111,7 +142,7 @@ def main() -> None:
 
     out_rows = []
     for case in read_jsonl(Path(args.input)):
-        prompt = case["specific_prompt"]
+        prompt = source_answer_prompt(case["specific_prompt"])
         encoded = chat_inputs(tokenizer, prompt, model.device)
         input_len = int(encoded["input_ids"].shape[-1])
         with torch.inference_mode():
@@ -123,18 +154,27 @@ def main() -> None:
             )
         answer_ids = generated[0, input_len:]
         answer = tokenizer.decode(answer_ids, skip_special_tokens=True).strip()
-        aliases = SPECIFIC_ALIASES.get(case["id"], [])
-        hits = alias_hits(answer, aliases)
+        broad_aliases = SPECIFIC_ALIASES.get(case["id"], [])
+        broad_hits = alias_hits(answer, broad_aliases)
+        diagnosis_aliases = SOURCE_DIAGNOSIS_ALIASES.get(case["id"], broad_aliases)
+        diagnosis_hits = alias_hits(answer, diagnosis_aliases)
         out_rows.append(
             {
                 "id": case["id"],
-                "prompt": prompt,
+                "prompt": case["specific_prompt"],
+                "source_answer_prompt": prompt,
                 "specific_expected": case["specific_expected"],
                 "diagnostic_shift": case["diagnostic_shift"],
                 "answer": answer,
-                "answer_aliases": aliases,
-                "answer_hits": hits,
-                "answer_hit": bool(hits),
+                "answer_aliases": diagnosis_aliases,
+                "answer_hits": diagnosis_hits,
+                "answer_hit": bool(diagnosis_hits),
+                "diagnosis_aliases": diagnosis_aliases,
+                "diagnosis_hits": diagnosis_hits,
+                "diagnosis_hit": bool(diagnosis_hits),
+                "broad_aliases": broad_aliases,
+                "broad_hits": broad_hits,
+                "broad_hit": bool(broad_hits),
                 "gen_config": gen_kwargs,
             }
         )
