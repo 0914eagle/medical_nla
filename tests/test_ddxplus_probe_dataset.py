@@ -1,7 +1,7 @@
 import json
 import random
 
-from scripts.make_ddxplus_probe_dataset import make_case, variant_rows
+from scripts.make_ddxplus_probe_dataset import make_case, strip_question_to_phrase, variant_rows
 
 
 def test_make_ddxplus_probe_case_prefers_symptoms_and_variants():
@@ -84,3 +84,10 @@ def test_make_ddxplus_probe_case_parses_ddxplus_literal_and_value_meaning():
     assert "E_55" in case["cue_evidence_ids"]
     assert not any(target.startswith("'") or target.startswith("[") for target in case["cue_targets"])
     assert any("chest" in target for target in case["cue_targets"])
+
+
+def test_strip_question_to_phrase_removes_second_person_fragments():
+    assert (
+        strip_question_to_phrase("Have you noticed a wheezing sound when you exhale?")
+        == "a wheezing sound when exhaling"
+    )

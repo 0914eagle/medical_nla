@@ -118,8 +118,22 @@ def normalize_space(text: str) -> str:
 def strip_question_to_phrase(text: str) -> str:
     phrase = normalize_space(text)
     phrase = phrase.strip(" ?.")
-    phrase = re.sub(r"^(do you|did you|are you|were you|have you|has the patient|does the patient)\s+", "", phrase, flags=re.I)
-    phrase = re.sub(r"^(have|has|feel|experience|experiencing|suffer from|present with)\s+", "", phrase, flags=re.I)
+    phrase = re.sub(
+        r"^(do you|did you|are you|were you|have you|has the patient|does the patient)\s+",
+        "",
+        phrase,
+        flags=re.I,
+    )
+    phrase = re.sub(
+        r"^(have|has|feel|experience|experiencing|suffer from|present with|"
+        r"noticed|notice|observed|observe|objectified|felt|measured)\s+",
+        "",
+        phrase,
+        flags=re.I,
+    )
+    phrase = re.sub(r"\bwhen you exhale\b", "when exhaling", phrase, flags=re.I)
+    phrase = re.sub(r"\byour\b", "their", phrase, flags=re.I)
+    phrase = re.sub(r"\byou\b", "the patient", phrase, flags=re.I)
     phrase = re.sub(r"\b(yes or no|right now|currently)\b", "", phrase, flags=re.I)
     phrase = normalize_space(phrase.strip(" ?.:;,-"))
     if not phrase:
