@@ -118,7 +118,8 @@ python scripts/inspect_ddxplus_schema.py \
 python scripts/make_ddxplus_probe_dataset.py \
   --patients /data3/heejae/ddxplus/train.csv \
   --evidences /data3/heejae/ddxplus/release_evidences.json \
-  --output /data3/heejae/medical_nla/ddxplus_probe_v1.jsonl \
+  --cases-output /data3/heejae/medical_nla/ddxplus_probe_v1_cases.jsonl \
+  --variants-output /data3/heejae/medical_nla/ddxplus_probe_v1_variants.jsonl \
   --examples-per-diagnosis 100 \
   --max-cues 3 \
   --seed 17
@@ -127,7 +128,9 @@ python scripts/make_ddxplus_probe_dataset.py \
 Expected:
 
 ```bash
-wc -l /data3/heejae/medical_nla/ddxplus_probe_v1.jsonl
+wc -l /data3/heejae/medical_nla/ddxplus_probe_v1_cases.jsonl
+# 4900
+wc -l /data3/heejae/medical_nla/ddxplus_probe_v1_variants.jsonl
 # 29400
 ```
 
@@ -147,7 +150,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python -m src.extract_activations \
   --config configs/data3.yaml \
-  --input /data3/heejae/medical_nla/ddxplus_probe_v1.jsonl \
+  --input /data3/heejae/medical_nla/ddxplus_probe_v1_variants.jsonl \
   --run-name ddxplus_probe_v1
 ' > /data3/heejae/medical_nla/logs/ddxplus_probe_v1_extract.log 2>&1 &
 ```
