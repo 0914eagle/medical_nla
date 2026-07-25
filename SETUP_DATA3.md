@@ -114,6 +114,10 @@ python scripts/inspect_ddxplus_schema.py \
 
 ## 5. Rebuild DDXPlus Probe Inputs
 
+If you want to run the whole pipeline before sleeping, skip to
+[`One-command overnight run`](#one-command-overnight-run). Otherwise run the
+steps below one by one.
+
 ```bash
 python scripts/make_ddxplus_probe_dataset.py \
   --patients /data3/heejae/ddxplus/train.csv \
@@ -220,6 +224,39 @@ Check:
 ```bash
 tail -f /data3/heejae/medical_nla/logs/ddxplus_nla_multi_format_logprobs_v1.log
 cat /data3/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_v1_summary.md
+```
+
+## One-command Overnight Run
+
+This performs:
+
+1. DDXPlus probe row generation
+2. Gemma activation extraction
+3. `multi_format` manifest filtering
+4. vanilla NLA diagnosis logprob scoring
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+git pull
+GPU=0 bash scripts/run_data3_ddxplus_logprob_pipeline.sh
+' > /data3/heejae/medical_nla/logs/data3_ddxplus_logprob_pipeline.log 2>&1 &
+```
+
+Check progress:
+
+```bash
+tail -f /data3/heejae/medical_nla/logs/data3_ddxplus_logprob_pipeline.log
+```
+
+If a partial artifact exists and you want to force regeneration:
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+git pull
+FORCE=1 GPU=0 bash scripts/run_data3_ddxplus_logprob_pipeline.sh
+' > /data3/heejae/medical_nla/logs/data3_ddxplus_logprob_pipeline_force.log 2>&1 &
 ```
 
 ## 9. Optional: Copy Existing Activations Instead of Rebuilding
