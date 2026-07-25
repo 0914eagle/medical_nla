@@ -10,7 +10,7 @@ import torch
 
 from .config import ensure_dir, load_config
 from .jsonl import append_jsonl, read_jsonl
-from .modeling import load_causal_lm, load_tokenizer
+from .modeling import load_causal_lm, load_tokenizer, maybe_load_peft_adapter
 from .nla import build_nla_inputs_embeds, cjk_fraction, extract_explanation, load_nla_sidecar
 
 
@@ -98,6 +98,11 @@ def main() -> None:
         action="store_true",
         help="Print the sidecar default actor prompt template and exit.",
     )
+    parser.add_argument(
+        "--adapter-id",
+        default=None,
+        help="Optional PEFT/LoRA adapter path or HF id for evaluating Medical-NLA.",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -140,6 +145,8 @@ def main() -> None:
             args.actor_prompt_suffix_file,
         )
     model = load_causal_lm(nla_cfg, cache_dir=cache_dir)
+    adapter_id = args.adapter_id or nla_cfg.get("adapter_id")
+    model = maybe_load_peft_adapter(model, adapter_id, cache_dir=cache_dir)
     model.eval()
 
     embed_layer = model.get_input_embeddings()
@@ -170,6 +177,7 @@ def main() -> None:
                 "query": result.prompt_text,
                 "actor_prompt_template_file": args.actor_prompt_template_file,
                 "actor_prompt_suffix_file": args.actor_prompt_suffix_file,
+                "adapter_id": adapter_id,
                 "nla_output": explanation,
                 "raw_nla_output": raw_text,
                 "parsed_explanation_tag": parsed_explanation,

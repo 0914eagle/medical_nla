@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import math
 import shutil
+import sys
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -17,9 +18,13 @@ from typing import Any
 import torch
 import torch.nn.functional as F
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from src.config import ensure_dir, load_config
 from src.jsonl import append_jsonl, read_jsonl
-from src.modeling import load_causal_lm, load_tokenizer
+from src.modeling import load_causal_lm, load_tokenizer, maybe_load_peft_adapter
 from src.nla import build_nla_inputs_embeds, load_nla_sidecar
 from src.run_nla import actor_prompt_template_with_suffix, read_actor_prompt_template
 
@@ -261,6 +266,11 @@ def main() -> None:
     parser.add_argument("--top-k-output", type=int, default=10)
     parser.add_argument("--actor-prompt-template-file", default=None)
     parser.add_argument("--actor-prompt-suffix-file", default=None)
+    parser.add_argument(
+        "--adapter-id",
+        default=None,
+        help="Optional PEFT/LoRA adapter path or HF id for evaluating Medical-NLA.",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -309,6 +319,8 @@ def main() -> None:
         )
 
     model = load_causal_lm(nla_cfg, cache_dir=cache_dir)
+    adapter_id = args.adapter_id or nla_cfg.get("adapter_id")
+    model = maybe_load_peft_adapter(model, adapter_id, cache_dir=cache_dir)
     model.eval()
     embed_layer = model.get_input_embeddings()
     tokenized_candidates = [
@@ -375,6 +387,7 @@ def main() -> None:
             "injection_position": injected.injection_position,
             "injection_scale": sidecar.injection_scale,
             "sidecar_path": sidecar.path,
+            "adapter_id": adapter_id,
             "timestamp": datetime.now(UTC).isoformat(),
         }
         for field in PASSTHROUGH_FIELDS:

@@ -128,12 +128,22 @@ def evaluate(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor, batch_siz
     }
 
 
+def predict_logits(model: torch.nn.Module, x: torch.Tensor, batch_size: int) -> torch.Tensor:
+    model.eval()
+    logits = []
+    with torch.inference_mode():
+        for start in range(0, x.shape[0], batch_size):
+            logits.append(model(x[start : start + batch_size]).cpu())
+    return torch.cat(logits, dim=0)
+
+
 def train_group(
     *,
     group: str,
     rows: list[dict[str, Any]],
     split_map: dict[str, str],
     class_to_idx: dict[str, int],
+    idx_to_class: dict[int, str],
     device: torch.device,
     epochs: int,
     lr: float,
@@ -141,6 +151,8 @@ def train_group(
     batch_size: int,
     standardize: bool,
     seed: int,
+    out_dir: Path | None,
+    write_predictions: bool,
 ) -> dict[str, Any]:
     group_rows = rows_for_group(rows, group)
     if not group_rows:
@@ -160,6 +172,9 @@ def train_group(
         x_train = (x_train - mean) / std
         x_val = (x_val - mean) / std
         x_test = (x_test - mean) / std
+    else:
+        mean = torch.zeros((1, x_train.shape[1]))
+        std = torch.ones((1, x_train.shape[1]))
 
     generator = torch.Generator()
     generator.manual_seed(seed)
@@ -193,6 +208,49 @@ def train_group(
     train_metrics = evaluate(model, x_train.to(device), y_train, batch_size)
     val_metrics = evaluate(model, x_val.to(device), y_val, batch_size)
     test_metrics = evaluate(model, x_test.to(device), y_test, batch_size)
+
+    if out_dir is not None:
+        artifact = {
+            "group": group,
+            "state_dict": {key: value.detach().cpu() for key, value in model.state_dict().items()},
+            "mean": mean.cpu(),
+            "std": std.cpu(),
+            "class_to_idx": class_to_idx,
+            "idx_to_class": idx_to_class,
+            "standardize": standardize,
+        }
+        torch.save(artifact, out_dir / f"{group}.pt")
+
+    if write_predictions and out_dir is not None:
+        test_logits = predict_logits(model, x_test.to(device), batch_size)
+        probs = F.softmax(test_logits, dim=-1)
+        top_values, top_indices = probs.topk(min(5, probs.shape[-1]), dim=-1)
+        prediction_rows = []
+        for row, gold, values, indices in zip(
+            split_rows["test"], y_test.tolist(), top_values.tolist(), top_indices.tolist(), strict=True
+        ):
+            prediction_rows.append(
+                {
+                    "id": row["id"],
+                    "base_id": row["base_id"],
+                    "variant": row["variant"],
+                    "group": group,
+                    "gold_diagnosis_id": idx_to_class[int(gold)],
+                    "top1_diagnosis_id": idx_to_class[int(indices[0])],
+                    "top1_prob": float(values[0]),
+                    "gold_rank": int(
+                        (test_logits[len(prediction_rows)].argsort(descending=True) == int(gold))
+                        .nonzero(as_tuple=False)[0]
+                        .item()
+                        + 1
+                    ),
+                    "top5": [
+                        {"diagnosis_id": idx_to_class[int(idx)], "prob": float(value)}
+                        for value, idx in zip(values, indices, strict=True)
+                    ],
+                }
+            )
+        write_jsonl(out_dir / f"{group}.predictions.jsonl", prediction_rows)
 
     return {
         "group": group,
@@ -248,6 +306,7 @@ def main() -> None:
     parser.add_argument("--train-frac", type=float, default=0.7)
     parser.add_argument("--val-frac", type=float, default=0.15)
     parser.add_argument("--no-standardize", action="store_true")
+    parser.add_argument("--write-predictions", action="store_true")
     args = parser.parse_args()
 
     rows = read_jsonl(Path(args.manifest))
@@ -257,6 +316,7 @@ def main() -> None:
 
     classes = sorted({str(row["diagnosis_id"]) for row in rows})
     class_to_idx = {name: idx for idx, name in enumerate(classes)}
+    idx_to_class = {idx: name for name, idx in class_to_idx.items()}
     split_map = split_cases(
         rows,
         seed=args.seed,
@@ -300,6 +360,7 @@ def main() -> None:
             rows=rows,
             split_map=split_map,
             class_to_idx=class_to_idx,
+            idx_to_class=idx_to_class,
             device=device,
             epochs=args.epochs,
             lr=args.lr,
@@ -307,6 +368,8 @@ def main() -> None:
             batch_size=args.batch_size,
             standardize=not args.no_standardize,
             seed=args.seed,
+            out_dir=out_dir,
+            write_predictions=args.write_predictions,
         )
         results.append(result)
         print(
