@@ -55,14 +55,23 @@ def build_prompt(prompt: str, *, prompt_mode: str) -> str:
     raise ValueError(f"Unsupported prompt mode: {prompt_mode}")
 
 
-def chat_inputs(tokenizer: Any, prompt: str, device: torch.device) -> dict[str, torch.Tensor]:
-    encoded = tokenizer.apply_chat_template(
-        [{"role": "user", "content": prompt}],
-        tokenize=True,
-        add_generation_prompt=True,
+def chat_inputs(tokenizer: Any, prompts: list[str], device: torch.device) -> dict[str, torch.Tensor]:
+    chat_texts = [
+        tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt}],
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        for prompt in prompts
+    ]
+    original_padding_side = tokenizer.padding_side
+    tokenizer.padding_side = "left"
+    encoded = tokenizer(
+        chat_texts,
+        padding=True,
         return_tensors="pt",
-        return_dict=True,
     )
+    tokenizer.padding_side = original_padding_side
     return {key: value.to(device) for key, value in encoded.items()}
 
 
@@ -113,6 +122,7 @@ def main() -> None:
         ),
     )
     parser.add_argument("--max-new-tokens", type=int, default=256)
+    parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--limit", type=int, default=None)
     args = parser.parse_args()
 
@@ -138,12 +148,22 @@ def main() -> None:
     if output_path.exists():
         output_path.unlink()
     out_rows = []
-    for idx, row in enumerate(rows, start=1):
-        prompt = str(row.get(args.prompt_field) or "")
-        if not prompt:
+    total = len(rows)
+    for start in range(0, len(rows), args.batch_size):
+        batch_rows = rows[start : start + args.batch_size]
+        prompts: list[str] = []
+        source_answer_prompts: list[str] = []
+        kept_rows: list[dict[str, Any]] = []
+        for row in batch_rows:
+            prompt = str(row.get(args.prompt_field) or "")
+            if not prompt:
+                continue
+            prompts.append(prompt)
+            source_answer_prompts.append(build_prompt(prompt, prompt_mode=args.prompt_mode))
+            kept_rows.append(row)
+        if not kept_rows:
             continue
-        source_answer_prompt = build_prompt(prompt, prompt_mode=args.prompt_mode)
-        encoded = chat_inputs(tokenizer, source_answer_prompt, model.device)
+        encoded = chat_inputs(tokenizer, source_answer_prompts, model.device)
         input_len = int(encoded["input_ids"].shape[-1])
         with torch.inference_mode():
             generated = model.generate(
@@ -152,30 +172,35 @@ def main() -> None:
                 eos_token_id=tokenizer.eos_token_id,
                 **gen_kwargs,
             )
-        answer_ids = generated[0, input_len:]
-        answer = tokenizer.decode(answer_ids, skip_special_tokens=True).strip()
-        row_aliases = aliases(row)
-        hits = [alias for alias in row_aliases if contains_term(answer, alias)]
-        out = {
-            "id": row["id"],
-            "base_id": row.get("base_id", row["id"]),
-            "prompt": prompt,
-            "source_answer_prompt": source_answer_prompt,
-            "prompt_mode": args.prompt_mode,
-            "diagnosis_id": row.get("diagnosis_id"),
-            "diagnosis_name": diagnosis_name(row),
-            "diagnosis_aliases": row_aliases,
-            "answer": answer,
-            "diagnosis_hits": hits,
-            "diagnosis_hit": bool(hits),
-            "gen_config": gen_kwargs,
-            "variant": row.get("variant"),
-            "source": row.get("source"),
-            "patient_id": row.get("patient_id"),
-        }
-        append_jsonl(output_path, out)
-        out_rows.append(out)
-        print(f"[source-answer] {idx}/{len(rows)} {row['id']} hit={bool(hits)}", flush=True)
+        for offset, row in enumerate(kept_rows):
+            answer_ids = generated[offset, input_len:]
+            answer = tokenizer.decode(answer_ids, skip_special_tokens=True).strip()
+            row_aliases = aliases(row)
+            hits = [alias for alias in row_aliases if contains_term(answer, alias)]
+            out = {
+                "id": row["id"],
+                "base_id": row.get("base_id", row["id"]),
+                "prompt": prompts[offset],
+                "source_answer_prompt": source_answer_prompts[offset],
+                "prompt_mode": args.prompt_mode,
+                "diagnosis_id": row.get("diagnosis_id"),
+                "diagnosis_name": diagnosis_name(row),
+                "diagnosis_aliases": row_aliases,
+                "answer": answer,
+                "diagnosis_hits": hits,
+                "diagnosis_hit": bool(hits),
+                "gen_config": gen_kwargs,
+                "batch_size": args.batch_size,
+                "variant": row.get("variant"),
+                "source": row.get("source"),
+                "patient_id": row.get("patient_id"),
+            }
+            append_jsonl(output_path, out)
+            out_rows.append(out)
+            print(
+                f"[source-answer] {start + offset + 1}/{total} {row['id']} hit={bool(hits)}",
+                flush=True,
+            )
     write_summary(summary_path, out_rows)
     print(f"[done] wrote {len(out_rows)} rows to {output_path}", flush=True)
 

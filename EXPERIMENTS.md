@@ -45,18 +45,21 @@ nohup bash -lc '
 cd /home/eagle0914/medical_nla
 source /data1/heejae/uv/medical_nla/bin/activate
 export PYTHONPATH=/home/eagle0914/medical_nla
+unset HF_TOKEN
 export HF_HOME=/data1/heejae/hf_cache
 export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
 export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-CUDA_VISIBLE_DEVICES=8 python scripts/run_source_model_qa.py \
+CUDA_VISIBLE_DEVICES=0 python scripts/run_source_model_qa.py \
   --config configs/default.yaml \
   --input /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_source_answers_raw_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_source_answers_raw_v1_summary.md \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_source_answers_raw_b8_v1.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_source_answers_raw_b8_v1_summary.md \
   --prompt-mode raw \
-  --max-new-tokens 256
-' > /data1/heejae/medical_nla/logs/ddxplus_source_answers_raw_v1.log 2>&1 &
+  --max-new-tokens 256 \
+  --batch-size 8
+' > /data1/heejae/medical_nla/logs/ddxplus_source_answers_raw_b8_v1.log 2>&1 &
 ```
 
 Use the instructed sanity-check prompt separately:
@@ -66,18 +69,21 @@ nohup bash -lc '
 cd /home/eagle0914/medical_nla
 source /data1/heejae/uv/medical_nla/bin/activate
 export PYTHONPATH=/home/eagle0914/medical_nla
+unset HF_TOKEN
 export HF_HOME=/data1/heejae/hf_cache
 export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
 export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-CUDA_VISIBLE_DEVICES=8 python scripts/run_source_model_qa.py \
+CUDA_VISIBLE_DEVICES=0 python scripts/run_source_model_qa.py \
   --config configs/default.yaml \
   --input /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_source_answers_diagnosis_first_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_source_answers_diagnosis_first_v1_summary.md \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_source_answers_diagnosis_first_b8_v1.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_source_answers_diagnosis_first_b8_v1_summary.md \
   --prompt-mode diagnosis_first \
-  --max-new-tokens 256
-' > /data1/heejae/medical_nla/logs/ddxplus_source_answers_diagnosis_first_v1.log 2>&1 &
+  --max-new-tokens 256 \
+  --batch-size 8
+' > /data1/heejae/medical_nla/logs/ddxplus_source_answers_diagnosis_first_b8_v1.log 2>&1 &
 ```
 
 ```bash
