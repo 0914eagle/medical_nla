@@ -230,6 +230,40 @@ tail -f /data3/heejae/medical_nla/logs/ddxplus_nla_multi_format_logprobs_calibra
 cat /data3/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_calibrated_v1_summary.md
 ```
 
+## 8b. Source Model Calibrated Diagnosis Logprob Baseline
+
+This checks whether the DDXPlus diagnosis candidate surface forms are usable
+for the base Gemma model itself. The neutral calibration prompt removes
+candidate-name priors, similar to the NLA calibrated logprob run.
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data3/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+export HF_HOME=/data3/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data3/heejae/hf_cache
+export HF_DATASETS_CACHE=/data3/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=0 python -m scripts.score_source_diagnosis_logprobs \
+  --config configs/data3.yaml \
+  --input /data3/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
+  --output-jsonl /data3/heejae/medical_nla/results/ddxplus_source_multi_format_logprobs_calibrated_v1.jsonl \
+  --summary-md /data3/heejae/medical_nla/results/ddxplus_source_multi_format_logprobs_calibrated_v1_summary.md \
+  --candidate-batch-size 8 \
+  --rank-field calibrated_logprob_mean \
+  --calibration-prompt "A patient presents with symptoms. What diagnosis is most likely?"
+' > /data3/heejae/medical_nla/logs/ddxplus_source_multi_format_logprobs_calibrated_v1.log 2>&1 &
+```
+
+Check:
+
+```bash
+tail -f /data3/heejae/medical_nla/logs/ddxplus_source_multi_format_logprobs_calibrated_v1.log
+cat /data3/heejae/medical_nla/results/ddxplus_source_multi_format_logprobs_calibrated_v1_summary.md
+```
+
 ## One-command Overnight Run
 
 This performs:

@@ -158,6 +158,25 @@ def score_candidates(
     return out_scores
 
 
+def add_calibrated_scores(
+    scores: list[dict[str, float | int]],
+    baseline_scores: list[dict[str, float | int]],
+) -> None:
+    for score, baseline in zip(scores, baseline_scores, strict=True):
+        score["baseline_logprob_sum"] = baseline["logprob_sum"]
+        score["baseline_logprob_mean"] = baseline["logprob_mean"]
+        score["baseline_first_token_logprob"] = baseline["first_token_logprob"]
+        score["calibrated_logprob_sum"] = float(score["logprob_sum"]) - float(
+            baseline["logprob_sum"]
+        )
+        score["calibrated_logprob_mean"] = float(score["logprob_mean"]) - float(
+            baseline["logprob_mean"]
+        )
+        score["calibrated_first_token_logprob"] = float(score["first_token_logprob"]) - float(
+            baseline["first_token_logprob"]
+        )
+
+
 def rank_candidates(
     candidates: list[dict[str, str]],
     scores: list[dict[str, float | int]],
@@ -216,12 +235,27 @@ def main() -> None:
     parser.add_argument("--completion-prefix", default="The most likely diagnosis is")
     parser.add_argument(
         "--rank-field",
-        choices=["logprob_mean", "logprob_sum", "first_token_logprob"],
+        choices=[
+            "logprob_mean",
+            "logprob_sum",
+            "first_token_logprob",
+            "calibrated_logprob_mean",
+            "calibrated_logprob_sum",
+            "calibrated_first_token_logprob",
+        ],
         default="logprob_mean",
     )
     parser.add_argument("--candidate-batch-size", type=int, default=8)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--top-k-output", type=int, default=10)
+    parser.add_argument(
+        "--calibration-prompt",
+        default=None,
+        help=(
+            "Optional neutral prompt for subtracting candidate-name and generic "
+            "diagnosis priors. Required when rank-field starts with calibrated_."
+        ),
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -248,6 +282,23 @@ def main() -> None:
         completion_prefix=args.completion_prefix,
         candidates=candidates,
     )
+    baseline_scores = None
+    if args.rank_field.startswith("calibrated_"):
+        if not args.calibration_prompt:
+            raise ValueError("--calibration-prompt is required for calibrated rank fields.")
+        print("[calibration] scoring neutral source-model candidate priors", flush=True)
+        baseline_prefix_ids = chat_prefix_ids(
+            tokenizer,
+            prompt=args.calibration_prompt,
+            completion_prefix=args.completion_prefix,
+        )
+        baseline_scores = score_candidates(
+            model=model,
+            prefix_ids=baseline_prefix_ids,
+            candidate_ids=tokenized_candidates,
+            pad_token_id=int(tokenizer.pad_token_id),
+            batch_size=args.candidate_batch_size,
+        )
 
     output_path = Path(args.output_jsonl)
     summary_path = Path(args.summary_md)
@@ -272,6 +323,8 @@ def main() -> None:
             pad_token_id=int(tokenizer.pad_token_id),
             batch_size=args.candidate_batch_size,
         )
+        if baseline_scores is not None:
+            add_calibrated_scores(scores, baseline_scores)
         ranked = rank_candidates(candidates, scores, rank_field=args.rank_field)
         gold = next(item for item in ranked if item["diagnosis_id"] == gold_id)
         top = ranked[0]
