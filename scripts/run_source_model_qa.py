@@ -39,7 +39,7 @@ def aliases(row: dict[str, Any]) -> list[str]:
     return [str(value) for value in values if str(value).strip()]
 
 
-def answer_prompt(prompt: str) -> str:
+def diagnosis_first_prompt(prompt: str) -> str:
     return (
         "Answer the clinical question with the most likely diagnosis or syndrome "
         "first, in one short sentence. Then give one brief reason.\n\n"
@@ -47,9 +47,17 @@ def answer_prompt(prompt: str) -> str:
     )
 
 
+def build_prompt(prompt: str, *, prompt_mode: str) -> str:
+    if prompt_mode == "raw":
+        return prompt
+    if prompt_mode == "diagnosis_first":
+        return diagnosis_first_prompt(prompt)
+    raise ValueError(f"Unsupported prompt mode: {prompt_mode}")
+
+
 def chat_inputs(tokenizer: Any, prompt: str, device: torch.device) -> dict[str, torch.Tensor]:
     encoded = tokenizer.apply_chat_template(
-        [{"role": "user", "content": answer_prompt(prompt)}],
+        [{"role": "user", "content": prompt}],
         tokenize=True,
         add_generation_prompt=True,
         return_tensors="pt",
@@ -71,6 +79,8 @@ def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
         f.write("# Source Model QA Answers\n\n")
         f.write("Lexical diagnosis-alias scoring only.\n\n")
         f.write(f"- n: {len(rows)}\n")
+        if rows:
+            f.write(f"- prompt_mode: `{rows[0].get('prompt_mode')}`\n")
         f.write(f"- diagnosis_hit: {sum(hits)}/{len(rows)}\n")
         f.write(f"- diagnosis_hit_rate: {mean(hits):.4f}\n\n")
         f.write("| id | expected | hit | hits | answer |\n")
@@ -93,7 +103,16 @@ def main() -> None:
     parser.add_argument("--output-jsonl", required=True)
     parser.add_argument("--summary-md", required=True)
     parser.add_argument("--prompt-field", default="prompt")
-    parser.add_argument("--max-new-tokens", type=int, default=128)
+    parser.add_argument(
+        "--prompt-mode",
+        choices=["raw", "diagnosis_first"],
+        default="raw",
+        help=(
+            "raw uses the prompt exactly as it appears in the manifest; "
+            "diagnosis_first prepends a short instruction to answer with the diagnosis first."
+        ),
+    )
+    parser.add_argument("--max-new-tokens", type=int, default=256)
     parser.add_argument("--limit", type=int, default=None)
     args = parser.parse_args()
 
@@ -123,7 +142,8 @@ def main() -> None:
         prompt = str(row.get(args.prompt_field) or "")
         if not prompt:
             continue
-        encoded = chat_inputs(tokenizer, prompt, model.device)
+        source_answer_prompt = build_prompt(prompt, prompt_mode=args.prompt_mode)
+        encoded = chat_inputs(tokenizer, source_answer_prompt, model.device)
         input_len = int(encoded["input_ids"].shape[-1])
         with torch.inference_mode():
             generated = model.generate(
@@ -140,6 +160,8 @@ def main() -> None:
             "id": row["id"],
             "base_id": row.get("base_id", row["id"]),
             "prompt": prompt,
+            "source_answer_prompt": source_answer_prompt,
+            "prompt_mode": args.prompt_mode,
             "diagnosis_id": row.get("diagnosis_id"),
             "diagnosis_name": diagnosis_name(row),
             "diagnosis_aliases": row_aliases,
