@@ -25,7 +25,7 @@ if str(REPO_ROOT) not in sys.path:
 from src.config import ensure_dir, load_config
 from src.jsonl import append_jsonl, read_jsonl
 from src.modeling import load_causal_lm, load_tokenizer, maybe_load_peft_adapter
-from src.nla import build_nla_inputs_embeds, load_nla_sidecar
+from src.nla import build_nla_inputs_embeds, build_nla_prompt, load_nla_sidecar
 from src.run_nla import actor_prompt_template_with_suffix, read_actor_prompt_template
 
 
@@ -181,6 +181,31 @@ def score_candidate_batch(
     return scores
 
 
+@torch.inference_mode()
+def build_token_baseline_embeds(
+    *,
+    tokenizer: Any,
+    embed_layer: torch.nn.Module,
+    sidecar: Any,
+    device: torch.device | str,
+    actor_prompt_template: str | None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Build the NLA prompt with the literal injection token embedding.
+
+    This captures candidate-name language priors under the same AV prompt but
+    without replacing the placeholder with an activation vector.
+    """
+
+    _, input_ids_list = build_nla_prompt(
+        tokenizer,
+        sidecar,
+        actor_prompt_template=actor_prompt_template,
+    )
+    input_ids = torch.tensor(input_ids_list, dtype=torch.long, device=device).unsqueeze(0)
+    attention_mask = torch.ones_like(input_ids, device=device)
+    return embed_layer(input_ids).clone(), attention_mask
+
+
 def rank_candidates(
     candidates: list[dict[str, str]],
     scores: list[dict[str, float | int]],
@@ -259,7 +284,14 @@ def main() -> None:
     )
     parser.add_argument(
         "--rank-field",
-        choices=["logprob_mean", "logprob_sum", "first_token_logprob"],
+        choices=[
+            "logprob_mean",
+            "logprob_sum",
+            "first_token_logprob",
+            "calibrated_logprob_mean",
+            "calibrated_logprob_sum",
+            "calibrated_first_token_logprob",
+        ],
         default="logprob_mean",
     )
     parser.add_argument("--limit", type=int, default=None)
@@ -270,6 +302,15 @@ def main() -> None:
         "--adapter-id",
         default=None,
         help="Optional PEFT/LoRA adapter path or HF id for evaluating Medical-NLA.",
+    )
+    parser.add_argument(
+        "--calibrate-with-token-baseline",
+        action="store_true",
+        help=(
+            "Subtract candidate scores under the same NLA prompt with the literal "
+            "injection token embedding. This removes candidate-name priors such as "
+            "easy multi-token continuations."
+        ),
     )
     args = parser.parse_args()
 
@@ -331,6 +372,29 @@ def main() -> None:
         )
         for candidate in candidates
     ]
+    baseline_scores: list[dict[str, float | int]] | None = None
+    if args.calibrate_with_token_baseline:
+        print("[calibration] scoring literal-token baseline candidate priors", flush=True)
+        baseline_embeds, baseline_attention = build_token_baseline_embeds(
+            tokenizer=tokenizer,
+            embed_layer=embed_layer,
+            sidecar=sidecar,
+            device=model.device,
+            actor_prompt_template=actor_prompt_template,
+        )
+        baseline_scores = []
+        for start in range(0, len(tokenized_candidates), args.candidate_batch_size):
+            batch = tokenized_candidates[start : start + args.candidate_batch_size]
+            baseline_scores.extend(
+                score_candidate_batch(
+                    model=model,
+                    embed_layer=embed_layer,
+                    prefix_embeds=baseline_embeds,
+                    prefix_attention_mask=baseline_attention,
+                    tokenizer=tokenizer,
+                    tokenized=batch,
+                )
+            )
 
     result_rows: list[dict[str, Any]] = []
     for idx, row in enumerate(rows, start=1):
@@ -360,6 +424,20 @@ def main() -> None:
                     tokenized=batch,
                 )
             )
+        if baseline_scores is not None:
+            for score, baseline in zip(scores, baseline_scores, strict=True):
+                score["baseline_logprob_sum"] = baseline["logprob_sum"]
+                score["baseline_logprob_mean"] = baseline["logprob_mean"]
+                score["baseline_first_token_logprob"] = baseline["first_token_logprob"]
+                score["calibrated_logprob_sum"] = float(score["logprob_sum"]) - float(
+                    baseline["logprob_sum"]
+                )
+                score["calibrated_logprob_mean"] = float(score["logprob_mean"]) - float(
+                    baseline["logprob_mean"]
+                )
+                score["calibrated_first_token_logprob"] = float(
+                    score["first_token_logprob"]
+                ) - float(baseline["first_token_logprob"])
         ranked = rank_candidates(candidates, scores, rank_field=args.rank_field)
         gold = next(item for item in ranked if item["diagnosis_id"] == gold_id)
         top = ranked[0]

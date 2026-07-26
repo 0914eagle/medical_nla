@@ -30,8 +30,8 @@ VARIANTS_JSONL="${VARIANTS_JSONL:-${ARTIFACT_ROOT}/${RUN_NAME}_variants.jsonl}"
 ACTIVATION_DIR="${ARTIFACT_ROOT}/activations/${RUN_NAME}"
 MANIFEST_JSONL="${ACTIVATION_DIR}/manifest.jsonl"
 MULTI_FORMAT_MANIFEST="${ACTIVATION_DIR}/manifest_multi_format.jsonl"
-RESULT_JSONL="${RESULT_JSONL:-${ARTIFACT_ROOT}/results/ddxplus_nla_multi_format_logprobs_v1.jsonl}"
-SUMMARY_MD="${SUMMARY_MD:-${ARTIFACT_ROOT}/results/ddxplus_nla_multi_format_logprobs_v1_summary.md}"
+RESULT_JSONL="${RESULT_JSONL:-${ARTIFACT_ROOT}/results/ddxplus_nla_multi_format_logprobs_calibrated_v1.jsonl}"
+SUMMARY_MD="${SUMMARY_MD:-${ARTIFACT_ROOT}/results/ddxplus_nla_multi_format_logprobs_calibrated_v1_summary.md}"
 
 mkdir -p \
   "${ARTIFACT_ROOT}/activations" \
@@ -124,7 +124,9 @@ if [[ "${FORCE}" == "1" || ! -s "${RESULT_JSONL}" || ! -s "${SUMMARY_MD}" ]]; th
     --manifest "${MULTI_FORMAT_MANIFEST}" \
     --output-jsonl "${RESULT_JSONL}" \
     --summary-md "${SUMMARY_MD}" \
-    --candidate-batch-size "${CANDIDATE_BATCH_SIZE}"
+    --candidate-batch-size "${CANDIDATE_BATCH_SIZE}" \
+    --rank-field calibrated_logprob_mean \
+    --calibrate-with-token-baseline
 else
   echo "[stage 4/4] reusing existing logprob result: ${RESULT_JSONL}"
 fi

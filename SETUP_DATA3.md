@@ -192,10 +192,12 @@ Smoke test:
 CUDA_VISIBLE_DEVICES=0 python -m scripts.score_nla_diagnosis_logprobs \
   --config configs/data3.yaml \
   --manifest /data3/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output-jsonl /data3/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_smoke.jsonl \
-  --summary-md /data3/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_smoke_summary.md \
+  --output-jsonl /data3/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_calibrated_smoke.jsonl \
+  --summary-md /data3/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_calibrated_smoke_summary.md \
   --limit 20 \
-  --candidate-batch-size 8
+  --candidate-batch-size 8 \
+  --rank-field calibrated_logprob_mean \
+  --calibrate-with-token-baseline
 ```
 
 Full run:
@@ -213,17 +215,19 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 CUDA_VISIBLE_DEVICES=0 python -m scripts.score_nla_diagnosis_logprobs \
   --config configs/data3.yaml \
   --manifest /data3/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output-jsonl /data3/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_v1.jsonl \
-  --summary-md /data3/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_v1_summary.md \
-  --candidate-batch-size 8
-' > /data3/heejae/medical_nla/logs/ddxplus_nla_multi_format_logprobs_v1.log 2>&1 &
+  --output-jsonl /data3/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_calibrated_v1.jsonl \
+  --summary-md /data3/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_calibrated_v1_summary.md \
+  --candidate-batch-size 8 \
+  --rank-field calibrated_logprob_mean \
+  --calibrate-with-token-baseline
+' > /data3/heejae/medical_nla/logs/ddxplus_nla_multi_format_logprobs_calibrated_v1.log 2>&1 &
 ```
 
 Check:
 
 ```bash
-tail -f /data3/heejae/medical_nla/logs/ddxplus_nla_multi_format_logprobs_v1.log
-cat /data3/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_v1_summary.md
+tail -f /data3/heejae/medical_nla/logs/ddxplus_nla_multi_format_logprobs_calibrated_v1.log
+cat /data3/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_calibrated_v1_summary.md
 ```
 
 ## One-command Overnight Run
