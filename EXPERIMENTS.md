@@ -114,8 +114,8 @@ CUDA_VISIBLE_DEVICES=0 python scripts/run_source_model_mc.py \
   --seed 17 \
   --num-shards 2 \
   --shard-index 0 \
-  --max-new-tokens 32 \
-  --batch-size 2
+  --max-new-tokens 64 \
+  --batch-size 4
 ' > /data1/heejae/medical_nla/logs/ddxplus_source_mc_shuffled_v1_shard0.log 2>&1 &
 ```
 
@@ -139,8 +139,8 @@ CUDA_VISIBLE_DEVICES=1 python scripts/run_source_model_mc.py \
   --seed 17 \
   --num-shards 2 \
   --shard-index 1 \
-  --max-new-tokens 32 \
-  --batch-size 2
+  --max-new-tokens 64 \
+  --batch-size 4
 ' > /data1/heejae/medical_nla/logs/ddxplus_source_mc_shuffled_v1_shard1.log 2>&1 &
 ```
 
@@ -153,6 +153,71 @@ python scripts/summarize_source_model_mc.py \
     /data1/heejae/medical_nla/results/ddxplus_source_mc_shuffled_v1_shard1.jsonl \
   --output-jsonl /data1/heejae/medical_nla/results/ddxplus_source_mc_shuffled_v1.jsonl \
   --summary-md /data1/heejae/medical_nla/results/ddxplus_source_mc_shuffled_v1_summary.md
+```
+
+### NLA Multiple-Choice Baseline
+
+This mirrors the source-model MC baseline, but the closed diagnosis-label list
+is shown to the injected AV. This tests whether vanilla NLA can use the same
+constraint that lifted the source model from free generation to MC.
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+unset HF_TOKEN
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=0 python scripts/run_nla_diagnosis_mc.py \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_shard0.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_shard0_summary.md \
+  --shuffle-options \
+  --seed 17 \
+  --num-shards 2 \
+  --shard-index 0 \
+  --max-new-tokens 64
+' > /data1/heejae/medical_nla/logs/ddxplus_nla_mc_shuffled_v1_shard0.log 2>&1 &
+```
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+unset HF_TOKEN
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=1 python scripts/run_nla_diagnosis_mc.py \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_shard1.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_shard1_summary.md \
+  --shuffle-options \
+  --seed 17 \
+  --num-shards 2 \
+  --shard-index 1 \
+  --max-new-tokens 64
+' > /data1/heejae/medical_nla/logs/ddxplus_nla_mc_shuffled_v1_shard1.log 2>&1 &
+```
+
+After both shards finish:
+
+```bash
+python scripts/summarize_nla_diagnosis_mc.py \
+  --inputs \
+    /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_shard0.jsonl \
+    /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_shard1.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_summary.md
 ```
 
 ```bash
