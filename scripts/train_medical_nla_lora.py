@@ -146,6 +146,14 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/default.yaml")
     parser.add_argument("--train-jsonl", required=True)
+    parser.add_argument(
+        "--val-jsonl",
+        default=None,
+        help=(
+            "Optional fixed validation JSONL. If omitted, validation rows are split "
+            "from --train-jsonl with --val-frac."
+        ),
+    )
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--actor-prompt-template-file", default=None)
     parser.add_argument("--epochs", type=int, default=1)
@@ -175,11 +183,27 @@ def main() -> None:
     torch.manual_seed(args.seed)
     random.seed(args.seed)
 
-    rows = list(read_jsonl(args.train_jsonl))
-    rows = [row for row in rows if row.get("activation_path") and row.get("target_text")]
-    if not rows:
+    train_input_rows = list(read_jsonl(args.train_jsonl))
+    train_input_rows = [
+        row for row in train_input_rows if row.get("activation_path") and row.get("target_text")
+    ]
+    if not train_input_rows:
         raise ValueError("No rows with activation_path and target_text found.")
-    train_rows, val_rows = split_rows(rows, val_frac=args.val_frac, seed=args.seed)
+    if args.val_jsonl:
+        train_rows = train_input_rows
+        val_rows = [
+            row
+            for row in read_jsonl(args.val_jsonl)
+            if row.get("activation_path") and row.get("target_text")
+        ]
+        if not val_rows:
+            raise ValueError("--val-jsonl contained no rows with activation_path and target_text.")
+    else:
+        train_rows, val_rows = split_rows(
+            train_input_rows,
+            val_frac=args.val_frac,
+            seed=args.seed,
+        )
 
     tokenizer = load_tokenizer(
         nla_cfg["model_id"],
@@ -216,7 +240,8 @@ def main() -> None:
     shutil.copy2(args.config, out_dir / "train.config.yaml")
     metadata = {
         "train_jsonl": str(Path(args.train_jsonl)),
-        "n_rows": len(rows),
+        "val_jsonl": str(Path(args.val_jsonl)) if args.val_jsonl else None,
+        "n_rows": len(train_rows) + len(val_rows),
         "n_train": len(train_rows),
         "n_val": len(val_rows),
         "args": vars(args),

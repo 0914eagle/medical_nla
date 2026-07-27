@@ -259,22 +259,27 @@ CUDA_VISIBLE_DEVICES=9 python scripts/train_ddxplus_linear_probe.py \
 ' > /data1/heejae/medical_nla/logs/ddxplus_linear_probe_with_predictions_v1.log 2>&1 &
 ```
 
-## 4. Medical-NLA SFT Dataset
+## 4. Medical-NLA SFT Splits
 
-Build target texts for diagnosis-preserving AV fine-tuning.
+Build leakage-safe train/val/test files for diagnosis-preserving AV fine-tuning.
+The split is grouped by `base_id` and stratified by `diagnosis_id`.
 
 ```bash
-python scripts/make_medical_nla_sft_dataset.py \
+python scripts/make_medical_nla_sft_splits.py \
   --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest.jsonl \
-  --output /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1.jsonl \
+  --out-dir /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1 \
   --variants multi_format \
-  --style diagnosis_first
+  --style diagnosis_first \
+  --train-frac 0.70 \
+  --val-frac 0.15 \
+  --seed 17
 ```
 
 Inspect examples before training:
 
 ```bash
-head -3 /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1.jsonl
+cat /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/summary.md
+head -3 /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/sft_train.jsonl
 ```
 
 ## 5. Medical-NLA LoRA SFT
@@ -286,13 +291,16 @@ nohup bash -lc '
 cd /home/eagle0914/medical_nla
 source /data1/heejae/uv/medical_nla/bin/activate
 export PYTHONPATH=/home/eagle0914/medical_nla
+unset HF_TOKEN
 export HF_HOME=/data1/heejae/hf_cache
 export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
 export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-CUDA_VISIBLE_DEVICES=9 python scripts/train_medical_nla_lora.py \
+CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
   --config configs/default.yaml \
-  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1.jsonl \
+  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/sft_train.jsonl \
+  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/sft_val.jsonl \
   --out-dir /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_lora_v1 \
   --epochs 1 \
   --batch-size 1 \
@@ -306,18 +314,79 @@ CUDA_VISIBLE_DEVICES=9 python scripts/train_medical_nla_lora.py \
 Evaluate the adapter with the same free-generation and logprob scripts:
 
 ```bash
-CUDA_VISIBLE_DEVICES=9 python -m src.run_nla \
+CUDA_VISIBLE_DEVICES=0 python -m src.run_nla \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output /data1/heejae/medical_nla/results/ddxplus_medical_nla_multi_format_v1.jsonl \
+  --manifest /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/manifest_test.jsonl \
+  --output /data1/heejae/medical_nla/results/ddxplus_medical_nla_multi_format_test_v1.jsonl \
   --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_lora_v1
 
-CUDA_VISIBLE_DEVICES=9 python -m scripts.score_nla_diagnosis_logprobs \
+CUDA_VISIBLE_DEVICES=0 python -m scripts.score_nla_diagnosis_logprobs \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_multi_format_logprobs_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_multi_format_logprobs_v1_summary.md \
+  --manifest /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/manifest_test.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_multi_format_logprobs_test_v1.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_multi_format_logprobs_test_v1_summary.md \
   --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_lora_v1
+```
+
+Evaluate Medical-NLA with the same MC constraint on the held-out test split:
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+unset HF_TOKEN
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=0 python scripts/run_nla_diagnosis_mc.py \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/manifest_test.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard0.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard0_summary.md \
+  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_lora_v1 \
+  --shuffle-options \
+  --seed 17 \
+  --num-shards 2 \
+  --shard-index 0 \
+  --max-new-tokens 64
+' > /data1/heejae/medical_nla/logs/ddxplus_medical_nla_mc_shuffled_test_v1_shard0.log 2>&1 &
+```
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+unset HF_TOKEN
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=1 python scripts/run_nla_diagnosis_mc.py \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/manifest_test.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard1.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard1_summary.md \
+  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_lora_v1 \
+  --shuffle-options \
+  --seed 17 \
+  --num-shards 2 \
+  --shard-index 1 \
+  --max-new-tokens 64
+' > /data1/heejae/medical_nla/logs/ddxplus_medical_nla_mc_shuffled_test_v1_shard1.log 2>&1 &
+```
+
+```bash
+python scripts/summarize_nla_diagnosis_mc.py \
+  --inputs \
+    /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard0.jsonl \
+    /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard1.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_summary.md
 ```
 
 ## 6. Error-Prediction Feature Table
