@@ -47,6 +47,16 @@ PASSTHROUGH_FIELDS = [
     "cue_evidence_ids",
     "cue_evidence_entries",
     "notes",
+    "control_type",
+    "original_id",
+    "original_activation_path",
+    "donor_id",
+    "donor_diagnosis_id",
+    "donor_diagnosis_name",
+    "donor_diagnosis_aliases",
+    "donor_activation_path",
+    "random_seed",
+    "random_strategy",
 ]
 
 
