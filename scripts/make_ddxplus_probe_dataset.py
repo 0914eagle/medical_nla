@@ -22,6 +22,37 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
+NEGATIVE_VALUE_LABELS = {
+    "n",
+    "no",
+    "false",
+    "absent",
+    "none",
+    "never",
+    "not",
+    "negative",
+    "0",
+}
+
+LOW_INFORMATION_VALUE_LABELS = {
+    "nowhere",
+    "no where",
+    "none",
+    "unknown",
+    "unspecified",
+}
+
+GENERIC_CUE_PATTERNS = [
+    r"\bpain somewhere\b",
+    r"\bhow fast did the pain appear\b",
+    r"\bhow intense is the pain\b",
+    r"\bhow precisely is the pain located\b",
+    r"\bcharacterize their pain\b",
+    r"\bdoes the pain radiate\b",
+    r"\bpain radiate\b",
+]
+
+
 def read_json(path: Path) -> Any:
     with path.open(encoding="utf-8") as f:
         return json.load(f)
@@ -113,6 +144,10 @@ def evidence_base_and_value(entry: str) -> tuple[str, str | None]:
 
 def normalize_space(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
+
+
+def normalize_label(text: str) -> str:
+    return normalize_space(str(text).strip().strip("\"'")).lower()
 
 
 def strip_question_to_phrase(text: str) -> str:
@@ -214,6 +249,18 @@ def possible_value_label(meta: dict[str, Any], value_id: str | None) -> str | No
     return None
 
 
+def is_negative_or_low_information_value(value_label: str | None) -> bool:
+    if value_label is None:
+        return False
+    label = normalize_label(value_label)
+    return label in NEGATIVE_VALUE_LABELS or label in LOW_INFORMATION_VALUE_LABELS
+
+
+def is_generic_cue_text(text: str) -> bool:
+    normalized = normalize_label(text)
+    return any(re.search(pattern, normalized) for pattern in GENERIC_CUE_PATTERNS)
+
+
 def is_antecedent(meta: dict[str, Any]) -> bool:
     value = meta.get("is_antecedent")
     if isinstance(value, bool):
@@ -223,20 +270,36 @@ def is_antecedent(meta: dict[str, Any]) -> bool:
     return False
 
 
-def cue_from_entry(entry: str, evidence_meta: dict[str, Any]) -> dict[str, Any]:
+def cue_from_entry(
+    entry: str,
+    evidence_meta: dict[str, Any],
+    *,
+    clean_cues: bool,
+) -> dict[str, Any]:
     base_id, value_id = evidence_base_and_value(entry)
     meta = lookup_meta(evidence_meta, base_id)
     phrase = strip_question_to_phrase(meta_text(meta, base_id))
     value_label = possible_value_label(meta, value_id)
+    excluded = False
+    exclusion_reason = None
+    if clean_cues and is_negative_or_low_information_value(value_label):
+        excluded = True
+        exclusion_reason = "negative_or_low_information_value"
     if value_label and value_label.lower() not in {"yes", "true", "present"}:
         phrase = normalize_space(f"{phrase} {value_label}")
+    if clean_cues and is_generic_cue_text(phrase):
+        excluded = True
+        exclusion_reason = exclusion_reason or "generic_cue"
     return {
         "evidence_id": base_id,
         "evidence_entry": entry,
         "value_id": value_id,
+        "value_label": value_label,
         "cue_text": phrase,
         "cue_type": "antecedent" if is_antecedent(meta) else "symptom",
         "is_antecedent": is_antecedent(meta),
+        "excluded": excluded,
+        "exclusion_reason": exclusion_reason,
     }
 
 
@@ -265,14 +328,22 @@ def make_case(
     rng: random.Random,
     prefer_symptoms: bool,
     max_cues: int,
+    clean_cues: bool = True,
 ) -> dict[str, Any] | None:
     pathology = str(get_field(row, ["PATHOLOGY", "pathology", "diagnosis", "label"]))
     patient_id = get_field(row, ["id", "patient_id", "PATIENT", "patient"], required=False)
     if patient_id is None:
         patient_id = f"row_{row_index:07d}"
     entries = parse_evidence_entries(get_field(row, ["EVIDENCES", "evidences", "evidence"]))
-    cues = [cue_from_entry(entry, evidence_meta) for entry in entries]
-    cues = [cue for cue in cues if cue["cue_text"] and cue["cue_text"].lower() != "none"]
+    all_cues = [
+        cue_from_entry(entry, evidence_meta, clean_cues=clean_cues)
+        for entry in entries
+    ]
+    cues = [
+        cue
+        for cue in all_cues
+        if cue["cue_text"] and cue["cue_text"].lower() != "none" and not cue["excluded"]
+    ]
     symptom_cues = [cue for cue in cues if not cue["is_antecedent"]]
     candidate_cues = symptom_cues if prefer_symptoms and len(symptom_cues) >= max_cues else cues
     if len(candidate_cues) < max_cues:
@@ -292,6 +363,19 @@ def make_case(
         "cue_types": [cue["cue_type"] for cue in selected],
         "cue_evidence_ids": [cue["evidence_id"] for cue in selected],
         "cue_evidence_entries": [cue["evidence_entry"] for cue in selected],
+        "cue_value_ids": [cue["value_id"] for cue in selected],
+        "cue_value_labels": [cue["value_label"] for cue in selected],
+        "clean_cues": clean_cues,
+        "excluded_cue_count": sum(1 for cue in all_cues if cue["excluded"]),
+        "excluded_cue_entries": [
+            {
+                "evidence_entry": cue["evidence_entry"],
+                "cue_text": cue["cue_text"],
+                "exclusion_reason": cue["exclusion_reason"],
+            }
+            for cue in all_cues
+            if cue["excluded"]
+        ],
         "single_prompt": make_prompt([cue_targets[0]]),
         "multi_prompt": make_prompt(cue_targets),
     }
@@ -309,6 +393,11 @@ def variant_rows(case: dict[str, Any]) -> list[dict[str, Any]]:
         "cue_types": case["cue_types"],
         "cue_evidence_ids": case["cue_evidence_ids"],
         "cue_evidence_entries": case["cue_evidence_entries"],
+        "cue_value_ids": case["cue_value_ids"],
+        "cue_value_labels": case["cue_value_labels"],
+        "clean_cues": case["clean_cues"],
+        "excluded_cue_count": case["excluded_cue_count"],
+        "excluded_cue_entries": case["excluded_cue_entries"],
     }
     rows = [
         {
@@ -379,6 +468,15 @@ def main() -> None:
     parser.add_argument("--max-cues", type=int, default=3)
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument(
+        "--clean-cues",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Filter negative/low-information values and generic pain metadata "
+            "before sampling cues. Use --no-clean-cues to reproduce v1 behavior."
+        ),
+    )
+    parser.add_argument(
         "--prefer-symptoms",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -404,6 +502,7 @@ def main() -> None:
             rng=rng,
             prefer_symptoms=args.prefer_symptoms,
             max_cues=args.max_cues,
+            clean_cues=args.clean_cues,
         )
         if case is None:
             continue
@@ -428,6 +527,8 @@ def main() -> None:
     print(f"cases_written: {len(cases)}")
     print(f"variants_written: {len(variants)}")
     print(f"variants_per_case: {2 + args.max_cues + 1}")
+    print(f"clean_cues: {args.clean_cues}")
+    print(f"excluded_cues_total: {sum(case['excluded_cue_count'] for case in cases)}")
     print("top_diagnoses:")
     for diagnosis, count in Counter(case["diagnosis_id"] for case in cases).most_common(20):
         print(f"  {diagnosis}: {count}")

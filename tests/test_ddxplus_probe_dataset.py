@@ -86,6 +86,67 @@ def test_make_ddxplus_probe_case_parses_ddxplus_literal_and_value_meaning():
     assert any("chest" in target for target in case["cue_targets"])
 
 
+def test_make_ddxplus_probe_case_filters_negative_and_generic_cues():
+    evidence_meta = {
+        "E_TRAVEL": {
+            "question_en": "Have you traveled out of the country in the last 4 weeks?",
+            "is_antecedent": True,
+            "value_meaning": {"N": {"en": "N"}},
+        },
+        "E_RADIATE": {
+            "question_en": "Does the pain radiate to another location?",
+            "is_antecedent": False,
+            "value_meaning": {"V_NONE": {"en": "nowhere"}},
+        },
+        "E_PRECISE": {
+            "question_en": "How precisely is the pain located?",
+            "is_antecedent": False,
+        },
+        "E_DYSPNEA": {
+            "question_en": "Do you have shortness of breath?",
+            "is_antecedent": False,
+        },
+        "E_WHEEZE": {
+            "question_en": "Have you noticed a wheezing sound when you exhale?",
+            "is_antecedent": False,
+        },
+        "E_SPUTUM": {
+            "question_en": "Do you have increased sputum?",
+            "is_antecedent": False,
+        },
+    }
+    row = {
+        "PATHOLOGY": "Acute COPD exacerbation / infection",
+        "EVIDENCES": json.dumps(
+            [
+                "E_TRAVEL_@_N",
+                "E_RADIATE_@_V_NONE",
+                "E_PRECISE",
+                "E_DYSPNEA",
+                "E_WHEEZE",
+                "E_SPUTUM",
+            ]
+        ),
+    }
+
+    case = make_case(
+        row,
+        row_index=2,
+        evidence_meta=evidence_meta,
+        rng=random.Random(2),
+        prefer_symptoms=True,
+        max_cues=3,
+        clean_cues=True,
+    )
+
+    assert case is not None
+    assert case["excluded_cue_count"] == 3
+    assert all(" N" not in target for target in case["cue_targets"])
+    assert all("nowhere" not in target for target in case["cue_targets"])
+    assert all("how precisely is the pain located" not in target for target in case["cue_targets"])
+    assert sorted(case["cue_evidence_ids"]) == ["E_DYSPNEA", "E_SPUTUM", "E_WHEEZE"]
+
+
 def test_strip_question_to_phrase_removes_second_person_fragments():
     assert (
         strip_question_to_phrase("Have you noticed a wheezing sound when you exhale?")

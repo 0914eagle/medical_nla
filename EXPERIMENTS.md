@@ -343,6 +343,115 @@ python scripts/score_medical_nla_v2_readouts.py \
   --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_alpha_readouts_test_summary.md
 ```
 
+### v2-beta: Clean DDXPlus Cue Rendering
+
+v2-alpha exposed noisy DDXPlus cue rendering such as `... N`, `nowhere`, and
+generic pain metadata. v2-beta regenerates the DDXPlus prompts with
+`--clean-cues` enabled, then reruns activation extraction and the same
+structured readout SFT.
+
+Generate cleaned DDXPlus probe rows:
+
+```bash
+python scripts/make_ddxplus_probe_dataset.py \
+  --patients /data1/heejae/ddxplus/train.csv \
+  --evidences /data1/heejae/ddxplus/release_evidences.json \
+  --cases-output /data1/heejae/medical_nla/ddxplus_probe_v2_cases.jsonl \
+  --variants-output /data1/heejae/medical_nla/ddxplus_probe_v2_variants.jsonl \
+  --examples-per-diagnosis 100 \
+  --max-cues 3 \
+  --seed 17 \
+  --clean-cues
+```
+
+Extract cleaned activations:
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+unset HF_TOKEN
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=0 python -m src.extract_activations \
+  --config configs/default.yaml \
+  --input /data1/heejae/medical_nla/ddxplus_probe_v2_variants.jsonl \
+  --run-name ddxplus_probe_v2
+' > /data1/heejae/medical_nla/logs/ddxplus_probe_v2_extract.log 2>&1 &
+```
+
+Create the v2-beta structured SFT split:
+
+```bash
+python scripts/make_medical_nla_v2_sft_splits.py \
+  --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v2/manifest.jsonl \
+  --out-dir /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_beta \
+  --variants multi_format \
+  --max-cues 3 \
+  --seed 17
+```
+
+Train v2-beta:
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+unset HF_TOKEN
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
+  --config configs/default.yaml \
+  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_beta/sft_train.jsonl \
+  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_beta/sft_val.jsonl \
+  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_v2_beta_lora \
+  --actor-prompt-template-file prompt_templates/medical_nla_v2_readout.txt \
+  --epochs 1 \
+  --batch-size 1 \
+  --grad-accum-steps 8 \
+  --lr 2e-4 \
+  --weight-decay 0.0 \
+  --max-eval-rows 128
+' > /data1/heejae/medical_nla/logs/medical_nla_ddxplus_v2_beta_lora.log 2>&1 &
+```
+
+Generate and score v2-beta test readouts:
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+unset HF_TOKEN
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=0 python -m src.run_nla \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_beta/manifest_test.jsonl \
+  --output /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_beta_readouts_test.jsonl \
+  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_v2_beta_lora \
+  --actor-prompt-template-file prompt_templates/medical_nla_v2_readout.txt
+' > /data1/heejae/medical_nla/logs/ddxplus_medical_nla_v2_beta_readouts_test.log 2>&1 &
+```
+
+```bash
+python scripts/score_medical_nla_v2_readouts.py \
+  --input /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_beta_readouts_test.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_beta_readouts_test_scored.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_beta_readouts_test_summary.md
+```
+
 ## 5. Medical-NLA SFT Splits
 
 Build leakage-safe train/val/test files for diagnosis-preserving AV fine-tuning.
