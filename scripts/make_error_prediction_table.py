@@ -67,6 +67,13 @@ def add_rank_features(out: dict[str, Any], prefix: str, row: dict[str, Any] | No
         "top1_logprob_mean",
         "top1_logprob_sum",
         "top1_prob",
+        "top2_prob",
+        "top1_score",
+        "top2_score",
+        "top1_top2_margin",
+        "top1_top2_prob_margin",
+        "candidate_entropy",
+        "candidate_entropy_norm",
     ):
         if field in row:
             out[f"{prefix}_{field}"] = row[field]

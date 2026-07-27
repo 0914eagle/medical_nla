@@ -190,6 +190,25 @@ def rank_candidates(
     return ranked
 
 
+def add_distribution_features(out: dict[str, Any], ranked: list[dict[str, Any]], rank_field: str) -> None:
+    values = torch.tensor([float(row[rank_field]) for row in ranked], dtype=torch.float32)
+    probs = torch.softmax(values, dim=0)
+    top1_prob = float(probs[0].item())
+    top2_prob = float(probs[1].item()) if len(probs) > 1 else 0.0
+    entropy = float((-(probs * torch.log(probs.clamp_min(1e-30))).sum()).item())
+    max_entropy = math.log(max(len(ranked), 1))
+    out["top1_score"] = float(ranked[0][rank_field])
+    out["top2_score"] = float(ranked[1][rank_field]) if len(ranked) > 1 else None
+    out["top1_top2_margin"] = (
+        float(ranked[0][rank_field]) - float(ranked[1][rank_field]) if len(ranked) > 1 else None
+    )
+    out["top1_prob"] = top1_prob
+    out["top2_prob"] = top2_prob
+    out["top1_top2_prob_margin"] = top1_prob - top2_prob
+    out["candidate_entropy"] = entropy
+    out["candidate_entropy_norm"] = entropy / max_entropy if max_entropy else 0.0
+
+
 def summarize(rows: list[dict[str, Any]], path: Path, *, rank_field: str) -> None:
     by_variant: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
@@ -350,6 +369,7 @@ def main() -> None:
             "top1_logprob_sum": top["logprob_sum"],
             "top_candidates": ranked[: args.top_k_output],
         }
+        add_distribution_features(out, ranked, args.rank_field)
         append_jsonl(output_path, out)
         out_rows.append(out)
         print(
