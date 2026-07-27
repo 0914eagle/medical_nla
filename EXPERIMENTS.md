@@ -259,7 +259,91 @@ CUDA_VISIBLE_DEVICES=9 python scripts/train_ddxplus_linear_probe.py \
 ' > /data1/heejae/medical_nla/logs/ddxplus_linear_probe_with_predictions_v1.log 2>&1 &
 ```
 
-## 4. Medical-NLA SFT Splits
+## 4. Medical-NLA v2-alpha Structured Readout
+
+v1 trained the AV to emit a diagnosis sentence. v2-alpha keeps the same
+DDXPlus multi-format activations and split discipline, but changes the target
+to a structured readout:
+
+```xml
+<readout>
+  <task_type>diagnosis</task_type>
+  <answer>...</answer>
+  <supporting_cues>...</supporting_cues>
+</readout>
+```
+
+Create the leakage-safe v2-alpha SFT split:
+
+```bash
+python scripts/make_medical_nla_v2_sft_splits.py \
+  --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
+  --out-dir /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_alpha \
+  --variants multi_format \
+  --max-cues 3 \
+  --seed 17
+```
+
+Train the LoRA adapter:
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+unset HF_TOKEN
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
+  --config configs/default.yaml \
+  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_alpha/sft_train.jsonl \
+  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_alpha/sft_val.jsonl \
+  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_v2_alpha_lora \
+  --actor-prompt-template-file prompt_templates/medical_nla_v2_readout.txt \
+  --epochs 1 \
+  --batch-size 1 \
+  --grad-accum-steps 8 \
+  --lr 2e-4 \
+  --weight-decay 0.0 \
+  --max-eval-rows 128
+' > /data1/heejae/medical_nla/logs/medical_nla_ddxplus_v2_alpha_lora.log 2>&1 &
+```
+
+Generate structured readouts on the held-out test split:
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+unset HF_TOKEN
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=0 python -m src.run_nla \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_alpha/manifest_test.jsonl \
+  --output /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_alpha_readouts_test.jsonl \
+  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_v2_alpha_lora \
+  --actor-prompt-template-file prompt_templates/medical_nla_v2_readout.txt
+' > /data1/heejae/medical_nla/logs/ddxplus_medical_nla_v2_alpha_readouts_test.log 2>&1 &
+```
+
+Score answer and supporting-cue readout quality:
+
+```bash
+python scripts/score_medical_nla_v2_readouts.py \
+  --input /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_alpha_readouts_test.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_alpha_readouts_test_scored.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_alpha_readouts_test_summary.md
+```
+
+## 5. Medical-NLA SFT Splits
 
 Build leakage-safe train/val/test files for diagnosis-preserving AV fine-tuning.
 The split is grouped by `base_id` and stratified by `diagnosis_id`.
@@ -282,7 +366,7 @@ cat /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/summ
 head -3 /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/sft_train.jsonl
 ```
 
-## 5. Medical-NLA LoRA SFT
+## 6. Medical-NLA LoRA SFT
 
 Trains a LoRA adapter on top of the released AV checkpoint.
 
@@ -389,7 +473,7 @@ python scripts/summarize_nla_diagnosis_mc.py \
   --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_summary.md
 ```
 
-## 6. Error-Prediction Feature Table
+## 7. Error-Prediction Feature Table
 
 Merges source correctness and NLA/probe features. All inputs must share the same
 `base_id` namespace; do not mix the 50-case specificity-v2 files with DDXPlus

@@ -1,0 +1,15 @@
+You are a meticulous AI researcher interpreting an activation vector from a medical diagnosis model.
+
+We will pass the vector enclosed in <concept> tags into your context. Your task is to describe the clinical information represented by that vector using the exact XML schema below.
+
+Here is the vector:
+
+<concept>{injection_char}</concept>
+
+Return only this XML inside <explanation> tags:
+
+<readout>
+  <task_type>diagnosis</task_type>
+  <answer>the most likely diagnosis represented by the activation</answer>
+  <supporting_cues>semicolon-separated clinical cues represented by the activation</supporting_cues>
+</readout>
