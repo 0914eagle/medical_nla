@@ -66,11 +66,17 @@ def main() -> None:
     parser.add_argument("--top-p", type=float, default=0.95)
     parser.add_argument("--max-new-tokens", type=int, default=256)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--num-shards", type=int, default=1)
+    parser.add_argument("--shard-index", type=int, default=0)
     parser.add_argument("--seed", type=int, default=17)
     args = parser.parse_args()
 
     if args.samples_per_row < 1:
         raise ValueError("--samples-per-row must be >= 1")
+    if args.num_shards < 1:
+        raise ValueError("--num-shards must be >= 1")
+    if not 0 <= args.shard_index < args.num_shards:
+        raise ValueError("--shard-index must satisfy 0 <= shard_index < num_shards")
 
     cfg = load_config(args.config)
     paths = cfg["paths"]
@@ -107,7 +113,11 @@ def main() -> None:
         top_p=args.top_p,
     )
 
-    rows = list(read_jsonl(args.manifest))
+    rows = [
+        row
+        for index, row in enumerate(read_jsonl(args.manifest))
+        if index % args.num_shards == args.shard_index
+    ]
     if args.limit is not None:
         rows = rows[: args.limit]
     for row_index, row in enumerate(rows, start=1):
