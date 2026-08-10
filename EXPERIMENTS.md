@@ -598,3 +598,104 @@ python scripts/make_error_prediction_table.py \
   --output-jsonl /data1/heejae/medical_nla/results/error_prediction_features_v1.jsonl \
   --summary-md /data1/heejae/medical_nla/results/error_prediction_features_v1_summary.md
 ```
+
+## 8. Diagnosis-Heldout (True OOD) Medical-AV
+
+Splits at the diagnosis-class level: train/heldout classes are disjoint, so
+the adapter never sees heldout diagnosis names during SFT. `test_seen` keeps
+in-distribution rows under the same adapter for a direct seen-vs-unseen
+comparison. Use the same all-cue manifest and source MC answers that fed the
+source-aligned v2 splits (substitute the actual all-cue source answers file).
+
+```bash
+python scripts/make_medical_nla_diagnosis_heldout_splits.py \
+  --manifest /data1/heejae/medical_nla/activations/ddxplus_all_cue_format_v1/manifest.jsonl \
+  --source-answers /data1/heejae/medical_nla/results/ddxplus_source_mc_all_cue_v1.jsonl \
+  --out-dir /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v1 \
+  --variants cue_count_all \
+  --heldout-frac 0.30 \
+  --seed 17
+```
+
+Train the LoRA adapter on train-class rows only:
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
+  --config configs/default.yaml \
+  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v1/sft_train.jsonl \
+  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v1/sft_val.jsonl \
+  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_diagnosis_heldout_v1_lora_e3 \
+  --epochs 3 \
+  --batch-size 2
+' > /data1/heejae/medical_nla/logs/medical_nla_diagnosis_heldout_v1_lora_e3.log 2>&1 &
+```
+
+Run readouts on both test manifests with the identical adapter:
+
+```bash
+for POOL in test_seen test_heldout; do
+CUDA_VISIBLE_DEVICES=0 python -m src.run_nla \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v1/manifest_${POOL}.jsonl \
+  --output /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_${POOL}.jsonl \
+  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_diagnosis_heldout_v1_lora_e3
+
+python scripts/score_medical_nla_v2_readouts.py \
+  --input /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_${POOL}.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_${POOL}_scored.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_${POOL}_summary.md
+done
+```
+
+Summarize seen-vs-heldout plus the classifier-collapse check:
+
+```bash
+python scripts/summarize_diagnosis_heldout_readouts.py \
+  --heldout-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_test_heldout_scored.jsonl \
+  --seen-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_test_seen_scored.jsonl \
+  --split-dir /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v1 \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_analysis.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_analysis_summary.md
+```
+
+Reading the result: heldout `answer_hit` low with `cue_recall` high means the
+model reads cue semantics but does not generalize diagnosis names; low/low
+suggests a seen-class classifier; high/high is a strong OOD readout. A high
+`answer_in_train_vocab_rate` is direct evidence of classifier collapse.
+
+## 9. Probe Disagreement Control for Error Prediction
+
+Tests whether the source/Medical-AV disagreement signal (AUROC 0.9427) beats a
+source/linear-probe disagreement built from the same activations. Requires
+probe predictions on the same rows: retrain the all-cue probe with
+`--write-predictions` if `*.predictions.jsonl` is missing. The feature table
+now emits `source_probe_answer_agree`, and the evaluator reports
+`source_probe_disagree`, `probe_low_top1_prob`, and a paired NLA-vs-probe
+AUROC comparison restricted to rows where both signals exist.
+
+```bash
+python scripts/make_error_prediction_table.py \
+  --source-answers /data1/heejae/medical_nla/results/ddxplus_source_mc_all_cue_v1.jsonl \
+  --nla-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_all_cue_source_aligned_v2_readouts_test_e3_b2_scored.jsonl \
+  --probe-predictions /data1/heejae/medical_nla/probe/ddxplus_all_cue_format_linear_probe_v1/cue_count_all.predictions.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/error_prediction_features_probe_control_v1.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/error_prediction_features_probe_control_v1_summary.md
+
+python scripts/evaluate_error_prediction.py \
+  --input /data1/heejae/medical_nla/results/error_prediction_features_probe_control_v1.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/error_prediction_probe_control_v1.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/error_prediction_probe_control_v1_summary.md
+```
+
+If `nla_minus_probe_auroc` is near zero, the natural-language readout adds no
+error-detection value over a linear probe; the case for NLA must then rest on
+explanation quality (cues, trajectories), not on detection AUROC.

@@ -90,9 +90,14 @@ def binary_metrics(labels: list[bool], predictions: list[bool]) -> dict[str, flo
     }
 
 
+DISAGREE_SIGNALS = ("source_nla_disagree", "source_probe_disagree")
+
+
 def score_specs() -> list[tuple[str, str, int]]:
     return [
         ("source_nla_disagree", "source_nla_answer_agree", -1),
+        ("source_probe_disagree", "source_probe_answer_agree", -1),
+        ("probe_low_top1_prob", "probe_top1_prob", -1),
         ("source_low_top1_prob", "source_top1_prob", -1),
         ("source_low_top1_top2_prob_margin", "source_top1_top2_prob_margin", -1),
         ("source_low_top1_top2_margin", "source_top1_top2_margin", -1),
@@ -113,7 +118,7 @@ def collect_scores(
         label = as_bool(row.get("is_error"))
         if label is None:
             continue
-        if name == "source_nla_disagree":
+        if name in DISAGREE_SIGNALS:
             agree = as_bool(row.get(field))
             if agree is None:
                 continue
@@ -128,7 +133,36 @@ def collect_scores(
     return labels, scores
 
 
-def write_summary(path: Path, rows: list[dict[str, Any]], result_rows: list[dict[str, Any]]) -> None:
+def paired_disagree_auroc(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """AUROC for both disagree signals on the rows where both are defined."""
+    paired_rows = [
+        row
+        for row in rows
+        if as_bool(row.get("source_nla_answer_agree")) is not None
+        and as_bool(row.get("source_probe_answer_agree")) is not None
+        and as_bool(row.get("is_error")) is not None
+    ]
+    if not paired_rows:
+        return None
+    nla_labels, nla_scores = collect_scores(
+        paired_rows, name="source_nla_disagree", field="source_nla_answer_agree", direction=-1
+    )
+    probe_labels, probe_scores = collect_scores(
+        paired_rows, name="source_probe_disagree", field="source_probe_answer_agree", direction=-1
+    )
+    return {
+        "n": len(nla_labels),
+        "nla_auroc": auroc(nla_labels, nla_scores),
+        "probe_auroc": auroc(probe_labels, probe_scores),
+    }
+
+
+def write_summary(
+    path: Path,
+    rows: list[dict[str, Any]],
+    result_rows: list[dict[str, Any]],
+    paired: dict[str, Any] | None,
+) -> None:
     labels = [as_bool(row.get("is_error")) for row in rows]
     labels = [label for label in labels if label is not None]
     with path.open("w", encoding="utf-8") as f:
@@ -145,14 +179,39 @@ def write_summary(path: Path, rows: list[dict[str, Any]], result_rows: list[dict
                 f"| {row['signal']} | {row['n']} | {auroc_text} | {ap_text} | "
                 f"{row.get('notes', '')} |\n"
             )
-        f.write("\n## Binary Rule: Source/NLA Disagree Predicts Source Error\n\n")
-        rule = next((row for row in result_rows if row["signal"] == "source_nla_disagree"), None)
-        if rule:
+        titles = {
+            "source_nla_disagree": "Source/NLA Disagree Predicts Source Error",
+            "source_probe_disagree": "Source/Probe Disagree Predicts Source Error (control)",
+        }
+        for signal, title in titles.items():
+            rule = next(
+                (row for row in result_rows if row["signal"] == signal and "precision" in row),
+                None,
+            )
+            if not rule:
+                continue
+            f.write(f"\n## Binary Rule: {title}\n\n")
             f.write(f"- precision: {rule['precision']:.4f}\n")
             f.write(f"- recall: {rule['recall']:.4f}\n")
             f.write(f"- specificity: {rule['specificity']:.4f}\n")
             f.write(f"- accuracy: {rule['accuracy']:.4f}\n")
             f.write(f"- tp/fp/tn/fn: {rule['tp']}/{rule['fp']}/{rule['tn']}/{rule['fn']}\n")
+
+        if paired and paired["nla_auroc"] is not None and paired["probe_auroc"] is not None:
+            f.write("\n## NLA vs Probe Disagreement Control (paired rows)\n\n")
+            f.write("Computed only on rows where both agreement fields are present.\n\n")
+            f.write(f"- paired_n: {paired['n']}\n")
+            f.write(f"- nla_disagree_auroc: {paired['nla_auroc']:.4f}\n")
+            f.write(f"- probe_disagree_auroc: {paired['probe_auroc']:.4f}\n")
+            f.write(
+                f"- nla_minus_probe_auroc: {paired['nla_auroc'] - paired['probe_auroc']:+.4f}\n"
+            )
+            f.write(
+                "\nIf the probe control matches the NLA signal, the natural-language "
+                "readout adds no error-detection value over a linear probe on the "
+                "same activation; the case for NLA must then rest on explanation "
+                "quality, not detection.\n"
+            )
 
 
 def main() -> None:
@@ -173,22 +232,41 @@ def main() -> None:
             "auroc": auroc(labels, scores) if labels else None,
             "average_precision": average_precision(labels, scores) if labels else None,
         }
-        if name == "source_nla_disagree" and labels:
+        if name in DISAGREE_SIGNALS and labels:
             predictions = [score > 0.5 for score in scores]
             result.update(binary_metrics(labels, predictions))
-            result["notes"] = "gold-free rule"
+            result["notes"] = (
+                "gold-free rule (probe control)"
+                if name == "source_probe_disagree"
+                else "gold-free rule"
+            )
         elif not labels:
             result["notes"] = "missing feature"
         else:
             result["notes"] = "higher score predicts source error"
         results.append(result)
 
+    paired = paired_disagree_auroc(rows)
+    if paired is not None:
+        results.append(
+            {
+                "signal": "paired_disagree_control",
+                "field": "source_nla_answer_agree+source_probe_answer_agree",
+                "n": paired["n"],
+                "auroc": None,
+                "average_precision": None,
+                "nla_auroc": paired["nla_auroc"],
+                "probe_auroc": paired["probe_auroc"],
+                "notes": "NLA vs probe disagreement on paired rows",
+            }
+        )
+
     output_path = Path(args.output_jsonl)
     summary_path = Path(args.summary_md)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     write_jsonl(output_path, results)
-    write_summary(summary_path, rows, results)
+    write_summary(summary_path, rows, results, paired)
     print(f"[done] wrote {output_path}")
     print(f"[done] wrote {summary_path}")
 

@@ -95,6 +95,15 @@ def answer_agree(source_name: Any, nla_answer: Any) -> bool | None:
     return source == nla or source in nla or nla in source
 
 
+def id_agree(source_id: Any, probe_id: Any) -> bool | None:
+    """Exact match after normalization; both sides live in the diagnosis_id space."""
+    source = normalize_answer(source_id)
+    probe = normalize_answer(probe_id)
+    if not source or not probe:
+        return None
+    return source == probe
+
+
 def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
     labels = [row["is_error"] for row in rows if row.get("is_error") is not None]
     overlap = Counter(
@@ -107,6 +116,11 @@ def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
         agree = row.get("source_nla_answer_agree")
         label = "unknown" if agree is None else ("agree" if agree else "disagree")
         agreement_groups[label].append(row)
+    probe_agreement_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        agree = row.get("source_probe_answer_agree")
+        label = "unknown" if agree is None else ("agree" if agree else "disagree")
+        probe_agreement_groups[label].append(row)
 
     by_gold: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
@@ -134,6 +148,17 @@ def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
             f.write("|---|---:|---:|---:|\n")
             for label in ("agree", "disagree", "unknown"):
                 items = agreement_groups.get(label, [])
+                if not items:
+                    continue
+                correct = sum(bool(row.get("source_correct")) for row in items)
+                f.write(f"| {label} | {len(items)} | {correct} | {correct / len(items):.4f} |\n")
+
+        if any(label != "unknown" for label in probe_agreement_groups):
+            f.write("\n## Source Accuracy by Source/Probe Agreement\n\n")
+            f.write("| group | n | source_correct | source_accuracy |\n")
+            f.write("|---|---:|---:|---:|\n")
+            for label in ("agree", "disagree", "unknown"):
+                items = probe_agreement_groups.get(label, [])
                 if not items:
                     continue
                 correct = sum(bool(row.get("source_correct")) for row in items)
@@ -220,7 +245,12 @@ def main() -> None:
             out["source_nla_answer_agree"] = answer_agree(source_selected_name, nla_answer)
             out["nla_output"] = nla_row.get("nla_output")
         add_rank_features(out, "nla", nla_logprobs.get(k))
-        add_rank_features(out, "probe", probe_predictions.get(k))
+        probe_row = probe_predictions.get(k)
+        add_rank_features(out, "probe", probe_row)
+        if probe_row:
+            out["source_probe_answer_agree"] = id_agree(
+                source_selected_id, probe_row.get("top1_diagnosis_id")
+            )
         rows.append(out)
 
     output_path = Path(args.output_jsonl)
