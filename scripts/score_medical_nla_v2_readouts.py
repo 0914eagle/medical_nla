@@ -87,6 +87,8 @@ def score_row(row: dict[str, Any]) -> dict[str, Any]:
     cues = cue_targets(row)
     cue_hits = hit_terms(supporting_cues, cues) if supporting_cues else []
     cue_recall = len(cue_hits) / len(cues) if cues else None
+    output_cue_hits = hit_terms(output, cues)
+    output_cue_recall = len(output_cue_hits) / len(cues) if cues else None
     return {
         **row,
         "readout_text": readout_text,
@@ -107,6 +109,8 @@ def score_row(row: dict[str, Any]) -> dict[str, Any]:
         "cue_hit_count": len(cue_hits),
         "cue_count": len(cues),
         "cue_recall": cue_recall,
+        "output_cue_hits": output_cue_hits,
+        "output_cue_recall": output_cue_recall,
     }
 
 
@@ -122,6 +126,9 @@ def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
     answer_hits = sum(bool(row["answer_hit"]) for row in rows)
     output_answer_hits = sum(bool(row["output_answer_hit"]) for row in rows)
     cue_recalls = [float(row["cue_recall"]) for row in rows if row["cue_recall"] is not None]
+    output_cue_recalls = [
+        float(row["output_cue_recall"]) for row in rows if row.get("output_cue_recall") is not None
+    ]
     selected_answers = Counter(row["answer_readout"] or "-" for row in rows)
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -136,7 +143,11 @@ def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
         f.write(f"- answer_hit_rate: {answer_hits / n if n else 0:.4f}\n")
         f.write(f"- output_answer_hit: {output_answer_hits}/{n}\n")
         f.write(f"- output_answer_hit_rate: {output_answer_hits / n if n else 0:.4f}\n")
-        f.write(f"- mean_cue_recall: {mean(cue_recalls) if cue_recalls else 0:.4f}\n\n")
+        f.write(f"- mean_cue_recall: {mean(cue_recalls) if cue_recalls else 0:.4f}\n")
+        f.write(
+            f"- mean_output_cue_recall: "
+            f"{mean(output_cue_recalls) if output_cue_recalls else 0:.4f}\n\n"
+        )
 
         f.write("## By Gold Diagnosis\n\n")
         f.write("| diagnosis_id | n | answer_hit_rate | answer_hits | mean_cue_recall |\n")
