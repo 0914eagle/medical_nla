@@ -106,3 +106,20 @@ The v3 pilot used last-token activations, which appear to encode answer-format s
 ## Non-diagnostic baseline
 
 `data/prompts_medical_nondiagnostic_entities.jsonl` controls for oracle entity tagging by selecting generic tokens such as `patient`, `woman`, `Describe`, or `Explain`. If this baseline also recovers diagnoses at high rates, the entity-token result is less specific. If it does not, the diagnostic entity result is stronger evidence that content-bearing positions matter.
+
+## 2026-08-13 Tier-1 control results
+
+Full record: `docs/results_2026-08-13_ood_and_probe_controls.md`.
+
+- Probe control: source/probe disagreement matches or beats source/NLA
+  disagreement for error detection (paired 152 rows: probe AUROC 1.0000
+  vs NLA 0.9282). Error detection is not an NLA-specific contribution.
+- Diagnosis-heldout OOD: current Medical-AV scores 0/800 answer_hit on 8
+  unseen classes and emits train-class names on 98.75% of them. It is a
+  seen-class classifier; the 86.96% in-distribution answer_hit is
+  classification, not readout.
+- Vanilla AV on the same heldout activations narrates prompt format only
+  (matches the earlier specificity pilot).
+- Surviving claims: probe 99% (information present), source errors are
+  largely decoding failures. Next: open-vocabulary SFT retargeting,
+  position/layer exploration, correction experiment.
