@@ -2,10 +2,16 @@
 
 v1/v2 targets put the diagnosis label in a closed `<answer>` slot, which the
 diagnosis-heldout experiment showed trains a seen-class classifier (heldout
-answer_hit 0/800). The v3 target makes the case-specific cue list the primary
-supervised content: cue combinations differ per case, so the only way to score
-well is to read the activation. The diagnosis appears only as a natural
-sentence in a secondary `<assessment>` line and is excluded from the OOD gate.
+answer_hit 0/800). The v3 target makes the case-specific cue list the only
+supervised content. Cue combinations are far higher-entropy than diagnosis
+labels, so class memorization alone scores poorly — though not zero: a model
+can still emit the typical cues of the nearest seen class, which is why the
+acceptance gate also includes cue precision, mismatched-activation ranking,
+and cue-removal counterfactuals rather than recall alone.
+
+By default no diagnosis text appears in the target at all: an assessment
+sentence naming the diagnosis would reopen the label-shortcut that v3 exists
+to close. `--include-assessment` restores it for later variants.
 
 This script deliberately reuses an existing split directory (e.g. the
 diagnosis-heldout split) unchanged: same rows, same activations, same
@@ -59,25 +65,32 @@ def cue_list(row: dict[str, Any], *, max_cues: int, seed: int) -> list[str]:
     return deduped[:max_cues]
 
 
-def cue_first_target_text(row: dict[str, Any], *, max_cues: int, seed: int) -> str:
+def cue_first_target_text(
+    row: dict[str, Any],
+    *,
+    max_cues: int,
+    seed: int,
+    include_assessment: bool = False,
+) -> str:
     cues = cue_list(row, max_cues=max_cues, seed=seed)
     if not cues:
         raise ValueError(f"Row {row.get('id')} has no cue_targets; cannot build a v3 target.")
     observed = "\n".join(f"- {xml_text(cue)}" for cue in cues)
-    dx = xml_text(row.get("diagnosis_name"))
-    assessment = (
-        f"Findings most consistent with {dx}." if dx else "Findings are non-specific."
-    )
-    return (
-        "<explanation>\n"
-        "<readout>\n"
-        "<observed>\n"
-        f"{observed}\n"
-        "</observed>\n"
-        f"<assessment>{assessment}</assessment>\n"
-        "</readout>\n"
-        "</explanation>"
-    )
+    lines = [
+        "<explanation>",
+        "<readout>",
+        "<observed>",
+        observed,
+        "</observed>",
+    ]
+    if include_assessment:
+        dx = xml_text(row.get("diagnosis_name"))
+        assessment = (
+            f"Findings most consistent with {dx}." if dx else "Findings are non-specific."
+        )
+        lines.append(f"<assessment>{assessment}</assessment>")
+    lines.extend(["</readout>", "</explanation>"])
+    return "\n".join(lines)
 
 
 def write_summary(path: Path, *, counts: Counter, cue_counts: list[int], source_dir: str) -> None:
@@ -109,6 +122,14 @@ def main() -> None:
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--max-cues", type=int, default=12)
     parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument(
+        "--include-assessment",
+        action="store_true",
+        help=(
+            "Append a diagnosis-naming <assessment> sentence to each target. "
+            "Off by default: naming the diagnosis reopens the label shortcut."
+        ),
+    )
     args = parser.parse_args()
 
     split_dir = Path(args.split_dir)
@@ -124,7 +145,12 @@ def main() -> None:
         rows_out = []
         for row in read_jsonl(sft_path):
             out = dict(row)
-            out["target_text"] = cue_first_target_text(row, max_cues=args.max_cues, seed=args.seed)
+            out["target_text"] = cue_first_target_text(
+                row,
+                max_cues=args.max_cues,
+                seed=args.seed,
+                include_assessment=args.include_assessment,
+            )
             out["target_style"] = TARGET_STYLE
             rows_out.append(out)
             cue_counts.append(len(cue_list(row, max_cues=args.max_cues, seed=args.seed)))
@@ -146,6 +172,7 @@ def main() -> None:
         "target_style": TARGET_STYLE,
         "max_cues": args.max_cues,
         "v3_seed": args.seed,
+        "include_assessment": args.include_assessment,
     }
     (out_dir / "metadata.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2, sort_keys=True),

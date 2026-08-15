@@ -21,13 +21,19 @@ def test_cue_list_is_deterministic_and_capped():
     assert cue_list(row, max_cues=3, seed=18) != a or True  # different seed may reorder
 
 
-def test_cue_first_target_contains_cues_and_assessment():
+def test_cue_first_target_default_has_no_diagnosis_text():
     text = cue_first_target_text(make_row(), max_cues=12, seed=17)
     assert "<observed>" in text and "</observed>" in text
-    assert "<assessment>Findings most consistent with URTI.</assessment>" in text
     assert "<answer>" not in text
+    assert "<assessment>" not in text
+    assert "URTI" not in text  # no diagnosis label shortcut in the default target
     for cue in make_row()["cue_targets"]:
         assert f"- {cue}" in text
+
+
+def test_cue_first_target_optional_assessment():
+    text = cue_first_target_text(make_row(), max_cues=12, seed=17, include_assessment=True)
+    assert "<assessment>Findings most consistent with URTI.</assessment>" in text
 
 
 def test_score_row_reads_v3_observed_and_assessment():

@@ -122,11 +122,15 @@ cue가 우연히 겹친 것으로 해석.
 
 ```text
 진단명: 26지선다 → 클러스터 암기로 뚫림 → 읽기의 증거 못 됨
-cue 조합: 케이스마다 다른 3~12개 조합 → 조합 폭발 → 읽어야만 맞음
+cue 조합: 케이스마다 다른 3~12개 조합 → class memorization만으로는
+          맞히기 어려운 고엔트로피 supervision
 ```
 
-cue는 목적이 아니라 **"읽었음"을 채점할 수 있는 유일한 고엔트로피
-정답지**이자, 오답노트류 응용의 '근거' 칸 재료.
+단, cue도 완전한 암기 방지는 아님 — "cluster로 seen class 판별 → 그
+클래스의 전형 cue 뿌리기" 우회가 남아 있고(v1이 실제로 간 길), 그래서
+recall 단독이 아니라 precision + mismatched + counterfactual의 4-기준이
+필요하다. cue는 목적이 아니라 activation-grounded readout을 검증하기
+위한 supervision이자, 오답노트류 응용의 '근거' 칸 재료.
 
 ### 3.4 마지막 토큰에 cue가 있다는 가정인가? — 아니다, 가설이다
 
@@ -176,9 +180,10 @@ cos-sim은 (a) 근거 없음과 (b) 문체 이탈을 구분 못 한다. 절대�
 
 입력: 지금과 동일 (layer-32 활성값 1개 주입).
 
-출력 타깃 (예시):
+출력 타깃 (2026-08-15 수정: 첫 v3는 assessment 없음):
 
 ```text
+<explanation>
 <readout>
 <observed>
 - moderate fever
@@ -186,12 +191,14 @@ cos-sim은 (a) 근거 없음과 (b) 문체 이탈을 구분 못 한다. 절대�
 - nasal congestion
 - cough
 </observed>
-<assessment>Findings most consistent with an upper respiratory infection.</assessment>
 </readout>
+</explanation>
 ```
 
-- `<observed>` = 주 타깃·채점 대상. 케이스별 cue 원문(순서 셔플, max 12)
-- `<assessment>` = 부 타깃, 자연문 속 진단 방향. **관문 판정에서 제외**
+- `<observed>` = 유일한 타깃·채점 대상. 케이스별 cue 원문(순서 셔플, max 12)
+- **진단명은 타깃에서 완전 제거** — assessment에 진단명을 넣으면 `<answer>`
+  슬롯을 없앤 의미가 반감되는 label shortcut 재유입 (`--include-assessment`
+  플래그로 후속 버전에서만 복원)
 - 문체는 3.6에 따라 vanilla 설명문 쪽으로 조정 검토
 
 판정 — 4-기준 관문 (2026-08-15 확정):

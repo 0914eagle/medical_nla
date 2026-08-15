@@ -708,6 +708,13 @@ activations unchanged; only the SFT target switches to cue-first, so results
 are directly comparable to the v1 run (heldout answer_hit 0%, cue_recall 0.31
 memorization level).
 
+Default v3 targets contain no diagnosis text at all — `<observed>` cue list
+only. A diagnosis-naming assessment sentence would reopen the label shortcut
+(`--include-assessment` exists for later variants). Cue combinations are much
+higher-entropy than diagnosis labels, but not memorization-proof: emitting the
+nearest seen class's typical cues is the remaining escape, which the
+precision/mismatched/counterfactual gates exist to catch.
+
 Gate (all four needed for a "reads the activation" claim; 3-4 only built if
 1-2 beat the memorization level):
 
