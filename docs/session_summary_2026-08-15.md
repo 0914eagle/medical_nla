@@ -194,15 +194,30 @@ cos-sim은 (a) 근거 없음과 (b) 문체 이탈을 구분 못 한다. 절대�
 - `<assessment>` = 부 타깃, 자연문 속 진단 방향. **관문 판정에서 제외**
 - 문체는 3.6에 따라 vanilla 설명문 쪽으로 조정 검토
 
-판정 (heldout 800행):
+판정 — 4-기준 관문 (2026-08-15 확정):
 
 ```text
-output_cue_recall ≥ 0.5~0.6           → 통과: 판독 도구 확보
-~0.31(암기 수준) 정체                  → 실패: 위치(entity)/layer 이동 재시도
-+ cue_precision 추가 측정 (지어내기 벌점; 채점기에 추가 예정)
-+ AR matched-vs-mismatched (보조)
-+ (통과 시) cue-제거 counterfactual (주 faithfulness 증거)
+1. heldout cue recall     — 읽는 양. 암기 수준 0.31을 유의미하게 초과해야 함
+2. heldout cue precision  — 뿌리기 방지. recall만 높고 precision 낮으면
+                            "cue를 많이 뿌리는 모델"일 뿐 (채점기에 추가됨)
+3. mismatched 하락        — score(내 텍스트, 내 활성값) vs (내 텍스트, 남의 활성값).
+                            hard negative는 반드시 "같은 진단의 다른 케이스" 포함
+                            (cross-class만 쓰면 분류기도 통과함). AR 절대값 사용 금지
+4. counterfactual         — cue 제거 후: 제거 cue가 readout에서 소실(민감성)
+                            + 유지 cue는 보존(특이성) 둘 다 성립해야 함.
+                            진단 변화는 1차 판정에서 제외 (프롬프트 교란과 얽힘)
+
+1·2는 v3 readout 채점에서 바로 나옴. 3·4 도구는 1·2가 암기 수준을
+넘었을 때만 제작 (실패 시 위치/layer 이동이 먼저).
 ```
+
+cue-first의 위상 (합의된 표현): cue는 최종 목표가 아니라 activation-grounded
+readout을 검증하기 위한 고엔트로피 supervision이다. 진단명은 class
+memorization으로 맞힐 수 있지만, case-specific cue 조합은 activation을 읽지
+않으면 맞히기 어렵다. v3의 목적은 진단 정확도 향상이 아니라 "activation에
+남은 clinical content를 읽을 수 있는가"의 검증이며, 실패해도 "layer-32
+format 위치는 진단 클래스 신호는 강하나 개별 임상 근거를 보존하지 않는다"는
+layer-wise 연구의 출발점이 된다.
 
 병행 가능: correction 실험(§24.5)은 v1 분류기-readout으로도 유효
 (in-distribution 정확도 높음) — "교정" 축의 보험.

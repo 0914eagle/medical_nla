@@ -73,6 +73,29 @@ def hit_terms(text: str, terms: list[str]) -> list[str]:
     return [term for term in terms if contains_term(text, term)]
 
 
+def split_cue_items(text: str) -> list[str]:
+    """Split an emitted cue section into individual cue items.
+
+    Handles v2 ("a; b; c") and v3 ("- a\n- b") formats. Tag extraction
+    collapses newlines to spaces, so bullet markers surrounded by whitespace
+    also act as separators (hyphenated words are untouched).
+    """
+    items = []
+    for chunk in re.split(r"[\n;,]+|(?:^|\s)[-•*](?:\s+|$)", text or ""):
+        item = (chunk or "").strip().lstrip("-•*").strip()
+        if len(item) >= 2:
+            items.append(item)
+    return items
+
+
+def matched_cue_items(items: list[str], cues: list[str]) -> list[str]:
+    return [
+        item
+        for item in items
+        if any(contains_term(item, cue) or contains_term(cue, item) for cue in cues)
+    ]
+
+
 def score_row(row: dict[str, Any]) -> dict[str, Any]:
     output = clean_text(row.get("nla_output") or row.get("raw_nla_output"))
     readout_text, parsed_readout = extract_tag(output, "readout")
@@ -80,15 +103,25 @@ def score_row(row: dict[str, Any]) -> dict[str, Any]:
     task_type, parsed_task_type = extract_tag(parse_source, "task_type")
     answer, parsed_answer = extract_tag(parse_source, "answer")
     supporting_cues, parsed_supporting_cues = extract_tag(parse_source, "supporting_cues")
+    observed, parsed_observed = extract_tag(parse_source, "observed")
+    assessment, parsed_assessment = extract_tag(parse_source, "assessment")
+    # v3 targets carry the diagnosis only in <assessment>; fall back so the
+    # answer-based checks (alias hit, train-vocab collapse) keep working.
+    if not answer and parsed_assessment:
+        answer = assessment
 
     aliases = diagnosis_aliases(row)
     answer_hits = hit_terms(answer, aliases) if answer else []
     output_answer_hits = hit_terms(output, aliases)
     cues = cue_targets(row)
-    cue_hits = hit_terms(supporting_cues, cues) if supporting_cues else []
+    cues_text = supporting_cues if parsed_supporting_cues else observed
+    cue_hits = hit_terms(cues_text, cues) if cues_text else []
     cue_recall = len(cue_hits) / len(cues) if cues else None
     output_cue_hits = hit_terms(output, cues)
     output_cue_recall = len(output_cue_hits) / len(cues) if cues else None
+    emitted_items = split_cue_items(cues_text)
+    matched_items = matched_cue_items(emitted_items, cues)
+    cue_precision = len(matched_items) / len(emitted_items) if emitted_items else None
     return {
         **row,
         "readout_text": readout_text,
@@ -96,9 +129,13 @@ def score_row(row: dict[str, Any]) -> dict[str, Any]:
         "parsed_task_type": parsed_task_type,
         "parsed_answer": parsed_answer,
         "parsed_supporting_cues": parsed_supporting_cues,
+        "parsed_observed": parsed_observed,
+        "parsed_assessment": parsed_assessment,
         "task_type_readout": task_type,
         "answer_readout": answer,
         "supporting_cues_readout": supporting_cues,
+        "observed_readout": observed,
+        "assessment_readout": assessment,
         "diagnosis_aliases_scored": aliases,
         "answer_hits": answer_hits,
         "output_answer_hits": output_answer_hits,
@@ -111,6 +148,9 @@ def score_row(row: dict[str, Any]) -> dict[str, Any]:
         "cue_recall": cue_recall,
         "output_cue_hits": output_cue_hits,
         "output_cue_recall": output_cue_recall,
+        "cue_items_emitted": len(emitted_items),
+        "cue_items_matched": len(matched_items),
+        "cue_precision": cue_precision,
     }
 
 
@@ -129,6 +169,9 @@ def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
     output_cue_recalls = [
         float(row["output_cue_recall"]) for row in rows if row.get("output_cue_recall") is not None
     ]
+    cue_precisions = [
+        float(row["cue_precision"]) for row in rows if row.get("cue_precision") is not None
+    ]
     selected_answers = Counter(row["answer_readout"] or "-" for row in rows)
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -146,8 +189,12 @@ def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
         f.write(f"- mean_cue_recall: {mean(cue_recalls) if cue_recalls else 0:.4f}\n")
         f.write(
             f"- mean_output_cue_recall: "
-            f"{mean(output_cue_recalls) if output_cue_recalls else 0:.4f}\n\n"
+            f"{mean(output_cue_recalls) if output_cue_recalls else 0:.4f}\n"
         )
+        f.write(
+            f"- mean_cue_precision: {mean(cue_precisions) if cue_precisions else 0:.4f}\n"
+        )
+        f.write(f"- cue_precision_n: {len(cue_precisions)}\n\n")
 
         f.write("## By Gold Diagnosis\n\n")
         f.write("| diagnosis_id | n | answer_hit_rate | answer_hits | mean_cue_recall |\n")

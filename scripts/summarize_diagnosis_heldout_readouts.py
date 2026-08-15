@@ -73,6 +73,9 @@ def pool_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     output_cue_recalls = [
         float(row["output_cue_recall"]) for row in rows if row.get("output_cue_recall") is not None
     ]
+    cue_precisions = [
+        float(row["cue_precision"]) for row in rows if row.get("cue_precision") is not None
+    ]
     return {
         "n": n,
         "parsed_readout": sum(bool(row.get("parsed_readout")) for row in rows),
@@ -85,6 +88,8 @@ def pool_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "mean_cue_recall": mean(cue_recalls) if cue_recalls else 0.0,
         "cue_recall_n": len(cue_recalls),
         "mean_output_cue_recall": mean(output_cue_recalls) if output_cue_recalls else 0.0,
+        "mean_cue_precision": mean(cue_precisions) if cue_precisions else 0.0,
+        "cue_precision_n": len(cue_precisions),
     }
 
 
@@ -133,16 +138,18 @@ def write_summary(
         f.write("## Seen vs Heldout\n\n")
         f.write(
             "| pool | n | parsed_readout | answer_hit_rate "
-            "| output_answer_hit_rate | mean_cue_recall | mean_output_cue_recall |\n"
+            "| output_answer_hit_rate | mean_cue_recall | mean_output_cue_recall "
+            "| mean_cue_precision |\n"
         )
-        f.write("|---|---:|---:|---:|---:|---:|---:|\n")
+        f.write("|---|---:|---:|---:|---:|---:|---:|---:|\n")
         for label, metrics in (("test_seen", seen), ("test_heldout", heldout)):
             if metrics is None:
                 continue
             f.write(
                 f"| {label} | {metrics['n']} | {metrics['parsed_readout']} | "
                 f"{metrics['answer_hit_rate']:.4f} | {metrics['output_answer_hit_rate']:.4f} | "
-                f"{metrics['mean_cue_recall']:.4f} | {metrics['mean_output_cue_recall']:.4f} |\n"
+                f"{metrics['mean_cue_recall']:.4f} | {metrics['mean_output_cue_recall']:.4f} | "
+                f"{metrics['mean_cue_precision']:.4f} |\n"
             )
         if seen is not None:
             f.write(

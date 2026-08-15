@@ -699,3 +699,92 @@ python scripts/evaluate_error_prediction.py \
 If `nla_minus_probe_auroc` is near zero, the natural-language readout adds no
 error-detection value over a linear probe; the case for NLA must then rest on
 explanation quality (cues, trajectories), not on detection AUROC.
+
+## 10. Medical-NLA v3 Cue-First OOD Run
+
+Purpose: test whether the AV can read case-specific clinical content from the
+activation, not classify diagnoses. Reuses the diagnosis-heldout split and its
+activations unchanged; only the SFT target switches to cue-first, so results
+are directly comparable to the v1 run (heldout answer_hit 0%, cue_recall 0.31
+memorization level).
+
+Gate (all four needed for a "reads the activation" claim; 3-4 only built if
+1-2 beat the memorization level):
+
+```text
+1. heldout cue recall        (reading quantity)
+2. heldout cue precision     (anti cue-spraying)
+3. mismatched-activation score drop, same-diagnosis hard negatives included
+4. cue-removal counterfactual: removed cue disappears AND retained cues stay
+   (diagnosis change excluded from the primary judgment)
+```
+
+Generate v3 targets from the existing split (CPU, seconds):
+
+```bash
+python scripts/make_medical_nla_v3_cue_first_targets.py \
+  --split-dir /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v1 \
+  --out-dir /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v3_cue_first \
+  --seed 17
+```
+
+Train (GPU, hours):
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
+  --config configs/default.yaml \
+  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v3_cue_first/sft_train.jsonl \
+  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v3_cue_first/sft_val.jsonl \
+  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_diagnosis_heldout_v3_cue_first_lora_e3 \
+  --epochs 3 \
+  --batch-size 2
+' > /data1/heejae/medical_nla/logs/medical_nla_diagnosis_heldout_v3_cue_first_lora_e3.log 2>&1 &
+```
+
+Readout + scoring + seen-vs-heldout summary (GPU then CPU):
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+for POOL in test_seen test_heldout; do
+CUDA_VISIBLE_DEVICES=0 python -m src.run_nla \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v3_cue_first/manifest_${POOL}.jsonl \
+  --output /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_${POOL}.jsonl \
+  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_diagnosis_heldout_v3_cue_first_lora_e3
+
+python scripts/score_medical_nla_v2_readouts.py \
+  --input /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_${POOL}.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_${POOL}_scored.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_${POOL}_summary.md
+done
+
+python scripts/summarize_diagnosis_heldout_readouts.py \
+  --heldout-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_test_heldout_scored.jsonl \
+  --seen-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_test_seen_scored.jsonl \
+  --split-dir /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v3_cue_first \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_analysis.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_analysis_summary.md
+' > /data1/heejae/medical_nla/logs/medical_nla_diagnosis_heldout_v3_readouts.log 2>&1 &
+```
+
+Reading the result: v1 memorization baselines are heldout output_cue_recall
+0.3066 and answer_in_train_vocab_rate 0.9875. v3 passes gates 1-2 when heldout
+cue recall clearly exceeds ~0.31 with precision holding (not cue-spraying);
+then build gates 3-4 (mismatched AR ranking, cue-removal counterfactuals).
