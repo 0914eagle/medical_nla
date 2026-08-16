@@ -48,6 +48,27 @@ def norm_cue(cue: str) -> str:
     return " ".join(str(cue or "").split()).lower()
 
 
+def normalize_manifest_row(row: dict[str, Any]) -> dict[str, Any] | None:
+    """Recover cue fields from an extraction manifest row.
+
+    `src.extract_activations` passes through only a fixed field list, which
+    drops `cue_text`; the same string survives as `target_text` (and inside
+    `cue_targets`), so rebuild from those.
+    """
+    if not row.get("activation_path"):
+        return None
+    cue = row.get("cue_text") or row.get("target_text")
+    if not cue:
+        cue_targets = row.get("cue_targets") or []
+        cue = cue_targets[0] if cue_targets else None
+    if not cue or not str(cue).strip():
+        return None
+    out = dict(row)
+    out["cue_text"] = str(cue)
+    out["cue_targets"] = [str(cue)]
+    return out
+
+
 def split_cue_strings(
     cues: list[str],
     *,
@@ -139,13 +160,15 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=17)
     args = parser.parse_args()
 
-    rows = [
-        row
-        for row in read_jsonl(args.manifest)
-        if row.get("activation_path") and row.get("cue_text")
-    ]
+    rows = []
+    for raw_row in read_jsonl(args.manifest):
+        row = normalize_manifest_row(raw_row)
+        if row is not None:
+            rows.append(row)
     if not rows:
-        raise ValueError("No usable rows: need activation_path and cue_text per row.")
+        raise ValueError(
+            "No usable rows: need activation_path plus cue_text/target_text/cue_targets per row."
+        )
 
     train_cues, heldout_cues = split_cue_strings(
         [row["cue_text"] for row in rows],

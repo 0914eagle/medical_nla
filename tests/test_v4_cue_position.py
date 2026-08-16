@@ -5,6 +5,7 @@ import pytest
 from scripts.make_ddxplus_cue_position_rows import cue_rows_for_case, cue_spans_in_prompt
 from scripts.make_medical_nla_v4_cue_position_splits import (
     assign_split,
+    normalize_manifest_row,
     split_cases,
     split_cue_strings,
 )
@@ -76,6 +77,19 @@ def test_assign_split_drops_heldout_cues_in_train_cases():
     assert assign_split(row_heldout, "test", heldout) == "test_heldout_cue"
     assert assign_split(row_seen, "train", heldout) == "train"
     assert assign_split(row_seen, "test", heldout) == "test_seen_cue"
+
+
+def test_normalize_manifest_row_recovers_cue_from_target_text():
+    # The extraction manifest drops cue_text; target_text carries the same string.
+    row = {"activation_path": "/x.pt", "target_text": "a cough", "cue_targets": ["a cough"]}
+    out = normalize_manifest_row(row)
+    assert out is not None
+    assert out["cue_text"] == "a cough"
+    assert out["cue_targets"] == ["a cough"]
+    assert normalize_manifest_row({"activation_path": "/x.pt"}) is None
+    assert normalize_manifest_row({"target_text": "a cough"}) is None
+    from_targets = normalize_manifest_row({"activation_path": "/x.pt", "cue_targets": ["fever"]})
+    assert from_targets is not None and from_targets["cue_text"] == "fever"
 
 
 def test_split_cases_disjoint_pools():
