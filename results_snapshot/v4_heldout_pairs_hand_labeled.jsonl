@@ -1,0 +1,92 @@
+{"pair_index": 0, "n": 38, "label": "C", "gold_cue": "how severe is the itching", "emitted": "- is the rash associated with intense itching"}
+{"pair_index": 1, "n": 29, "label": "B", "gold_cue": "lightheaded and dizzy or do the patient feel like the patient are about to faint", "emitted": "- like the patient are about to faint"}
+{"pair_index": 2, "n": 25, "label": "A", "gold_cue": "what color is the rash pink", "emitted": "- what color is the rash pink"}
+{"pair_index": 3, "n": 20, "label": "B", "gold_cue": "pain that is increased with movement", "emitted": "- pain that increases with movement"}
+{"pair_index": 4, "n": 17, "label": "A", "gold_cue": "where is the swelling located ankle(R)", "emitted": "- where is the swelling located ankle(R)"}
+{"pair_index": 5, "n": 17, "label": "B", "gold_cue": "had an involuntary weight loss over the last 3 months", "emitted": "- been unintentionally losing weight or have a change in their general well-being over the last 3 months"}
+{"pair_index": 6, "n": 17, "label": "D", "gold_cue": "chest pain even at rest", "emitted": "- symptoms that are increased with physical exertion but alleviated with rest"}
+{"pair_index": 7, "n": 16, "label": "C", "gold_cue": "how severe is the itching", "emitted": "- is the rash or itching"}
+{"pair_index": 8, "n": 11, "label": "B", "gold_cue": "how severe is the itching", "emitted": "- what is the level of itching"}
+{"pair_index": 9, "n": 10, "label": "B", "gold_cue": "had an involuntary weight loss over the last 3 months", "emitted": "- been unintentionally losing weight over the past 3 months"}
+{"pair_index": 10, "n": 10, "label": "C", "gold_cue": "where is the swelling located ankle(L)", "emitted": "- where is the swelling located leg(L)"}
+{"pair_index": 11, "n": 10, "label": "D", "gold_cue": "out of breath with minimal physical effort", "emitted": "- no shortness of breath or difficulty breathing with minimal exertion"}
+{"pair_index": 12, "n": 9, "label": "C", "gold_cue": "recently had stools that were black (like coal)", "emitted": "- light red blood or blood clots in their stool, which is black and tarry"}
+{"pair_index": 13, "n": 9, "label": "C", "gold_cue": "like the patient are detached from their own body or their surroundings", "emitted": "- confused or disorientated with respect to their surroundings"}
+{"pair_index": 14, "n": 8, "label": "A", "gold_cue": "where is the affected region located mouth", "emitted": "- where is the affected region located mouth"}
+{"pair_index": 15, "n": 8, "label": "B", "gold_cue": "where is the swelling located dorsal aspect of the foot(R)", "emitted": "- where is the swelling located dorsal side of the foot(R)"}
+{"pair_index": 16, "n": 7, "label": "B", "gold_cue": "their abdomen is bloated or distended (swollen due to pressure from inside)", "emitted": "- the abdomen is swollen or painful due to gas and/or bloating"}
+{"pair_index": 17, "n": 7, "label": "A", "gold_cue": "where is the swelling located thigh(L)", "emitted": "- where is the swelling located thigh(L)"}
+{"pair_index": 18, "n": 7, "label": "C", "gold_cue": "pain or weakness in their jaw", "emitted": "- pain that improves with chewing, and can be associated with jaw pain"}
+{"pair_index": 19, "n": 6, "label": "A", "gold_cue": "where is the affected region located biceps(R)", "emitted": "- where is the affected region located biceps(R)"}
+{"pair_index": 20, "n": 6, "label": "B", "gold_cue": "is their skin much paler than usual", "emitted": "- been unintentionally losing weight or do the patient look more pale than usual"}
+{"pair_index": 21, "n": 6, "label": "C", "gold_cue": "where is the affected region located labia majora(L)", "emitted": "- where is the affected region located side of the neck(L)"}
+{"pair_index": 22, "n": 6, "label": "B", "gold_cue": "had an involuntary weight loss over the last 3 months", "emitted": "- been unintentionally losing weight or have a decrease in appetite over the last 3 months"}
+{"pair_index": 23, "n": 6, "label": "C", "gold_cue": "where is the swelling located dorsal aspect of the foot(L)", "emitted": "- where is the swelling located sole(R)"}
+{"pair_index": 24, "n": 5, "label": "C", "gold_cue": "where is the swelling located ankle(R)", "emitted": "- where is the swelling located calf(R)"}
+{"pair_index": 25, "n": 5, "label": "D", "gold_cue": "recently had stools that were black (like coal)", "emitted": "- been coughing up blood or something resembling coffee grounds"}
+{"pair_index": 26, "n": 5, "label": "C", "gold_cue": "where is the swelling located dorsal aspect of the foot(R)", "emitted": "- where is the swelling located sole(R)"}
+{"pair_index": 27, "n": 4, "label": "C", "gold_cue": "where is the swelling located ankle(L)", "emitted": "- where is the swelling located calf(L)"}
+{"pair_index": 28, "n": 4, "label": "C", "gold_cue": "previously, or do the patient , have any weakness/paralysis in one or more of their limbs or in their face", "emitted": "- been losing sensitivity or tingling in their face, neck or any other part of their body"}
+{"pair_index": 29, "n": 4, "label": "B", "gold_cue": "had an involuntary weight loss over the last 3 months", "emitted": "- been unintentionally losing weight over the last 3 months"}
+{"pair_index": 30, "n": 4, "label": "B", "gold_cue": "like the patient are (or were) choking or suffocating", "emitted": "- like the patient are suffocating for air or were the patient afraid that the patient were about do die"}
+{"pair_index": 31, "n": 4, "label": "B", "gold_cue": "like the patient are (or were) choking or suffocating", "emitted": "- like the patient are suffocating"}
+{"pair_index": 32, "n": 3, "label": "B", "gold_cue": "that muscle spasms or soreness in their neck are keeping the patient from turning their head to one side", "emitted": "- is the neck biased to turn in one direction"}
+{"pair_index": 33, "n": 3, "label": "B", "gold_cue": "that muscle spasms or soreness in their neck are keeping the patient from turning their head to one side", "emitted": "- is the head turned to one side"}
+{"pair_index": 34, "n": 3, "label": "C", "gold_cue": "bouts of choking or shortness of breath that wake the patient up at night", "emitted": "- are their symptoms worse at night"}
+{"pair_index": 35, "n": 3, "label": "B", "gold_cue": "where is the swelling located nose", "emitted": "- where is the affected region located nose"}
+{"pair_index": 36, "n": 3, "label": "C", "gold_cue": "previously, or do the patient , have any weakness/paralysis in one or more of their limbs or in their face", "emitted": "- had numbness, loss of sensation or tingling, in both arms and/or face"}
+{"pair_index": 37, "n": 3, "label": "C", "gold_cue": "where is the affected region located labia majora(R)", "emitted": "- where is the affected region located side of the neck(R)"}
+{"pair_index": 38, "n": 3, "label": "A", "gold_cue": "where is the affected region located side of the neck(R)", "emitted": "- where is the affected region located side of the neck(R)"}
+{"pair_index": 39, "n": 3, "label": "A", "gold_cue": "where is the affected region located iliac fossa(L)", "emitted": "- where is the affected region located iliac fossa(L)"}
+{"pair_index": 40, "n": 3, "label": "C", "gold_cue": "where is the swelling located dorsal aspect of the foot(L)", "emitted": "- where is the swelling located sole(L)"}
+{"pair_index": 41, "n": 3, "label": "B", "gold_cue": "difficulty articulating words/speaking", "emitted": "- difficulty or an inability to speak"}
+{"pair_index": 42, "n": 3, "label": "A", "gold_cue": "where is the affected region located cervical spine", "emitted": "- where is the affected region located cervical spine"}
+{"pair_index": 43, "n": 3, "label": "A", "gold_cue": "where is the affected region located nose", "emitted": "- where is the affected region located nose"}
+{"pair_index": 44, "n": 2, "label": "B", "gold_cue": "that muscle spasms or soreness in their neck are keeping the patient from turning their head to one side", "emitted": "- is the affected region located on one side of the neck, and can the head be turned to one side"}
+{"pair_index": 45, "n": 2, "label": "C", "gold_cue": "where is the swelling located nose", "emitted": "- nasal congestion or blockage in the nose"}
+{"pair_index": 46, "n": 2, "label": "B", "gold_cue": "where is the swelling located forehead", "emitted": "- where is the affected region located forehead"}
+{"pair_index": 47, "n": 2, "label": "B", "gold_cue": "where is the swelling located cheek(R)", "emitted": "- where is the affected region located cheek(R)"}
+{"pair_index": 48, "n": 2, "label": "D", "gold_cue": "recently had stools that were black (like coal)", "emitted": "- been coughing up blood or something resembling coffee beans"}
+{"pair_index": 49, "n": 2, "label": "B", "gold_cue": "is their skin much paler than usual", "emitted": "- been unintentionally losing weight or do the patient look pale or sickly compared to usual"}
+{"pair_index": 50, "n": 2, "label": "C", "gold_cue": "previously, or do the patient , have any weakness/paralysis in one or more of their limbs or in their face", "emitted": "- the symmetry of their face, neck and/or both arms and/or both legs"}
+{"pair_index": 51, "n": 2, "label": "C", "gold_cue": "previously, or do the patient , have any weakness/paralysis in one or more of their limbs or in their face", "emitted": "- where is the affected region located in their face, neck or any other part of the body"}
+{"pair_index": 52, "n": 2, "label": "A", "gold_cue": "where is the affected region located bottom lip(R)", "emitted": "- where is the affected region located bottom lip(R)"}
+{"pair_index": 53, "n": 2, "label": "D", "gold_cue": "been able to pass stools or gas since their symptoms increased", "emitted": "- been the symptoms or pain increased with time and/or been associated with a worsening condition"}
+{"pair_index": 54, "n": 2, "label": "C", "gold_cue": "where is the swelling located thigh(L)", "emitted": "- where is the swelling located side of the neck(L)"}
+{"pair_index": 55, "n": 2, "label": "B", "gold_cue": "difficulty articulating words/speaking", "emitted": "- having difficulty or an inability to articulate or speak"}
+{"pair_index": 56, "n": 2, "label": "B", "gold_cue": "previously, or do the patient , have any weakness/paralysis in one or more of their limbs or in their face", "emitted": "- the weakness of their facial muscles and/or both arms and/or both legs"}
+{"pair_index": 57, "n": 2, "label": "C", "gold_cue": "how severe is the itching", "emitted": "- is the rash (or pain) accompanied by intense itching"}
+{"pair_index": 58, "n": 1, "label": "C", "gold_cue": "that muscle spasms or soreness in their neck are keeping the patient from turning their head to one side", "emitted": "- pain that improves when the head is turned to one side"}
+{"pair_index": 59, "n": 1, "label": "B", "gold_cue": "that muscle spasms or soreness in their neck are keeping the patient from turning their head to one side", "emitted": "- is the affected region located on one side of the neck, and is the head turned to one side"}
+{"pair_index": 60, "n": 1, "label": "B", "gold_cue": "that muscle spasms or soreness in their neck are keeping the patient from turning their head to one side", "emitted": "- is the affected region located on one side of the neck, and is the patient unable to turn their head to one side"}
+{"pair_index": 61, "n": 1, "label": "C", "gold_cue": "bouts of choking or shortness of breath that wake the patient up at night", "emitted": "- are their symptoms worse when lying down and alleviated while sitting up, and do their symptoms of muscle weakness increase with fatigue and/or are the patient kept awake at night"}
+{"pair_index": 62, "n": 1, "label": "C", "gold_cue": "bouts of choking or shortness of breath that wake the patient up at night", "emitted": "- are their symptoms worse when lying down and alleviated while sitting up, and do their symptoms of muscle weakness increase at night"}
+{"pair_index": 63, "n": 1, "label": "C", "gold_cue": "how severe is the itching", "emitted": "- is the rash (or are the rashes) producing that itching"}
+{"pair_index": 64, "n": 1, "label": "C", "gold_cue": "is their skin much paler than usual", "emitted": "- recently had a loss of color or vitality in their face, which is usually pale compared to usual"}
+{"pair_index": 65, "n": 1, "label": "B", "gold_cue": "is their skin much paler than usual", "emitted": "- been unintentionally losing color or vitality, like the one in their face, which is paler than usual"}
+{"pair_index": 66, "n": 1, "label": "C", "gold_cue": "recently had stools that were black (like coal)", "emitted": "- light red blood or blood clots in their stool (feces), which can indicate anemia or bleeding"}
+{"pair_index": 67, "n": 1, "label": "B", "gold_cue": "is their skin much paler than usual", "emitted": "- pale skin tone associated with anemia or poor circulation"}
+{"pair_index": 68, "n": 1, "label": "B", "gold_cue": "is their skin much paler than usual", "emitted": "- is the patient paler than usual"}
+{"pair_index": 69, "n": 1, "label": "C", "gold_cue": "previously, or do the patient , have any weakness/paralysis in one or more of their limbs or in their face", "emitted": "- been the same expression in their face, neck or any other part of the body"}
+{"pair_index": 70, "n": 1, "label": "B", "gold_cue": "previously, or do the patient , have any weakness/paralysis in one or more of their limbs or in their face", "emitted": "- is the weakness located in their face, neck or any other part of the body"}
+{"pair_index": 71, "n": 1, "label": "C", "gold_cue": "previously, or do the patient , have any weakness/paralysis in one or more of their limbs or in their face", "emitted": "- which part of their face, neck or any other region is affected"}
+{"pair_index": 72, "n": 1, "label": "B", "gold_cue": "previously, or do the patient , have any weakness/paralysis in one or more of their limbs or in their face", "emitted": "- had weakness or paralysis in one arm and/or both legs and/or face"}
+{"pair_index": 73, "n": 1, "label": "D", "gold_cue": "where is the affected region located labia majora(L)", "emitted": "- where is the affected region located l(L)"}
+{"pair_index": 74, "n": 1, "label": "C", "gold_cue": "where is the affected region located bottom lip(R)", "emitted": "- where is the affected region located upper lip(R)"}
+{"pair_index": 75, "n": 1, "label": "B", "gold_cue": "where is the affected region located iliac fossa(L)", "emitted": "- where is the affected region located side of the abdomen(L)"}
+{"pair_index": 76, "n": 1, "label": "C", "gold_cue": "where is the swelling located thigh(L)", "emitted": "- where is the swelling located side of the body(L)"}
+{"pair_index": 77, "n": 1, "label": "C", "gold_cue": "where is the swelling located dorsal aspect of the foot(L)", "emitted": "- where is the swelling located dorsal side of the foot(R)"}
+{"pair_index": 78, "n": 1, "label": "B", "gold_cue": "where is the swelling located dorsal aspect of the foot(L)", "emitted": "- where is the swelling located dorsal side of the foot(L)"}
+{"pair_index": 79, "n": 1, "label": "C", "gold_cue": "where is the swelling located thigh(L)", "emitted": "- where is the swelling located calf(L)"}
+{"pair_index": 80, "n": 1, "label": "A", "gold_cue": "where is the swelling located ankle(L)", "emitted": "- where is the swelling located ankle(L)"}
+{"pair_index": 81, "n": 1, "label": "B", "gold_cue": "where is the swelling located dorsal aspect of the foot(L)", "emitted": "- where is the swelling located dorsally(L)"}
+{"pair_index": 82, "n": 1, "label": "B", "gold_cue": "where is the swelling located dorsal aspect of the foot(R)", "emitted": "- where is the swelling located dorsally(R)"}
+{"pair_index": 83, "n": 1, "label": "C", "gold_cue": "previously, or do the patient , have any weakness/paralysis in one or more of their limbs or in their face", "emitted": "- a subtle asymmetry in their face, neck or body"}
+{"pair_index": 84, "n": 1, "label": "C", "gold_cue": "previously, or do the patient , have any weakness/paralysis in one or more of their limbs or in their face", "emitted": "- the symmetry of their face, and/or both arms and/or both legs"}
+{"pair_index": 85, "n": 1, "label": "B", "gold_cue": "difficulty articulating words/speaking", "emitted": "- slightly difficult to articulate or speak"}
+{"pair_index": 86, "n": 1, "label": "B", "gold_cue": "difficulty articulating words/speaking", "emitted": "- having difficulty or an inability to speak"}
+{"pair_index": 87, "n": 1, "label": "C", "gold_cue": "previously, or do the patient , have any weakness/paralysis in one or more of their limbs or in their face", "emitted": "- a subtle asymmetry in their face"}
+{"pair_index": 88, "n": 1, "label": "B", "gold_cue": "previously, or do the patient , have any weakness/paralysis in one or more of their limbs or in their face", "emitted": "- the weakness of their face, neck or any other part of their body"}
+{"pair_index": 89, "n": 1, "label": "B", "gold_cue": "like the patient are (or were) choking or suffocating", "emitted": "- like the patient are dying or suffocating"}
+{"pair_index": 90, "n": 1, "label": "C", "gold_cue": "where is the affected region located flank(L)", "emitted": "- where is the affected region located side of the neck(L)"}
+{"pair_index": 91, "n": 1, "label": "B", "gold_cue": "where is the affected region located flank(L)", "emitted": "- where is the swelling located flank(L)"}
