@@ -37,13 +37,22 @@ from src.jsonl import read_jsonl, write_jsonl
 STOPWORDS = frozenset(
     "a an the of or and is are am do does did their they them her his she he it its this that "
     "these those with in on at to for from by as was were be been being have has had feel feels "
-    "felt like patient patients".split()
+    "felt like patient patients how what where when which why".split()
 )
+
+
+def stem(token: str) -> str:
+    """Light suffix stripping so inflection variants match (increases/increased,
+    stool/stools). Only applied to longer tokens to avoid mangling short words."""
+    for suffix in ("ing", "ed", "es", "s"):
+        if len(token) > 4 and token.endswith(suffix):
+            return token[: -len(suffix)]
+    return token
 
 
 def content_tokens(text: str) -> set[str]:
     return {
-        token
+        stem(token)
         for token in re.findall(r"[a-z0-9()]+", str(text or "").lower())
         if token not in STOPWORDS
     }
@@ -57,14 +66,22 @@ def gold_token_recall(gold_cue: str, emitted_text: str) -> float | None:
 
 
 def row_cue(row: dict[str, Any]) -> str:
-    """cue_text is dropped by run_nla passthrough; recover from surviving fields."""
-    cue = row.get("cue_text") or row.get("target_text")
+    """Recover the single gold cue from fields that survive the pipeline.
+
+    Prefer the scorer's gold_cue_targets/cue_targets: in v4 split rows,
+    target_text holds the FULL XML SFT target, so using it as the gold cue
+    contaminates token matching with tag words.
+    """
+    cue = None
+    for field in ("gold_cue_targets", "cue_targets"):
+        values = row.get(field) or []
+        if values:
+            cue = values[0]
+            break
     if not cue:
-        for field in ("gold_cue_targets", "cue_targets"):
-            values = row.get(field) or []
-            if values:
-                cue = values[0]
-                break
+        cue = row.get("cue_text")
+    if not cue and row.get("target_text"):
+        cue = re.sub(r"<[^>]+>", " ", str(row["target_text"])).strip("- \n")
     return " ".join(str(cue or "").split())
 
 
