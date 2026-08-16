@@ -795,3 +795,118 @@ Reading the result: v1 memorization baselines are heldout output_cue_recall
 0.3066 and answer_in_train_vocab_rate 0.9875. v3 passes gates 1-2 when heldout
 cue recall clearly exceeds ~0.31 with precision holding (not cue-spraying);
 then build gates 3-4 (mismatched AR ranking, cue-removal counterfactuals).
+
+## 11. v4 Cue-Position Positive Control
+
+Purpose: decide whether the v3 failure was positional (detail compressed
+away at the format position) or mechanistic (single-vector NLA readout
+cannot carry case-specific detail from anywhere). One activation per
+(case, cue) at the cue's own token span, where its information is
+guaranteed present. The OOD unit is the cue STRING (cues are shared
+across diagnoses, so diagnosis-heldout would not keep cue text unseen).
+
+Generate per-cue extraction rows from the existing all-cue manifest
+(prompt + cue_targets are carried in it):
+
+```bash
+python scripts/make_ddxplus_cue_position_rows.py \
+  --input /data1/heejae/medical_nla/activations/ddxplus_all_cue_format_v1/manifest.jsonl \
+  --output /data1/heejae/medical_nla/activations/ddxplus_cue_position_v1_rows.jsonl \
+  --max-cues-per-case 4 \
+  --seed 17
+```
+
+Extract activations at cue spans (GPU pass 1; layer comes from the config):
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=0 python -m src.extract_activations \
+  --config configs/default.yaml \
+  --input /data1/heejae/medical_nla/activations/ddxplus_cue_position_v1_rows.jsonl \
+  --run-name ddxplus_cue_position_v1
+' > /data1/heejae/medical_nla/logs/ddxplus_cue_position_v1_extract.log 2>&1 &
+```
+
+Cue-heldout splits (25% of cue strings never supervised) + single-cue targets:
+
+```bash
+python scripts/make_medical_nla_v4_cue_position_splits.py \
+  --manifest /data1/heejae/medical_nla/activations/ddxplus_cue_position_v1/manifest.jsonl \
+  --out-dir /data1/heejae/medical_nla/train/medical_nla_cue_position_v4 \
+  --heldout-cue-frac 0.25 \
+  --seed 17
+```
+
+Train (same trainer; the train pool is larger than v3, expect a longer run):
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
+  --config configs/default.yaml \
+  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_cue_position_v4/sft_train.jsonl \
+  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_cue_position_v4/sft_val.jsonl \
+  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_cue_position_v4_lora_e3 \
+  --epochs 3 \
+  --batch-size 2
+' > /data1/heejae/medical_nla/logs/medical_nla_cue_position_v4_lora_e3.log 2>&1 &
+```
+
+Readout + scoring + summary:
+
+```bash
+nohup bash -lc '
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+for POOL in test_seen_cue test_heldout_cue; do
+CUDA_VISIBLE_DEVICES=0 python -m src.run_nla \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/train/medical_nla_cue_position_v4/manifest_${POOL}.jsonl \
+  --output /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_${POOL}.jsonl \
+  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_cue_position_v4_lora_e3
+
+python scripts/score_medical_nla_v2_readouts.py \
+  --input /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_${POOL}.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_${POOL}_scored.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_${POOL}_summary.md
+done
+
+python scripts/summarize_cue_position_readouts.py \
+  --seen-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_test_seen_cue_scored.jsonl \
+  --heldout-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_test_heldout_cue_scored.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_analysis.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_analysis_summary.md
+' > /data1/heejae/medical_nla/logs/medical_nla_cue_position_v4_readouts.log 2>&1 &
+```
+
+Reading the result (test_heldout_cue read_rate is the decision number):
+
+```text
+high (>~0.6): the AV can verbalize unseen case-specific detail from a
+  position that has it -> the v3 failure was positional; proceed to the
+  positional/layer-wise map (which cue positions/layers keep detail).
+low while seen-cue is high: seen-cue reading was memorization; the
+  single-vector readout mechanism is the bottleneck -> rethink injection
+  (multi-token/span) before more position hunting.
+```
