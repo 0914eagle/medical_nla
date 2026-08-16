@@ -179,3 +179,14 @@ This is the pre-registered failure outcome, and it sets the next track:
 run the cue-first recipe at cue-token (entity) positions where local
 clinical content was previously observed, and at earlier layers (16/24)
 before integration — i.e., the start of the layer-wise pilot.
+
+Sample inspection (heldout acute_pulmonary_edema rows) refines the
+conclusion: outputs are not random spray. They stay in the correct cue
+family (swelling/dyspnea themes, occasional exact hits like ankle(R))
+but get case-specific detail wrong (locations, laterality, enumerating
+many location variants), and one output reproduces the textbook cue set
+of the nearest train class (pulmonary embolism: pleuritic pain, pain on
+movement, cough, calf swelling). So at this position the decodable
+content is theme-level summary plus nearest-seen-cluster templates;
+case-level detail is what fails — strengthening the case for reading
+cue-token (entity) positions, where that detail should live.
