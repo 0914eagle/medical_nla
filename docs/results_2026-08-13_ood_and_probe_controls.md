@@ -145,3 +145,37 @@ Claims now dead without a recipe change:
 4. Interventional faithfulness (cue-removal counterfactuals, activation
    patching) as the NLA-specific evidence probes cannot mimic — applies
    to whichever readout the retargeted recipe produces.
+
+## Addendum 2026-08-16: v3 Cue-First OOD Result
+
+Same heldout split and activations; target switched to cue-first
+(`<observed>` list only, no diagnosis text; adapter
+`medical_nla_diagnosis_heldout_v3_cue_first_lora_e3`, epoch-3 val_loss
+0.1233).
+
+| pool | n | cue_recall | cue_precision |
+|---|---:|---:|---:|
+| test_seen | 727 | 0.6251 | 0.6962 |
+| test_heldout | 800 | 0.1876 | 0.2437 |
+
+Gate 1 failed: heldout cue recall is below even the v1 memorization level
+(0.3066), and precision 0.2437 means ~76% of emitted heldout cues are not
+in the case's gold set — consistent with emitting the nearest train
+class's typical cue list. The per-class pattern matches v1's adjacency
+structure (urti 0.5713 where train has bronchitis/influenza; most others
+0.02-0.34). Answer metrics are vacuous by design (no diagnosis text in
+targets); judgment is cue-based only.
+
+Combined with the vanilla control and the v1 label-SFT collapse, three
+readout attempts now converge on the same conclusion for this position:
+
+> Layer-32 last-token (format-position) activation carries strong
+> diagnosis-class signal (probe 99.17%) but does not preserve
+> case-specific individual cue information in a form the AV can decode
+> into natural language. Evidence appears already compressed into a
+> conclusion at this point.
+
+This is the pre-registered failure outcome, and it sets the next track:
+run the cue-first recipe at cue-token (entity) positions where local
+clinical content was previously observed, and at earlier layers (16/24)
+before integration — i.e., the start of the layer-wise pilot.
