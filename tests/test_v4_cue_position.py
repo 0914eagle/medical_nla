@@ -98,3 +98,26 @@ def test_split_cases_disjoint_pools():
     assert counts["train"] == 21 and counts["val"] == 3 and counts["test"] == 6
     with pytest.raises(ValueError):
         split_cases(["a", "b"], seed=17, train_frac=0.9, val_frac=0.2)
+
+
+def test_gold_token_recall_scores_paraphrases():
+    from scripts.summarize_cue_position_readouts import gold_token_recall, row_cue
+
+    # Real v4 paraphrase pair: strict substring match fails, content overlaps.
+    gold = "pain that is increased with movement"
+    emitted = "- pain that increases with movement"
+    recall = gold_token_recall(gold, emitted)
+    assert recall is not None and recall >= 0.5
+
+    gold2 = "had an involuntary weight loss over the last 3 months"
+    emitted2 = "- been unintentionally losing weight over the past 3 months"
+    recall2 = gold_token_recall(gold2, emitted2)
+    assert recall2 is not None and 0.0 < recall2 < 1.0
+
+    # Unrelated content stays low.
+    low = gold_token_recall("moderate fever", "- where is the swelling located")
+    assert low == 0.0
+
+    # cue recovery falls back through surviving fields.
+    assert row_cue({"gold_cue_targets": ["a cough"]}) == "a cough"
+    assert row_cue({"target_text": "fever"}) == "fever"
