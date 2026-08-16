@@ -910,3 +910,53 @@ low while seen-cue is high: seen-cue reading was memorization; the
   single-vector readout mechanism is the bottleneck -> rethink injection
   (multi-token/span) before more position hunting.
 ```
+
+## 12. Layer Sweep at Cue Positions (v5)
+
+Purpose: with the cue-position reader validated at layer 32 (semantic read
+55.7% on unseen cues), map where cue detail lives across depth. Same
+recipe per layer; only the extraction layer changes
+(`configs/layer{8,16,24}.yaml`). The NLA checkpoint stays the L32-AV —
+each layer gets its own LoRA, realizing the shared-decoder +
+per-layer-adapter architecture; whether LoRA absorbs the cross-layer
+subspace shift is part of the question. Norms are handled by the sidecar
+injection-scale rescaling in run_nla.
+
+Recommended order: L16 first (max contrast with 32), then L24, then L8.
+Same rows file and seed 17 keep the cue/case splits identical across
+layers, so results are directly comparable.
+
+Per layer L (substitute L=16 etc.; each stage mirrors section 11):
+
+```bash
+# 1) extraction at layer L (GPU)
+CUDA_VISIBLE_DEVICES=9 python -m src.extract_activations \
+  --config configs/layer16.yaml \
+  --input /data1/heejae/medical_nla/activations/ddxplus_cue_position_v1_rows.jsonl \
+  --run-name ddxplus_cue_position_L16_v1
+
+# 2) splits (CPU; identical assignment to v4 by construction)
+python scripts/make_medical_nla_v4_cue_position_splits.py \
+  --manifest /data1/heejae/medical_nla/activations/ddxplus_cue_position_L16_v1/manifest.jsonl \
+  --out-dir /data1/heejae/medical_nla/train/medical_nla_cue_position_L16_v5 \
+  --heldout-cue-frac 0.25 \
+  --seed 17
+
+# 3) train per-layer LoRA (GPU)
+CUDA_VISIBLE_DEVICES=9 python scripts/train_medical_nla_lora.py \
+  --config configs/default.yaml \
+  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_cue_position_L16_v5/sft_train.jsonl \
+  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_cue_position_L16_v5/sft_val.jsonl \
+  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_cue_position_L16_v5_lora_e2 \
+  --epochs 2 \
+  --batch-size 2
+
+# 4) readout + score + summarize (GPU then CPU) — as in section 11 with
+#    L16_v5 paths and the L16 adapter; wrap stages in the usual nohup env.
+```
+
+Cross-layer reading: compare test_heldout_cue strict/soft/hand-labeled
+read rates per layer against the L32 baseline (0.178 strict / 0.557
+hand-labeled A+B). Earlier layers winning on detail supports
+"pre-integration layers preserve evidence"; earlier layers failing
+entirely bounds where the LoRA can bridge the subspace shift.
