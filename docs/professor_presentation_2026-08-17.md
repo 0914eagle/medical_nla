@@ -425,6 +425,41 @@ layer 24에서 정점을 찍고 layer 32(답 직전)에서 감소한다 — 증�
     data" (완전 confabulation)
   - LoRA: `- where is the swelling located sole(L)` (부종·위치·좌측 정확, 발등↔발바닥만 틀림)
 
+**vanilla를 layer별로 — 같은 gold cue를 세 layer의 vanilla가 각각 어떻게 읽나**
+(heldout snapshot 실물, 출력 첫 문장부. vanilla 출력은 실제론 수 문단짜리 해설):
+
+- gold `chest pain even at rest` (unstable angina):
+  - L16: "...**quoted expert statement** about heart attack symptoms **in Spanish**.
+    The phrase '**chest pain even at rest**' sets up a clinical classification..."
+  - L24: "...case report format... The phrase 'experiences **chest pain even at r**...'"
+  - L32: "...clinical definition of ACS... The phrase '**chest pain while active, now
+    experiencing chest pain at rest**'..."
+  - → 세 layer 모두 gold 문구가 **글자 그대로** 들어 있다. 단 L16은 "스페인어 전문가
+    인용"이라는 지어낸 액자 속에, L32는 이미 "활동시→안정시 진행"이라는 임상 서사로
+    풀어서. **내용은 어느 layer에나 있고, 문제는 포장이다.**
+- gold `like the patient are detached from their own body or their surroundings`
+  (panic attack):
+  - L16: "hallucination의 정의를 서술하는 의학 기사" 액자 속 "feeling disconnected
+    from their thoughts and surroundings"
+  - L24: "우울·불안 증상 번호 목록" 액자 속 "feeling detached from themselves or
+    their surroundings"
+  - L32: "dissociation FAQ" 액자 속 "feel detached from their own body or their
+    surroundings" (gold와 거의 자구 일치)
+  - → 핵심 구절은 세 layer 모두 보존, **액자만 layer마다 다르게 지어냄.**
+- gold `where is the swelling located ankle(R)` (pulmonary edema):
+  - L16: "'pain in the **right leg**'... signals a **Japanese**/medical..." (통증으로
+    왜곡 + 일본어 액자 confabulation)
+  - L24: "'pain location is **rt hand** (right)'" (엉뚱한 신체부위로 표류)
+  - L32: "'swelling **right leg**', '**right ankle**'" (부종·발목·우측 전부 등장)
+  - → 속성(정확한 부위)은 vanilla에서 layer가 깊을수록 선명해지는 경향 — 단, 자동
+    지표(ocr)로는 세 layer 다 0인 행도 많다. 내용이 해설 더미에 묻혀 있어서다.
+
+이 layer별 실물이 보여주는 것: **vanilla의 실패는 "내용 부재"가 아니라 "신뢰 불가"다.**
+같은 벡터에서 gold 문구를 품고도, 행마다 다른 액자(스페인어 인용, 일본어 문서, 챗봇
+시나리오, 게임)를 지어내 그 안에 흩뿌린다. 어느 문장이 벡터에서 온 것이고 어느 문장이
+지어낸 것인지 vanilla 출력만 봐서는 구분할 수 없다 — 이 구분 불가능성이 LoRA가 제거한
+것이다.
+
 **세 가지 결론:**
 1. vanilla도 cue 위치에선 내용을 담는다 — 다만 "형식 해설" 포장 + 지어낸 프레임
    섞인 **신뢰 불가한 서술자**. (format 위치에선 vanilla도 0 → 위치 주장 재확인)
