@@ -76,3 +76,41 @@ cross-layer adapter transfer difficulty.
    does the conclusion/theme representation form?) — together with this
    curve it yields the full trajectory picture.
 4. Correction axis remains parallel work.
+
+## Addendum: Anti-Memorization Check
+
+The only memorization route available to the v4/v5 readers is
+nearest-train-cue regurgitation (map the vector to the closest train-cue
+cluster, emit that train string). Measured per heldout row: is the
+emitted text closer (content-token F1) to its GOLD heldout cue — never
+present in any training target — or to the best-matching of the 117
+train cues?
+
+| layer | closer to gold | closer to a train cue | exact train-cue copy |
+|---|---:|---:|---:|
+| L16 | 31.1% | 54.6% | 20.5% |
+| L24 | 63.2% | 35.6% | 22.1% |
+| L32 | 47.9% | 34.7% | 12.1% |
+
+Three interlocking arguments against memorization at L24/L32:
+
+1. Composition: the majority of L24 outputs sit closest to a string that
+   exists in no training target, and many (e.g. "how bad is the
+   itching") exist neither in training targets nor as the gold string —
+   they must be composed, not copied.
+2. Layer contrast: all three layers trained on identical data and
+   targets; if scores came from the training set, layers would look
+   alike. They differ 34/73/56 — the only varying factor is which layer
+   the input vector came from.
+3. The nearest-train residue (~1/3 at L24, majority at L16,
+   concentrated in location-family C errors) matches the hand-label C
+   class, which is why only A+B is claimed as reading.
+
+Standing caveat: cue-position runs are a positive control (information
+present by construction); they establish mechanism capability, not final
+faithfulness — that burden stays with the counterfactual tests. A
+vanilla (no-LoRA) readout of the same cue-position activations is queued
+as the remaining baseline: it determines how much of the v4/v5 result is
+the pretrained AV's existing ability vs the LoRA's contribution, and
+whether vanilla collapses on L16/L24 vectors (the LoRA-as-translator
+claim).
