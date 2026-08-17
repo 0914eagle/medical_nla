@@ -347,6 +347,40 @@ unseen 일반화)
 
 L16은 형식은 남고 내용이 빠지는 실패("3개월간 체중감소" → "3개월간 **기침**").
 
+**실물 3연속 — 같은 gold cue, 세 layer가 실제로 내뱉은 문장** (heldout, hand-labeled
+snapshot에서 직접 발췌. 36개 cue가 세 layer에 공통 등장, 그 중 대표 3개):
+
+**① 깔끔한 역U자 — L24가 정확, 양끝이 다른 방식으로 실패**
+| layer | 실제 출력 | 판정 |
+|---|---|:--:|
+| gold | `pain that is increased with movement` | — |
+| L16 | `pain that is increased with coughing, with an effort like lifting a weight or from walking` | C (엉뚱한 유발요인 나열) |
+| **L24** | `pain that is increased with movement` | **A (완전 일치)** |
+| L32 | `pain that increases with movement` | B (패러프레이즈) |
+
+**② L16의 전형적 실패 = 형식은 남고 내용이 소실**
+| layer | 실제 출력 | 판정 |
+|---|---|:--:|
+| gold | `how severe is the itching` | — |
+| L16 | `the itching` | C (질문 형식·정도(severe) 소실, 명사만 남음) |
+| **L24** | `how severe is the itching` | **A (완전 일치)** |
+| L32 | `what is the level of itching` | B (패러프레이즈) |
+
+**③ L32의 "접힘" = 답 직전 층이 반대 결론으로 미끄러짐**
+| layer | 실제 출력 | 판정 |
+|---|---|:--:|
+| gold | `chest pain even at rest` | — |
+| L16 | `symptoms that are increased with physical exertion but alleviated while at rest` | D (운동유발 서사로 반전) |
+| **L24** | `chest pain at rest` | **B (정확)** |
+| L32 | `symptoms that are increased with physical exertion but alleviated with rest` | D (다시 운동유발 서사) |
+
+③이 궤적의 핵심을 보여준다: 원 증거는 "쉬어도 아픈 가슴통증"인데, **L16(증거 형성 전)과
+L32(답 형성 후)는 둘 다 "운동하면 심해지고 쉬면 낫는다"는 임상 서사로 미끄러지고,
+중간 L24만 원 증거를 그대로 읽는다.** 같은 현상의 더 극적인 예: gold
+`out of breath with minimal physical effort` → L24 정확 판독, **L32는
+`no shortness of breath...`로 부정(negation)까지 붙여 결론화**. 답을 만드는 층은
+증거를 있는 그대로 두지 않고 진단 서사로 접는다.
+
 **해석 (궤적의 첫 실측):** *cue 디테일의 자연어 판독 가능성은 depth를 따라 오르다
 layer 24에서 정점을 찍고 layer 32(답 직전)에서 감소한다 — 증거가 결론으로 접히는
 지점이 L24~L32 사이에 있다.*
