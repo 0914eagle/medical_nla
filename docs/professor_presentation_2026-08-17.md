@@ -350,6 +350,10 @@ L16은 형식은 남고 내용이 빠지는 실패("3개월간 체중감소" →
 **실물 3연속 — 같은 gold cue, 세 layer가 실제로 내뱉은 문장** (heldout, hand-labeled
 snapshot에서 직접 발췌. 36개 cue가 세 layer에 공통 등장, 그 중 대표 3개):
 
+*판정 기준(§3.3 재확인): **A**=문자열까지 일치 / **B**=표현만 다르고 의미 완전 보존
+(패러프레이즈) / **C**=같은 계열이나 세부 속성이 틀림 / **D**=의미가 어긋남·반전.
+A+B만 "읽었다"로 집계.*
+
 **① 깔끔한 역U자 — L24가 정확, 양끝이 다른 방식으로 실패**
 | layer | 실제 출력 | 판정 |
 |---|---|:--:|
@@ -357,6 +361,11 @@ snapshot에서 직접 발췌. 36개 cue가 세 layer에 공통 등장, 그 중 �
 | L16 | `pain that is increased with coughing, with an effort like lifting a weight or from walking` | C (엉뚱한 유발요인 나열) |
 | **L24** | `pain that is increased with movement` | **A (완전 일치)** |
 | L32 | `pain that increases with movement` | B (패러프레이즈) |
+
+→ **L32가 왜 B인가**: gold의 `is increased with`를 `increases with`로 **문장 구조만**
+바꿨다. 문자열이 다르니 A는 아니고, "움직이면 통증 증가"라는 의미는 100% 보존이라
+C/D도 아니다 → B. (L16은 유발요인이 movement→coughing/lifting/walking으로 **바뀌어**
+같은 계열의 세부가 틀림 → C.)
 
 **② L16의 전형적 실패 = 형식은 남고 내용이 소실**
 | layer | 실제 출력 | 판정 |
@@ -366,6 +375,10 @@ snapshot에서 직접 발췌. 36개 cue가 세 layer에 공통 등장, 그 중 �
 | **L24** | `how severe is the itching` | **A (완전 일치)** |
 | L32 | `what is the level of itching` | B (패러프레이즈) |
 
+→ **L32가 왜 B인가**: `how severe`(얼마나 심한가)를 `what is the level of`(정도가 어느
+수준인가)로 **질문 프레임만** 갈아끼웠다. "가려움의 강도를 묻는다"는 내용은 동일 → B.
+(반면 L16 `the itching`은 강도를 묻는 부분 자체가 **빠져** 명사만 남음 → 의미 결손이라 C.)
+
 **③ L32의 "접힘" = 답 직전 층이 반대 결론으로 미끄러짐**
 | layer | 실제 출력 | 판정 |
 |---|---|:--:|
@@ -373,6 +386,11 @@ snapshot에서 직접 발췌. 36개 cue가 세 layer에 공통 등장, 그 중 �
 | L16 | `symptoms that are increased with physical exertion but alleviated while at rest` | D (운동유발 서사로 반전) |
 | **L24** | `chest pain at rest` | **B (정확)** |
 | L32 | `symptoms that are increased with physical exertion but alleviated with rest` | D (다시 운동유발 서사) |
+
+→ **L24가 왜 B인가**: gold `chest pain even at rest`에서 강조어 `even`만 빠졌고 "쉬는
+중에도 가슴통증"이라는 핵심 의미는 그대로 → 문자 일치 A는 아니지만 의미 보존이라 B.
+(L16·L32는 "**운동하면 심해지고 쉬면 낫는다**"로 원 증거와 뜻이 뒤집혀 D — 여기서
+'at rest'가 '증상 유발'이 아니라 '증상 완화' 쪽에 붙어버린 게 반전의 핵심.)
 
 ③이 궤적의 핵심을 보여준다: 원 증거는 "쉬어도 아픈 가슴통증"인데, **L16(증거 형성 전)과
 L32(답 형성 후)는 둘 다 "운동하면 심해지고 쉬면 낫는다"는 임상 서사로 미끄러지고,
