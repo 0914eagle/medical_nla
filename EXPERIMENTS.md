@@ -960,3 +960,67 @@ read rates per layer against the L32 baseline (0.178 strict / 0.557
 hand-labeled A+B). Earlier layers winning on detail supports
 "pre-integration layers preserve evidence"; earlier layers failing
 entirely bounds where the LoRA can bridge the subspace shift.
+
+## 13. Cue Counterfactual Faithfulness (L24 reader)
+
+The last gate for "the readout follows the activation": swap a cue and
+the swapped span's readout must track the NEW content (still emitting the
+old cue = reading case context, not the span); remove a cue and retained
+spans must stay correct with no phantom mention of the removed cue.
+Prompts are rebuilt from the cue list and verified against the stored
+prompt, so counterfactuals are construction-exact. Runs on the L24
+reader (the best operating point).
+
+```bash
+nohup bash -lc '
+set -e
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+python scripts/make_cue_counterfactual_rows.py \
+  --cases /data1/heejae/medical_nla/activations/ddxplus_all_cue_format_v1/manifest.jsonl \
+  --split-dir /data1/heejae/medical_nla/train/medical_nla_cue_position_L24_v5 \
+  --output /data1/heejae/medical_nla/activations/ddxplus_cue_counterfactual_v1_rows.jsonl \
+  --num-cases 150 \
+  --seed 17
+
+CUDA_VISIBLE_DEVICES=9 python -m src.extract_activations \
+  --config configs/layer24.yaml \
+  --input /data1/heejae/medical_nla/activations/ddxplus_cue_counterfactual_v1_rows.jsonl \
+  --run-name ddxplus_cue_counterfactual_L24_v1
+
+CUDA_VISIBLE_DEVICES=9 python -m src.run_nla \
+  --config configs/default.yaml \
+  --manifest /data1/heejae/medical_nla/activations/ddxplus_cue_counterfactual_L24_v1/manifest.jsonl \
+  --output /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1.jsonl \
+  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_cue_position_L24_v5_lora_e2
+
+python scripts/score_medical_nla_v2_readouts.py \
+  --input /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1_scored.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1_scored_summary.md
+
+python scripts/evaluate_cue_counterfactuals.py \
+  --scored /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1_scored.jsonl \
+  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1_eval.jsonl \
+  --summary-md /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1_eval_summary.md
+' > /data1/heejae/medical_nla/logs/ddxplus_cue_counterfactual_L24_v1.log 2>&1 &
+```
+
+Faithful-reader signature:
+
+```text
+swap_reads_replacement        high  (readout tracks the span content)
+swap_still_reads_original     ~0    (no case-context memorization)
+retained read rates           stable across orig/swap/removed
+phantom_rate_removed_cue      ~0
+```
+
+Note: the swap replacement cue is drawn from the whole corpus vocabulary;
+rows record cf_original_cue/cf_replacement_cue so the soft-matching
+family-overlap caveat can be checked by hand on the examples table.

@@ -14,6 +14,15 @@ from .modeling import load_causal_lm, load_tokenizer
 
 PASSTHROUGH_FIELDS = [
     "variant",
+    "cue_text",
+    "case_id",
+    "cue_pool",
+    "cf_variant",
+    "cf_role",
+    "cf_slot",
+    "cf_original_cue",
+    "cf_replacement_cue",
+    "cf_removed_cue",
     "source_id",
     "primary_target",
     "distractor_target",

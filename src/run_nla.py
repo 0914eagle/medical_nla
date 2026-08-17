@@ -16,6 +16,15 @@ from .nla import build_nla_inputs_embeds, cjk_fraction, extract_explanation, loa
 
 PASSTHROUGH_FIELDS = [
     "variant",
+    "cue_text",
+    "case_id",
+    "cue_pool",
+    "cf_variant",
+    "cf_role",
+    "cf_slot",
+    "cf_original_cue",
+    "cf_replacement_cue",
+    "cf_removed_cue",
     "source_id",
     "primary_target",
     "distractor_target",
