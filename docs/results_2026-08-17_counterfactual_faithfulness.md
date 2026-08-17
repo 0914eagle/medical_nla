@@ -73,3 +73,47 @@ the fold between L24 and L32 is not yet localized.
 3. Optional: attribute-resolution probe (does the vector even separate
    ankle vs calf, black vs red?) to attribute the residual error to
    representation vs readout.
+
+## Addendum: Full Manual Re-Scoring of All 150 Swap Pairs
+
+Every swapped-slot swap row read by hand (labels in
+`results_snapshot/cf_L24_v1_swap_hand_labeled.jsonl`). Auto soft-matching
+(0.887) counted attribute-detail misses as failures; the manual pass
+separates "did the readout leave the original and move to the new cue"
+(the actual faithfulness question) from "did it get every fine attribute
+right."
+
+| manual class | n | rate |
+|---|---:|---:|
+| T full track (new cue read correctly / paraphrase) | 106 | 0.707 |
+| D tracked new cue's family, wrong fine attribute | 43 | 0.287 |
+| O other / wrong cue-type | 1 | 0.007 |
+| X reads the ORIGINAL cue (memorization) | **0** | **0.000** |
+
+- **Responded to the swap (T+D): 149/150 = 0.993.** The readout moved off
+  the original and onto the new cue's content in all but one row.
+- **Genuine context-memorization: 0/150.** Not a single row kept reading
+  the original cue. (The auto metric's 4.0% "swap_still_reads_original"
+  is token-overlap noise between original and replacement, not real
+  persistence.)
+- The 43 detail errors are dominated by body-LOCATION cues: 28 of 43
+  collapse to a default "iliac fossa" regardless of the true region
+  (sole, buttock, thigh, flank, labia majora, side of neck all map
+  there); the rest are adjacency (foot->ankle, thigh->calf), laterality
+  flips, and the black->light-red stool color error. Non-location content
+  (cheek, biceps, thyroid cartilage, epigastric, symptom descriptions)
+  tracks near-perfectly.
+
+Phantom re-check (removed variant, 300 retained rows): 16 auto-flagged,
+but 15 are template-overlap false positives — the removed and retained
+cues share a frame ("where is the swelling located ___", "what color is
+the rash ___"), so the correctly-read retained cue trips the removed-cue
+token test. Exactly 1 is a true phantom. **True phantom rate ~0.3%, not
+5.3%.**
+
+Revised verdict: faithfulness is stronger than the automatic summary
+showed — swap sensitivity ~99% at the theme level with zero
+memorization and near-zero phantoms. The one persistent weakness is
+localized precisely: body-location attribute resolution, with an
+"iliac fossa" default attractor. This is the concrete target for the
+attribute-resolution follow-up (representation vs readout).
