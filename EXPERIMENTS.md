@@ -1024,3 +1024,99 @@ phantom_rate_removed_cue      ~0
 Note: the swap replacement cue is drawn from the whole corpus vocabulary;
 rows record cf_original_cue/cf_replacement_cue so the soft-matching
 family-overlap caveat can be checked by hand on the examples table.
+
+## 14. Format-Position Layer Sweep (trajectory: where the conclusion forms)
+
+The other half of the trajectory map. The cue-position sweep (section 11)
+showed individual cue detail peaks at L24 and fades by L32. This runs the
+SAME v3 diagnosis-heldout / cue-first recipe at the FORMAT position (the
+prompt's final token, the integrated answer state) across layers, so the
+two curves overlay: as depth increases, cue detail should fall while the
+format position's integrated content behaves differently — localizing
+where evidence folds into the conclusion. L32 format is already the v3
+result (heldout cue_recall 0.19); this adds L16 and L24.
+
+Step 0 — format-position rows (once):
+
+```bash
+python scripts/make_format_position_rows.py \
+  --input /data1/heejae/medical_nla/activations/ddxplus_all_cue_format_v1/manifest.jsonl \
+  --output /data1/heejae/medical_nla/activations/ddxplus_format_position_rows.jsonl \
+  --variants cue_count_all
+```
+
+Per layer L (run L16 on GPU 9, L24 on GPU 8 in parallel; substitute
+16/L16 accordingly). Uses the same source answers the v3 split used:
+
+```bash
+nohup bash -lc '
+set -e
+cd /home/eagle0914/medical_nla
+source /data1/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+export HF_HOME=/data1/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
+export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+A=/data1/heejae/medical_nla/activations
+T=/data1/heejae/medical_nla/train
+R=/data1/heejae/medical_nla/results
+
+CUDA_VISIBLE_DEVICES=9 python -m src.extract_activations \
+  --config configs/layer16.yaml \
+  --input $A/ddxplus_format_position_rows.jsonl \
+  --run-name ddxplus_format_position_L16
+
+python scripts/make_medical_nla_diagnosis_heldout_splits.py \
+  --manifest $A/ddxplus_format_position_L16/manifest.jsonl \
+  --source-answers /data1/heejae/medical_nla/results/ddxplus_source_mc_cue_count_v1.jsonl \
+  --out-dir $T/medical_nla_format_position_L16_heldout \
+  --variants cue_count_all --heldout-frac 0.30 --seed 17
+
+python scripts/make_medical_nla_v3_cue_first_targets.py \
+  --split-dir $T/medical_nla_format_position_L16_heldout \
+  --out-dir $T/medical_nla_format_position_L16_v3 --seed 17
+
+CUDA_VISIBLE_DEVICES=9 python scripts/train_medical_nla_lora.py \
+  --config configs/default.yaml \
+  --train-jsonl $T/medical_nla_format_position_L16_v3/sft_train.jsonl \
+  --val-jsonl $T/medical_nla_format_position_L16_v3/sft_val.jsonl \
+  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_format_position_L16_v3_lora_e3 \
+  --epochs 3 --batch-size 2
+
+for POOL in test_seen test_heldout; do
+CUDA_VISIBLE_DEVICES=9 python -m src.run_nla \
+  --config configs/default.yaml \
+  --manifest $T/medical_nla_format_position_L16_v3/manifest_${POOL}.jsonl \
+  --output $R/ddxplus_format_position_L16_v3_${POOL}.jsonl \
+  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_format_position_L16_v3_lora_e3
+python scripts/score_medical_nla_v2_readouts.py \
+  --input $R/ddxplus_format_position_L16_v3_${POOL}.jsonl \
+  --output-jsonl $R/ddxplus_format_position_L16_v3_${POOL}_scored.jsonl \
+  --summary-md $R/ddxplus_format_position_L16_v3_${POOL}_summary.md
+done
+
+python scripts/summarize_diagnosis_heldout_readouts.py \
+  --heldout-scored $R/ddxplus_format_position_L16_v3_test_heldout_scored.jsonl \
+  --seen-scored $R/ddxplus_format_position_L16_v3_test_seen_scored.jsonl \
+  --split-dir $T/medical_nla_format_position_L16_v3 \
+  --output-jsonl $R/ddxplus_format_position_L16_v3_analysis.jsonl \
+  --summary-md $R/ddxplus_format_position_L16_v3_analysis_summary.md
+' > /data1/heejae/medical_nla/logs/format_position_L16_v3.log 2>&1 &
+```
+
+Overlay reading: for each layer, format-position heldout cue_recall vs the
+cue-position curve (L16 0.34 / L24 0.73 / L32 0.56) and the v3 L32 format
+baseline (0.19). If format-position content is low at all layers, the
+conclusion position never verbalizes individual cues (folding is complete
+by the format token at every depth). If it rises at earlier layers, the
+format token still carries cue detail early and loses it with depth —
+the fold happens between those layers.
+
+Optional complement (cleaner "where the diagnosis becomes decodable"):
+train a linear diagnosis probe on the same per-layer format activations
+(`scripts/train_ddxplus_linear_probe.py`) and overlay probe accuracy vs
+layer. Probe is the right instrument for the conclusion-decodability axis
+(NLA hits the memorization wall on diagnosis names); the L32 format probe
+is already 0.9917, so this adds L8/L16/L24 for the rising-conclusion curve.
