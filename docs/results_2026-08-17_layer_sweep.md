@@ -114,3 +114,44 @@ as the remaining baseline: it determines how much of the v4/v5 result is
 the pretrained AV's existing ability vs the LoRA's contribution, and
 whether vanilla collapses on L16/L24 vectors (the LoRA-as-translator
 claim).
+
+## Addendum 2: Vanilla (No-LoRA) Control on Cue Positions
+
+Vanilla L32-AV readouts of the same heldout cue-position activations
+(no adapter, all three layers' vectors; lexical output-level cue recall /
+full-output soft@0.5):
+
+| vectors | lexical | full-output soft@0.5 |
+|---|---:|---:|
+| L16 | 0.039 | 0.564 |
+| L24 | 0.142 | 0.582 |
+| L32 | 0.105 | 0.658 |
+
+Reading the raw outputs settles what the metrics blur:
+
+1. **Vanilla does carry cue content at cue positions** — wrapped in its
+   habitual meta-narration. Typical output: "Medical/academic forum
+   question format ... The phrase 'feeling dizzy or lightheaded before
+   losing consciousness, or the patient is about to faint' establishes
+   ..." — the gold cue is quoted or closely paraphrased inside a
+   format-analysis frame. This further confirms the position claim
+   (format position: zero content even for vanilla).
+2. **But vanilla is an unreliable narrator**: real content is mixed with
+   confabulated frames ("the player's inventory", "headache, shoulder
+   pain, and the beach", game/NLP-task framings), especially on
+   location-family cues and at L16. The lexical metric (0.04-0.14)
+   undercounts it; the full-output soft metric (0.56-0.66) overcounts it
+   (length bias, no precision penalty). The truth sits between.
+3. **Revised view of the LoRA's contribution**: not creating the reading
+   ability (much of it pre-exists in the checkpoint) and not primarily
+   cross-layer translation (vanilla does NOT collapse on L16/L24 vectors
+   — residual-stream continuity keeps adjacent layers legible). The LoRA
+   distills a noisy meta-narrator into a reliable, precise, clinically
+   usable single-cue reader: no confabulated frames, 73% semantic
+   accuracy at L24, near-zero wrong-class reads.
+4. **Layer-ordering caveat**: vanilla's full-output ordering puts its
+   native L32 first (0.658), unlike the LoRA-equalized comparison where
+   L24 wins. Vanilla cross-layer numbers are confounded by native-layer
+   familiarity, so the representation-level inverted-U claim rests on
+   the per-layer-adapter comparison (each layer given its own equal
+   -capacity adapter), where L24's win over a longer-trained L32 stands.
