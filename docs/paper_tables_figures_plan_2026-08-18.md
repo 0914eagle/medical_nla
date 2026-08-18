@@ -114,21 +114,40 @@ format → cue 위치, layer 선택)가 판독을 만든다.
 | 통합/distractor | TBD (예측: 높음) | TBD | TBD |
 | decoding | TBD | TBD (예측: 높음) | TBD |
 
-(C) 오답노트 시스템 프롬프트 **[E4]**: 내부-감사 노트 vs 출력-만 노트 vs
-무처치 — held-out 정확도 델타 (내부 정보 기여의 분리 ablation)
+(C) 해결 대결표 (표4의 main 파트) **[E3/E4/B1]** — "가중치를 못 건드리는
+조건에서 내부-감사 개입이 모든 black-box 방법을 이기고, 왜 좋아졌는지까지
+설명한다." 자연 분포 held-out test에서:
+
+| 방법 | 가중치 | 내부 접근 | acc (Δ) | 원인 감사 가능 |
+|---|:--:|:--:|---:|:--:|
+| Base Gemma | ✕ | ✕ | 기준 **[B1]** | — |
+| generic CoT 프롬프트 | ✕ | ✕ | TBD **[B1]** | ✕ |
+| self-refine (자기 재검토; "CoT로 해결" 대표) | ✕ | ✕ | TBD **[B1]** | ✕ |
+| MedPrompt류 (few-shot+self-consistency) | ✕ | ✕ | TBD **[B1]** | ✕ |
+| 출력-만 오답노트 (핵심 ablation) | ✕ | ✕ | TBD **[E4]** | △ |
+| **ours: 내부-감사 오답노트** | ✕ | ○ | TBD **[E4]** | **○** |
+| **ours: 케이스별 표적 개입 (verifier/재주입)** | ✕ | ○ | TBD **[E3]** | **○** |
+| (참조 상한) gold QA LoRA SFT | ○ | ✕ | TBD **[B1]** | ✕ |
+
+포지셔닝 주의: SFT는 경쟁 상대가 아니라 참조 상한(의료 현실에선 閉모델·규제로
+가중치 접근이 제한됨을 서론에서 명시). 과학적 핵심 비교는 "출력-만 노트 vs
+내부-감사 노트" — 내부를 읽는 것의 순수 기여를 분리하는 유일한 쌍.
 
 ---
 
-## Figures
+## Figures (v2에서 순서 재조정: overview가 main)
 
-- **Figure 1 (8/25, 데이터 완비)** — 궤적: x=layer, y=heldout 판독률. 곡선①
-  cue-위치 A+B(34/73/56 역U자), 곡선② format-위치(0.19/0.25/0.19 평평),
-  주석: format probe 99%. "증거는 cue 위치에 살고 답 위치에서 결론으로 접힌다."
-- **Figure 2** — 방법 개요: (a) cue-span 활성값 추출 → 동결 AV+LoRA 주입 →
-  단일-cue 판독, (b) 감사 파이프라인 E/S1/S2/O → 4유형 → 표적 개입.
+- **Figure 1 (MAIN, overview/teaser)** — 3단 한 장: (좌) 문제 — CoT는 개입에
+  둔감한 장식 가능·probe는 26지선다만 출력; (중) 방법 — cue-위치 활성값 →
+  검증 관문 통과한 판독기 → 감사 E/S/O; (우) 효과 미니패널 — unseen 판독
+  73%·암기 0·개입 후 acc 델타. 문제→해결→효과가 한 줄로 읽히는 그림.
+- **Figure 2 (분석; 8/25 타깃, 데이터 완비)** — 궤적: 곡선① cue-위치
+  A+B(34/73/56 역U자), 곡선② format-위치(0.19/0.25/0.19 평평), 주석: format
+  probe 99%. "어디를 읽어야 하는가"의 근거.
 - **Figure 3** — counterfactual 도해 + 실물 1쌍(GERD에 월경 cue 스왑) +
   요약 막대(추적/잔존/phantom).
-- **Figure 4 (E2 후)** — 오류 유형 분포 + 유형×개입 히트맵.
+- **Figure 4 (E2/E3 후)** — 해결 결과: 방법별 acc 막대(표4-C) + 유형×개입
+  히트맵.
 
 ## 정성분석
 
@@ -155,6 +174,7 @@ format → cue 위치, layer 선택)가 판독을 만든다.
 | **[1-A/1-B]** | CoT counterfactual/힌트 실험 (기존 cf 인프라 재사용) | 생성만, 저 |
 | **[Fig1]** | 궤적 플롯 (데이터 있음) | 0 |
 | **[J]** | LLM-judge 제2 평가 | 저 |
+| **[B1]** | 자연 분포 test split 확정 + base/CoT/self-refine/MedPrompt류 acc 측정 (표4-C 기준선; SFT 참조행은 9월) | 생성만, 저 |
 
 ## 일정 매핑
 
