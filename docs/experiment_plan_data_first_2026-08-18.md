@@ -28,6 +28,46 @@ counterfactual**(cue 하나만 바꾼 쌍) 제작 가능.
 | D1-e **[신규]** | CoT 생성물: D1-c와 D1-d의 프롬프트에 "진단 + 결정적 근거 설명" 지시를 붙여 생성한 설명 텍스트 | 150쌍 + 힌트주입 ~200 | 가설1 2-arm 실험(표3 CoT열) |
 | D1-f **[신규]** | 감사 테이블: 평가 풀 케이스별 (E: 전체 gold cue의 L24 판독, S1: 26-way likelihood 분포, S2: probe, O: 출력) | 오답 785 + 정답 273, cue행 ~6천 | 오류 해부학(표4-A/B), 비순환 예측(표1) |
 
+### D1 가공물 상세
+
+**D1-a (진단-heldout)**: 적격 26클래스를 **클래스 단위**로 train 18 / heldout
+8 분할(seed 17) → train 클래스의 **source-correct 케이스만** 학습(884/189;
+판독기가 "옳게 아는 상태"를 배우게) → 평가 pool: test_seen 727(학습 클래스
+새 환자) + test_heldout 800(미학습 8클래스×100) + leakage guard. 활성값은
+format 위치(마지막 토큰). 부산물: source-correct 필터로 평가 풀 1058의
+base rate가 오답 74.2% — 표기 의무.
+
+**D1-b (cue-position)**: 케이스 evidence → gold cue 문자열(3~12개/케이스)
+→ 케이스당 ≤4개 샘플링(12,800행) → 각 cue를 프롬프트에서 문자열 매칭 →
+tokenizer offset span → **span 마지막 subword 토큰** 위치(반복 등장은
+occurrence index) → 케이스 1회 forward로 L16/24/32 hidden state 저장 →
+행 = (벡터 1, 타깃 = 그 cue 하나). **cue-string heldout**: 유니크 164개 중
+41개(25%) 추첨, 해당 행을 train/val에서 완전 제거(진단-heldout이 아닌 이유:
+cue가 진단 간 공유되어 진단만 빼면 누출). train 7,515 / val 1,086 /
+test_seen 2,122 / test_heldout 438. 학습 = 동결 L32-AV + layer별 rank-16
+LoRA(L24 2ep, L32 3ep); 동일 벡터의 vanilla 판독 병행. 채점 = heldout
+438×3layer 전수 수동 A/B/C/D.
+
+**D1-c (counterfactual)**: 프롬프트의 템플릿 재구성이 원본과 **문자열 완전
+일치**함을 검증(construction-exact) → test 150케이스에서 슬롯 1개 교체
+(swap)/제거(removed) + retained 슬롯 2개×{orig,swap,removed} → 각 변형
+새로 forward → 슬롯 위치 벡터 → L24 판독. swap 150쌍 전수 수동(T/D/O/X).
+1-A′의 CoT 검증에 동일 쌍 재사용(같은 개입을 CoT와 판독이 공유).
+
+**D1-d (자연 분포 split, 신규)**: 기존 평가 풀은 오답 74% 농축이라 개입
+전후 정확도 측정에 부적합 → **어떤 가공에도 쓰인 적 없는** 케이스에서
+진단별 층화 무작위 ~500–1,000개. 개입 비교(표4-C) 외에는 사용 금지.
+
+**D1-e (CoT 생성물, 신규)**: D1-c 프롬프트 + "진단과 결정적 근거 설명" 지시
+→ CoT 생성 → 인용 cue 추출(문자열·패러프레이즈 매칭+수동 확인) → 인용 cue
+제거판 재실행(장식설명률). 별도: source-정답 ~200케이스에 힌트 문장 삽입판.
+
+**D1-f (감사 테이블, 신규)**: 평가 풀 1058 전 케이스의 gold cue **전부**
+(~6천 행)를 L24 cue-위치에서 신규 추출 → 판독으로 cue별 **E**(원형/왜곡/
+부재; 자동 + 표본 200 수동 검증) → **S1** = 26 진단명 시퀀스 likelihood
+분포(margin/entropy) → **S2** = v2-train 재학습 probe 예측+마진 → **O** =
+source 출력 → 케이스당 {E, S1, S2, O, gold} 레코드 → 4유형 결정 트리.
+
 ## D2. MedQA-USMLE — 이식/해결 확장 (gold 증거 없음)
 
 **역할**: "감사 기반 개입이 표준 벤치마크의 정확도를 올리는가"의 외부 타당성.
