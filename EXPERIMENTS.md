@@ -176,13 +176,46 @@ python scripts/make_ddxplus_cue_count_cases.py \
   --patients /data/heejae/ddxplus/train.csv \
   --evidences /data/heejae/ddxplus/release_evidences.json \
   --output /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
-  --examples-per-diagnosis 100 --cue-counts all --seed 17
+  --examples-per-diagnosis 100 --cue-counts all --seed 17 --negative-cues
 ```
+
+`--negative-cues` keeps negatively-answered items, rendered by negating the
+question's auxiliary. Without it prompts carry positive findings only, which
+drops about 10.6% of evidence entries — roughly two per patient. Both scans read
+the full 1M-row patient CSV and take several minutes on CPU.
 
 Both reproduce the pilot's 4,900 cases (49 diagnoses × 100). Note that the
 cue-count generator's input is the *patient* CSV; the probe experiment's
 `ddxplus_variants.jsonl` is a different artifact and has no `cue_count_all`
 variant, so it cannot stand in here.
+
+### Cue rendering must be audited before anything is extracted
+
+DDXPlus stores `(question id, answer value)`, so the English cue is built here,
+and building it wrong is silent. Two rounds of measurement found that most
+renderings were malformed and that negatives were being *inverted* rather than
+dropped, which put false statements into pilot prompts. Sampling prompts does
+not catch this. Two exhaustive passes do, and they are what
+`scripts/audit_ddxplus_cue_rendering.py` runs:
+
+- the questionnaire is a finite vocabulary, so every `(question, value)` pair is
+  rendered and checked, which covers every prompt at the cue level;
+- every case is checked for what only assembly can break — a cue that is not
+  verbatim in its own prompt, a duplicate, a runaway cue count.
+
+```bash
+python scripts/audit_ddxplus_cue_rendering.py \
+  --evidences /data/heejae/ddxplus/release_evidences.json \
+  --cases /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
+  --dump /data/heejae/medical_nla/reports/ddxplus_cue_vocabulary.tsv \
+  --show-longest 3
+```
+
+It exits non-zero on a hard violation, so it can gate a rebuild. The TSV dump
+is the full rendered vocabulary and is the source for the paper's data-processing
+appendix. Soft flags (leftover question marks, surviving second person) are
+reported for judgement, not failed; questions the rules cannot reach go in
+`CUE_PHRASE_OVERRIDES` with both polarities written out.
 
 Cue-position rows come from the cue-count case file:
 
