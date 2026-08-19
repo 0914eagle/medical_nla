@@ -42,6 +42,29 @@ LOW_INFORMATION_VALUE_LABELS = {
     "unspecified",
 }
 
+# "unknown" says the question was not answered; "no" says it was answered in the
+# negative. Only the second is a clinical finding, so only the second can be
+# rendered as a cue.
+UNINFORMATIVE_VALUE_LABELS = {"unknown", "unspecified"}
+
+# DDXPlus stores (question id, answer value), not sentences, so a cue phrase has
+# to be built. For an affirmative answer the auxiliary is dropped and the
+# remainder reads as a finding ("Do you have a cough?" -> "a cough"). A negative
+# answer has nowhere to attach once the auxiliary is gone, which is why the
+# original code appended the value and produced "a cough no". Keeping the
+# auxiliary and negating it is what makes a negative finding readable.
+NEGATION_AUXILIARIES = (
+    ("has the patient", "has not"),
+    ("does the patient", "does not"),
+    ("do you", "does not"),
+    ("did you", "did not"),
+    ("are you", "is not"),
+    ("were you", "was not"),
+    ("have you", "has not"),
+    ("has your", "has not"),
+    ("is your", "is not"),
+)
+
 GENERIC_CUE_PATTERNS = [
     r"\bpain somewhere\b",
     r"\bhow fast did the pain appear\b",
@@ -256,6 +279,36 @@ def is_negative_or_low_information_value(value_label: str | None) -> bool:
     return label in NEGATIVE_VALUE_LABELS or label in LOW_INFORMATION_VALUE_LABELS
 
 
+def is_uninformative_value(value_label: str | None) -> bool:
+    """True when the value records a missing answer rather than a negative one."""
+    if value_label is None:
+        return False
+    return normalize_label(value_label) in UNINFORMATIVE_VALUE_LABELS
+
+
+def render_negative_phrase(question: str) -> str | None:
+    """Turn a questionnaire item answered in the negative into a finding phrase.
+
+    Returns None when the question does not open with a recognized auxiliary;
+    the caller then excludes the cue rather than emit something ungrammatical.
+    Prefixing "no" instead would break on verb phrases ("no traveled out of the
+    country"), so the auxiliary is negated in place.
+    """
+    text = normalize_space(question).strip(" ?.")
+    for auxiliary, negated in NEGATION_AUXILIARIES:
+        match = re.match(rf"^{auxiliary}\s+(.*)$", text, flags=re.I)
+        if not match:
+            continue
+        rest = match.group(1)
+        rest = re.sub(r"\bwhen you exhale\b", "when exhaling", rest, flags=re.I)
+        rest = re.sub(r"\byour\b", "their", rest, flags=re.I)
+        rest = re.sub(r"\byou\b", "the patient", rest, flags=re.I)
+        rest = re.sub(r"\b(yes or no|right now|currently)\b", "", rest, flags=re.I)
+        phrase = normalize_space(f"{negated} {rest}").strip(" ?.:;,-")
+        return phrase or None
+    return None
+
+
 def is_generic_cue_text(text: str) -> bool:
     normalized = normalize_label(text)
     return any(re.search(pattern, normalized) for pattern in GENERIC_CUE_PATTERNS)
@@ -275,17 +328,39 @@ def cue_from_entry(
     evidence_meta: dict[str, Any],
     *,
     clean_cues: bool,
+    negative_cues: bool = False,
 ) -> dict[str, Any]:
     base_id, value_id = evidence_base_and_value(entry)
     meta = lookup_meta(evidence_meta, base_id)
-    phrase = strip_question_to_phrase(meta_text(meta, base_id))
+    question = meta_text(meta, base_id)
+    phrase = strip_question_to_phrase(question)
     value_label = possible_value_label(meta, value_id)
+    polarity = "positive"
     excluded = False
     exclusion_reason = None
-    if clean_cues and is_negative_or_low_information_value(value_label):
+
+    if clean_cues and is_uninformative_value(value_label):
+        # A missing answer is not a finding in either direction.
         excluded = True
-        exclusion_reason = "negative_or_low_information_value"
-    if value_label and value_label.lower() not in {"yes", "true", "present"}:
+        exclusion_reason = "uninformative_value"
+    elif clean_cues and is_negative_or_low_information_value(value_label):
+        if negative_cues:
+            negated = render_negative_phrase(question)
+            if negated:
+                phrase = negated
+                polarity = "negative"
+            else:
+                excluded = True
+                exclusion_reason = "negative_value_unrenderable"
+        else:
+            excluded = True
+            exclusion_reason = "negative_or_low_information_value"
+
+    if polarity == "positive" and value_label and value_label.lower() not in {
+        "yes",
+        "true",
+        "present",
+    }:
         phrase = normalize_space(f"{phrase} {value_label}")
     if clean_cues and is_generic_cue_text(phrase):
         excluded = True
@@ -297,6 +372,7 @@ def cue_from_entry(
         "value_label": value_label,
         "cue_text": phrase,
         "cue_type": "antecedent" if is_antecedent(meta) else "symptom",
+        "cue_polarity": polarity,
         "is_antecedent": is_antecedent(meta),
         "excluded": excluded,
         "exclusion_reason": exclusion_reason,
@@ -329,6 +405,7 @@ def make_case(
     prefer_symptoms: bool,
     max_cues: int,
     clean_cues: bool = True,
+    negative_cues: bool = False,
 ) -> dict[str, Any] | None:
     pathology = str(get_field(row, ["PATHOLOGY", "pathology", "diagnosis", "label"]))
     patient_id = get_field(row, ["id", "patient_id", "PATIENT", "patient"], required=False)
@@ -336,7 +413,9 @@ def make_case(
         patient_id = f"row_{row_index:07d}"
     entries = parse_evidence_entries(get_field(row, ["EVIDENCES", "evidences", "evidence"]))
     all_cues = [
-        cue_from_entry(entry, evidence_meta, clean_cues=clean_cues)
+        cue_from_entry(
+            entry, evidence_meta, clean_cues=clean_cues, negative_cues=negative_cues
+        )
         for entry in entries
     ]
     cues = [
@@ -361,11 +440,13 @@ def make_case(
         "diagnosis_aliases": [pathology],
         "cue_targets": cue_targets,
         "cue_types": [cue["cue_type"] for cue in selected],
+        "cue_polarities": [cue["cue_polarity"] for cue in selected],
         "cue_evidence_ids": [cue["evidence_id"] for cue in selected],
         "cue_evidence_entries": [cue["evidence_entry"] for cue in selected],
         "cue_value_ids": [cue["value_id"] for cue in selected],
         "cue_value_labels": [cue["value_label"] for cue in selected],
         "clean_cues": clean_cues,
+        "negative_cues": negative_cues,
         "excluded_cue_count": sum(1 for cue in all_cues if cue["excluded"]),
         "excluded_cue_entries": [
             {
@@ -477,6 +558,17 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--negative-cues",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Keep negatively-answered evidences as cues, rendered by negating the "
+            "question's auxiliary ('has not traveled out of the country'). Without "
+            "this they are dropped, so prompts carry positive findings only. "
+            "Requires --clean-cues. The choice is recorded per case as negative_cues."
+        ),
+    )
+    parser.add_argument(
         "--prefer-symptoms",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -512,6 +604,7 @@ def main() -> None:
             prefer_symptoms=args.prefer_symptoms,
             max_cues=args.max_cues,
             clean_cues=args.clean_cues,
+            negative_cues=args.negative_cues,
         )
         if case is None:
             continue

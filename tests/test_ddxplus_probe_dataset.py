@@ -178,3 +178,109 @@ def test_strip_question_to_phrase_removes_second_person_fragments():
         strip_question_to_phrase("Have you noticed a wheezing sound when you exhale?")
         == "a wheezing sound when exhaling"
     )
+
+
+def test_render_negative_phrase_negates_the_auxiliary():
+    from scripts.make_ddxplus_probe_dataset import render_negative_phrase
+
+    assert (
+        render_negative_phrase("Have you traveled out of the country in the last 4 weeks?")
+        == "has not traveled out of the country in the last 4 weeks"
+    )
+    assert render_negative_phrase("Do you have a cough?") == "does not have a cough"
+    assert (
+        render_negative_phrase("Are you experiencing shortness of breath?")
+        == "is not experiencing shortness of breath"
+    )
+    assert render_negative_phrase("Did you lose consciousness?") == "did not lose consciousness"
+    assert render_negative_phrase("Does the patient have a fever?") == "does not have a fever"
+
+
+def test_render_negative_phrase_rewrites_second_person():
+    from scripts.make_ddxplus_probe_dataset import render_negative_phrase
+
+    assert (
+        render_negative_phrase("Have you noticed a wheezing sound when you exhale?")
+        == "has not noticed a wheezing sound when exhaling"
+    )
+
+
+def test_render_negative_phrase_returns_none_for_unknown_openings():
+    # Better to drop the cue than emit something ungrammatical.
+    from scripts.make_ddxplus_probe_dataset import render_negative_phrase
+
+    assert render_negative_phrase("Where is the pain located?") is None
+
+
+def test_cue_from_entry_renders_negatives_only_when_asked():
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry
+
+    meta = {
+        "E_TRAVEL": {
+            "question_en": "Have you traveled out of the country in the last 4 weeks?",
+            "value_meaning": {"N": {"en": "no"}},
+            "is_antecedent": True,
+        }
+    }
+    dropped = cue_from_entry("E_TRAVEL_@_N", meta, clean_cues=True)
+    assert dropped["excluded"]
+    assert dropped["exclusion_reason"] == "negative_or_low_information_value"
+    assert dropped["cue_polarity"] == "positive"
+
+    kept = cue_from_entry("E_TRAVEL_@_N", meta, clean_cues=True, negative_cues=True)
+    assert not kept["excluded"]
+    assert kept["cue_polarity"] == "negative"
+    assert kept["cue_text"] == "has not traveled out of the country in the last 4 weeks"
+    # The old rendering appended the value and read as an affirmative.
+    assert not kept["cue_text"].endswith(" no")
+
+
+def test_cue_from_entry_keeps_positive_rendering_unchanged():
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry
+
+    meta = {
+        "E_55": {
+            "question_en": "Where is the pain located?",
+            "value_meaning": {"V_29": {"en": "chest"}},
+            "is_antecedent": False,
+        },
+        "E_COUGH": {"question_en": "Do you have a cough?", "is_antecedent": False},
+    }
+    # Unchanged from before the negative-cue path existed, awkward wh-phrasing included.
+    valued = cue_from_entry("E_55_@_V_29", meta, clean_cues=True, negative_cues=True)
+    assert valued["cue_text"] == "where is the pain located chest"
+    assert valued["cue_polarity"] == "positive"
+
+    bare = cue_from_entry("E_COUGH", meta, clean_cues=True, negative_cues=True)
+    assert bare["cue_text"] == "a cough"
+    assert bare["cue_polarity"] == "positive"
+
+
+def test_cue_from_entry_drops_unrenderable_negatives():
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry
+
+    meta = {
+        "E_RADIATE": {
+            "question_en": "Where does the pain radiate to?",
+            "value_meaning": {"V_NONE": {"en": "nowhere"}},
+            "is_antecedent": False,
+        }
+    }
+    cue = cue_from_entry("E_RADIATE_@_V_NONE", meta, clean_cues=True, negative_cues=True)
+    assert cue["excluded"]
+    assert cue["exclusion_reason"] == "negative_value_unrenderable"
+
+
+def test_cue_from_entry_separates_missing_answers_from_negative_ones():
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry
+
+    meta = {
+        "E_SMOKE": {
+            "question_en": "Do you smoke?",
+            "value_meaning": {"U": {"en": "unknown"}},
+            "is_antecedent": True,
+        }
+    }
+    cue = cue_from_entry("E_SMOKE_@_U", meta, clean_cues=True, negative_cues=True)
+    assert cue["excluded"]
+    assert cue["exclusion_reason"] == "uninformative_value"

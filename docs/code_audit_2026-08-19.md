@@ -187,6 +187,53 @@ selected = list(cues) if cue_count is None else rng.sample(cues, selected_count)
 소스 모델은 자유 서술로 답하고, 정답 여부는 별칭 부분문자열 매칭으로 판정한다.
 논문에 실을 정확도 숫자로는 약하다. A1과 함께 한 번에 확정해야 한다.
 
+### C6. 음성 소견이 프롬프트에서 통째로 빠져 있었다 — 수정함 **[재추출]**
+
+DDXPlus는 문장이 아니라 `(질문 id, 답 값)`을 저장하므로 cue 문구를 우리가 만든다.
+긍정 답은 조동사를 떼면 되지만(`Do you have a cough?` → `a cough`), 부정 답은
+조동사를 이미 떼어낸 뒤라 부정을 붙일 자리가 없어서 값을 뒤에 이어붙였다:
+
+```
+Have you traveled out of the country in the last 4 weeks? + no
+  → "traveled out of the country in the last 4 weeks no"
+```
+
+프롬프트에 들어가면 문법이 깨질 뿐 아니라 **긍정으로 읽힌다**. v2-beta는 이런
+항목을 통째로 제외하는 것으로 대응했고, 그 결과 DDXPlus 프롬프트에는 **양성
+소견만** 남았다. 즉 음성이 임상적으로 불필요해서가 아니라 렌더링이 깨져서 빠진
+것이다.
+
+측정 결과 evidence 항목의 **10.6%**가 명시적 음성이다(20,000 환자 기준
+`neg` 40,739 / `pos_valued` 179,146 / `bare(=yes)` 163,004). 환자당 약 2개꼴.
+
+수정: 조동사를 떼지 말고 부정형으로 되살린다(`Have you` → `has not`).
+`render_negative_phrase()`가 7개 조동사를 매핑하고, 인식하지 못하는 문장 형태는
+비문을 내놓느니 제외한다. `--negative-cues` 플래그로 켜며 기본값은 꺼짐이라
+파일럿 동작이 그대로 재현된다. cue마다 `cue_polarity`가 기록되므로 양성/음성별
+판독률을 나눠 볼 수 있다.
+
+두 가지 단서:
+
+- **암묵적 음성은 여전히 불가능하다.** 이진 문항에 "아니오"로 답한 항목은
+  `EVIDENCES` 목록에 아예 등장하지 않는다. 전체 문항에서 양성을 빼서 만들 수는
+  있지만 그것은 데이터가 아니라 우리의 가정이므로 하지 않는다.
+- **A3 수정이 반드시 함께 가야 한다.** 소프트 지표가 부정어 누락을 허용하는 한
+  `has not traveled...`를 `traveled...`로 읽어도 성공으로 집계되어, 음성 소견을
+  넣은 의미가 사라진다.
+
+### C7. wh-질문의 값 렌더링도 같은 방식으로 어색하다
+
+같은 "값을 뒤에 붙인다" 규칙이 wh-질문에서도 어색한 문구를 만든다:
+
+```
+Where is the pain located? + chest  →  "where is the pain located chest"
+```
+
+`strip_question_to_phrase`는 `do you`류만 제거하므로 `where is`가 남는다.
+음성 문제만큼 치명적이지는 않지만(의미가 뒤집히지는 않는다) 프롬프트 품질
+문제이고, 프롬프트를 다시 확정하는 김에 같이 볼 항목이다. 현재는 기존 동작을
+유지했고 테스트로 고정해 두었다.
+
 ### C3. `make_prompt(cues, *, diagnosis_options=False)`의 인자가 미구현이다
 
 함수 본문이 `diagnosis_options`를 전혀 쓰지 않는다
@@ -212,8 +259,10 @@ selected = list(cues) if cue_count is None else rng.sample(cues, selected_count)
 **추출 전에 확정해야 하는 것** (바꾸면 뽑아둔 활성화가 전부 무효):
 
 1. 케이스 프롬프트 문자열 (A1, C2)
-2. cue 순서 정책 (C1)
-3. 레이어 집합·위치 집합
+2. 음성 소견 포함 여부 (C6) — 구현은 끝났고 `--negative-cues`로 켜면 된다
+3. wh-질문 렌더링 (C7)
+4. cue 순서 정책 (C1)
+5. 레이어 집합·위치 집합
 
 **추출 후 학습 전에 확정** (재학습만 하면 됨): A2, B4, B5, B6, C4
 

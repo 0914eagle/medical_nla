@@ -45,9 +45,15 @@ def cue_pool(
     evidence_meta: dict[str, Any],
     prefer_symptoms: bool,
     clean_cues: bool,
+    negative_cues: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     entries = parse_evidence_entries(get_field(row, ["EVIDENCES", "evidences", "evidence"]))
-    all_cues = [cue_from_entry(entry, evidence_meta, clean_cues=clean_cues) for entry in entries]
+    all_cues = [
+        cue_from_entry(
+            entry, evidence_meta, clean_cues=clean_cues, negative_cues=negative_cues
+        )
+        for entry in entries
+    ]
     cues = [
         cue
         for cue in all_cues
@@ -68,6 +74,7 @@ def make_rows_for_patient(
     cue_counts: list[int | None],
     prefer_symptoms: bool,
     clean_cues: bool,
+    negative_cues: bool = False,
 ) -> list[dict[str, Any]]:
     pathology = str(get_field(row, ["PATHOLOGY", "pathology", "diagnosis", "label"]))
     patient_id = get_field(row, ["id", "patient_id", "PATIENT", "patient"], required=False)
@@ -78,6 +85,7 @@ def make_rows_for_patient(
         evidence_meta=evidence_meta,
         prefer_symptoms=prefer_symptoms,
         clean_cues=clean_cues,
+        negative_cues=negative_cues,
     )
     if not cues:
         return []
@@ -105,11 +113,13 @@ def make_rows_for_patient(
                 "available_cue_count": len(cues),
                 "cue_targets": cue_targets,
                 "cue_types": [cue["cue_type"] for cue in selected],
+                "cue_polarities": [cue["cue_polarity"] for cue in selected],
                 "cue_evidence_ids": [cue["evidence_id"] for cue in selected],
                 "cue_evidence_entries": [cue["evidence_entry"] for cue in selected],
                 "cue_value_ids": [cue["value_id"] for cue in selected],
                 "cue_value_labels": [cue["value_label"] for cue in selected],
                 "clean_cues": clean_cues,
+                "negative_cues": negative_cues,
                 "excluded_cue_count": sum(1 for cue in all_cues if cue["excluded"]),
                 "prompt": make_prompt(cue_targets),
                 "variant": f"cue_count_{cue_count_label}",
@@ -128,6 +138,16 @@ def main() -> None:
     parser.add_argument("--examples-per-diagnosis", type=int, default=100)
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument("--clean-cues", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--negative-cues",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Keep negatively-answered evidences as cues, rendered by negating the "
+            "question's auxiliary ('has not traveled out of the country'). Without "
+            "this they are dropped, so prompts carry positive findings only."
+        ),
+    )
     parser.add_argument("--prefer-symptoms", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--max-patient-rows", type=int, default=None)
     args = parser.parse_args()
@@ -164,6 +184,7 @@ def main() -> None:
             cue_counts=cue_counts,
             prefer_symptoms=args.prefer_symptoms,
             clean_cues=args.clean_cues,
+            negative_cues=args.negative_cues,
         )
         if not rows:
             continue
