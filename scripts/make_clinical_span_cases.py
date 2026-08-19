@@ -125,9 +125,51 @@ def split_clauses(sentence: str, *, max_words: int) -> list[str]:
     return [part for part in parts if part]
 
 
-def clean_span(span: str) -> str:
-    """Trim punctuation so the cue is a clean slice, still verbatim in text."""
-    return span.strip().strip(".,;:!? ").strip()
+# Connectives that clause splitting strands at the front of a fragment
+# ("and swelling on the left side", "with no instability"). Dropping them
+# leaves a suffix of the original span, so the cue stays verbatim in the text.
+# Negations and quantifiers are deliberately absent: stripping "without" or
+# "no" would invert a finding, which is the one error we cannot tolerate in a
+# gold string.
+LEADING_CONNECTIVES = (
+    "and",
+    "but",
+    "or",
+    "nor",
+    "yet",
+    "so",
+    "then",
+    "thus",
+    "therefore",
+    "however",
+    "moreover",
+    "furthermore",
+    "additionally",
+    "also",
+    "while",
+    "whereas",
+    "although",
+    "though",
+    "which",
+    "who",
+    "with",
+)
+
+
+def strip_leading_connective(span: str, *, min_words: int) -> str:
+    """Drop stranded leading connectives, keeping the span long enough to use."""
+    words = span.split()
+    while words and words[0].lower().strip(",") in LEADING_CONNECTIVES:
+        if len(words) - 1 < min_words:
+            return " ".join(words)
+        words = words[1:]
+    return " ".join(words)
+
+
+def clean_span(span: str, *, min_words: int = 0) -> str:
+    """Trim punctuation and stranded connectives; result stays verbatim in text."""
+    span = span.strip().strip(".,;:!? ").strip()
+    return strip_leading_connective(span, min_words=min_words).strip()
 
 
 def segment_cues(
@@ -141,7 +183,7 @@ def segment_cues(
     seen: set[str] = set()
     for sentence in split_sentences(text):
         for clause in split_clauses(sentence, max_words=max_words):
-            span = clean_span(clause)
+            span = clean_span(clause, min_words=min_words)
             if not span or span not in text:
                 continue
             words = span.split()

@@ -6,6 +6,7 @@ from scripts.make_clinical_span_cases import (
     segment_cues,
     split_clauses,
     split_sentences,
+    strip_leading_connective,
 )
 
 CASE_TEXT = (
@@ -137,3 +138,57 @@ def test_case_row_requires_label():
         max_cues=None,
     )
     assert row is None
+
+
+def test_strip_leading_connective_removes_stranded_conjunctions():
+    assert (
+        strip_leading_connective("and swelling on the left side of his palate", min_words=3)
+        == "swelling on the left side of his palate"
+    )
+    assert (
+        strip_leading_connective("with no instability or weakness", min_words=3)
+        == "no instability or weakness"
+    )
+    assert (
+        strip_leading_connective("but hypotension persisted after fluids", min_words=3)
+        == "hypotension persisted after fluids"
+    )
+
+
+def test_strip_leading_connective_preserves_negations():
+    # Stripping a negation would invert the finding — the one unacceptable error.
+    for span in (
+        "without evidence of metastasis on imaging",
+        "no instability or weakness was found",
+        "not responsive to oral antibiotics",
+        "denied any history of trauma",
+        "negative for Tinel's sign bilaterally",
+    ):
+        assert strip_leading_connective(span, min_words=3) == span
+
+
+def test_strip_leading_connective_stops_before_going_too_short():
+    # Better a slightly awkward span than one below the usable length.
+    assert strip_leading_connective("and fever", min_words=2) == "and fever"
+
+
+def test_stripped_span_is_still_verbatim_in_the_text():
+    text = normalize_text(
+        "On examination, both elbows had a full range of motion, "
+        "with no instability or weakness."
+    )
+    cues = segment_cues(text, min_words=4, max_words=10, max_cues=None)
+    assert cues
+    assert any(cue.startswith("no instability") for cue in cues)
+    for cue in cues:
+        assert cue in text
+
+
+def test_no_cue_starts_with_a_stranded_connective():
+    text = normalize_text(
+        "A 30-year-old man presented with several months of pain, tenderness, "
+        "and swelling on the left side of his palate, which was tender."
+    )
+    cues = segment_cues(text, min_words=4, max_words=12, max_cues=None)
+    for cue in cues:
+        assert cue.split()[0].lower() not in {"and", "but", "or", "with", "which"}
