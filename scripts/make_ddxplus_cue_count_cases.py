@@ -142,8 +142,20 @@ def main() -> None:
     patients = read_patient_rows(Path(args.patients))
     if args.max_patient_rows is not None:
         patients = islice(patients, args.max_patient_rows)
-    min_required = max(count for count in cue_counts if count is not None)
+    # "all" imposes no minimum of its own: it takes whatever cues the case has.
+    # Only the explicit counts do, so with `--cue-counts all` there is no floor.
+    explicit_counts = [count for count in cue_counts if count is not None]
+    min_required = max(explicit_counts) if explicit_counts else 1
+    # Nothing is written until the whole release is scanned, so report
+    # progress rather than looking hung on the million-row CSV.
     for row_index, row in enumerate(patients):
+        if row_index and row_index % 100_000 == 0:
+            kept = sum(len(bucket) for bucket in by_diagnosis.values())
+            print(
+                f"[scan] {row_index:,} rows read | {len(by_diagnosis)} diagnoses "
+                f"| {kept:,} cases kept",
+                flush=True,
+            )
         rows = make_rows_for_patient(
             row,
             row_index=row_index,
