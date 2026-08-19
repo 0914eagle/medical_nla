@@ -66,11 +66,8 @@ export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
 
 ## 0. MedCaseReasoning ingestion
 
-Real case-report text with clinician quotes as cues, so the same
-cue-position pipeline applies to non-synthetic clinical prose. Download
-lands in `$HF_HOME`; the ingestion report's `quote_match_rate` is the
-transfer diagnostic — it says what fraction of clinician quotes are
-locatable verbatim in the case prompt.
+Real case-report text, so the same cue-position pipeline applies to
+non-synthetic clinical prose. Download lands in `$HF_HOME`.
 
 ```bash
 python -c "
@@ -80,17 +77,40 @@ print(ds)
 for split in ds:
     ds[split].to_json(f'/data/heejae/medical_nla/data/mcr_{split}.jsonl')
 "
+```
 
-python scripts/make_medcasereasoning_cases.py \
+### Why cues are clause spans, not clinician quotes
+
+The first ingestion (`scripts/make_medcasereasoning_cases.py`) treated the
+quoted spans inside `diagnostic_reasoning` as evidence cues. Measurement
+refuted that assumption: `quote_match_rate` came back **0.0164**, and
+`scripts/inspect_medcasereasoning_quotes.py` localized why — 1.7% of quotes
+resolve in `case_prompt`, 42.7% resolve only in the full article (they quote
+the discussion, not the presentation), and 56.9% resolve nowhere, being the
+reasoning's own paraphrase. MedCaseReasoning does not annotate which part of
+the presentation is evidence.
+
+It does not need to. Readout scoring compares the readout against the text
+of the span whose activation was injected, so a cue only has to be
+well-defined clinical text — not a human judgement of diagnostic relevance.
+So cues are cut out of `case_prompt` itself, which makes every span exact by
+construction (`unresolved_spans: 0`). The quote-based script is kept only for
+the diagnostic it supports; do not use it to build cases.
+
+```bash
+python scripts/make_clinical_span_cases.py \
   --input /data/heejae/medical_nla/data/mcr_train.jsonl \
   --output /data/heejae/medical_nla/data/mcr_cases_train.jsonl \
   --report /data/heejae/medical_nla/reports/mcr_ingest_train.json \
-  --min-cues 3
+  --min-cues 3 --min-words 4 --max-words 14
 ```
 
-Then the existing generators apply unchanged, except that prose prompts
-need span substitution rather than prompt reconstruction for the
-counterfactuals:
+`--max-words 14` is not cosmetic: at the default 25 the mean cue ran 13.89
+words, far longer than DDXPlus cues (~5-10), which would have confounded any
+DDXPlus-vs-MCR comparison with cue length. At 14 the mean is 8.97 words.
+
+Then the cue-position generator applies unchanged, while prose counterfactuals
+need span substitution rather than prompt reconstruction:
 
 ```bash
 python scripts/make_ddxplus_cue_position_rows.py \
@@ -104,6 +124,83 @@ python scripts/make_span_counterfactual_rows.py \
   --num-cases 500 --swap-slots 2 \
   --report /data/heejae/medical_nla/reports/mcr_cf.json
 ```
+
+### Splits: unseen cues come for free here
+
+DDXPlus draws cues from a fixed questionnaire, so an unseen-cue pool has to
+be manufactured by holding cue strings out of training. Case-report prose is
+the opposite — splitting by case already leaves most evaluation cues unseen,
+so the split is measured rather than imposed:
+
+```bash
+python scripts/make_prose_cue_position_splits.py \
+  --manifest /data/heejae/medical_nla/activations/mcr_cuepos_train_L24/manifest.jsonl \
+  --out-dir /data/heejae/medical_nla/train/mcr_cue_position_L24 \
+  --seed 17
+```
+
+Measured on the 15,864-row L24 train extraction (4,000 cases): train 11,108 /
+val 1,589 / test_seen_cue 129 / test_heldout_cue 3,038, i.e.
+`unseen_cue_rate_in_test = 0.9593`. Two properties of this corpus carry
+argument weight and should be quoted in the paper: 96% of test cues are
+naturally unseen, and the 12,766 cases carry 6,934 distinct diagnosis labels
+— which is why the 26-way likelihood and the linear probe, both defined over
+a closed label set, have no counterpart here.
+
+## 0b. DDXPlus rebuild on the new server
+
+The `/data1` disk holding the original DDXPlus CSVs is not mounted on the
+current server, so the corpus is re-downloaded from Hugging Face rather than
+copied. `aai530-group6/ddxplus` carries the same patient rows and evidence
+dictionary the pilot used.
+
+```bash
+python -c "
+from datasets import load_dataset
+ds = load_dataset('aai530-group6/ddxplus')
+ds['train'].to_csv('/data/heejae/ddxplus/train.csv')
+"
+```
+
+Case files, both experiments' inputs, at 100 cases per diagnosis:
+
+```bash
+python scripts/make_ddxplus_probe_dataset.py \
+  --patients /data/heejae/ddxplus/train.csv \
+  --evidences /data/heejae/ddxplus/release_evidences.json \
+  --cases-output /data/heejae/medical_nla/data/ddxplus_probe_cases.jsonl \
+  --variants-output /data/heejae/medical_nla/data/ddxplus_probe_variants.jsonl \
+  --examples-per-diagnosis 100 --max-cues 3 --seed 17 --clean-cues
+
+python scripts/make_ddxplus_cue_count_cases.py \
+  --patients /data/heejae/ddxplus/train.csv \
+  --evidences /data/heejae/ddxplus/release_evidences.json \
+  --output /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
+  --examples-per-diagnosis 100 --cue-counts all --seed 17
+```
+
+Both reproduce the pilot's 4,900 cases (49 diagnoses × 100). Note that the
+cue-count generator's input is the *patient* CSV; the probe experiment's
+`ddxplus_variants.jsonl` is a different artifact and has no `cue_count_all`
+variant, so it cannot stand in here.
+
+Cue-position rows come from the cue-count case file:
+
+```bash
+python scripts/make_ddxplus_cue_position_rows.py \
+  --input /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
+  --output /data/heejae/medical_nla/data/ddxplus_cuepos_rows.jsonl \
+  --variants cue_count_all --max-cues-per-case 4 --seed 17
+```
+
+This yields **16,410 rows from 4,900 cases, 0 cues unresolved** — against the
+pilot's 12,800. The difference is coverage, not construction: the pilot
+exploded a 3,200-case subset (the earlier all-cue format manifest), while
+this run covers the full 4,900. Same per-case rule (up to 4 cues, seed 17,
+`last_subtoken`), so the pilot's rows are a subset of this distribution and
+the two remain comparable; the extra cases just make the heldout-cue pool
+larger. The shortfall from 4,900 × 4 = 19,600 is cases carrying fewer than
+four usable cues after cue cleaning.
 
 ## 1. AV Diagnosis Logprob Probe
 
