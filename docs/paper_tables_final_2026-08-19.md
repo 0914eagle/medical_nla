@@ -40,35 +40,20 @@ n.a. = 해당 과제에서 정의되지 않음 · — = 해당 없음
 표 안에는 재실행으로 확정한 수치만 넣는다. pilot 관찰은 각 항목 아래
 서술로만 남긴다.
 
-| 순서 | 항목 | 섹션 |
-|---|---|---|
-| Table 1 | 설명의 출처 비교 — main table | Results 도입 |
-| Figure 1 | 설계 ablation | Results — 판독기 설계 |
-| Figure 2 | 판독 가능성의 궤적 | Results — 판독기 설계 |
-| 인라인 실물 | 증거의 네 가지 보존 형태 | Results — 판독의 성질 |
-| Table 2 | 충실성 검사 상세 | Results — 충실성 |
-| Table 3 | 오류 해부학 | Results — 오류 분석 |
-| Figure 3 | 오답노트 사다리 | Results — 개입 |
-| Figure 4 | 실시간 개입 | Results — 개입 |
-| Table 4 | 임상 타당성 | Results — 인간 평가 |
+| 순서 | 항목 | 섹션 | 검증하는 명제 |
+|---|---|---|---|
+| Table 1 | 설명의 출처 비교 — main table | Results 도입 | H1.3 · H2.1 (①열) · H2.2 · H3.2 (③열) · H3.3 (②열) · H4.1 (④열) · H4.2 (ours 행 ①열) |
+| Figure 1 | 설계 ablation | Results — 판독기 설계 | H3.1 · H3.2 |
+| Figure 2 | 판독 가능성의 궤적 | Results — 판독기 설계 | H3.4 |
+| 인라인 실물 | 증거의 네 가지 보존 형태 | Results — 판독의 성질 | H2.3 |
+| Table 2 | 충실성 검사 상세 | Results — 충실성 | H1.1 · H1.2 (CoT 열) · H3.3 (ours 열) |
+| Table 3 | 오류 해부학 | Results — 오류 분석 | H4.1 (a) · H4.3 (b) |
+| Figure 3 | 오답노트 사다리 | Results — 개입 | H4.4 (사전 지식 조건) |
+| Figure 4 | 실시간 개입 | Results — 개입 | H4.4 (실시간 조건) |
+| Table 4 | 임상 타당성 | Results — 인간 평가 | plausibility ≠ faithfulness 대조 |
 
-**명제 → 담당 항목**
-
-| 명제 | 담당 |
-|---|---|
-| H1.1, H1.2 | Table 2 (CoT 열) |
-| H1.3, H2.1 | Table 1 ①열 |
-| H2.2 | Table 1 ③열 |
-| H2.3 | 인라인 실물 |
-| H3.1 | Figure 1 |
-| H3.2 | Table 1 ③열, Figure 1 |
-| H3.3 | Table 1 ②열, Table 2 |
-| H3.4 | Figure 2 |
-| H4.1 | Table 1 ④열, Table 3(a) |
-| H4.2 | Table 1 ①열 (ours 행) |
-| H4.3 | Table 3(b) |
-| H4.4 | Figure 3, Figure 4 |
-| (plausibility 대조) | Table 4 |
+명제 13개가 모두 담당 항목을 갖는다. H3.2·H3.3·H4.1·H4.4는 두 항목에 걸치는데,
+Table 1이 결론값을 싣고 나머지 항목이 그 근거를 분해한다.
 
 ---
 
