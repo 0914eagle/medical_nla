@@ -259,9 +259,12 @@ def main() -> None:
         "swap_pairs": n_swap_pairs,
         "cue_vocab": len(vocab),
     }
-    if args.report:
-        Path(args.report).write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    # Print before writing the report so a bad report path cannot hide the stats.
     print(json.dumps(summary, indent=2))
+    if args.report:
+        report_path = Path(args.report)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(f"[done] wrote {len(rows)} span-counterfactual rows to {args.output}")
 
 
