@@ -1,0 +1,52 @@
+run_name: pilot
+seed: 17
+
+paths:
+  code_root: /home/eagle0914/medical_nla
+  artifact_root: /data/heejae/medical_nla
+  activation_dir: /data/heejae/medical_nla/activations
+  result_dir: /data/heejae/medical_nla/results
+  report_dir: /data/heejae/medical_nla/reports
+  cache_dir: /data/heejae/hf_cache
+
+source_model:
+  model_id: google/gemma-3-12b-it
+  dtype: bfloat16
+  device_map: cuda
+  trust_remote_code: true
+  layer: 32
+  hidden_state_index_offset: 0
+
+activation:
+  # last_token, token_index, token_span, or target_text.
+  # target_text maps a substring to tokenizer offsets; default strategy takes
+  # the final subword token in the matched span.
+  position_mode: last_token
+  default_token_index: null
+  default_token_span: null
+  target_text_strategy: last_subtoken
+  target_text_occurrence: 0
+  batch_size: 1
+
+nla_model:
+  model_id: kitft/nla-gemma3-12b-L32-av
+  ar_model_id: kitft/nla-gemma3-12b-L32-ar
+  adapter_id: null
+  dtype: bfloat16
+  device_map: cuda
+  trust_remote_code: true
+  sidecar_filename: nla_meta.yaml
+  # NLA sidecar values are mandatory. These optional fields are only for hard
+  # failure if the downloaded sidecar does not match the intended Gemma-3-12B run.
+  expected_d_model: 3840
+  expected_injection_token_id: 246566
+
+generation:
+  do_sample: false
+  max_new_tokens: 256
+  temperature: null
+  top_p: null
+
+inputs:
+  general: data/prompts_general.jsonl
+  medical: data/prompts_medical.jsonl

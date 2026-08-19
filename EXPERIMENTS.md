@@ -1,6 +1,40 @@
 # Medical-NLA Next Experiments
 
-This runbook assumes the GPU server layout:
+## Server setup
+
+Two server layouts are in use. Pick the matching config and env block; the
+commands below are written against the older `/data1` layout, so on the
+`/data` server substitute the config name (`configs/default.yaml` ->
+`configs/data.yaml`, `configs/layer24.yaml` -> `configs/data_layer24.yaml`)
+and the paths.
+
+### Current server (`/data/heejae`, configs `data*.yaml`)
+
+First time only:
+
+```bash
+cd ~ && git clone https://github.com/0914eagle/medical_nla.git
+mkdir -p /data/heejae/{uv,hf_cache/datasets,medical_nla/{activations,results,reports,data}}
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+uv venv /data/heejae/uv/medical_nla --python 3.11
+source /data/heejae/uv/medical_nla/bin/activate
+cd ~/medical_nla && uv pip install -e ".[dev]"
+```
+
+Every session:
+
+```bash
+cd /home/eagle0914/medical_nla
+source /data/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+export HF_HOME=/data/heejae/hf_cache
+export TRANSFORMERS_CACHE=/data/heejae/hf_cache
+export HF_DATASETS_CACHE=/data/heejae/hf_cache/datasets
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+```
+
+### Previous server (`/data1/heejae`, configs `default.yaml` / `layer*.yaml`)
 
 ```bash
 cd /home/eagle0914/medical_nla
@@ -9,6 +43,47 @@ export PYTHONPATH=/home/eagle0914/medical_nla
 export HF_HOME=/data1/heejae/hf_cache
 export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
 export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+```
+
+## 0. MedCaseReasoning ingestion
+
+Real case-report text with clinician quotes as cues, so the same
+cue-position pipeline applies to non-synthetic clinical prose. Download
+lands in `$HF_HOME`; the ingestion report's `quote_match_rate` is the
+transfer diagnostic — it says what fraction of clinician quotes are
+locatable verbatim in the case prompt.
+
+```bash
+python -c "
+from datasets import load_dataset
+ds = load_dataset('zou-lab/MedCaseReasoning')
+print(ds)
+for split in ds:
+    ds[split].to_json(f'/data/heejae/medical_nla/data/mcr_{split}.jsonl')
+"
+
+python scripts/make_medcasereasoning_cases.py \
+  --input /data/heejae/medical_nla/data/mcr_train.jsonl \
+  --output /data/heejae/medical_nla/data/mcr_cases_train.jsonl \
+  --report /data/heejae/medical_nla/reports/mcr_ingest_train.json \
+  --min-cues 3
+```
+
+Then the existing generators apply unchanged, except that prose prompts
+need span substitution rather than prompt reconstruction for the
+counterfactuals:
+
+```bash
+python scripts/make_ddxplus_cue_position_rows.py \
+  --input /data/heejae/medical_nla/data/mcr_cases_train.jsonl \
+  --output /data/heejae/medical_nla/data/mcr_cuepos_train.jsonl \
+  --variants cue_count_all --max-cues-per-case 4
+
+python scripts/make_span_counterfactual_rows.py \
+  --cases /data/heejae/medical_nla/data/mcr_cases_test.jsonl \
+  --output /data/heejae/medical_nla/data/mcr_cf_test.jsonl \
+  --num-cases 500 --swap-slots 2 \
+  --report /data/heejae/medical_nla/reports/mcr_cf.json
 ```
 
 ## 1. AV Diagnosis Logprob Probe
