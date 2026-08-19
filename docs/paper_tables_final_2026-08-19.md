@@ -1,5 +1,8 @@
 # 논문 표·그림 설계 — 2026-08-19
 
+**데이터셋 약칭**: DDX = DDXPlus(합성 감별진단, 계측용) · MCR =
+MedCaseReasoning(실제 case report + 임상의 인용, 이식용) · MedQA(정확도 델타 전용)
+
 **대전제**: 믿을 수 있는 진단 설명은 모델이 말하는 것(CoT)이 아니라 검증된
 방법으로 내부에서 읽어낸 것이며, 그렇게 읽은 내부 증거가 오류의 설명·예측·
 교정을 더 잘 해낸다.
@@ -7,22 +10,22 @@
 ## 가설과 명제
 
 **가설 1 — output(CoT)은 실제 판단 근거를 반영하지 않는다**
-- H1.1 CoT의 근거는 인과적이지 않다 — 절단·오염해도 답이 유지된다 · DDX, PHEE
-- H1.2 답을 바꾼 요인을 CoT는 언급하지 않는다 — cue/span 개입, 힌트 주입 · DDX, PHEE
+- H1.1 CoT의 근거는 인과적이지 않다 — 절단·오염해도 답이 유지된다 · DDX, MCR
+- H1.2 답을 바꾼 요인을 CoT는 언급하지 않는다 — cue/span 개입, 힌트 주입 · DDX, MCR
 - H1.3 내부 상태는 output이 못 드러내는 정보를 갖는다 — 출력 신호가 못 잡는
   오답을 내부 신호가 예측한다 · DDX
 
 **가설 2 — 기존 내부 도구는 탐지는 하되 케이스 고유 증거를 서술하지 못한다**
 - H2.1 탐지만 보면 probe로 충분하다 (인정 명제) · DDX
-- H2.2 probe·SAE·logit lens는 조합적 임상 증거를 출력할 수 없다 · DDX, PHEE
+- H2.2 probe·SAE·logit lens는 조합적 임상 증거를 출력할 수 없다 · DDX, MCR
 - H2.3 증거의 보존 형태(보존/왜곡/반전/부재)를 구분하지 못한다 · DDX
 
 **가설 3 — 검증 가능하게 설계된 자연어 판독이 그 격차를 메운다**
 - H3.1 naive verbalization은 실패한다 — 진단명 타깃은 분류기로 붕괴하고,
   옳은 타깃도 틀린 위치에서는 실패한다 · DDX
-- H3.2 올바른 설계는 학습에 없던 임상 증거를 읽는다 · DDX(증상 cue), PHEE(약물/ADE span)
-- H3.3 판독은 벡터에 인과적으로 종속된다 — 개입 추적, 문맥 무기억 · DDX, PHEE(span 치환)
-- H3.4 판독 가능성은 층·위치에 따라 체계적으로 변한다 · DDX, PHEE는 L24 확인만
+- H3.2 올바른 설계는 학습에 없던 임상 증거를 읽는다 · DDX(합성 문진 cue), MCR(실제 case report 인용)
+- H3.3 판독은 벡터에 인과적으로 종속된다 — 개입 추적, 문맥 무기억 · DDX(재구성), MCR(span 치환)
+- H3.4 판독 가능성은 층·위치에 따라 체계적으로 변한다 · DDX, MCR은 L24 확인만
 
 **가설 4 — 검증된 판독은 오류를 해부하고 성능을 개선한다**
 - H4.1 오답은 내부 증거 상태로 유형화된다 · DDX
@@ -66,7 +69,7 @@ Table 1이 결론값을 싣고 나머지 항목이 그 근거를 분해한다.
 
 **검증 명제**: H1.3 · H2.1 · H2.2 · H3.2 · H3.3 · H4.1 · H4.2
 
-| 설명의 출처 | 내부 | ① 오답 예측 AUROC (DDX/PHEE) | ② 충실성: 개입 반영 / 문맥 암기 | ③ unseen 임상증거 서술 | ④ 오류 원인 유형화 |
+| 설명의 출처 | 내부 | ① 오답 예측 AUROC (DDX/MCR) | ② 충실성: 개입 반영 / 문맥 암기 | ③ unseen 임상증거 서술 | ④ 오류 원인 유형화 |
 |---|:--:|---|---|---|---|
 | Answer confidence | ✕ | ▢ / ▢ | — | ✕ | ✕ |
 | Output-distribution signal | ✕ | ▢ / ▢ | — | ✕ | ✕ |
@@ -85,7 +88,7 @@ AP도 병기(base rate 명시 필수).
 | 행 | 점수 s의 정의 |
 |---|---|
 | Answer confidence | 생성된 답 토큰들의 평균 log-prob (음수화) |
-| Output-distribution signal | DDX: 26개 진단명을 각각 답 자리에 놓고 시퀀스 log-prob 계산 → softmax → **1등−2등 margin**(음수화) 및 entropy / PHEE: 생성 시퀀스의 log-prob·entropy |
+| Output-distribution signal | DDX: 26개 진단명을 각각 답 자리에 놓고 시퀀스 log-prob 계산 → softmax → **1등−2등 margin**(음수화) 및 entropy / MCR: 생성 시퀀스의 log-prob·entropy |
 | CoT self-explanation | k=5회 CoT 샘플링 후 **답 불일치율**(self-consistency) |
 | Linear probe | probe 예측 분포의 margin(음수화). **probe는 평가 풀과 분리된 split에서 학습** — 평가 행이 학습에 포함되면 무효 |
 | Ours | **증거 인코딩률** = (판독에서 원형 보존으로 판정된 gold cue 수) / (그 케이스의 gold cue 총수). gold 정답을 참조하지 않으므로 순환 없음 |
