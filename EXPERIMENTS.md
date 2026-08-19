@@ -22,6 +22,17 @@ source /data/heejae/uv/medical_nla/bin/activate
 cd ~/medical_nla && uv pip install -e ".[dev]"
 ```
 
+Hugging Face login (first time on a new `HF_HOME`): the backbone is a gated
+repo, and the credential lives in `$HF_HOME/token`, so moving `HF_HOME` to a
+new disk means logging in again. Use the account that already accepted the
+Gemma license.
+
+```bash
+export HF_HOME=/data/heejae/hf_cache
+huggingface-cli login          # newer clients: hf auth login
+huggingface-cli whoami         # verify
+```
+
 Every session:
 
 ```bash
@@ -33,6 +44,14 @@ export TRANSFORMERS_CACHE=/data/heejae/hf_cache
 export HF_DATASETS_CACHE=/data/heejae/hf_cache/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 ```
+
+Note the older blocks below `unset HF_TOKEN` so the stored token file is used
+rather than a stale environment variable; keep that unless you deliberately
+authenticate through `HF_TOKEN`.
+
+The backbone spans both GPUs on this server (`device_map: auto` in the
+`data*.yaml` configs), so extraction and readout runs take
+`CUDA_VISIBLE_DEVICES=2,3` rather than a single device.
 
 ### Previous server (`/data1/heejae`, configs `default.yaml` / `layer*.yaml`)
 
