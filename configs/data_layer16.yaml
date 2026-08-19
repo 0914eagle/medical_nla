@@ -12,7 +12,7 @@ paths:
 source_model:
   model_id: google/gemma-3-12b-it
   dtype: bfloat16
-  device_map: cuda
+  device_map: auto
   trust_remote_code: true
   layer: 16
   hidden_state_index_offset: 0
@@ -33,7 +33,7 @@ nla_model:
   ar_model_id: kitft/nla-gemma3-12b-L32-ar
   adapter_id: null
   dtype: bfloat16
-  device_map: cuda
+  device_map: auto
   trust_remote_code: true
   sidecar_filename: nla_meta.yaml
   # NLA sidecar values are mandatory. These optional fields are only for hard
