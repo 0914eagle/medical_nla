@@ -372,3 +372,89 @@ def test_unrenderable_questions_are_dropped_not_emitted():
     assert is_malformed_cue("their nose is or the back of their throat itchy")
     assert not is_malformed_cue("the rash is swollen")
     assert not is_malformed_cue("has not traveled out of the country")
+
+
+def test_unlabelled_value_id_still_carries_polarity():
+    # value_meaning often omits Y/N. Returning None there erased the answer, so a
+    # negative rendered as the affirmative -- the prompt asserted the opposite.
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry
+
+    meta = {
+        "E_TRAVEL": {
+            "question_en": "Have you traveled out of the country in the last 4 weeks?",
+            "is_antecedent": True,
+        }
+    }
+    cue = cue_from_entry("E_TRAVEL_@_N", meta, clean_cues=True, negative_cues=True)
+    assert cue["cue_polarity"] == "negative"
+    assert cue["cue_text"] == "has not traveled out of the country in the last 4 weeks"
+
+    dropped = cue_from_entry("E_TRAVEL_@_N", meta, clean_cues=True)
+    assert dropped["excluded"]
+
+
+def test_opaque_value_ids_never_reach_the_prompt():
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry, is_opaque_value_id
+
+    assert is_opaque_value_id("V_29")
+    assert is_opaque_value_id("v12")
+    assert not is_opaque_value_id("chest")
+    assert not is_opaque_value_id("N")
+
+    meta = {"E": {"question_en": "Where is the swelling located?", "is_antecedent": False}}
+    cue = cue_from_entry("E_@_V_29", meta, clean_cues=True)
+    assert cue["excluded"]
+    assert cue["exclusion_reason"] == "opaque_value_id"
+
+
+def test_generic_filter_survives_uninversion():
+    # Un-inverting inserts the auxiliary mid-phrase ("the pain does radiate"),
+    # which no longer matches the generic pattern written against the question.
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry
+
+    meta = {
+        "E_RADIATE": {
+            "question_en": "Does the pain radiate to another location?",
+            "value_meaning": {"V_B": {"en": "biceps(R)"}},
+            "is_antecedent": False,
+        }
+    }
+    cue = cue_from_entry("E_RADIATE_@_V_B", meta, clean_cues=True)
+    assert cue["excluded"]
+    assert cue["exclusion_reason"] == "generic_cue"
+
+
+def test_merge_multivalue_cues_collapses_one_item_answered_several_ways():
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry, merge_multivalue_cues
+
+    meta = {
+        "E_LOC": {
+            "question_en": "Where is the pain located?",
+            "value_meaning": {"V_1": {"en": "lower chest"}, "V_2": {"en": "upper chest"}},
+            "is_antecedent": False,
+        }
+    }
+    cues = [
+        cue_from_entry(f"E_LOC_@_{vid}", meta, clean_cues=True) for vid in ("V_1", "V_2")
+    ]
+    merged = merge_multivalue_cues(cues)
+    assert len(merged) == 1
+    assert merged[0]["cue_text"] == "the pain is located in the lower chest and upper chest"
+    assert merged[0]["merged_value_count"] == 2
+
+
+def test_merge_multivalue_cues_leaves_distinct_items_alone():
+    from scripts.make_ddxplus_probe_dataset import merge_multivalue_cues
+
+    cues = [
+        {"evidence_id": "E_A", "cue_text": "a cough", "value_label": None, "question": "q"},
+        {"evidence_id": "E_B", "cue_text": "a fever", "value_label": None, "question": "q"},
+    ]
+    assert len(merge_multivalue_cues(cues)) == 2
+
+
+def test_agreement_errors_are_treated_as_malformed():
+    from scripts.make_ddxplus_probe_dataset import is_malformed_cue
+
+    assert is_malformed_cue("the patient do feel like the patient are choking")
+    assert not is_malformed_cue("the patient does have a cough")

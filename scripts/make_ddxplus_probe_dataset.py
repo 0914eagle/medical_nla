@@ -107,6 +107,9 @@ MALFORMED_CUE_PATTERNS = [
     r"(?:or|and|of|to|in|on|at|for|with|from|than)\b",
     # A second clause left in question form: "..., or are the patient underweight".
     r"\bor\s+(?:is|are|was|were|do|does|did|have|has)\b",
+    # "the patient" is third-person singular, so a plural verb means the rewrite
+    # produced an agreement error: "the patient do feel like the patient are ...".
+    r"\bthe patient\s+(?:do|are|were|have)\b",
 ]
 
 # The questionnaire is a fixed vocabulary, so the handful of questions the rules
@@ -138,6 +141,50 @@ GENERIC_CUE_PATTERNS = [
     r"\bdoes the pain radiate\b",
     r"\bpain radiate\b",
 ]
+
+
+def join_values(values: list[str]) -> str:
+    if len(values) == 1:
+        return values[0]
+    if len(values) == 2:
+        return f"{values[0]} and {values[1]}"
+    return ", ".join(values[:-1]) + f", and {values[-1]}"
+
+
+def merge_multivalue_cues(cues: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse one questionnaire item answered with several values into one cue.
+
+    A patient whose pain radiates to five sites produces five entries of the same
+    item, which otherwise become five near-identical cues that crowd out the rest
+    of the presentation. One cue naming all the sites carries the same content.
+    """
+    order: list[str] = []
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for cue in cues:
+        key = str(cue.get("evidence_id"))
+        if key not in groups:
+            order.append(key)
+            groups[key] = []
+        groups[key].append(cue)
+
+    merged: list[dict[str, Any]] = []
+    for key in order:
+        group = groups[key]
+        labels = [str(cue.get("value_label") or "") for cue in group]
+        if len(group) == 1 or not all(labels):
+            merged.extend(group)
+            continue
+        combined = render_wh_question(str(group[0].get("question") or ""), join_values(labels))
+        if not combined or is_malformed_cue(combined):
+            merged.extend(group)
+            continue
+        out = dict(group[0])
+        out["cue_text"] = combined
+        out["value_id"] = [cue.get("value_id") for cue in group]
+        out["value_label"] = labels
+        out["merged_value_count"] = len(group)
+        merged.append(out)
+    return merged
 
 
 def read_json(path: Path) -> Any:
@@ -429,7 +476,12 @@ def possible_value_label(meta: dict[str, Any], value_id: str | None) -> str | No
                 label = value_meta.get(label_key)
                 if isinstance(label, str) and label.strip():
                     return label
-    return None
+    # No label for this value id. Returning None would erase the answer, and a
+    # negative answer erased is worse than dropped: the phrase then asserts the
+    # affirmative ("traveled out of the country" for a patient who did not).
+    # The raw id still carries the polarity for Y/N-style values; opaque codes
+    # are caught by is_opaque_value_id.
+    return value_id
 
 
 def is_negative_or_low_information_value(value_label: str | None) -> bool:
@@ -437,6 +489,16 @@ def is_negative_or_low_information_value(value_label: str | None) -> bool:
         return False
     label = normalize_label(value_label)
     return label in NEGATIVE_VALUE_LABELS or label in LOW_INFORMATION_VALUE_LABELS
+
+
+OPAQUE_VALUE_ID = re.compile(r"^[a-z]{1,3}[_-]?\d+$")
+
+
+def is_opaque_value_id(value_label: str | None) -> bool:
+    """True for an unlabelled code like 'V_29', which must not reach the prompt."""
+    if value_label is None:
+        return False
+    return bool(OPAQUE_VALUE_ID.match(normalize_label(value_label)))
 
 
 def is_uninformative_value(value_label: str | None) -> bool:
@@ -515,6 +577,9 @@ def cue_from_entry(
         else:
             excluded = True
             exclusion_reason = "negative_or_low_information_value"
+    elif clean_cues and is_opaque_value_id(value_label):
+        excluded = True
+        exclusion_reason = "opaque_value_id"
     elif clean_cues and value_label and normalize_label(value_label) not in AFFIRMATIVE_VALUE_LABELS:
         # A real answer value ("chest", "red") belongs inside the statement, not
         # pasted onto the end of the question.
@@ -542,12 +607,16 @@ def cue_from_entry(
             excluded = True
             exclusion_reason = "unrenderable_question"
 
-    if clean_cues and is_generic_cue_text(phrase):
+    # Match the question as well as the rendering: un-inverting moves the
+    # auxiliary into the middle ("the pain does radiate"), which would otherwise
+    # walk a screening question straight past the generic filter.
+    if clean_cues and (is_generic_cue_text(phrase) or is_generic_cue_text(question)):
         excluded = True
         exclusion_reason = exclusion_reason or "generic_cue"
     return {
         "evidence_id": base_id,
         "evidence_entry": entry,
+        "question": question,
         "value_id": value_id,
         "value_label": value_label,
         "cue_text": phrase,
@@ -598,11 +667,13 @@ def make_case(
         )
         for entry in entries
     ]
-    cues = [
-        cue
-        for cue in all_cues
-        if cue["cue_text"] and cue["cue_text"].lower() != "none" and not cue["excluded"]
-    ]
+    cues = merge_multivalue_cues(
+        [
+            cue
+            for cue in all_cues
+            if cue["cue_text"] and cue["cue_text"].lower() != "none" and not cue["excluded"]
+        ]
+    )
     symptom_cues = [cue for cue in cues if not cue["is_antecedent"]]
     candidate_cues = symptom_cues if prefer_symptoms and len(symptom_cues) >= max_cues else cues
     if len(candidate_cues) < max_cues:
