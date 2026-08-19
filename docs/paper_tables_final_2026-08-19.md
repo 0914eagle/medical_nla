@@ -392,13 +392,3 @@ Results의 인간 평가 절. **메시지**: faithfulness와 plausibility는 다
   검증, split 구성(진단-heldout / cue-string heldout / 자연 분포 split)
 - Figure 1·3·4의 정확한 수치표
 - 프롬프트 전문: 판독 프롬프트, CoT 지시문, 힌트 주입 템플릿, judge 루브릭
-
----
-
-# 완성 순서
-
-| 시점 | 목표 |
-|---|---|
-| 8월 말 초안 | Table 1(DDX 열) · Figure 1 · Figure 2 · Table 2(ours 열) · 4형태 인라인 · Figure 3 |
-| 9월 중순 | Table 1(CoT 행·PHEE 열) · Table 2(CoT 열) · Table 3 · Table 4 |
-| 9월 말 | Figure 4 · appendix |
