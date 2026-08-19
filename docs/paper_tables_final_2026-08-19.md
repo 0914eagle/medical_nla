@@ -14,7 +14,6 @@ n.a. = 해당 과제에서 정의되지 않음 · — = 해당 없음 · (괄호
 
 | 순서 | 항목 | 섹션 |
 |---|---|---|
-| Figure 1 | Overview | Introduction |
 | Table 1 | 설명의 출처 비교 (MAIN) | Results 도입 |
 | Figure 2 | 설계 ablation | Results — 판독기 설계 |
 | Figure 3 | 궤적 (layer × 위치) | Results — 판독기 설계 |
@@ -24,16 +23,6 @@ n.a. = 해당 과제에서 정의되지 않음 · — = 해당 없음 · (괄호
 | Figure 4 | 오답노트 사다리 | Results — 개입 |
 | Figure 5 | 실시간 개입 flip | Results — 개입 |
 | Table 4 | 임상 타당성 | Results — 인간 평가 |
-
----
-
-# Figure 1 — Overview (Introduction)
-
-3단 구성: (좌) 문제 — CoT는 개입에 무반응하고 probe는 닫힌 라벨만 출력 /
-(중) 방법 — cue-span 활성값 추출 → 검증 관문을 통과한 판독기 → 감사(E/S/O) /
-(우) 효과 — unseen 판독률·개입 추적률·정확도 Δ 미니 패널.
-
-계산 없음(구조도). 우측 미니 패널의 값은 Table 1·Figure 4에서 인용.
 
 ---
 
