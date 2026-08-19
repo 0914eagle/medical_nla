@@ -71,19 +71,45 @@ def test_make_ddxplus_probe_case_parses_ddxplus_literal_and_value_meaning():
         "EVIDENCES": "['E_53', 'E_55_@_V_29', 'E_91']",
     }
 
+    # "Do you have pain somewhere?" is a generic screening question that
+    # clean_cues drops, so only two usable cues remain here; ask for two.
     case = make_case(
         row,
         row_index=1,
         evidence_meta=evidence_meta,
         rng=random.Random(1),
         prefer_symptoms=True,
-        max_cues=3,
+        max_cues=2,
     )
 
     assert case is not None
     assert "E_55" in case["cue_evidence_ids"]
     assert not any(target.startswith("'") or target.startswith("[") for target in case["cue_targets"])
     assert any("chest" in target for target in case["cue_targets"])
+    # the generic cue is excluded rather than silently reworded
+    assert not any("somewhere" in target for target in case["cue_targets"])
+
+
+def test_make_ddxplus_probe_case_returns_none_when_usable_cues_fall_short():
+    # Guards the branch the previous test used to hit by accident: when
+    # filtering leaves fewer cues than requested, the case is dropped rather
+    # than emitted with too few.
+    evidence_meta = {
+        "E_53": {"question_en": "Do you have pain somewhere?", "is_antecedent": False},
+        "E_91": {"question_en": "Do you have a fever?", "is_antecedent": False},
+    }
+    row = {"PATHOLOGY": "Pneumonia", "EVIDENCES": "['E_53', 'E_91']"}
+
+    case = make_case(
+        row,
+        row_index=1,
+        evidence_meta=evidence_meta,
+        rng=random.Random(1),
+        prefer_symptoms=True,
+        max_cues=2,
+    )
+
+    assert case is None
 
 
 def test_make_ddxplus_probe_case_filters_negative_and_generic_cues():

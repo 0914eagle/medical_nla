@@ -494,7 +494,16 @@ def main() -> None:
     patients = read_patient_rows(Path(args.patients))
     if args.max_patient_rows is not None:
         patients = islice(patients, args.max_patient_rows)
+    # The full release has over a million patient rows and nothing is written
+    # until the scan finishes, so report progress rather than looking hung.
     for row_index, row in enumerate(patients):
+        if row_index and row_index % 100_000 == 0:
+            kept = sum(len(bucket) for bucket in by_diagnosis.values())
+            print(
+                f"[scan] {row_index:,} rows read | {len(by_diagnosis)} diagnoses "
+                f"| {kept:,} cases kept",
+                flush=True,
+            )
         case = make_case(
             row,
             row_index=row_index,
@@ -509,6 +518,7 @@ def main() -> None:
         bucket = by_diagnosis[case["diagnosis_id"]]
         if len(bucket) < args.examples_per_diagnosis:
             bucket.append(case)
+    print(f"[scan] done: {row_index + 1:,} rows read", flush=True)
 
     selected_diagnoses = [
         diagnosis
