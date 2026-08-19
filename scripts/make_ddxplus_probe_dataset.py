@@ -45,7 +45,11 @@ LOW_INFORMATION_VALUE_LABELS = {
 # "unknown" says the question was not answered; "no" says it was answered in the
 # negative. Only the second is a clinical finding, so only the second can be
 # rendered as a cue.
-UNINFORMATIVE_VALUE_LABELS = {"unknown", "unspecified"}
+UNINFORMATIVE_VALUE_LABELS = {"unknown", "unspecified", "na", "n/a", "not applicable", "-"}
+
+# An affirmative answer adds nothing to the phrase, so it must not be appended.
+# "Y" was missing from this set, which is why cues read "peel off Y".
+AFFIRMATIVE_VALUE_LABELS = {"y", "yes", "true", "present", "positive", "1"}
 
 # DDXPlus stores (question id, answer value), not sentences, so a cue phrase has
 # to be built. For an affirmative answer the auxiliary is dropped and the
@@ -64,6 +68,66 @@ NEGATION_AUXILIARIES = (
     ("has your", "has not"),
     ("is your", "is not"),
 )
+
+# Yes/no questions front an auxiliary. Undoing that inversion is what turns the
+# questionnaire item into a finding: "Is the rash swollen?" -> "the rash is
+# swollen". Only `you`-subject questions can drop the auxiliary outright.
+AUXILIARIES = (
+    "do",
+    "does",
+    "did",
+    "is",
+    "are",
+    "was",
+    "were",
+    "have",
+    "has",
+    "can",
+    "could",
+    "will",
+    "would",
+)
+
+DETERMINERS = {
+    "the", "a", "an", "your", "his", "her", "their", "its", "my", "our",
+    "this", "that", "these", "those", "any", "some", "both", "either",
+}
+
+WH_WORDS = ("where", "what", "which", "when", "how", "why", "who")
+
+# A rendering that still opens like a question, or that puts the auxiliary in
+# front of a preposition/conjunction, did not survive the rules. Such cues are
+# reported and dropped rather than silently written into a prompt.
+MALFORMED_CUE_PATTERNS = [
+    r"^(?:" + "|".join(WH_WORDS) + r")\b",
+    # A leading auxiliary means the question was never un-inverted -- unless it
+    # is a negated finding, where "has not traveled..." is exactly right.
+    r"^(?:" + "|".join(AUXILIARIES) + r")\b(?!\s+not\b)",
+    r"\b(?:is|are|was|were|do|does|did|have|has)\s+"
+    r"(?:or|and|of|to|in|on|at|for|with|from|than)\b",
+    # A second clause left in question form: "..., or are the patient underweight".
+    r"\bor\s+(?:is|are|was|were|do|does|did|have|has)\b",
+]
+
+# The questionnaire is a fixed vocabulary, so the handful of questions the rules
+# cannot reach (compound subjects, two questions in one) are written out. Keyed
+# by the normalized question text, with both polarities given explicitly since
+# auxiliary negation cannot be derived for these shapes either.
+CUE_PHRASE_OVERRIDES: dict[str, dict[str, str]] = {
+    "is your nose or the back of your throat itchy": {
+        "positive": "an itchy nose or an itchy back of the throat",
+        "negative": "no itching of the nose or the back of the throat",
+    },
+    "is your bmi less than 18.5, or are you underweight": {
+        "positive": "a BMI under 18.5 or being underweight",
+        "negative": "a BMI of 18.5 or above and not underweight",
+    },
+}
+
+
+def cue_phrase_override(question: str, polarity: str) -> str | None:
+    entry = CUE_PHRASE_OVERRIDES.get(normalize_label(question).strip(" ?."))
+    return entry.get(polarity) if entry else None
 
 GENERIC_CUE_PATTERNS = [
     r"\bpain somewhere\b",
@@ -197,6 +261,102 @@ def strip_question_to_phrase(text: str) -> str:
     if not phrase:
         phrase = normalize_space(text).strip(" ?.")
     return phrase[:1].lower() + phrase[1:]
+
+
+def rewrite_second_person(text: str) -> str:
+    text = re.sub(r"\bwhen you exhale\b", "when exhaling", text, flags=re.I)
+    text = re.sub(r"\byour\b", "their", text, flags=re.I)
+    text = re.sub(r"\byou\b", "the patient", text, flags=re.I)
+    text = re.sub(r"\b(yes or no|right now|currently)\b", "", text, flags=re.I)
+    return normalize_space(text).strip(" ?.:;,-")
+
+
+def lower_first(text: str) -> str:
+    return text[:1].lower() + text[1:] if text else text
+
+
+def split_subject(words: list[str]) -> tuple[list[str], list[str]]:
+    """Guess where the subject ends, so the auxiliary can move behind it.
+
+    A determiner or possessive takes the following noun with it ("your
+    symptoms"); anything else is treated as a one-word subject ("there").
+    Compound subjects defeat this and are caught by the malformed-cue check.
+    """
+    if not words:
+        return [], []
+    take = 2 if words[0].lower() in DETERMINERS and len(words) > 2 else 1
+    return words[:take], words[take:]
+
+
+def uninvert_question(question: str) -> str | None:
+    """Undo subject-auxiliary inversion: 'Is the rash swollen' -> 'the rash is swollen'."""
+    text = normalize_space(question).strip(" ?.")
+    # "Is the lesion (or are the lesions) larger than 1cm?" -- the parenthetical
+    # restates the question for a plural subject and only blocks the rewrite.
+    text = normalize_space(re.sub(r"\((?:or|and)\s+[^)]*\)", "", text, flags=re.I))
+    match = re.match(rf"^({'|'.join(AUXILIARIES)})\s+(.+)$", text, flags=re.I)
+    if not match:
+        return None
+    auxiliary = match.group(1).lower()
+    subject, tail = split_subject(match.group(2).split())
+    if not subject or not tail:
+        return None
+    phrase = rewrite_second_person(" ".join([*subject, auxiliary, *tail]))
+    phrase = re.sub(r"^there\s+(is|are)\s+any\b", r"there \1", phrase, flags=re.I)
+    return lower_first(phrase)
+
+
+def drop_do_support(question: str) -> str | None:
+    """Delete a plural do/did, which carries no meaning once the question is a statement.
+
+    Needed when the subject runs long ("any members of your immediate family"),
+    where guessing the subject boundary to move the auxiliary behind it fails.
+    Restricted to do/did because dropping `does` leaves a person-agreement error.
+    """
+    text = normalize_space(question).strip(" ?.")
+    match = re.match(r"^(do|did)\s+(.+)$", text, flags=re.I)
+    if not match:
+        return None
+    return lower_first(rewrite_second_person(match.group(2)))
+
+
+def render_wh_question(question: str, value_label: str) -> str | None:
+    """Fold a wh-question's answer into a statement.
+
+    'Where is the swelling located?' + 'iliac wing(R)' becomes 'the swelling is
+    located in iliac wing(R)' rather than the two pasted together.
+    """
+    text = normalize_space(question).strip(" ?.")
+    value = normalize_space(value_label)
+    # A bare site name reads as a location only with an article: "in the chest".
+    site = value if value.split()[:1] and value.split()[0].lower() in DETERMINERS else f"the {value}"
+
+    match = re.match(r"^where\s+(is|are)\s+(.+?)\s+located$", text, flags=re.I)
+    if match:
+        return lower_first(
+            rewrite_second_person(f"{match.group(2)} {match.group(1)} located in {site}")
+        )
+    match = re.match(r"^where\s+(is|are)\s+(.+)$", text, flags=re.I)
+    if match:
+        return lower_first(rewrite_second_person(f"{match.group(2)} {match.group(1)} in {site}"))
+    # "What color is the rash?" -> "the rash color is red"
+    match = re.match(r"^what\s+(\w+)\s+(is|are)\s+(.+)$", text, flags=re.I)
+    if match:
+        return lower_first(
+            rewrite_second_person(f"{match.group(3)} {match.group(1)} {match.group(2)} {value}")
+        )
+    # "How severe is the itching?" -> "the itching is severe: 7"
+    match = re.match(r"^how\s+(\w+)\s+(is|are|does|did)\s+(.+)$", text, flags=re.I)
+    if match:
+        return lower_first(
+            rewrite_second_person(f"{match.group(3)} {match.group(2)} {match.group(1)}: {value}")
+        )
+    return None
+
+
+def is_malformed_cue(text: str) -> bool:
+    lowered = normalize_label(text)
+    return any(re.search(pattern, lowered) for pattern in MALFORMED_CUE_PATTERNS)
 
 
 def lookup_meta(evidence_meta: dict[str, Any], evidence_id: str) -> dict[str, Any]:
@@ -333,7 +493,7 @@ def cue_from_entry(
     base_id, value_id = evidence_base_and_value(entry)
     meta = lookup_meta(evidence_meta, base_id)
     question = meta_text(meta, base_id)
-    phrase = strip_question_to_phrase(question)
+    phrase = cue_phrase_override(question, "positive") or strip_question_to_phrase(question)
     value_label = possible_value_label(meta, value_id)
     polarity = "positive"
     excluded = False
@@ -345,7 +505,7 @@ def cue_from_entry(
         exclusion_reason = "uninformative_value"
     elif clean_cues and is_negative_or_low_information_value(value_label):
         if negative_cues:
-            negated = render_negative_phrase(question)
+            negated = cue_phrase_override(question, "negative") or render_negative_phrase(question)
             if negated:
                 phrase = negated
                 polarity = "negative"
@@ -355,13 +515,33 @@ def cue_from_entry(
         else:
             excluded = True
             exclusion_reason = "negative_or_low_information_value"
-
-    if polarity == "positive" and value_label and value_label.lower() not in {
-        "yes",
-        "true",
-        "present",
-    }:
+    elif clean_cues and value_label and normalize_label(value_label) not in AFFIRMATIVE_VALUE_LABELS:
+        # A real answer value ("chest", "red") belongs inside the statement, not
+        # pasted onto the end of the question.
+        folded = render_wh_question(question, value_label)
+        phrase = folded if folded else normalize_space(f"{phrase} {value_label}")
+    elif not clean_cues and value_label and value_label.lower() not in {"yes", "true", "present"}:
         phrase = normalize_space(f"{phrase} {value_label}")
+
+    if clean_cues and not excluded and is_malformed_cue(phrase):
+        # The question kept its interrogative shape; try undoing the inversion,
+        # then simply deleting do-support, before giving up on it.
+        repaired = next(
+            (
+                candidate
+                for candidate in (uninvert_question(question), drop_do_support(question))
+                if candidate and not is_malformed_cue(candidate)
+            ),
+            None,
+        )
+        if repaired:
+            if value_label and normalize_label(value_label) not in AFFIRMATIVE_VALUE_LABELS:
+                repaired = normalize_space(f"{repaired} {value_label}")
+            phrase = repaired
+        else:
+            excluded = True
+            exclusion_reason = "unrenderable_question"
+
     if clean_cues and is_generic_cue_text(phrase):
         excluded = True
         exclusion_reason = exclusion_reason or "generic_cue"

@@ -246,9 +246,9 @@ def test_cue_from_entry_keeps_positive_rendering_unchanged():
         },
         "E_COUGH": {"question_en": "Do you have a cough?", "is_antecedent": False},
     }
-    # Unchanged from before the negative-cue path existed, awkward wh-phrasing included.
+    # The answer is folded into the statement rather than pasted after the question.
     valued = cue_from_entry("E_55_@_V_29", meta, clean_cues=True, negative_cues=True)
-    assert valued["cue_text"] == "where is the pain located chest"
+    assert valued["cue_text"] == "the pain is located in the chest"
     assert valued["cue_polarity"] == "positive"
 
     bare = cue_from_entry("E_COUGH", meta, clean_cues=True, negative_cues=True)
@@ -284,3 +284,91 @@ def test_cue_from_entry_separates_missing_answers_from_negative_ones():
     cue = cue_from_entry("E_SMOKE_@_U", meta, clean_cues=True, negative_cues=True)
     assert cue["excluded"]
     assert cue["exclusion_reason"] == "uninformative_value"
+
+
+def _cue(question, value_meaning=None, value_id=None, **kwargs):
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry
+
+    meta = {"E": {"question_en": question, "is_antecedent": False}}
+    if value_meaning:
+        meta["E"]["value_meaning"] = value_meaning
+    entry = f"E_@_{value_id}" if value_id else "E"
+    return cue_from_entry(entry, meta, clean_cues=True, **kwargs)
+
+
+def test_yes_no_questions_are_uninverted_into_findings():
+    # "Is the rash swollen?" used to survive as a question inside the prompt.
+    assert _cue("Is the rash swollen?")["cue_text"] == "the rash is swollen"
+    assert (
+        _cue("Are your symptoms more prominent at night?")["cue_text"]
+        == "their symptoms are more prominent at night"
+    )
+    assert (
+        _cue("Does the person have a whooping cough?")["cue_text"]
+        == "the person does have a whooping cough"
+    )
+    assert _cue("Did your cheeks suddenly turn red?")["cue_text"] == (
+        "their cheeks did suddenly turn red"
+    )
+
+
+def test_second_person_questions_keep_the_shorter_noun_phrase():
+    assert _cue("Do you have a cough?")["cue_text"] == "a cough"
+
+
+def test_affirmative_value_is_not_appended():
+    # "Y" was missing from the affirmative set, so cues read "peel off Y".
+    cue = _cue("Do your lesions peel off?", {"Y": {"en": "Y"}}, "Y")
+    assert cue["cue_text"] == "their lesions do peel off"
+
+
+def test_long_subject_falls_back_to_dropping_do_support():
+    cue = _cue("Do any members of your immediate family have a psychiatric illness?")
+    assert cue["cue_text"] == "any members of their immediate family have a psychiatric illness"
+
+
+def test_restating_parenthetical_is_removed_before_uninverting():
+    cue = _cue("Is the lesion (or are the lesions) larger than 1cm?", {"Y": {"en": "Y"}}, "Y")
+    assert cue["cue_text"] == "the lesion is larger than 1cm"
+
+
+def test_wh_answers_are_folded_into_the_statement():
+    located = _cue("Where is the swelling located?", {"V1": {"en": "iliac wing(R)"}}, "V1")
+    assert located["cue_text"] == "the swelling is located in the iliac wing(R)"
+    colored = _cue("What color is the rash?", {"V2": {"en": "pink"}}, "V2")
+    assert colored["cue_text"] == "the rash color is pink"
+    rated = _cue("How severe is the itching?", {"V7": {"en": "7"}}, "V7")
+    assert rated["cue_text"] == "the itching is severe: 7"
+
+
+def test_missing_answer_values_are_dropped():
+    cue = _cue("What color is the rash?", {"V1": {"en": "NA"}}, "V1")
+    assert cue["excluded"]
+    assert cue["exclusion_reason"] == "uninformative_value"
+
+
+def test_compound_questions_use_the_override_table():
+    positive = _cue("Is your nose or the back of your throat itchy?")
+    assert positive["cue_text"] == "an itchy nose or an itchy back of the throat"
+    negative = _cue(
+        "Is your nose or the back of your throat itchy?",
+        {"N": {"en": "no"}},
+        "N",
+        negative_cues=True,
+    )
+    assert negative["cue_polarity"] == "negative"
+    assert negative["cue_text"] == "no itching of the nose or the back of the throat"
+
+
+def test_unrenderable_questions_are_dropped_not_emitted():
+    from scripts.make_ddxplus_probe_dataset import is_malformed_cue
+
+    cue = _cue("Was it a sudden onset or was it gradual?")
+    assert cue["excluded"]
+    assert cue["exclusion_reason"] == "unrenderable_question"
+    # The gate itself: anything still shaped like a question must be caught.
+    assert is_malformed_cue("is the rash swollen")
+    assert is_malformed_cue("where is the pain located chest")
+    assert is_malformed_cue("their nose is or the back of their throat itchy")
+    assert not is_malformed_cue("the rash is swollen")
+    assert not is_malformed_cue("has not traveled out of the country")
