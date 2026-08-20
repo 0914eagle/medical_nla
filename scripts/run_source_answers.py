@@ -61,8 +61,10 @@ PROMPT_FIELDS = {"direct": "prompt", "cot": "prompt_cot"}
 DEFAULT_MAX_NEW_TOKENS = {"direct": 512, "cot": 2048}
 
 # A prefilled turn has already been started at the answer, so all that remains
-# is a diagnosis name and a full stop.
-PREFILLED_MAX_NEW_TOKENS = 32
+# is a diagnosis name and a full stop. 32 cut the long end of MedCaseReasoning's
+# labels mid-word ("...atypical peripheral retinal degeneration (PR"), which
+# costs a match rather than a few tokens.
+PREFILLED_MAX_NEW_TOKENS = 64
 
 # Enough to state a diagnosis after a chain of thought is handed back.
 FORCED_ANSWER_MAX_NEW_TOKENS = 32

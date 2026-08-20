@@ -41,7 +41,22 @@ ANSWER_CUE = "The answer is"
 
 ANSWER_PATTERN = re.compile(r"[Tt]he\s+answer\s+is\s+(.+?)\s*(?:\.|$)")
 
-DIRECT_INSTRUCTION = f"What is the single most likely diagnosis?\n\n{ANSWER_FORMAT}"
+# "Give the diagnosis only" is not redundant with asking for "the single most
+# likely diagnosis". Under the shorter wording, with the assistant turn started
+# at the answer cue, the model completes "The answer is" as ordinary prose --
+# "relatively straightforward given the constellation of findings" -- and the
+# parser returns that as the diagnosis. Asking for one diagnosis says what to
+# choose; it does not say not to write an essay around it.
+#
+# The instruction sits after the presentation, so tightening it changes no
+# cue-position activation: under causal attention those tokens cannot see it.
+DIRECT_INSTRUCTION = (
+    "What is the single most likely diagnosis?\n"
+    "\n"
+    "Give the diagnosis only. Do not explain your reasoning.\n"
+    "\n"
+    f"{ANSWER_FORMAT}"
+)
 
 COT_INSTRUCTION = (
     "Work through this case as a natural reasoning process.\n"

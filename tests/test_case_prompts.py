@@ -121,3 +121,22 @@ def test_prefilled_assistant_turn_hands_a_chain_back_verbatim():
 
     text = prefilled_assistant_turn("<turn>", "The findings suggest pneumonia   ")
     assert text == f"<turn>The findings suggest pneumonia\n\n{ANSWER_CUE}"
+
+
+def test_direct_instruction_forbids_an_explanation():
+    """Asking for one diagnosis says what to choose, not that the answer slot
+    is not a place to write prose; without this the prefilled turn completes
+    "The answer is" as a sentence about the case."""
+    from src.case_prompts import DIRECT_INSTRUCTION
+
+    assert "Do not explain your reasoning." in DIRECT_INSTRUCTION
+
+
+def test_both_conditions_still_share_a_byte_identical_prefix():
+    from src.case_prompts import build_prompt, findings_prefix
+
+    prefix = findings_prefix(["a barking cough"], age=3, sex="M")
+    direct = build_prompt(prefix, "direct")
+    cot = build_prompt(prefix, "cot")
+    assert direct.startswith(prefix) and cot.startswith(prefix)
+    assert direct != cot

@@ -338,6 +338,102 @@ the two remain comparable; the extra cases just make the heldout-cue pool
 larger. The shortfall from 4,900 × 4 = 19,600 is cases carrying fewer than
 four usable cues after cue cleaning.
 
+## 0b2. Rebuild v2: what the first source-answer run exposed
+
+Running the direct arm on the 832 MCR test cases before extracting anything was
+worth its GPU minutes: it parsed **0 answers out of 832**, and the responses
+showed four separate defects, only one of which was about scoring. All four are
+fixed, and both corpora need regenerating because two of the fixes change the
+prompt or the labels.
+
+**The direct arm was not direct.** Asked "What is the single most likely
+diagnosis?", gemma-3-12b-it opens with "Okay, let's break down this case" and
+reasons; 87% of responses were still mid-sentence when 128 tokens ran out, so
+none reached the closing string. Raising the budget would have produced
+parseable answers and a worthless experiment — the direct arm would have become
+a second chain-of-thought arm. Two changes instead: the assistant turn is
+started at `The answer is`, so there is no room to reason, and the instruction
+now says `Give the diagnosis only. Do not explain your reasoning.` Without that
+second half, the prefilled turn completes into prose — "The answer is
+*relatively straightforward given the constellation of findings*" — and the
+parser returns that as the diagnosis. Because the instruction sits after the
+presentation, neither change touches a single cue-position activation.
+
+**MedCaseReasoning's `final_diagnosis` is not always a diagnosis name.**
+Alongside "Posterior ischemic optic neuropathy" it stores
+`Scleroderma_renal_crisis`, `AmeloblasticFibroma`, `PFAPAsyndrome`. Two things
+broke. A model answering "scleroderma renal crisis" scored zero against its own
+gold label. And — the serious one — the filter that drops presentations naming
+their own diagnosis searched the prose for the stored string; an underscored
+identifier never appears in prose, so **cases that state the diagnosis outright
+passed the filter**, and the audit gate reported none because it compared the
+same way. The name is now recovered per whitespace token (prose labels pass
+through untouched), the raw form is kept as an accepted alias, and
+`--dump-relabelled` writes every changed label for review.
+
+**Matching folded nothing.** `**Erythema Multiforme**` shares no token with
+`erythema multiforme`; nor does `Guillain-Barré` with `Guillain-Barre`, or
+`Whipple's` with `Whipple’s`. Markup, accents and publisher typography are now
+folded on both sides. Accuracy is still the strict containment rule; a token-F1
+is recorded per row so the audit can show how much that rule undercounts,
+without becoming the metric.
+
+**64 new tokens, not 32.** A long label was being cut mid-word
+("...atypical peripheral retinal degeneration (PR").
+
+Regenerate in this order. Both corpora change: MCR because of the labels and
+the now-working leak filter, DDXPlus because the direct instruction changed.
+
+```bash
+for split in train test; do
+  python scripts/make_clinical_span_cases.py \
+    --input /data/heejae/medical_nla/data/mcr_${split}.jsonl \
+    --output /data/heejae/medical_nla/data/mcr_cases_${split}.jsonl \
+    --report /data/heejae/medical_nla/reports/mcr_ingest_${split}.json \
+    --dump-relabelled /data/heejae/medical_nla/reports/mcr_relabelled_${split}.tsv \
+    --min-cues 3 --min-words 4 --max-words 14
+  python scripts/audit_clinical_span_cases.py \
+    --cases /data/heejae/medical_nla/data/mcr_cases_${split}.jsonl
+done
+
+python scripts/make_ddxplus_cue_count_cases.py \
+  --patients /data/heejae/ddxplus/train.csv \
+  --evidences /data/heejae/ddxplus/release_evidences.json \
+  --output /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
+  --examples-per-diagnosis 100 --cue-counts all --seed 17 \
+  --no-prefer-symptoms --stop-when-full
+
+python scripts/audit_ddxplus_cue_rendering.py \
+  --evidences /data/heejae/ddxplus/release_evidences.json \
+  --patients /data/heejae/ddxplus/train.csv \
+  --cases /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
+  --dump /data/heejae/medical_nla/reports/ddxplus_cue_vocabulary.tsv
+```
+
+Two numbers to read rather than skim. `dropped_diagnosis_mention` should now be
+**higher** than the 6.9% recorded before — the difference is the contaminated
+cases the broken comparison was letting through. And
+`reports/mcr_relabelled_*.tsv` is the heuristic's output: the split rule is
+mechanical, so a wrong split there is a wrong gold label.
+
+Case ids change for CamelCase labels (`mcr_ameloblasticfibroma_...` becomes
+`mcr_ameloblastic_fibroma_...`), so the cue-position and format row files must
+be rebuilt from the new case files, and the Hugging Face copy re-uploaded.
+
+Then the answers, which are now fast — 64 new tokens rather than 128:
+
+```bash
+python scripts/run_source_answers.py \
+  --config configs/data.yaml \
+  --cases /data/heejae/medical_nla/data/mcr_cases_test.jsonl \
+  --output-jsonl /data/heejae/medical_nla/results/mcr_source_answers_test.jsonl \
+  --summary-json /data/heejae/medical_nla/results/mcr_source_answers_test_summary.json \
+  --condition direct --batch-size 8
+
+python scripts/audit_answer_matching.py \
+  --answers /data/heejae/medical_nla/results/mcr_source_answers_test.jsonl --show 25
+```
+
 ## 0c. Extraction: one pass per prompt, every layer at once
 
 The pilot's extractor ran the model once per row and once per layer. A case
