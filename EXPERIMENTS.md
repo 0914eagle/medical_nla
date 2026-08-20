@@ -162,6 +162,14 @@ The audit gate hard-fails a cue that is not verbatim in its own prompt, a nested
 cue, a presentation naming the diagnosis, and any cue appearing in more than half
 the cases -- the failure that removed DDXPlus's negatives.
 
+The accepted corpus: 11,888 train and 832 test cases (90.8% and 92.8% of input,
+the rest dropped for naming the diagnosis); cues per case mean 9.94 and 12.08;
+cue length mean 8.77 words against DDXPlus's 7.28, so the two datasets are not
+separated by cue length. Cue diversity is the mirror image of DDXPlus: 97.8% of
+cues occur exactly once and the most frequent reaches 1.35% of cases, where
+DDXPlus's single negative reached 92%. No nested cues, no unresolved spans, no
+diagnosis named in a presentation, no reader-directed questions.
+
 `--max-words 14` is not cosmetic: at the default 25 the mean cue ran 13.89
 words, far longer than DDXPlus cues (~5-10), which would have confounded any
 DDXPlus-vs-MCR comparison with cue length. At 14 the mean is 8.97 words.
