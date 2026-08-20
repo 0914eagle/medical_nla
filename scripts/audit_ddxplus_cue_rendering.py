@@ -5,8 +5,11 @@ Two exhaustive passes do:
 
 1. Vocabulary. Every prompt is assembled from a finite set of (question, value)
    pairs, so rendering every pair and reviewing the result covers every prompt
-   at the cue level. The dump is written to TSV for reading in full; the
-   mechanical failure classes are counted here.
+   at the cue level. Pass --patients to enumerate the pairs the data actually
+   contains; without it the enumeration comes from the evidence metadata, which
+   omits most negative answers because their value ids are rarely labelled --
+   precisely the renderings most likely to be wrong. The dump is written to TSV
+   for reading in full; the mechanical failure classes are counted here.
 
 2. Composition. What the vocabulary pass cannot see is what happens when cues
    are joined into a case: duplicates, cues that no longer appear verbatim in
@@ -42,24 +45,72 @@ from src.jsonl import read_jsonl
 
 # Renderings that pass the malformed check but still read badly enough to want
 # a human decision. Soft: reported, not failed.
+KNOWN_ABBREVIATIONS = {
+    "HIV", "AIDS", "UC", "COPD", "DVT", "OSA", "BMI", "GERD", "NSTEMI", "STEMI",
+    "TIA", "PE", "URTI", "SLE", "IBD", "CT", "MRI", "ECG", "EKG", "IV", "PO",
+}
+
 SUSPICIOUS_PATTERNS = {
     "leftover_question_mark": re.compile(r"\?"),
     "second_person": re.compile(r"\byou(r)?\b", re.I),
     "double_subject": re.compile(r"\bthe patient\b.*\bthe patient\b", re.I),
-    "uppercase_code": re.compile(r"\b[A-Z]{2,}\d*\b"),
+    # Unresolved identifiers: "V29", "V_29", and all-caps runs. Known medical
+    # abbreviations match too, and are filtered by KNOWN_ABBREVIATIONS.
+    "uppercase_code": re.compile(r"\b(?:[A-Z]{2,}\d*|[A-Z]_?\d+)\b"),
     "empty_parens": re.compile(r"\(\s*\)"),
 }
 
 
-def vocabulary_rows(evidence_meta: dict[str, Any], *, negative_cues: bool) -> list[dict[str, Any]]:
-    """Render every (question, value) pair the questionnaire can produce."""
+def entries_in_use(patients_path: Path, limit: int | None = None) -> set[str]:
+    """The (evidence, value) pairs the patient file actually contains.
+
+    Enumerating `value_meaning` is not the same thing, and the difference is not
+    academic: negative answers are usually recorded with a value id that has no
+    entry there, so a metadata-derived enumeration silently omits exactly the
+    renderings most likely to be wrong.
+    """
+    import ast
+    import csv
+
+    csv.field_size_limit(sys.maxsize)
+    entries: set[str] = set()
+    with patients_path.open(encoding="utf-8", newline="") as handle:
+        for index, row in enumerate(csv.DictReader(handle)):
+            if limit is not None and index >= limit:
+                break
+            raw = row.get("EVIDENCES") or row.get("evidences") or ""
+            try:
+                values = ast.literal_eval(raw) if raw else []
+            except (ValueError, SyntaxError):
+                continue
+            entries.update(str(value) for value in values)
+    return entries
+
+
+def vocabulary_rows(
+    evidence_meta: dict[str, Any],
+    *,
+    negative_cues: bool,
+    entries_used: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Render every (question, value) pair that can reach a prompt."""
     rows: list[dict[str, Any]] = []
+    by_evidence: dict[str, list[str]] = {}
+    if entries_used:
+        for entry in sorted(entries_used):
+            by_evidence.setdefault(entry.split("_@_")[0], []).append(entry)
+
     for evidence_id, meta in evidence_meta.items():
         if not isinstance(meta, dict):
             continue
-        value_meaning = meta.get("value_meaning")
-        value_ids = list(value_meaning) if isinstance(value_meaning, dict) else []
-        entries = [f"{evidence_id}_@_{vid}" for vid in value_ids] or [evidence_id]
+        if entries_used is not None:
+            entries = by_evidence.get(evidence_id, [])
+        else:
+            value_meaning = meta.get("value_meaning")
+            value_ids = list(value_meaning) if isinstance(value_meaning, dict) else []
+            # Y/N are answered constantly but rarely labelled, so include them.
+            entries = [f"{evidence_id}_@_{vid}" for vid in [*value_ids, "N", "Y"]] or []
+            entries.append(evidence_id)
         for entry in entries:
             cue = cue_from_entry(
                 entry, evidence_meta, clean_cues=True, negative_cues=negative_cues
@@ -80,7 +131,19 @@ def vocabulary_rows(evidence_meta: dict[str, Any], *, negative_cues: bool) -> li
 
 
 def suspicious_flags(text: str) -> list[str]:
-    return [name for name, pattern in SUSPICIOUS_PATTERNS.items() if pattern.search(text)]
+    found = []
+    for name, pattern in SUSPICIOUS_PATTERNS.items():
+        matches = pattern.findall(text)
+        if not matches:
+            continue
+        if name == "uppercase_code" and all(
+            (match if isinstance(match, str) else match[0]) in KNOWN_ABBREVIATIONS
+            for match in matches
+        ):
+            # A named condition, not an unresolved code.
+            continue
+        found.append(name)
+    return found
 
 
 def audit_vocabulary(rows: list[dict[str, Any]]) -> tuple[list[str], dict[str, Any]]:
@@ -185,6 +248,15 @@ def longest_cases(cases: list[dict[str, Any]], limit: int) -> list[dict[str, Any
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--evidences", required=True)
+    parser.add_argument(
+        "--patients",
+        default=None,
+        help=(
+            "Patient CSV. Given, the vocabulary pass renders exactly the "
+            "(evidence, value) pairs the data contains, which is the only "
+            "enumeration that truly covers every prompt."
+        ),
+    )
     parser.add_argument("--cases", default=None, help="Case JSONL to check for assembly problems.")
     parser.add_argument("--dump", default=None, help="Write every rendering to this TSV.")
     parser.add_argument("--negative-cues", action=argparse.BooleanOptionalAction, default=True)
@@ -192,7 +264,13 @@ def main() -> None:
     args = parser.parse_args()
 
     evidence_meta = read_json(Path(args.evidences))
-    rows = vocabulary_rows(evidence_meta, negative_cues=args.negative_cues)
+    entries_used = None
+    if args.patients:
+        entries_used = entries_in_use(Path(args.patients))
+        print(f"[scan] {len(entries_used):,} distinct evidence entries in {args.patients}")
+    rows = vocabulary_rows(
+        evidence_meta, negative_cues=args.negative_cues, entries_used=entries_used
+    )
     vocab_failures, vocab_summary = audit_vocabulary(rows)
 
     if args.dump:

@@ -256,10 +256,17 @@ not catch this. Two exhaustive passes do, and they are what
 ```bash
 python scripts/audit_ddxplus_cue_rendering.py \
   --evidences /data/heejae/ddxplus/release_evidences.json \
+  --patients /data/heejae/ddxplus/train.csv \
   --cases /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
   --dump /data/heejae/medical_nla/reports/ddxplus_cue_vocabulary.tsv \
   --show-longest 3
 ```
+
+Pass `--patients`: without it the vocabulary is enumerated from the evidence
+metadata, which lists a value id for only some answers. Negative answers are
+usually recorded with an unlabelled id, so a metadata-derived enumeration omits
+almost all negative renderings — the ones most worth reviewing. Reading the
+patient file instead renders exactly the pairs the corpus contains.
 
 It exits non-zero on a hard violation, so it can gate a rebuild. The TSV dump
 is the full rendered vocabulary and is the source for the paper's data-processing
