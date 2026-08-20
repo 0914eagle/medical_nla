@@ -247,6 +247,12 @@ practice happens around row 400,000 of the million-row CSV; the remaining rows
 are rendered and discarded. Output is identical whenever the corpus holds
 exactly `--max-diagnoses` diagnoses, which DDXPlus does (49).
 
+The accepted corpus, for comparison when regenerating: 4,900 cases over 49
+diagnoses; 313 of 515 renderings kept; cues per case mean 6.79 (p90 10, max 21);
+cue length mean 7.28 words (p90 12, max 26), which matches MedCaseReasoning's
+8.97 so the two datasets are not separated by cue length; prompts mean 68 words
+(max 163); no nested cues; no hard violations.
+
 Both reproduce the pilot's 4,900 cases (49 diagnoses × 100). Note that the
 cue-count generator's input is the *patient* CSV; the probe experiment's
 `ddxplus_variants.jsonl` is a different artifact and has no `cue_count_all`
