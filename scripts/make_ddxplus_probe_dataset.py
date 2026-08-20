@@ -774,9 +774,36 @@ def join_cues(cues: list[str]) -> str:
     return ", ".join(cues[:-1]) + f", and {cues[-1]}"
 
 
-def make_prompt(cues: list[str], *, condition: str = "direct") -> str:
+def make_prompt(
+    cues: list[str], *, condition: str = "direct", age: Any = None, sex: Any = None
+) -> str:
     """Presentation plus one condition's instruction; see src.case_prompts."""
-    return build_prompt(findings_prefix(cues), condition)
+    return build_prompt(findings_prefix(cues, age=age, sex=sex), condition)
+
+
+def parse_differential(value: Any) -> list[dict[str, Any]]:
+    """DDXPlus's probability-weighted differential, as [{diagnosis, probability}].
+
+    Stored as a stringified list of [name, probability] pairs. Kept because it is
+    a gold ranking rather than a single label: it lets a predicted diagnosis be
+    scored by where it sits in the differential, so choosing the second-ranked
+    condition can be told apart from choosing an unrelated one.
+    """
+    if isinstance(value, str):
+        try:
+            value = ast.literal_eval(value)
+        except (ValueError, SyntaxError):
+            return []
+    if not isinstance(value, list):
+        return []
+    out = []
+    for item in value:
+        if isinstance(item, (list, tuple)) and len(item) >= 2:
+            try:
+                out.append({"diagnosis": str(item[0]), "probability": float(item[1])})
+            except (TypeError, ValueError):
+                continue
+    return out
 
 
 def make_case(

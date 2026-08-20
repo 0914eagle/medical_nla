@@ -134,3 +134,21 @@ def test_stop_when_full_matches_the_full_scan(tmp_path):
 def test_full_scan_is_the_default(tmp_path):
     _, stdout = _run(tmp_path / "c", [])
     assert "stopping at row" not in stdout
+
+
+def test_parse_differential_reads_the_probability_weighted_list():
+    from scripts.make_ddxplus_probe_dataset import parse_differential
+
+    parsed = parse_differential("[['Croup', 0.62], ['Bronchiolitis', 0.21]]")
+    assert parsed == [
+        {"diagnosis": "Croup", "probability": 0.62},
+        {"diagnosis": "Bronchiolitis", "probability": 0.21},
+    ]
+
+
+def test_parse_differential_tolerates_a_missing_or_broken_field():
+    from scripts.make_ddxplus_probe_dataset import parse_differential
+
+    assert parse_differential(None) == []
+    assert parse_differential("not a list") == []
+    assert parse_differential([["Croup"]]) == []

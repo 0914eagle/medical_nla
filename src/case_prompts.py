@@ -27,6 +27,7 @@ Lanham et al. (arXiv:2307.13702).
 from __future__ import annotations
 
 import re
+from typing import Any
 
 ROLE = "You are an expert physician."
 
@@ -54,20 +55,51 @@ COT_INSTRUCTION = (
 
 INSTRUCTIONS = {"direct": DIRECT_INSTRUCTION, "cot": COT_INSTRUCTION}
 
-FINDINGS_HEADER = f"{ROLE} A patient presents with the following findings:"
 PROSE_HEADER = f"{ROLE} A patient presents as follows:"
 
 
-def findings_prefix(cues: list[str]) -> str:
+def patient_descriptor(age: Any = None, sex: Any = None) -> str:
+    """"a 34-year-old woman" from an age and a sex, or "a patient" without them.
+
+    Age and sex are diagnostic -- croup is paediatric, and several DDXPlus
+    pathologies are sex-specific -- and the simulator that generated the corpus
+    conditions on them. Case-report presentations open with them almost without
+    exception, so omitting them on one corpus and not the other makes the two
+    differ in a way that has nothing to do with the question being asked.
+    """
+    try:
+        years = int(float(age))
+    except (TypeError, ValueError):
+        years = None
+    code = str(sex or "").strip().upper()[:1]
+    if years is None and code not in {"M", "F"}:
+        return "A patient"
+    if code == "M":
+        noun = "boy" if years is not None and years < 18 else "man"
+    elif code == "F":
+        noun = "girl" if years is not None and years < 18 else "woman"
+    else:
+        noun = "child" if years is not None and years < 18 else "patient"
+    if years is None:
+        return f"A {noun}"
+    return f"A {years}-year-old {noun}"
+
+
+def findings_prefix(cues: list[str], *, age: Any = None, sex: Any = None) -> str:
     """Presentation as a list, for corpora whose cues are assembled.
 
     An inline "presents with X, Y and Z" sentence needs every cue to be a noun
     phrase, but un-inverting a questionnaire item yields a clause ("the rash is
     swollen"). A list takes both, and the line break rather than a comma marks
     the boundary, so a cue containing commas of its own stays unambiguous.
+
+    Age and sex head the sentence rather than joining the list: they are context
+    for reading the findings, not findings to be read back, and putting them in
+    the list would make them cues.
     """
     listed = "\n".join(f"- {cue}" for cue in cues)
-    return f"{FINDINGS_HEADER}\n{listed}"
+    who = patient_descriptor(age, sex)
+    return f"{ROLE} {who} presents with the following findings:\n{listed}"
 
 
 def prose_prefix(text: str) -> str:

@@ -22,6 +22,7 @@ from scripts.make_ddxplus_probe_dataset import (
     parse_evidence_entries,
     read_json,
     make_prompt as probe_make_prompt,
+    parse_differential,
     read_patient_rows,
     slug,
     write_jsonl,
@@ -37,9 +38,11 @@ def parse_cue_count(value: str) -> int | None:
     return count
 
 
-def make_prompt(cues: list[str], *, condition: str = "direct") -> str:
+def make_prompt(
+    cues: list[str], *, condition: str = "direct", age: Any = None, sex: Any = None
+) -> str:
     """Same findings-list frame as the probe generator; see src.case_prompts."""
-    return probe_make_prompt(cues, condition=condition)
+    return probe_make_prompt(cues, condition=condition, age=age, sex=sex)
 
 
 def cue_pool(
@@ -87,6 +90,11 @@ def make_rows_for_patient(
     patient_id = get_field(row, ["id", "patient_id", "PATIENT", "patient"], required=False)
     if patient_id is None:
         patient_id = f"row_{row_index:07d}"
+    age = get_field(row, ["AGE", "age"], required=False)
+    sex = get_field(row, ["SEX", "sex", "GENDER", "gender"], required=False)
+    differential = parse_differential(
+        get_field(row, ["DIFFERENTIAL_DIAGNOSIS", "differential_diagnosis"], required=False)
+    )
     cues, all_cues = cue_pool(
         row,
         evidence_meta=evidence_meta,
@@ -115,6 +123,9 @@ def make_rows_for_patient(
                 "diagnosis_id": diagnosis_id,
                 "diagnosis_name": pathology,
                 "diagnosis_aliases": [pathology],
+                "age": age,
+                "sex": sex,
+                "differential_diagnosis": differential,
                 "cue_count_condition": cue_count_label,
                 "cue_count": len(cue_targets),
                 "available_cue_count": len(cues),
@@ -132,8 +143,8 @@ def make_rows_for_patient(
                 "negative_cues": negative_cues,
                 "prefer_symptoms": prefer_symptoms,
                 "excluded_cue_count": sum(1 for cue in all_cues if cue["excluded"]),
-                "prompt": make_prompt(cue_targets),
-                "prompt_cot": make_prompt(cue_targets, condition="cot"),
+                "prompt": make_prompt(cue_targets, age=age, sex=sex),
+                "prompt_cot": make_prompt(cue_targets, condition="cot", age=age, sex=sex),
                 "variant": f"cue_count_{cue_count_label}",
             }
         )

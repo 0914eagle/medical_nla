@@ -20,8 +20,8 @@ Tchango et al., NeurIPS 2022 Datasets & Benchmarks. CC BY 4.0.
 |---|---|---|
 | `PATHOLOGY` | 정답 병리 (49종) | ✅ 진단 라벨 |
 | `EVIDENCES` | 문진 항목 id 목록 | ✅ cue 원천 |
-| `AGE` · `SEX` | 인구학 정보 | ❌ **미사용** (아래 §7) |
-| `DIFFERENTIAL_DIAGNOSIS` | 확률 붙은 감별진단 목록 | ❌ **미사용** (아래 §7) |
+| `AGE` · `SEX` | 인구학 정보 | ✅ 프롬프트 머리말 (cue 아님) |
+| `DIFFERENTIAL_DIAGNOSIS` | 확률 붙은 감별진단 목록 | ✅ 필드로 보존 (§7-2) |
 | `INITIAL_EVIDENCE` | 주호소에 해당하는 첫 항목 | ❌ 미사용 |
 
 `EVIDENCES`의 형태는 두 가지다:
@@ -237,32 +237,34 @@ Stanford, CC BY 4.0. `zou-lab/MedCaseReasoning` (HF). 공개 case report에서
 
 세 가지가 남아 있고, 셋 다 지금 결정하는 편이 낫다.
 
-### 7-1. DDXPlus의 `AGE` · `SEX` — 비대칭이 있다
+### 7-1. DDXPlus의 `AGE` · `SEX` — 넣기로 했다 ✅
 
-우리 DDXPlus 프롬프트에는 인구학 정보가 **없다.** 그런데 MCR 제시부는 거의 항상
-`A 58-year-old woman presented with...`로 시작한다. 나이·성별은 진단적으로
-중요하고(소아 croup, 폐경 전후 등), 두 데이터셋이 이 점에서 다르면 비교가
-그만큼 흔들린다.
+우리 DDXPlus 프롬프트에는 인구학 정보가 없었다. 그런데 MCR 제시부는 거의 항상
+`A 58-year-old woman presented with...`로 시작한다. 나이·성별은 진단적이고(croup은
+소아, 성별 특이 질환 다수), 시뮬레이터도 이를 조건으로 환자를 생성한다. 빼면
+**데이터가 의도한 것보다 어려운 과제**가 되어, 소스 모델 정확도가 낮은 것이
+모델 탓이 아니라 우리 가공 탓이 된다.
 
-넣는 쪽이 맞아 보이지만 **프롬프트가 바뀌므로 추출 전에 정해야 한다.** 컬럼이
-실제로 있는지부터 확인:
+**조치**: 머리말에 넣는다. MCR 첫 문장과 평행한 형태다.
 
-```bash
-python -c "
-import csv, sys, itertools
-csv.field_size_limit(sys.maxsize)
-with open('/data/heejae/ddxplus/train.csv') as f:
-    r = csv.DictReader(f)
-    print('컬럼:', r.fieldnames)
-    for row in itertools.islice(r, 2):
-        print({k: str(v)[:60] for k, v in row.items() if k != 'EVIDENCES'})
-"
+```
+You are an expert physician. A 3-year-old boy presents with the following findings:
+- a cough
 ```
 
-### 7-2. DDXPlus의 `DIFFERENTIAL_DIAGNOSIS` — 쓸 수 있는 gold
+**cue로는 만들지 않는다.** 우리가 재는 것은 소견의 판독이고 인구학은 그것을 읽는
+문맥이다. 목록에 넣으면 cue가 되어 버린다.
+
+남는 비대칭: MCR은 첫 절에 인구학이 묶여 들어가 cue가 되는 경우가 있다. 한계
+절에 적을 소소한 차이다.
+
+컬럼이 실제로 있는지는 생성 로그에서 확인된다 — 없으면 `A patient`로 물러난다.
+
+### 7-2. DDXPlus의 `DIFFERENTIAL_DIAGNOSIS` — 필드로 보존한다 ✅
 
 DDXPlus는 정답 병리 하나뿐 아니라 **확률이 붙은 감별진단 목록**을 제공한다.
-지금은 정답 라벨만 쓴다. 이걸 쓰면:
+케이스 행에 `differential_diagnosis`로 보존한다(프롬프트에는 넣지 않는다 —
+정답을 흘리게 된다). 이걸 쓰면:
 
 - 26-way likelihood를 **단일 정답 맞춤이 아니라 순위 상관**으로 평가할 수 있다
 - 오류 해부에서 "얼마나 가까운 오답인가"를 gold 기준으로 잴 수 있다 —
