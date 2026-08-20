@@ -338,6 +338,117 @@ the two remain comparable; the extra cases just make the heldout-cue pool
 larger. The shortfall from 4,900 × 4 = 19,600 is cases carrying fewer than
 four usable cues after cue cleaning.
 
+## 0c. Extraction: one pass per prompt, every layer at once
+
+The pilot's extractor ran the model once per row and once per layer. A case
+with four cues was therefore pushed through the backbone four times for a
+single layer, and the layer sweep multiplied that again — the L8/L16/L24/L32
+sweep was four full re-runs of an already fourfold-redundant job. Nothing about
+the model requires this: rows sharing a prompt describe the same forward pass,
+and `output_hidden_states=True` returns all 49 hidden states from one pass.
+`src/extract_activations.py` now groups rows by prompt and writes every
+requested layer from a single pass, which is a ~14x reduction on DDXPlus
+(16,410 rows over 4,900 prompts) before the layer factor is counted at all.
+
+Three consequences worth stating, because each was a defect in the pilot:
+
+- **Padding side is `right` here, not `left`.** Generation needs left padding;
+  a forward pass does not, and right padding leaves every real token at the
+  index its unpadded tokenization gave it. A span resolved on the unpadded text
+  is then valid without shifting, and `last_token` means the prompt's own final
+  token rather than the batch's.
+- **Activations are stored `float32`.** The forward stays bfloat16, but
+  bfloat16 carries 8 mantissa bits, and the counterfactual analysis measures
+  cosine distances between vectors that differ in one cue.
+- **Tokenization goes through one path for every row.** The pilot used
+  `apply_chat_template(tokenize=True)` for `last_token` rows and a direct
+  tokenizer call for `target_text` rows; sharing a forward pass makes that a
+  correctness requirement, not a tidiness one.
+
+Output is one directory per (layer, selection), each with its own manifest, so
+every downstream script keeps taking a single `--manifest` path:
+
+```
+{activation_dir}/{run_name}/layer24/last_subtoken/manifest.jsonl
+{activation_dir}/{run_name}/layer24/span_mean/manifest.jsonl
+```
+
+Smoke-test on eight prompts first — it costs a minute and catches an
+unresolvable cue or a wrong layer index before the multi-hour job:
+
+```bash
+python -m src.extract_activations \
+  --config configs/data.yaml \
+  --input /data/heejae/medical_nla/data/ddxplus_cuepos_rows.jsonl \
+  --run-name smoke --limit-prompts 8 --no-resume \
+  --layers 0 24 32 --strategies last_subtoken span_mean
+```
+
+The format position — the prompt's final token, where the integrated answer
+state forms — is the other half of the sweep, and it comes from the same case
+file, so both row sets go into one extraction:
+
+```bash
+python scripts/make_format_position_rows.py \
+  --input /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
+  --output /data/heejae/medical_nla/data/ddxplus_format_rows.jsonl \
+  --variants cue_count_all
+```
+
+Then the real DDXPlus run. `--layers` are hidden-state indices, not layer
+numbers: 0 is the embedding output (the lexical-vs-contextual control), 1..47
+are block outputs before the final norm, and 48 is post-final-RMSNorm — on a
+different scale (norm ~158 against ~213,000 at index 47) and therefore run
+separately rather than plotted on the same trajectory.
+
+```bash
+python -m src.extract_activations \
+  --config configs/data.yaml \
+  --input /data/heejae/medical_nla/data/ddxplus_cuepos_rows.jsonl \
+          /data/heejae/medical_nla/data/ddxplus_format_rows.jsonl \
+  --run-name ddxplus_sweep_v1 \
+  --layers 0 4 8 12 16 20 24 28 32 36 40 44 47 \
+  --span-layers 16 24 32 \
+  --strategies last_subtoken span_mean \
+  --batch-size 8
+```
+
+`--span-layers` keeps the whole token span, not a reduction of it, at the three
+layers the readouts are trained on; it is asked for by layer because the files
+are span-length times larger. `--resume` is on by default and keyed on manifest
+ids, so a job killed at 80% restarts at 80%.
+
+Passing the cue rows and the format rows together is not a convenience: they
+share the case prompt, so grouping serves both from one forward pass. Run
+separately, the format sweep would cost a second full pass over every case.
+
+MCR is the same command against the prose corpus:
+
+```bash
+python -m src.extract_activations \
+  --config configs/data.yaml \
+  --input /data/heejae/medical_nla/data/mcr_cuepos_train.jsonl \
+  --run-name mcr_sweep_v1 \
+  --layers 0 4 8 12 16 20 24 28 32 36 40 44 47 \
+  --span-layers 16 24 32 \
+  --strategies last_subtoken span_mean \
+  --batch-size 4
+```
+
+Batch 4 rather than 8: MCR presentations are prose and run longer than the
+DDXPlus findings lists, and the hidden-state tuple is 49 tensors of
+(batch x tokens x 3840) held on the GPU at once.
+
+Index 48 (post-final-norm) is extracted as its own run, so nothing joins it to
+the trajectory by accident:
+
+```bash
+python -m src.extract_activations \
+  --config configs/data.yaml \
+  --input /data/heejae/medical_nla/data/ddxplus_cuepos_rows.jsonl \
+  --run-name ddxplus_postnorm_v1 --layers 48 --strategies last_subtoken
+```
+
 ## 1. AV Diagnosis Logprob Probe
 
 Tests whether vanilla NLA assigns high probability to the correct diagnosis

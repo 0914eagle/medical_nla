@@ -31,7 +31,7 @@ activation:
   default_token_span: null
   target_text_strategy: last_subtoken
   target_text_occurrence: 0
-  batch_size: 1
+  batch_size: 8
 
 nla_model:
   model_id: kitft/nla-gemma3-12b-L32-av
