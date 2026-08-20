@@ -141,12 +141,16 @@ def build_card(repo_id: str, artifacts: list[dict[str, Any]], private: bool) -> 
         lines.append(f"### `{artifact['name']}`")
         lines.append("")
         lines.append(f"- rows: {artifact['rows']:,}")
+        sampled = artifact["sampled"]
+        exact = sampled >= artifact["rows"]
+        note = "" if exact else f" (first {sampled:,} rows)"
         if artifact["mean_cues"] is not None:
             lines.append(
-                f"- cues per case: mean {artifact['mean_cues']}, max {artifact['max_cues']}"
+                f"- cues per case: mean {artifact['mean_cues']}, "
+                f"max {artifact['max_cues']}{note}"
             )
         if artifact["cue_polarity"]:
-            lines.append(f"- cue polarity (sampled): {artifact['cue_polarity']}")
+            lines.append(f"- cue polarity: {artifact['cue_polarity']}{note}")
         if artifact["provenance"]:
             lines.append("- generator settings recorded on every row:")
             for key, value in artifact["provenance"].items():

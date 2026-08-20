@@ -67,3 +67,18 @@ def test_card_explains_why_reasoning_quotes_are_not_the_cues(tmp_path):
     card = build_card("a/b", [describe_artifact(path)], private=True)
     assert "1.7%" in card
     assert "diagnostic_reasoning" in card
+
+
+def test_card_marks_a_statistic_computed_from_a_sample(tmp_path):
+    # The row count is exact; the cue statistics are not, when the file is
+    # longer than the sample, and the card must not present them as if they were.
+    path = write_cases(tmp_path, "ddxplus_cases.jsonl", [ROW] * 50)
+    card = build_card("a/b", [describe_artifact(path, sample=10)], private=True)
+    assert "rows: 50" in card
+    assert "(first 10 rows)" in card
+
+
+def test_card_does_not_add_a_note_when_every_row_was_read(tmp_path):
+    path = write_cases(tmp_path, "ddxplus_cases.jsonl", [ROW] * 5)
+    card = build_card("a/b", [describe_artifact(path, sample=1000)], private=True)
+    assert "first" not in card
