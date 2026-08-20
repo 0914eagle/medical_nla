@@ -14,7 +14,15 @@
 #   bash scripts/bootstrap_server.sh --skip-fetch # rebuild from raw already here
 set -euo pipefail
 
+# Same defaults as scripts/env.sh, which a session sources; repeated here so
+# the bootstrap works in a shell that has not sourced anything.
 DATA_ROOT="${MEDICAL_NLA_DATA_ROOT:-/data1/heejae}"
+if [[ ! -d "$DATA_ROOT" ]]; then
+  echo "[bootstrap] $DATA_ROOT does not exist on $(hostname)."
+  echo "[bootstrap] Either this is the wrong machine, or the disk is mounted"
+  echo "[bootstrap] elsewhere -- set MEDICAL_NLA_DATA_ROOT and re-run."
+  exit 1
+fi
 export MEDICAL_NLA_DATA_ROOT="$DATA_ROOT"
 CODE_ROOT="${MEDICAL_NLA_CODE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export MEDICAL_NLA_CODE_ROOT="$CODE_ROOT"
@@ -131,10 +139,8 @@ cat <<'EOF'
   MedCaseReasoning   11,806 train + 821 test cases / 46,796 train cue rows
   both audits        "hard violations: 0"
 
-Add this to your shell profile so every later command agrees with the configs:
-  export MEDICAL_NLA_DATA_ROOT=REPLACE_WITH_YOUR_DATA_ROOT
-  export PYTHONPATH=REPLACE_WITH_YOUR_CODE_ROOT
-  export HF_HOME=$MEDICAL_NLA_DATA_ROOT/hf_cache
+Start every later session with, from the repo:
+  source scripts/env.sh
 
 If the model load reports anything on cpu/meta, it will refuse and print the
 free memory per card; add a max_memory block to configs/default.yaml as the

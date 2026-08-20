@@ -56,21 +56,22 @@ against the audits it printed.
 ### Every session
 
 ```bash
-export MEDICAL_NLA_DATA_ROOT=/data1/heejae
-export MEDICAL_NLA_CODE_ROOT=$HOME/medical_nla
-cd $MEDICAL_NLA_CODE_ROOT
+cd ~/medical_nla
+source scripts/env.sh
 source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
-
-export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
-export HF_HOME=$MEDICAL_NLA_DATA_ROOT/hf_cache
-export TRANSFORMERS_CACHE=$HF_HOME
-export HF_DATASETS_CACHE=$HF_HOME/datasets
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-
-# Shorthands the commands below use.
-export RAW=$MEDICAL_NLA_DATA_ROOT
-export ART=$MEDICAL_NLA_DATA_ROOT/medical_nla
 ```
+
+`scripts/env.sh` sets `MEDICAL_NLA_DATA_ROOT`, `PYTHONPATH`, the Hugging Face
+cache and the `$RAW`/`$ART`/`$DATA` shorthands the commands below use, and
+prints them. It prints them because the failure it prevents is silent: a shell
+that missed one export does not error, it builds a path from an empty variable
+-- `$MEDICAL_NLA_DATA_ROOT/ddxplus/x.json` becomes `/ddxplus/x.json` -- and it
+flags a data root that does not exist on this host, which is what being logged
+into the wrong machine looks like.
+
+The default root is `/data1/heejae`; on a machine with a different disk, set it
+first (`MEDICAL_NLA_DATA_ROOT=/data/heejae source scripts/env.sh`) or edit the
+default at the top of the file.
 
 Note the older blocks below `unset HF_TOKEN` so the stored token file is used
 rather than a stale environment variable; keep that unless you deliberately
