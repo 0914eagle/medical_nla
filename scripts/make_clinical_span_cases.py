@@ -31,6 +31,7 @@ import json
 import re
 import sys
 import unicodedata
+from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -38,6 +39,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from src.answer_matching import normalize as normalize_label
+from src.answer_matching import readable_diagnosis_label
 from src.case_prompts import build_prompt, prose_prefix
 from src.jsonl import write_jsonl
 
@@ -123,7 +126,7 @@ def is_boilerplate(cue: str) -> bool:
     return bool(BOILERPLATE.search(str(cue or "")))
 
 
-def mentions_diagnosis(text: str, label: str) -> bool:
+def mentions_diagnosis(text: str, labels: str | list[str]) -> bool:
     """True when the presentation names the gold diagnosis.
 
     Measured at 6.9% of MedCaseReasoning. Most are differential lists or negated
@@ -131,9 +134,20 @@ def mentions_diagnosis(text: str, label: str) -> bool:
     open-ended diagnosis into selection from a list, so such cases are dropped
     rather than classified -- the classification is not reliable enough to base a
     corpus on, and 6.9% is affordable.
+
+    Every accepted form of the label is checked, and both sides are normalized.
+    Comparing the raw label as stored was the bug that let this filter pass:
+    where the source writes "Scleroderma_renal_crisis", the underscored string
+    never appears in prose, so a presentation stating the diagnosis outright was
+    never caught. Punctuation and accents fold for the same reason.
     """
-    label = " ".join(str(label or "").split()).lower()
-    return bool(label) and label in " ".join(str(text or "").split()).lower()
+    if isinstance(labels, str):
+        labels = [labels]
+    haystack = normalize_label(text)
+    return any(
+        candidate and candidate in haystack
+        for candidate in (normalize_label(label) for label in labels)
+    )
 
 
 def slug(text: str) -> str:
@@ -262,11 +276,15 @@ def case_row(
     drop_diagnosis_mention: bool = True,
 ) -> tuple[dict[str, Any] | None, list[str]]:
     text = strip_reader_questions(normalize_text(str(record.get(text_field) or "")))
-    label = str(record.get(label_field) or "").strip()
+    raw_label = str(record.get(label_field) or "").strip()
+    # The source stores some diagnoses as identifiers rather than names. Both
+    # forms are kept: the readable one is what a model is scored against, the
+    # raw one stays an accepted alias so the recovery is never lossy.
+    label = readable_diagnosis_label(raw_label) or raw_label
     if not text or not label:
         return None, []
 
-    if drop_diagnosis_mention and mentions_diagnosis(text, label):
+    if drop_diagnosis_mention and mentions_diagnosis(text, [label, raw_label]):
         return None, []
 
     cues = segment_cues(text, min_words=min_words, max_words=max_words, max_cues=max_cues)
@@ -286,7 +304,8 @@ def case_row(
         "presentation": text,
         "diagnosis_id": label_id,
         "diagnosis_name": label,
-        "diagnosis_aliases": [label],
+        "diagnosis_name_raw": raw_label,
+        "diagnosis_aliases": sorted({label, raw_label}),
         "cue_targets": cues,
         "cue_count": len(cues),
         "available_cue_count": len(cues),
@@ -330,6 +349,14 @@ def main() -> None:
     )
     parser.add_argument("--report", default=None)
     parser.add_argument(
+        "--dump-relabelled",
+        default=None,
+        help=(
+            "TSV of every label the identifier-to-name recovery changed. The "
+            "split is heuristic, so the changed set is meant to be read."
+        ),
+    )
+    parser.add_argument(
         "--print-samples",
         type=int,
         default=3,
@@ -341,6 +368,7 @@ def main() -> None:
     totals = {"cases_in": 0, "cases_out": 0, "cues": 0, "dropped_diagnosis_mention": 0}
     cue_counts: list[int] = []
     word_counts: list[int] = []
+    relabelled: Counter = Counter()
     printed = 0
 
     for index, record in enumerate(read_records(Path(args.input), args.limit)):
@@ -362,6 +390,8 @@ def main() -> None:
                 totals["dropped_diagnosis_mention"] += 1
             continue
         rows.append(row)
+        if row["diagnosis_name"] != row["diagnosis_name_raw"]:
+            relabelled[(row["diagnosis_name_raw"], row["diagnosis_name"])] += 1
         totals["cases_out"] += 1
         totals["cues"] += len(cues)
         cue_counts.append(len(cues))
@@ -393,9 +423,20 @@ def main() -> None:
             sum(sum(row["cue_is_boilerplate"]) for row in rows) / max(totals["cues"], 1), 4
         ),
         "unresolved_spans": unresolved,
+        "labels_relabelled": len(relabelled),
     }
     print()
     print(json.dumps(summary, indent=2))
+    if args.dump_relabelled:
+        dump_path = Path(args.dump_relabelled)
+        dump_path.parent.mkdir(parents=True, exist_ok=True)
+        lines = ["raw\treadable\tcases"]
+        lines += [
+            f"{raw}\t{readable}\t{count}"
+            for (raw, readable), count in relabelled.most_common()
+        ]
+        dump_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"[done] wrote {len(relabelled)} changed labels to {dump_path}")
     if args.report:
         report_path = Path(args.report)
         report_path.parent.mkdir(parents=True, exist_ok=True)

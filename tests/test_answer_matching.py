@@ -54,3 +54,42 @@ def test_token_f1_treats_a_hyphen_as_a_word_boundary():
 def test_token_f1_without_an_answer_is_zero():
     assert token_f1(None, "Otitis media", []) == 0.0
     assert token_f1("the of", "Otitis media", []) == 0.0
+
+
+def test_readable_label_recovers_names_stored_as_identifiers():
+    """The forms actually seen in MedCaseReasoning's final_diagnosis field."""
+    from src.answer_matching import readable_diagnosis_label as readable
+
+    assert readable("Scleroderma_renal_crisis") == "Scleroderma renal crisis"
+    assert readable("AmeloblasticFibroma") == "Ameloblastic Fibroma"
+    assert readable("ThyroidFollicularRenalCellCarcinoma") == (
+        "Thyroid Follicular Renal Cell Carcinoma"
+    )
+    assert readable("PFAPAsyndrome") == "PFAPA syndrome"
+
+
+def test_readable_label_leaves_prose_and_short_suffixes_alone():
+    from src.answer_matching import readable_diagnosis_label as readable
+
+    assert readable("SBP-101 induced retinal toxicity") == "SBP-101 induced retinal toxicity"
+    assert readable("Guillain-Barre syndrome") == "Guillain-Barre syndrome"
+    assert readable("HDR syndrome") == "HDR syndrome"
+    # "PEC oma" would be etymology, not a name.
+    assert readable("PEComa") == "PEComa"
+
+
+def test_a_recovered_label_scores_the_answer_it_should():
+    """Underscores fold in normalization; a CamelCase run does not, which is
+    what the label recovery is for."""
+    from src.answer_matching import readable_diagnosis_label as readable
+
+    assert is_correct("scleroderma renal crisis", "Scleroderma_renal_crisis", [])
+    assert not is_correct("ameloblastic fibroma", "AmeloblasticFibroma", [])
+    assert is_correct("ameloblastic fibroma", readable("AmeloblasticFibroma"), [])
+
+
+def test_markup_typography_and_accents_do_not_cost_a_match():
+    assert is_correct("**Erythema Multiforme**", "erythema multiforme", [])
+    assert is_correct("Guillain-Barre syndrome", "Guillain-Barré syndrome", [])
+    assert is_correct("Whipple's disease", "Whipple’s disease", [])
+    assert is_correct("vitamin D-dependent rickets", "vitamin D–dependent rickets", [])

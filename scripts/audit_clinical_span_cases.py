@@ -68,9 +68,20 @@ def audit_prose_cases(
     leaks = [
         str(case.get("id"))
         for case in cases
+        # Every accepted form, not just the display name: a case whose label
+        # is stored as an identifier leaked past this gate when only one was
+        # checked, because the identifier never appears in prose.
         if mentions_diagnosis(
             str(case.get("presentation") or case.get("prompt") or ""),
-            str(case.get("diagnosis_name") or ""),
+            [
+                str(name)
+                for name in [
+                    case.get("diagnosis_name"),
+                    case.get("diagnosis_name_raw"),
+                    *(case.get("diagnosis_aliases") or []),
+                ]
+                if name
+            ],
         )
     ]
     failures.extend(f"{case_id}: presentation names the gold diagnosis" for case_id in leaks[:20])

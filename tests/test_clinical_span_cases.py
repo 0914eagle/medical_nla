@@ -192,3 +192,19 @@ def test_no_cue_starts_with_a_stranded_connective():
     cues = segment_cues(text, min_words=4, max_words=12, max_cues=None)
     for cue in cues:
         assert cue.split()[0].lower() not in {"and", "but", "or", "with", "which"}
+
+
+def test_leak_filter_catches_a_diagnosis_stored_as_an_identifier():
+    """The bug that let contaminated cases through: the underscored label was
+    compared against prose, where it can never appear."""
+    from scripts.make_clinical_span_cases import mentions_diagnosis
+
+    text = "A 45-year-old woman developed scleroderma renal crisis after prednisone."
+    assert not mentions_diagnosis(text, "Scleroderma_renal_crisis__wrong")
+    assert mentions_diagnosis(text, ["Scleroderma renal crisis", "Scleroderma_renal_crisis"])
+
+
+def test_leak_filter_folds_typography_on_both_sides():
+    from scripts.make_clinical_span_cases import mentions_diagnosis
+
+    assert mentions_diagnosis("Findings of Guillain-Barre syndrome.", ["Guillain-Barré syndrome"])

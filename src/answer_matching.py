@@ -15,18 +15,63 @@ Neither is adopted silently: the gap between them is a number the audit prints.
 
 from __future__ import annotations
 
+import re
+import unicodedata
+
+# MedCaseReasoning's `final_diagnosis` is not consistently a diagnosis *name*:
+# alongside "Posterior ischemic optic neuropathy" it carries identifiers --
+# "Scleroderma_renal_crisis", "AmeloblasticFibroma", "PFAPAsyndrome". Left as
+# they are, a model answering "scleroderma renal crisis" scores zero, and, worse,
+# the filter that drops presentations naming their own diagnosis looks for the
+# identifier in the prose and never finds it.
+_UNDERSCORE = re.compile(r"[_]+")
+# "AmeloblasticFibroma" -> "Ameloblastic Fibroma".
+_CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+# "PFAPAsyndrome" -> "PFAPA syndrome": an acronym run running into a word. Two
+# preceding capitals are required so ordinary "Fibroma" is left alone, and four
+# following lowercase letters so "PEComa" is not cut into "PEC oma".
+_ACRONYM_BOUNDARY = re.compile(r"(?<=[A-Z]{2})(?=[a-z]{4,})")
+
 # Words that carry no diagnostic content on their own. Deliberately short:
 # "acute", "chronic", "primary" and "left" all change what is being named, so
 # dropping them to raise a match rate would be scoring a different question.
 FILLER_WORDS = frozenset({"a", "an", "the", "of", "with", "and", "to", "due", "in", "on"})
 
 
+def readable_diagnosis_label(label: str) -> str:
+    """Recover the diagnosis name from a label that may be an identifier.
+
+    Splitting is per whitespace token, so a label that is already prose --
+    "SBP-101 induced retinal toxicity", "Guillain-Barre syndrome" -- passes
+    through untouched. The transformation is heuristic and reversible only by
+    inspection, so callers keep the raw label as an accepted alias and the
+    generator dumps every label it changed.
+    """
+    words: list[str] = []
+    for token in _UNDERSCORE.sub(" ", str(label or "")).split():
+        token = _ACRONYM_BOUNDARY.sub(" ", _CAMEL_BOUNDARY.sub(" ", token))
+        words.extend(token.split())
+    return " ".join(words)
+
+
 def normalize(text: str) -> str:
-    return " ".join(str(text or "").split()).lower().strip(" .")
+    """Fold everything that is presentation rather than content.
+
+    Three kinds of difference all cost matches and none of them is a
+    disagreement about the diagnosis: the markup a chat model writes
+    ("**Erythema Multiforme**"), the typography of a published label
+    ("Whipple's disease", "vitamin D-dependent" with an en dash), and accents
+    ("Guillain-Barre" against "Guillain-Barré"). Accents are folded by
+    decomposing and dropping the combining marks; everything that is not a
+    letter or a digit becomes a space.
+    """
+    decomposed = unicodedata.normalize("NFKD", str(text or ""))
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", stripped.lower()).split())
 
 
 def content_tokens(text: str) -> set[str]:
-    return {word for word in normalize(text).replace("-", " ").split() if word not in FILLER_WORDS}
+    return {word for word in normalize(text).split() if word not in FILLER_WORDS}
 
 
 def is_correct(answer: str | None, gold: str, aliases: list[str]) -> bool:
