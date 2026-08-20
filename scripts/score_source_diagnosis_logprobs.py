@@ -1,8 +1,30 @@
 """Score diagnosis candidate logprobs under the source model.
 
-This is the no-NLA confidence baseline for later error-prediction experiments.
-It asks whether Gemma/Qwen itself assigns high probability to the gold diagnosis
-when prompted with the clinical case.
+This is the no-NLA confidence baseline every error-prediction claim is measured
+against: does the model itself already know it is about to be wrong? Free
+generation cannot answer that, because it reports only what was sampled. The
+likelihood over the closed candidate set reports the whole distribution the
+answer was drawn from, so "confidently wrong" and "uncertain and wrong" become
+different rows.
+
+Two things it must share with `run_source_answers.py` or it measures a
+different forward pass than the answers it is compared to:
+
+- **the prompt, exactly as the case carries it.** An earlier version wrapped it
+  ("Answer the clinical question... Question: {prompt}"), which is the pilot
+  defect that made labels and activations describe different passes.
+- **the continuation the answer was generated from.** The direct arm prefills
+  the assistant turn with `The answer is`; scoring candidates after a different
+  lead-in would rank them under a context the model was never asked to continue.
+
+Four scores are recorded per candidate and the ranking field is chosen at the
+command line, because they answer different questions. `logprob_sum` favours
+short names; `logprob_mean` removes length but rewards a candidate whose every
+token is bland; `first_token_logprob` is the closest thing to the decision the
+greedy decoder actually made. The calibrated variants subtract the same
+candidate's score under a content-free prompt, which removes the model's prior
+over diagnosis names -- without it, a common condition outranks a rare one on
+frequency rather than on evidence.
 """
 
 from __future__ import annotations
@@ -21,6 +43,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from src.case_prompts import ANSWER_CUE
 from src.config import load_config
 from src.jsonl import append_jsonl, read_jsonl
 from src.modeling import load_causal_lm, load_tokenizer
@@ -64,16 +87,11 @@ def read_candidates(path: str | None, rows: list[dict[str, Any]]) -> list[dict[s
     return candidates
 
 
-def source_question(prompt: str) -> str:
-    return (
-        "Answer the clinical question with the most likely diagnosis or syndrome first.\n\n"
-        f"Question: {prompt}"
-    )
-
-
 def chat_prefix_ids(tokenizer: Any, *, prompt: str, completion_prefix: str) -> list[int]:
+    # The case prompt as written. Nothing may be added to it here: the answers
+    # this baseline is joined to were generated from exactly this string.
     encoded = tokenizer.apply_chat_template(
-        [{"role": "user", "content": source_question(prompt)}],
+        [{"role": "user", "content": prompt}],
         tokenize=True,
         add_generation_prompt=True,
     )
@@ -251,7 +269,15 @@ def main() -> None:
     parser.add_argument("--output-jsonl", required=True)
     parser.add_argument("--summary-md", required=True)
     parser.add_argument("--candidates-jsonl", default=None)
-    parser.add_argument("--completion-prefix", default="The most likely diagnosis is")
+    parser.add_argument(
+        "--completion-prefix",
+        default=ANSWER_CUE,
+        help=(
+            "The assistant turn's opening, which candidates are scored as "
+            "continuations of. Defaults to the same cue the direct arm prefills, "
+            "so the likelihood describes the continuation the answer came from."
+        ),
+    )
     parser.add_argument(
         "--rank-field",
         choices=[
