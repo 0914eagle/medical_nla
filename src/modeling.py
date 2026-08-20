@@ -37,7 +37,22 @@ def describe_placement(model) -> str:
     return " | ".join(parts)
 
 
-def load_causal_lm(model_cfg: dict[str, Any], *, cache_dir: str | None):
+def free_memory_report() -> str:
+    """Free memory per visible device, for explaining a placement decision."""
+    import torch
+
+    if not torch.cuda.is_available():
+        return "no CUDA device visible"
+    parts = []
+    for index in range(torch.cuda.device_count()):
+        free, total = torch.cuda.mem_get_info(index)
+        parts.append(f"cuda:{index} {free / 1e9:.1f}/{total / 1e9:.1f} GB free")
+    return " | ".join(parts)
+
+
+def load_causal_lm(
+    model_cfg: dict[str, Any], *, cache_dir: str | None, allow_offload: bool = False
+):
     model = AutoModelForCausalLM.from_pretrained(
         model_cfg["model_id"],
         torch_dtype=torch_dtype(model_cfg.get("dtype", "bfloat16")),
@@ -47,11 +62,17 @@ def load_causal_lm(model_cfg: dict[str, Any], *, cache_dir: str | None):
     )
     placement = describe_placement(model)
     print(f"[model] {model_cfg['model_id']} placement -> {placement}", flush=True)
-    if "cpu" in placement:
-        print(
-            "[model] WARNING: part of the model is on CPU. Check "
-            "CUDA_VISIBLE_DEVICES and free GPU memory; inference will be very slow.",
-            flush=True,
+
+    # Offloaded weights do not merely run slowly: computing against a meta-device
+    # tensor fails deep inside cuBLAS, minutes later, with an error that names
+    # neither the offload nor the memory that caused it. Refuse at load time,
+    # where the cause is still visible.
+    offloaded = [part for part in placement.split(" | ") if part.startswith(("cpu", "meta", "disk"))]
+    if offloaded and not allow_offload:
+        raise RuntimeError(
+            f"{model_cfg['model_id']} was partly offloaded ({', '.join(offloaded)}). "
+            f"Free memory: {free_memory_report()}. Free the GPUs, reduce the visible "
+            "set, or pass allow_offload=True to accept a very slow run."
         )
     return model
 
