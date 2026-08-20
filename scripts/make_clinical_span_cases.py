@@ -82,6 +82,16 @@ ABBREVIATIONS = (
 # small and shared across cases, which makes them systematically easier to read
 # back than case-specific findings. Reporting the two separately is what shows
 # whether a readout is carrying case detail or reciting a template.
+# MedCaseReasoning case prompts sometimes close with the question put to the
+# reader. Left in, it appears twice in our prompt -- once from the source, once
+# from our instruction -- and, worse, becomes a cue, so a readout would be scored
+# against "What is the most likely diagnosis".
+READER_QUESTION = re.compile(
+    r"[^.!?]*\b(?:what|which|how)\b[^.!?]*"
+    r"\b(?:diagnos\w*|differential|mechanism|management|next step|work-?up)\b[^.!?]*\?",
+    re.I,
+)
+
 BOILERPLATE = re.compile(
     r"\b(unremarkable|within normal limits|were normal|was normal|"
     r"no abnormalit|non-?contributory)\b",
@@ -102,6 +112,11 @@ def normalize_text(text: str) -> str:
     text = text.replace("“", '"').replace("”", '"')
     text = text.replace("–", "-").replace("—", "-")
     return re.sub(r"\s+", " ", text).strip()
+
+
+def strip_reader_questions(text: str) -> str:
+    """Remove questions the source addressed to the reader, keeping the presentation."""
+    return normalize_text(READER_QUESTION.sub(" ", text))
 
 
 def is_boilerplate(cue: str) -> bool:
@@ -246,7 +261,7 @@ def case_row(
     max_cues: int | None,
     drop_diagnosis_mention: bool = True,
 ) -> tuple[dict[str, Any] | None, list[str]]:
-    text = normalize_text(str(record.get(text_field) or ""))
+    text = strip_reader_questions(normalize_text(str(record.get(text_field) or "")))
     label = str(record.get(label_field) or "").strip()
     if not text or not label:
         return None, []

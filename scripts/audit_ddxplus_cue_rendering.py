@@ -183,8 +183,18 @@ def audit_vocabulary(rows: list[dict[str, Any]]) -> tuple[list[str], dict[str, A
     return failures, summary
 
 
-def audit_cases(cases: list[dict[str, Any]]) -> tuple[list[str], dict[str, Any]]:
-    """Check every case, not a sample, for problems only assembly can create."""
+def audit_cases(
+    cases: list[dict[str, Any]], *, check_malformed: bool = True
+) -> tuple[list[str], dict[str, Any]]:
+    """Check every case, not a sample, for problems only assembly can create.
+
+    `check_malformed` applies the DDXPlus renderer's own shape check, which
+    encodes assumptions about rendered questionnaire items: a leading auxiliary
+    means an un-inverted question, `which` means an interrogative. Prose written
+    by a clinician breaks both innocently ("was in moderate respiratory
+    distress", "which resolved with self-stretching"), so corpora cut from prose
+    turn it off. Everything else here is corpus-independent.
+    """
     failures: list[str] = []
     cue_counts: list[int] = []
     cue_words: list[int] = []
@@ -220,7 +230,7 @@ def audit_cases(cases: list[dict[str, Any]]) -> tuple[list[str], dict[str, Any]]
             if cue.lower() in seen:
                 failures.append(f"{case_id}: duplicate cue -> {cue!r}")
             seen.add(cue.lower())
-            if is_malformed_cue(cue):
+            if check_malformed and is_malformed_cue(cue):
                 failures.append(f"{case_id}: malformed cue in prompt -> {cue!r}")
             for name in suspicious_flags(cue):
                 flags[name] += 1

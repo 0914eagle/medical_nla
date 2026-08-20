@@ -48,3 +48,26 @@ def test_composition_checks_are_inherited_from_the_ddxplus_gate():
     broken["prompt"] = "You are an expert physician. A patient presents as follows:\n\nsomething else"
     failures, _ = audit_prose_cases([broken])
     assert any("not verbatim" in failure for failure in failures)
+
+
+def test_reader_directed_question_is_a_hard_failure():
+    # MedCaseReasoning prompts sometimes close with the question put to the
+    # reader; left in, it becomes a cue and the readout is scored against it.
+    bad = case("c1", ["a finding here"], presentation="She denied fever. What is the most likely diagnosis?")
+    failures, summary = audit_prose_cases([bad])
+    assert any("question put to the reader" in failure for failure in failures)
+    assert summary["reader_question_in_presentation"] == 1
+
+
+def test_ordinary_clinical_prose_is_not_flagged_as_malformed():
+    # These all trip the DDXPlus shape check, which does not apply to prose.
+    prose = [
+        "was in moderate respiratory distress",
+        "which resolved with self-stretching",
+        "Menarche was at age 12",
+        "were negative for malignant cells",
+    ]
+    # Spread over enough cases that none is near-constant, which is a separate check.
+    cases = [case(f"c{i}", [cue, f"a finding number {i}"]) for i, cue in enumerate(prose * 3)]
+    failures, _ = audit_prose_cases(cases)
+    assert failures == []

@@ -33,7 +33,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.audit_ddxplus_cue_rendering import audit_cases
-from scripts.make_clinical_span_cases import is_boilerplate, mentions_diagnosis
+from scripts.make_clinical_span_cases import (
+    READER_QUESTION,
+    is_boilerplate,
+    mentions_diagnosis,
+)
 from src.jsonl import read_jsonl
 
 # A cue in more than this share of cases carries no case-specific information
@@ -44,8 +48,22 @@ NEAR_CONSTANT_RATE = 0.5
 def audit_prose_cases(
     cases: list[dict[str, Any]], *, near_constant_rate: float = NEAR_CONSTANT_RATE
 ) -> tuple[list[str], dict[str, Any]]:
-    failures, summary = audit_cases(cases)
+    # The DDXPlus shape check assumes rendered questionnaire items and misreads
+    # ordinary clinical prose ("was in moderate respiratory distress"), so it is
+    # off here; the prose-specific checks below take its place.
+    failures, summary = audit_cases(cases, check_malformed=False)
     n = len(cases) or 1
+
+    asked = [
+        str(case.get("id"))
+        for case in cases
+        if READER_QUESTION.search(str(case.get("presentation") or ""))
+        or any(READER_QUESTION.search(f"{cue}?") for cue in case.get("cue_targets") or [])
+    ]
+    failures.extend(
+        f"{case_id}: presentation still carries a question put to the reader"
+        for case_id in asked[:20]
+    )
 
     leaks = [
         str(case.get("id"))
@@ -89,6 +107,7 @@ def audit_prose_cases(
             ),
             "boilerplate_cue_rate": round(sum(flags) / max(total_cues, 1), 4),
             "diagnosis_named_in_presentation": len(leaks),
+            "reader_question_in_presentation": len(asked),
         }
     )
     return failures, summary
