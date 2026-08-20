@@ -41,11 +41,11 @@ def test_make_prompt_lists_each_finding_on_its_own_line():
     # phrases, which an inline "presents with X, Y and Z" sentence cannot, and
     # the line break keeps cues containing commas from blurring the boundary.
     prompt = make_prompt(["fever", "the rash is swollen", "chest pain, worse at night"])
-    assert prompt.startswith("A patient presents with the following findings:\n")
+    assert "A patient presents with the following findings:\n" in prompt
     assert "\n- fever\n" in prompt
     assert "\n- the rash is swollen\n" in prompt
     assert "\n- chest pain, worse at night\n" in prompt
-    assert prompt.endswith("What diagnosis is most likely?")
+    assert prompt.rstrip().endswith('You MUST end your response with exactly "The answer is <diagnosis>."')
 
 
 def test_make_prompt_keeps_every_cue_verbatim():
@@ -59,7 +59,12 @@ def test_make_prompt_puts_the_question_after_the_findings():
     # Causal attention means cue positions cannot see what follows them, so the
     # same activations serve every instruction that is appended here.
     prompt = make_prompt(["fever"])
-    assert prompt.index("- fever") < prompt.index("What diagnosis")
+    assert prompt.index("- fever") < prompt.index("What is the single most likely diagnosis?")
+    # Both conditions must share the presentation byte for byte, or the two arms
+    # cannot share one extraction.
+    cot = make_prompt(["fever"], condition="cot")
+    shared = prompt.split("\n\nWhat is")[0]
+    assert cot.startswith(shared)
 
 
 def _patient_csv(tmp_path, rows):

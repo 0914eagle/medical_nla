@@ -37,9 +37,9 @@ def parse_cue_count(value: str) -> int | None:
     return count
 
 
-def make_prompt(cues: list[str]) -> str:
-    """Same findings-list frame as the probe generator; see it for the rationale."""
-    return probe_make_prompt(cues)
+def make_prompt(cues: list[str], *, condition: str = "direct") -> str:
+    """Same findings-list frame as the probe generator; see src.case_prompts."""
+    return probe_make_prompt(cues, condition=condition)
 
 
 def cue_pool(
@@ -130,6 +130,7 @@ def make_rows_for_patient(
                 "prefer_symptoms": prefer_symptoms,
                 "excluded_cue_count": sum(1 for cue in all_cues if cue["excluded"]),
                 "prompt": make_prompt(cue_targets),
+                "prompt_cot": make_prompt(cue_targets, condition="cot"),
                 "variant": f"cue_count_{cue_count_label}",
             }
         )

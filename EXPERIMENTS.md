@@ -141,7 +141,26 @@ python scripts/make_clinical_span_cases.py \
   --output /data/heejae/medical_nla/data/mcr_cases_train.jsonl \
   --report /data/heejae/medical_nla/reports/mcr_ingest_train.json \
   --min-cues 3 --min-words 4 --max-words 14
+
+python scripts/audit_clinical_span_cases.py \
+  --cases /data/heejae/medical_nla/data/mcr_cases_train.jsonl
 ```
+
+Cases whose presentation names the gold diagnosis are dropped (6.9%): most are
+differential lists or negated mentions rather than assertions, but either way
+naming the answer turns an open-ended diagnosis into selection from a list, and
+classifying the mention type is not reliable enough to build a corpus on.
+
+Formulaic spans -- "physical examination was unremarkable", "vital signs were
+normal" -- are 9.8% of cues and are **kept**, flagged per cue as
+`cue_is_boilerplate`. A normal exam is a real finding, and the flag turns the
+problem into a control: their paraphrase space is small and shared, so if the
+readout rate on them far exceeds the rate on case-specific cues, that is direct
+evidence the readout is reciting a template rather than carrying case detail.
+
+The audit gate hard-fails a cue that is not verbatim in its own prompt, a nested
+cue, a presentation naming the diagnosis, and any cue appearing in more than half
+the cases -- the failure that removed DDXPlus's negatives.
 
 `--max-words 14` is not cosmetic: at the default 25 the mean cue ran 13.89
 words, far longer than DDXPlus cues (~5-10), which would have confounded any

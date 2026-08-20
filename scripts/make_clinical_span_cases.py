@@ -38,6 +38,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from src.case_prompts import build_prompt, prose_prefix
 from src.jsonl import write_jsonl
 
 # Abbreviations whose trailing period does not end a sentence. Splitting on
@@ -76,6 +77,17 @@ ABBREVIATIONS = (
     "i.v",
 )
 
+# Formulaic "everything was normal" statements. Clinically informative -- a normal
+# exam rules things out -- so they are kept, but flagged: their paraphrase space is
+# small and shared across cases, which makes them systematically easier to read
+# back than case-specific findings. Reporting the two separately is what shows
+# whether a readout is carrying case detail or reciting a template.
+BOILERPLATE = re.compile(
+    r"\b(unremarkable|within normal limits|were normal|was normal|"
+    r"no abnormalit|non-?contributory)\b",
+    re.I,
+)
+
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
 # Clause boundaries inside a long sentence: semicolons, and coordinations that
 # reliably separate findings in clinical writing.
@@ -90,6 +102,23 @@ def normalize_text(text: str) -> str:
     text = text.replace("“", '"').replace("”", '"')
     text = text.replace("–", "-").replace("—", "-")
     return re.sub(r"\s+", " ", text).strip()
+
+
+def is_boilerplate(cue: str) -> bool:
+    return bool(BOILERPLATE.search(str(cue or "")))
+
+
+def mentions_diagnosis(text: str, label: str) -> bool:
+    """True when the presentation names the gold diagnosis.
+
+    Measured at 6.9% of MedCaseReasoning. Most are differential lists or negated
+    mentions rather than assertions, but either way naming the answer turns an
+    open-ended diagnosis into selection from a list, so such cases are dropped
+    rather than classified -- the classification is not reliable enough to base a
+    corpus on, and 6.9% is affordable.
+    """
+    label = " ".join(str(label or "").split()).lower()
+    return bool(label) and label in " ".join(str(text or "").split()).lower()
 
 
 def slug(text: str) -> str:
@@ -215,10 +244,14 @@ def case_row(
     min_words: int,
     max_words: int,
     max_cues: int | None,
+    drop_diagnosis_mention: bool = True,
 ) -> tuple[dict[str, Any] | None, list[str]]:
     text = normalize_text(str(record.get(text_field) or ""))
     label = str(record.get(label_field) or "").strip()
     if not text or not label:
+        return None, []
+
+    if drop_diagnosis_mention and mentions_diagnosis(text, label):
         return None, []
 
     cues = segment_cues(text, min_words=min_words, max_words=max_words, max_cues=max_cues)
@@ -233,7 +266,9 @@ def case_row(
         "source": source,
         "case_id": str(record.get("pmcid") or record.get("id") or index),
         "variant": "cue_count_all",
-        "prompt": text,
+        "prompt": build_prompt(prose_prefix(text), "direct"),
+        "prompt_cot": build_prompt(prose_prefix(text), "cot"),
+        "presentation": text,
         "diagnosis_id": label_id,
         "diagnosis_name": label,
         "diagnosis_aliases": [label],
@@ -241,6 +276,7 @@ def case_row(
         "cue_count": len(cues),
         "available_cue_count": len(cues),
         "cue_types": ["clinical_span"] * len(cues),
+        "cue_is_boilerplate": [is_boilerplate(cue) for cue in cues],
     }
     return row, cues
 
@@ -267,6 +303,16 @@ def main() -> None:
     parser.add_argument("--max-words", type=int, default=25)
     parser.add_argument("--max-cues", type=int, default=None)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--drop-diagnosis-mention",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Drop cases whose presentation names the gold diagnosis. Naming the "
+            "answer -- even inside a differential list or a negation -- turns an "
+            "open-ended diagnosis into selection from a list."
+        ),
+    )
     parser.add_argument("--report", default=None)
     parser.add_argument(
         "--print-samples",
@@ -277,7 +323,7 @@ def main() -> None:
     args = parser.parse_args()
 
     rows: list[dict[str, Any]] = []
-    totals = {"cases_in": 0, "cases_out": 0, "cues": 0}
+    totals = {"cases_in": 0, "cases_out": 0, "cues": 0, "dropped_diagnosis_mention": 0}
     cue_counts: list[int] = []
     word_counts: list[int] = []
     printed = 0
@@ -294,8 +340,11 @@ def main() -> None:
             min_words=args.min_words,
             max_words=args.max_words,
             max_cues=args.max_cues,
+            drop_diagnosis_mention=args.drop_diagnosis_mention,
         )
         if row is None:
+            if args.drop_diagnosis_mention and not cues:
+                totals["dropped_diagnosis_mention"] += 1
             continue
         rows.append(row)
         totals["cases_out"] += 1
@@ -325,6 +374,9 @@ def main() -> None:
         "min_cues_per_case": min(cue_counts),
         "max_cues_per_case": max(cue_counts),
         "mean_cue_words": round(sum(word_counts) / len(word_counts), 2),
+        "boilerplate_cue_rate": round(
+            sum(sum(row["cue_is_boilerplate"]) for row in rows) / max(totals["cues"], 1), 4
+        ),
         "unresolved_spans": unresolved,
     }
     print()

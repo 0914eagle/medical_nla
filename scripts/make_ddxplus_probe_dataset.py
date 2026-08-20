@@ -21,6 +21,8 @@ from itertools import islice
 from pathlib import Path
 from typing import Any, Iterable
 
+from src.case_prompts import build_prompt, findings_prefix
+
 
 NEGATIVE_VALUE_LABELS = {
     "n",
@@ -769,24 +771,9 @@ def join_cues(cues: list[str]) -> str:
     return ", ".join(cues[:-1]) + f", and {cues[-1]}"
 
 
-QUESTION_LINE = "What diagnosis is most likely?"
-
-
-def make_prompt(cues: list[str], *, question: str = QUESTION_LINE) -> str:
-    """Render findings as a list, with the question after them.
-
-    An inline "A patient presents with X, Y, and Z" sentence requires every cue
-    to be a noun phrase, but un-inverting a questionnaire item yields a clause
-    ("the rash is swollen"), and clauses do not fit that frame. A list takes
-    both. It also removes the ambiguity created by cues that contain commas of
-    their own, since the line break is the boundary.
-
-    The question stays after the findings so that, under causal attention, cue
-    positions are unaffected by whatever instruction follows them -- the same
-    activations serve every instruction condition.
-    """
-    findings = "\n".join(f"- {cue}" for cue in cues)
-    return f"A patient presents with the following findings:\n{findings}\n\n{question}"
+def make_prompt(cues: list[str], *, condition: str = "direct") -> str:
+    """Presentation plus one condition's instruction; see src.case_prompts."""
+    return build_prompt(findings_prefix(cues), condition)
 
 
 def make_case(
