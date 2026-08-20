@@ -136,7 +136,7 @@ cat <<'EOF'
 
 [bootstrap] done. Expected, for comparison with the audits above:
   DDXPlus            4,900 cases / 18,646 cue rows / 4,900 format rows
-  MedCaseReasoning   11,806 train + 821 test cases / 46,796 train cue rows
+  MedCaseReasoning   11,799 train + 821 test cases / 46,768 train cue rows
   both audits        "hard violations: 0"
 
 Start every later session with, from the repo:

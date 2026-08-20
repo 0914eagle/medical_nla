@@ -138,7 +138,7 @@ snapshot_download('<account>/medical-nla-cases', repo_type='dataset',
 ```
 
 Either way, verify before trusting: a pulled corpus should reproduce
-4,900 DDXPlus cases and 11,806 + 821 MedCaseReasoning cases, and both audits
+4,900 DDXPlus cases and 11,799 + 821 MedCaseReasoning cases, and both audits
 should end in `hard violations: 0`.
 
 Activations are deliberately not published. They are a function of the prompt,
