@@ -243,7 +243,7 @@ layer-wise 연구의 출발점이 된다.
 
 서버 결과물:
 
-- `/data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v1/` — 분할
-- `/data1/heejae/medical_nla/adapters/medical_nla_diagnosis_heldout_v1_lora_e3`
-- `/data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_*`
-- `/data1/heejae/medical_nla/results/error_prediction_probe_control_v1_*`
+- `$ART/train/medical_nla_diagnosis_heldout_v1/` — 분할
+- `$ART/adapters/medical_nla_diagnosis_heldout_v1_lora_e3`
+- `$ART/results/ddxplus_medical_nla_diagnosis_heldout_v1_*`
+- `$ART/results/error_prediction_probe_control_v1_*`

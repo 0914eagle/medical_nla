@@ -5,9 +5,9 @@ Primary repo: `/Users/heejae/Developer/medical_nla`
 Remote repo: `https://github.com/0914eagle/medical_nla.git`  
 Primary server: `eagle0914@165.132.77.33`  
 Main server code path: `/home/eagle0914/medical_nla`  
-Main artifact root: `/data1/heejae/medical_nla`  
+Main artifact root: `$ART`  
 Main uv env: `/data1/heejae/uv/medical_nla`  
-Main HF cache: `/data1/heejae/hf_cache`  
+Main HF cache: `$HF_HOME`  
 Main GPU setting used recently: A6000, usually `CUDA_VISIBLE_DEVICES=0` or `0/1`
 
 This document is a handoff note. It is meant to let another Codex session, another AI model, or a human collaborator continue the project without reading the entire conversation history.
@@ -154,9 +154,9 @@ ssh eagle0914@165.132.77.33
 cd /home/eagle0914/medical_nla
 source /data1/heejae/uv/medical_nla/bin/activate
 export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 ```
 
@@ -264,17 +264,17 @@ Dataset was downloaded from Hugging Face:
 ```bash
 hf download aai530-group6/ddxplus \
   --repo-type dataset \
-  --local-dir /data1/heejae/ddxplus
+  --local-dir $RAW/ddxplus
 ```
 
 Files:
 
 ```text
-/data1/heejae/ddxplus/train.csv
-/data1/heejae/ddxplus/test.csv
-/data1/heejae/ddxplus/validate.csv
-/data1/heejae/ddxplus/release_evidences.json
-/data1/heejae/ddxplus/release_conditions.json
+$RAW/ddxplus/train.csv
+$RAW/ddxplus/test.csv
+$RAW/ddxplus/validate.csv
+$RAW/ddxplus/release_evidences.json
+$RAW/ddxplus/release_conditions.json
 ```
 
 DDXPlus row structure:
@@ -435,7 +435,7 @@ After moving to all-cue format activation:
 Manifest:
 
 ```text
-/data1/heejae/medical_nla/activations/ddxplus_all_cue_format_v1/manifest.jsonl
+$ART/activations/ddxplus_all_cue_format_v1/manifest.jsonl
 ```
 
 Variant name was `cue_count_all`, not `cues_all`.
@@ -1260,16 +1260,16 @@ git pull
 cd /home/eagle0914/medical_nla
 source /data1/heejae/uv/medical_nla/bin/activate
 export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 ```
 
 ### Tail logs
 
 ```bash
-tail -f /data1/heejae/medical_nla/logs/<log_name>.log
+tail -f $ART/logs/<log_name>.log
 ```
 
 ### Stop nohup process
@@ -1291,9 +1291,9 @@ Only use `kill -9` if regular kill does not stop.
 ### SCP from server
 
 ```bash
-scp eagle0914@165.132.77.33:/data1/heejae/medical_nla/results/<file> .
-scp eagle0914@165.132.77.33:/data1/heejae/medical_nla/logs/<file> .
-scp eagle0914@165.132.77.33:/data1/heejae/medical_nla/probe/<dir>/summary.md .
+scp eagle0914@165.132.77.33:$ART/results/<file> .
+scp eagle0914@165.132.77.33:$ART/logs/<file> .
+scp eagle0914@165.132.77.33:$ART/probe/<dir>/summary.md .
 ```
 
 For custom port server, use:
@@ -1307,27 +1307,27 @@ scp -P <PORT> eagle0914@<HOST>:/path/to/file .
 Important result locations:
 
 ```text
-/data1/heejae/medical_nla/results/
-/data1/heejae/medical_nla/logs/
-/data1/heejae/medical_nla/probe/
-/data1/heejae/medical_nla/adapters/
-/data1/heejae/medical_nla/activations/
-/data1/heejae/medical_nla/sft/
+$ART/results/
+$ART/logs/
+$ART/probe/
+$ART/adapters/
+$ART/activations/
+$ART/sft/
 ```
 
 Most important current artifacts:
 
 ```text
-/data1/heejae/medical_nla/adapters/medical_nla_all_cue_source_aligned_v2_lora_e3_b2
+$ART/adapters/medical_nla_all_cue_source_aligned_v2_lora_e3_b2
 
-/data1/heejae/medical_nla/results/ddxplus_medical_nla_all_cue_source_aligned_v2_readouts_test_e3_b2_scored.jsonl
-/data1/heejae/medical_nla/results/ddxplus_medical_nla_all_cue_source_aligned_v2_readouts_test_e3_b2_summary.md
+$ART/results/ddxplus_medical_nla_all_cue_source_aligned_v2_readouts_test_e3_b2_scored.jsonl
+$ART/results/ddxplus_medical_nla_all_cue_source_aligned_v2_readouts_test_e3_b2_summary.md
 
-/data1/heejae/medical_nla/results/ddxplus_error_prediction_all_cue_source_aligned_v2_e3_b2_filtered.jsonl
-/data1/heejae/medical_nla/results/ddxplus_error_prediction_all_cue_source_aligned_v2_e3_b2_filtered_summary.md
+$ART/results/ddxplus_error_prediction_all_cue_source_aligned_v2_e3_b2_filtered.jsonl
+$ART/results/ddxplus_error_prediction_all_cue_source_aligned_v2_e3_b2_filtered_summary.md
 
-/data1/heejae/medical_nla/probe/ddxplus_all_cue_format_linear_probe_v1/summary.md
-/data1/heejae/medical_nla/probe/ddxplus_all_cue_format_linear_probe_v1/results.json
+$ART/probe/ddxplus_all_cue_format_linear_probe_v1/summary.md
+$ART/probe/ddxplus_all_cue_format_linear_probe_v1/results.json
 ```
 
 ## 27. Suggested Professor Meeting Narrative

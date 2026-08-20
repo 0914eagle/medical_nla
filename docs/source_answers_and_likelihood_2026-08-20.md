@@ -251,10 +251,10 @@ single-turn(n=0)** GPT-4o는 **0.18–0.27**이다.
 
 ```bash
 python scripts/score_source_diagnosis_logprobs.py \
-  --config configs/data.yaml \
-  --input /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
-  --output-jsonl /data/heejae/medical_nla/results/ddxplus_source_logprobs.jsonl \
-  --summary-md /data/heejae/medical_nla/results/ddxplus_source_logprobs.md \
+  --config configs/default.yaml \
+  --input $ART/data/ddxplus_cue_count_cases.jsonl \
+  --output-jsonl $ART/results/ddxplus_source_logprobs.jsonl \
+  --summary-md $ART/results/ddxplus_source_logprobs.md \
   --rank-field first_token_logprob \
   --candidate-batch-size 16
 ```

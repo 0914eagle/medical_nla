@@ -11,9 +11,9 @@ set -euo pipefail
 #   GPU=1 FORCE=1 bash scripts/run_data3_ddxplus_logprob_pipeline.sh
 
 CODE_ROOT="${CODE_ROOT:-/home/eagle0914/medical_nla}"
-DATA_ROOT="${DATA_ROOT:-/data3/heejae}"
+DATA_ROOT="${DATA_ROOT:-$MEDICAL_NLA_DATA_ROOT}"
 VENV_ACTIVATE="${VENV_ACTIVATE:-${DATA_ROOT}/uv/medical_nla/bin/activate}"
-CONFIG="${CONFIG:-configs/data3.yaml}"
+CONFIG="${CONFIG:-configs/default.yaml}"
 GPU="${GPU:-0}"
 RUN_NAME="${RUN_NAME:-ddxplus_probe_v1}"
 EXAMPLES_PER_DIAGNOSIS="${EXAMPLES_PER_DIAGNOSIS:-100}"

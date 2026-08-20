@@ -2,105 +2,134 @@
 
 ## Server setup
 
-Two server layouts are in use. Pick the matching config and env block; the
-commands below are written against the older `/data1` layout, so on the
-`/data` server substitute the config name (`configs/default.yaml` ->
-`configs/data.yaml`, `configs/layer24.yaml` -> `configs/data_layer24.yaml`)
-and the paths.
+Paths are no longer written into the configs. They come from one variable per
+machine, `MEDICAL_NLA_DATA_ROOT`, which every `configs/*.yaml` is written
+against. The disk-specific duplicates (`data.yaml`, `data3.yaml`,
+`data_layer*.yaml`) are gone: keeping nine files in step across three disks is
+what let the per-GPU memory budget land in four of them and not the other five.
 
-### Current server (`/data/heejae`, configs `data*.yaml`)
+Use `configs/default.yaml` for layer 32 and `configs/layer{8,16,24}.yaml` for
+the sweep, on every machine.
 
-First time only:
+### First time on a machine
 
 ```bash
+export MEDICAL_NLA_DATA_ROOT=/data1/heejae      # the only line that changes per machine
+export MEDICAL_NLA_CODE_ROOT=$HOME/medical_nla
+
 cd ~ && git clone https://github.com/0914eagle/medical_nla.git
-mkdir -p /data/heejae/{uv,hf_cache/datasets,medical_nla/{activations,results,reports,data}}
+mkdir -p $MEDICAL_NLA_DATA_ROOT/{uv,hf_cache/datasets,ddxplus}
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env
-uv venv /data/heejae/uv/medical_nla --python 3.11
-source /data/heejae/uv/medical_nla/bin/activate
-cd ~/medical_nla && uv pip install -e ".[dev]"
+uv venv $MEDICAL_NLA_DATA_ROOT/uv/medical_nla --python 3.11
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+cd $MEDICAL_NLA_CODE_ROOT && uv pip install -e ".[dev]"
 ```
 
-Hugging Face login (first time on a new `HF_HOME`): the backbone is a gated
-repo, and the credential lives in `$HF_HOME/token`, so moving `HF_HOME` to a
-new disk means logging in again. Use the account that already accepted the
-Gemma license.
+The backbone is a gated repo and the credential lives in `$HF_HOME/token`, so
+a new disk means logging in again, with the account that accepted the Gemma
+license:
 
 ```bash
-export HF_HOME=/data/heejae/hf_cache
+export HF_HOME=$MEDICAL_NLA_DATA_ROOT/hf_cache
 huggingface-cli login          # newer clients: hf auth login
 huggingface-cli whoami         # verify
 ```
 
-Every session:
+`release_evidences.json` is the one file that cannot be fetched: it is the
+DDXPlus questionnaire dictionary every cue is rendered from, and the Hugging
+Face mirror does not carry it. Copy it from the previous machine into
+`$MEDICAL_NLA_DATA_ROOT/ddxplus/` before bootstrapping.
+
+Then rebuild everything from the raw corpora -- about fifteen minutes, and the
+only way to know which version of the processed files is present, since the
+gold labels, the accepted aliases and the direct instruction have all changed:
 
 ```bash
-cd /home/eagle0914/medical_nla
-source /data/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data/heejae/hf_cache
-export HF_DATASETS_CACHE=/data/heejae/hf_cache/datasets
+bash scripts/bootstrap_server.sh
+```
+
+It downloads DDXPlus and MedCaseReasoning, regenerates every case and row
+file, runs both audits, and checks GPU placement. Compare its closing numbers
+against the audits it printed.
+
+### Every session
+
+```bash
+export MEDICAL_NLA_DATA_ROOT=/data1/heejae
+export MEDICAL_NLA_CODE_ROOT=$HOME/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
+export HF_HOME=$MEDICAL_NLA_DATA_ROOT/hf_cache
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+# Shorthands the commands below use.
+export RAW=$MEDICAL_NLA_DATA_ROOT
+export ART=$MEDICAL_NLA_DATA_ROOT/medical_nla
 ```
 
 Note the older blocks below `unset HF_TOKEN` so the stored token file is used
 rather than a stale environment variable; keep that unless you deliberately
 authenticate through `HF_TOKEN`.
 
-The backbone spans both GPUs on this server (`device_map: auto` in the
-`data*.yaml` configs), so extraction and readout runs take
-`CUDA_VISIBLE_DEVICES=2,3` rather than a single device.
+`device_map: auto` lets the 12B backbone span two cards. If accelerate then
+places part of it on `meta` -- which it has done with every card empty --
+`load_causal_lm` refuses at load time and prints the free memory per device;
+add the `max_memory` block the comment in `configs/default.yaml` shows, which
+states the budget instead of leaving it to the heuristic.
 
-### Moving servers: pull the corpora instead of rebuilding them
+### Moving servers: rebuild once, then pull
 
 Rebuilding DDXPlus rescans a million-row CSV and replays every cue-rendering
 decision; MedCaseReasoning re-segments 12k case reports. Neither is expensive in
-compute, but both are expensive in decisions, and a move should not be a chance
-to silently pick different ones. Publish once, pull thereafter.
+compute, but both are expensive in *decisions*, and a move should not be a
+chance to silently pick different ones. So the corpora are published once and
+pulled thereafter.
+
+**The published copy is only safe once it postdates the fixes.** The version on
+the hub predates three that changed the corpus itself -- the recovered
+MedCaseReasoning labels, the now-working diagnosis-leak filter, and the
+`Give the diagnosis only` clause in the direct instruction -- so pulling it
+would quietly reinstate the defective one. On this move, run
+`scripts/bootstrap_server.sh`, check the audits, and then republish:
 
 ```bash
 python scripts/push_datasets_to_hub.py \
   --repo-id <account>/medical-nla-cases \
-  --files /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
-          /data/heejae/medical_nla/data/mcr_cases_train.jsonl \
-          /data/heejae/medical_nla/data/mcr_cases_test.jsonl
+  --files $ART/data/ddxplus_cue_count_cases.jsonl \
+          $ART/data/mcr_cases_train.jsonl \
+          $ART/data/mcr_cases_test.jsonl
 ```
 
 Private unless `--no-private` is passed: publishing redistributes derivatives of
 DDXPlus and MedCaseReasoning, so read the attribution in the generated card
 first. `--card-only` prints that card without uploading. The card is built from
-the artifacts, not the command line — the generator flags that shaped the corpus
+the artifacts, not the command line -- the generator flags that shaped the corpus
 (`clean_cues`, `negative_cues`, `prefer_symptoms`) are recorded on every case
 row and reported from there, so a downloaded corpus says what it is.
 
-On the new machine:
+Once republished, a later move can pull instead of rebuilding:
 
 ```bash
-export HF_HOME=/data/heejae/hf_cache
 python -c "
 from huggingface_hub import snapshot_download
 snapshot_download('<account>/medical-nla-cases', repo_type='dataset',
-                  local_dir='/data/heejae/medical_nla/data')
+                  local_dir='$ART/data')
 "
 ```
+
+Either way, verify before trusting: a pulled corpus should reproduce
+4,900 DDXPlus cases and 11,806 + 821 MedCaseReasoning cases, and both audits
+should end in `hard violations: 0`.
 
 Activations are deliberately not published. They are a function of the prompt,
 the backbone and the layer, so they are only worth freezing once the prompt is,
 and being derived from Gemma they carry that model's terms in a way these text
 artifacts do not.
-
-### Previous server (`/data1/heejae`, configs `default.yaml` / `layer*.yaml`)
-
-```bash
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
-```
 
 ## 0. MedCaseReasoning ingestion
 
@@ -113,7 +142,7 @@ from datasets import load_dataset
 ds = load_dataset('zou-lab/MedCaseReasoning')
 print(ds)
 for split in ds:
-    ds[split].to_json(f'/data/heejae/medical_nla/data/mcr_{split}.jsonl')
+    ds[split].to_json(f'$ART/data/mcr_{split}.jsonl')
 "
 ```
 
@@ -137,13 +166,13 @@ the diagnostic it supports; do not use it to build cases.
 
 ```bash
 python scripts/make_clinical_span_cases.py \
-  --input /data/heejae/medical_nla/data/mcr_train.jsonl \
-  --output /data/heejae/medical_nla/data/mcr_cases_train.jsonl \
-  --report /data/heejae/medical_nla/reports/mcr_ingest_train.json \
+  --input $ART/data/mcr_train.jsonl \
+  --output $ART/data/mcr_cases_train.jsonl \
+  --report $ART/reports/mcr_ingest_train.json \
   --min-cues 3 --min-words 4 --max-words 14
 
 python scripts/audit_clinical_span_cases.py \
-  --cases /data/heejae/medical_nla/data/mcr_cases_train.jsonl
+  --cases $ART/data/mcr_cases_train.jsonl
 ```
 
 Cases whose presentation names the gold diagnosis are dropped (6.9%): most are
@@ -179,15 +208,15 @@ need span substitution rather than prompt reconstruction:
 
 ```bash
 python scripts/make_ddxplus_cue_position_rows.py \
-  --input /data/heejae/medical_nla/data/mcr_cases_train.jsonl \
-  --output /data/heejae/medical_nla/data/mcr_cuepos_train.jsonl \
+  --input $ART/data/mcr_cases_train.jsonl \
+  --output $ART/data/mcr_cuepos_train.jsonl \
   --variants cue_count_all --max-cues-per-case 4
 
 python scripts/make_span_counterfactual_rows.py \
-  --cases /data/heejae/medical_nla/data/mcr_cases_test.jsonl \
-  --output /data/heejae/medical_nla/data/mcr_cf_test.jsonl \
+  --cases $ART/data/mcr_cases_test.jsonl \
+  --output $ART/data/mcr_cf_test.jsonl \
   --num-cases 500 --swap-slots 2 \
-  --report /data/heejae/medical_nla/reports/mcr_cf.json
+  --report $ART/reports/mcr_cf.json
 ```
 
 ### Splits: unseen cues come for free here
@@ -199,8 +228,8 @@ so the split is measured rather than imposed:
 
 ```bash
 python scripts/make_prose_cue_position_splits.py \
-  --manifest /data/heejae/medical_nla/activations/mcr_cuepos_train_L24/manifest.jsonl \
-  --out-dir /data/heejae/medical_nla/train/mcr_cue_position_L24 \
+  --manifest $ART/activations/mcr_cuepos_train_L24/manifest.jsonl \
+  --out-dir $ART/train/mcr_cue_position_L24 \
   --seed 17
 ```
 
@@ -223,7 +252,7 @@ dictionary the pilot used.
 python -c "
 from datasets import load_dataset
 ds = load_dataset('aai530-group6/ddxplus')
-ds['train'].to_csv('/data/heejae/ddxplus/train.csv')
+ds['train'].to_csv('$RAW/ddxplus/train.csv')
 "
 ```
 
@@ -231,16 +260,16 @@ Case files, both experiments' inputs, at 100 cases per diagnosis:
 
 ```bash
 python scripts/make_ddxplus_probe_dataset.py \
-  --patients /data/heejae/ddxplus/train.csv \
-  --evidences /data/heejae/ddxplus/release_evidences.json \
-  --cases-output /data/heejae/medical_nla/data/ddxplus_probe_cases.jsonl \
-  --variants-output /data/heejae/medical_nla/data/ddxplus_probe_variants.jsonl \
+  --patients $RAW/ddxplus/train.csv \
+  --evidences $RAW/ddxplus/release_evidences.json \
+  --cases-output $ART/data/ddxplus_probe_cases.jsonl \
+  --variants-output $ART/data/ddxplus_probe_variants.jsonl \
   --examples-per-diagnosis 100 --max-cues 3 --seed 17 --clean-cues
 
 python scripts/make_ddxplus_cue_count_cases.py \
-  --patients /data/heejae/ddxplus/train.csv \
-  --evidences /data/heejae/ddxplus/release_evidences.json \
-  --output /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
+  --patients $RAW/ddxplus/train.csv \
+  --evidences $RAW/ddxplus/release_evidences.json \
+  --output $ART/data/ddxplus_cue_count_cases.jsonl \
   --examples-per-diagnosis 100 --cue-counts all --seed 17 \
   --no-prefer-symptoms --stop-when-full
 ```
@@ -301,10 +330,10 @@ not catch this. Two exhaustive passes do, and they are what
 
 ```bash
 python scripts/audit_ddxplus_cue_rendering.py \
-  --evidences /data/heejae/ddxplus/release_evidences.json \
-  --patients /data/heejae/ddxplus/train.csv \
-  --cases /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
-  --dump /data/heejae/medical_nla/reports/ddxplus_cue_vocabulary.tsv \
+  --evidences $RAW/ddxplus/release_evidences.json \
+  --patients $RAW/ddxplus/train.csv \
+  --cases $ART/data/ddxplus_cue_count_cases.jsonl \
+  --dump $ART/reports/ddxplus_cue_vocabulary.tsv \
   --show-longest 3
 ```
 
@@ -324,8 +353,8 @@ Cue-position rows come from the cue-count case file:
 
 ```bash
 python scripts/make_ddxplus_cue_position_rows.py \
-  --input /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
-  --output /data/heejae/medical_nla/data/ddxplus_cuepos_rows.jsonl \
+  --input $ART/data/ddxplus_cue_count_cases.jsonl \
+  --output $ART/data/ddxplus_cuepos_rows.jsonl \
   --variants cue_count_all --max-cues-per-case 4 --seed 17
 ```
 
@@ -387,27 +416,27 @@ the now-working leak filter, DDXPlus because the direct instruction changed.
 ```bash
 for split in train test; do
   python scripts/make_clinical_span_cases.py \
-    --input /data/heejae/medical_nla/data/mcr_${split}.jsonl \
-    --output /data/heejae/medical_nla/data/mcr_cases_${split}.jsonl \
-    --report /data/heejae/medical_nla/reports/mcr_ingest_${split}.json \
-    --dump-relabelled /data/heejae/medical_nla/reports/mcr_relabelled_${split}.tsv \
+    --input $ART/data/mcr_${split}.jsonl \
+    --output $ART/data/mcr_cases_${split}.jsonl \
+    --report $ART/reports/mcr_ingest_${split}.json \
+    --dump-relabelled $ART/reports/mcr_relabelled_${split}.tsv \
     --min-cues 3 --min-words 4 --max-words 14
   python scripts/audit_clinical_span_cases.py \
-    --cases /data/heejae/medical_nla/data/mcr_cases_${split}.jsonl
+    --cases $ART/data/mcr_cases_${split}.jsonl
 done
 
 python scripts/make_ddxplus_cue_count_cases.py \
-  --patients /data/heejae/ddxplus/train.csv \
-  --evidences /data/heejae/ddxplus/release_evidences.json \
-  --output /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
+  --patients $RAW/ddxplus/train.csv \
+  --evidences $RAW/ddxplus/release_evidences.json \
+  --output $ART/data/ddxplus_cue_count_cases.jsonl \
   --examples-per-diagnosis 100 --cue-counts all --seed 17 \
   --no-prefer-symptoms --stop-when-full
 
 python scripts/audit_ddxplus_cue_rendering.py \
-  --evidences /data/heejae/ddxplus/release_evidences.json \
-  --patients /data/heejae/ddxplus/train.csv \
-  --cases /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
-  --dump /data/heejae/medical_nla/reports/ddxplus_cue_vocabulary.tsv
+  --evidences $RAW/ddxplus/release_evidences.json \
+  --patients $RAW/ddxplus/train.csv \
+  --cases $ART/data/ddxplus_cue_count_cases.jsonl \
+  --dump $ART/reports/ddxplus_cue_vocabulary.tsv
 ```
 
 Two numbers to read rather than skim. `dropped_diagnosis_mention` should now be
@@ -424,14 +453,14 @@ Then the answers, which are now fast — 64 new tokens rather than 128:
 
 ```bash
 python scripts/run_source_answers.py \
-  --config configs/data.yaml \
-  --cases /data/heejae/medical_nla/data/mcr_cases_test.jsonl \
-  --output-jsonl /data/heejae/medical_nla/results/mcr_source_answers_test.jsonl \
-  --summary-json /data/heejae/medical_nla/results/mcr_source_answers_test_summary.json \
+  --config configs/default.yaml \
+  --cases $ART/data/mcr_cases_test.jsonl \
+  --output-jsonl $ART/results/mcr_source_answers_test.jsonl \
+  --summary-json $ART/results/mcr_source_answers_test_summary.json \
   --condition direct --batch-size 8
 
 python scripts/audit_answer_matching.py \
-  --answers /data/heejae/medical_nla/results/mcr_source_answers_test.jsonl --show 25
+  --answers $ART/results/mcr_source_answers_test.jsonl --show 25
 ```
 
 ## 0b3. What the corrected answers measure
@@ -490,8 +519,8 @@ on the minority outcome's share:
 
 ```bash
 python scripts/summarize_source_answers.py \
-  --answers /data/heejae/medical_nla/results/ddxplus_source_answers.jsonl \
-  --summary-json /data/heejae/medical_nla/results/ddxplus_source_answers_by_diagnosis.json \
+  --answers $ART/results/ddxplus_source_answers.jsonl \
+  --summary-json $ART/results/ddxplus_source_answers_by_diagnosis.json \
   --min-minority-rate 0.10
 ```
 
@@ -540,8 +569,8 @@ unresolvable cue or a wrong layer index before the multi-hour job:
 
 ```bash
 python -m src.extract_activations \
-  --config configs/data.yaml \
-  --input /data/heejae/medical_nla/data/ddxplus_cuepos_rows.jsonl \
+  --config configs/default.yaml \
+  --input $ART/data/ddxplus_cuepos_rows.jsonl \
   --run-name smoke --limit-prompts 8 --no-resume \
   --layers 0 24 32 --strategies last_subtoken span_mean
 ```
@@ -552,8 +581,8 @@ file, so both row sets go into one extraction:
 
 ```bash
 python scripts/make_format_position_rows.py \
-  --input /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
-  --output /data/heejae/medical_nla/data/ddxplus_format_rows.jsonl \
+  --input $ART/data/ddxplus_cue_count_cases.jsonl \
+  --output $ART/data/ddxplus_format_rows.jsonl \
   --variants cue_count_all
 ```
 
@@ -565,9 +594,9 @@ separately rather than plotted on the same trajectory.
 
 ```bash
 python -m src.extract_activations \
-  --config configs/data.yaml \
-  --input /data/heejae/medical_nla/data/ddxplus_cuepos_rows.jsonl \
-          /data/heejae/medical_nla/data/ddxplus_format_rows.jsonl \
+  --config configs/default.yaml \
+  --input $ART/data/ddxplus_cuepos_rows.jsonl \
+          $ART/data/ddxplus_format_rows.jsonl \
   --run-name ddxplus_sweep_v1 \
   --layers 0 4 8 12 16 20 24 28 32 36 40 44 47 \
   --span-layers 16 24 32 \
@@ -588,8 +617,8 @@ MCR is the same command against the prose corpus:
 
 ```bash
 python -m src.extract_activations \
-  --config configs/data.yaml \
-  --input /data/heejae/medical_nla/data/mcr_cuepos_train.jsonl \
+  --config configs/default.yaml \
+  --input $ART/data/mcr_cuepos_train.jsonl \
   --run-name mcr_sweep_v1 \
   --layers 0 4 8 12 16 20 24 28 32 36 40 44 47 \
   --span-layers 16 24 32 \
@@ -606,8 +635,8 @@ the trajectory by accident:
 
 ```bash
 python -m src.extract_activations \
-  --config configs/data.yaml \
-  --input /data/heejae/medical_nla/data/ddxplus_cuepos_rows.jsonl \
+  --config configs/default.yaml \
+  --input $ART/data/ddxplus_cuepos_rows.jsonl \
   --run-name ddxplus_postnorm_v1 --layers 48 --strategies last_subtoken
 ```
 
@@ -618,20 +647,20 @@ even when free generation does not verbalize it.
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 
 CUDA_VISIBLE_DEVICES=9 python -m scripts.score_nla_diagnosis_logprobs \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_v1_summary.md \
+  --manifest $ART/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
+  --output-jsonl $ART/results/ddxplus_nla_multi_format_logprobs_v1.jsonl \
+  --summary-md $ART/results/ddxplus_nla_multi_format_logprobs_v1_summary.md \
   --candidate-batch-size 8
-' > /data1/heejae/medical_nla/logs/ddxplus_nla_multi_format_logprobs_v1.log 2>&1 &
+' > $ART/logs/ddxplus_nla_multi_format_logprobs_v1.log 2>&1 &
 ```
 
 ## 2. Source Model Diagnosis Logprob Baseline
@@ -642,48 +671,48 @@ First generate source answers and lexical correctness labels:
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python scripts/run_source_model_qa.py \
   --config configs/default.yaml \
-  --input /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_source_answers_raw_b8_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_source_answers_raw_b8_v1_summary.md \
+  --input $ART/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
+  --output-jsonl $ART/results/ddxplus_source_answers_raw_b8_v1.jsonl \
+  --summary-md $ART/results/ddxplus_source_answers_raw_b8_v1_summary.md \
   --prompt-mode raw \
   --max-new-tokens 256 \
   --batch-size 8
-' > /data1/heejae/medical_nla/logs/ddxplus_source_answers_raw_b8_v1.log 2>&1 &
+' > $ART/logs/ddxplus_source_answers_raw_b8_v1.log 2>&1 &
 ```
 
 Use the instructed sanity-check prompt separately:
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python scripts/run_source_model_qa.py \
   --config configs/default.yaml \
-  --input /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_source_answers_diagnosis_first_b8_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_source_answers_diagnosis_first_b8_v1_summary.md \
+  --input $ART/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
+  --output-jsonl $ART/results/ddxplus_source_answers_diagnosis_first_b8_v1.jsonl \
+  --summary-md $ART/results/ddxplus_source_answers_diagnosis_first_b8_v1_summary.md \
   --prompt-mode diagnosis_first \
   --max-new-tokens 256 \
   --batch-size 8
-' > /data1/heejae/medical_nla/logs/ddxplus_source_answers_diagnosis_first_b8_v1.log 2>&1 &
+' > $ART/logs/ddxplus_source_answers_diagnosis_first_b8_v1.log 2>&1 &
 ```
 
 ### Source Multiple-Choice Baseline
@@ -696,52 +725,52 @@ Run two shards in parallel on two A6000s:
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python scripts/run_source_model_mc.py \
   --config configs/default.yaml \
-  --input /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_source_mc_shuffled_v1_shard0.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_source_mc_shuffled_v1_shard0_summary.md \
+  --input $ART/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
+  --output-jsonl $ART/results/ddxplus_source_mc_shuffled_v1_shard0.jsonl \
+  --summary-md $ART/results/ddxplus_source_mc_shuffled_v1_shard0_summary.md \
   --shuffle-options \
   --seed 17 \
   --num-shards 2 \
   --shard-index 0 \
   --max-new-tokens 64 \
   --batch-size 4
-' > /data1/heejae/medical_nla/logs/ddxplus_source_mc_shuffled_v1_shard0.log 2>&1 &
+' > $ART/logs/ddxplus_source_mc_shuffled_v1_shard0.log 2>&1 &
 ```
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=1 python scripts/run_source_model_mc.py \
   --config configs/default.yaml \
-  --input /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_source_mc_shuffled_v1_shard1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_source_mc_shuffled_v1_shard1_summary.md \
+  --input $ART/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
+  --output-jsonl $ART/results/ddxplus_source_mc_shuffled_v1_shard1.jsonl \
+  --summary-md $ART/results/ddxplus_source_mc_shuffled_v1_shard1_summary.md \
   --shuffle-options \
   --seed 17 \
   --num-shards 2 \
   --shard-index 1 \
   --max-new-tokens 64 \
   --batch-size 4
-' > /data1/heejae/medical_nla/logs/ddxplus_source_mc_shuffled_v1_shard1.log 2>&1 &
+' > $ART/logs/ddxplus_source_mc_shuffled_v1_shard1.log 2>&1 &
 ```
 
 After both shards finish:
@@ -749,10 +778,10 @@ After both shards finish:
 ```bash
 python scripts/summarize_source_model_mc.py \
   --inputs \
-    /data1/heejae/medical_nla/results/ddxplus_source_mc_shuffled_v1_shard0.jsonl \
-    /data1/heejae/medical_nla/results/ddxplus_source_mc_shuffled_v1_shard1.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_source_mc_shuffled_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_source_mc_shuffled_v1_summary.md
+    $ART/results/ddxplus_source_mc_shuffled_v1_shard0.jsonl \
+    $ART/results/ddxplus_source_mc_shuffled_v1_shard1.jsonl \
+  --output-jsonl $ART/results/ddxplus_source_mc_shuffled_v1.jsonl \
+  --summary-md $ART/results/ddxplus_source_mc_shuffled_v1_summary.md
 ```
 
 ### NLA Multiple-Choice Baseline
@@ -763,50 +792,50 @@ constraint that lifted the source model from free generation to MC.
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python scripts/run_nla_diagnosis_mc.py \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_shard0.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_shard0_summary.md \
+  --manifest $ART/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
+  --output-jsonl $ART/results/ddxplus_nla_mc_shuffled_v1_shard0.jsonl \
+  --summary-md $ART/results/ddxplus_nla_mc_shuffled_v1_shard0_summary.md \
   --shuffle-options \
   --seed 17 \
   --num-shards 2 \
   --shard-index 0 \
   --max-new-tokens 64
-' > /data1/heejae/medical_nla/logs/ddxplus_nla_mc_shuffled_v1_shard0.log 2>&1 &
+' > $ART/logs/ddxplus_nla_mc_shuffled_v1_shard0.log 2>&1 &
 ```
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=1 python scripts/run_nla_diagnosis_mc.py \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_shard1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_shard1_summary.md \
+  --manifest $ART/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
+  --output-jsonl $ART/results/ddxplus_nla_mc_shuffled_v1_shard1.jsonl \
+  --summary-md $ART/results/ddxplus_nla_mc_shuffled_v1_shard1_summary.md \
   --shuffle-options \
   --seed 17 \
   --num-shards 2 \
   --shard-index 1 \
   --max-new-tokens 64
-' > /data1/heejae/medical_nla/logs/ddxplus_nla_mc_shuffled_v1_shard1.log 2>&1 &
+' > $ART/logs/ddxplus_nla_mc_shuffled_v1_shard1.log 2>&1 &
 ```
 
 After both shards finish:
@@ -814,28 +843,28 @@ After both shards finish:
 ```bash
 python scripts/summarize_nla_diagnosis_mc.py \
   --inputs \
-    /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_shard0.jsonl \
-    /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_shard1.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_nla_mc_shuffled_v1_summary.md
+    $ART/results/ddxplus_nla_mc_shuffled_v1_shard0.jsonl \
+    $ART/results/ddxplus_nla_mc_shuffled_v1_shard1.jsonl \
+  --output-jsonl $ART/results/ddxplus_nla_mc_shuffled_v1.jsonl \
+  --summary-md $ART/results/ddxplus_nla_mc_shuffled_v1_summary.md
 ```
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 
 CUDA_VISIBLE_DEVICES=8 python -m scripts.score_source_diagnosis_logprobs \
   --config configs/default.yaml \
-  --input /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_source_multi_format_logprobs_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_source_multi_format_logprobs_v1_summary.md \
+  --input $ART/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
+  --output-jsonl $ART/results/ddxplus_source_multi_format_logprobs_v1.jsonl \
+  --summary-md $ART/results/ddxplus_source_multi_format_logprobs_v1_summary.md \
   --candidate-batch-size 8
-' > /data1/heejae/medical_nla/logs/ddxplus_source_multi_format_logprobs_v1.log 2>&1 &
+' > $ART/logs/ddxplus_source_multi_format_logprobs_v1.log 2>&1 &
 ```
 
 ## 3. Probe With Row-Level Predictions
@@ -844,19 +873,19 @@ Adds saved probe weights and per-row predictions for error-prediction tables.
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 
 CUDA_VISIBLE_DEVICES=9 python scripts/train_ddxplus_linear_probe.py \
-  --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest.jsonl \
-  --out-dir /data1/heejae/medical_nla/probe/ddxplus_linear_probe_with_predictions_v1 \
+  --manifest $ART/activations/ddxplus_probe_v1/manifest.jsonl \
+  --out-dir $ART/probe/ddxplus_linear_probe_with_predictions_v1 \
   --epochs 80 \
   --batch-size 512 \
   --lr 1e-3 \
   --weight-decay 1e-2 \
   --write-predictions
-' > /data1/heejae/medical_nla/logs/ddxplus_linear_probe_with_predictions_v1.log 2>&1 &
+' > $ART/logs/ddxplus_linear_probe_with_predictions_v1.log 2>&1 &
 ```
 
 ## 4. Medical-NLA v2-alpha Structured Readout
@@ -877,8 +906,8 @@ Create the leakage-safe v2-alpha SFT split:
 
 ```bash
 python scripts/make_medical_nla_v2_sft_splits.py \
-  --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
-  --out-dir /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_alpha \
+  --manifest $ART/activations/ddxplus_probe_v1/manifest_multi_format.jsonl \
+  --out-dir $ART/train/medical_nla_sft_ddxplus_v2_alpha \
   --variants multi_format \
   --max-cues 3 \
   --seed 17
@@ -888,20 +917,20 @@ Train the LoRA adapter:
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
   --config configs/default.yaml \
-  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_alpha/sft_train.jsonl \
-  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_alpha/sft_val.jsonl \
-  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_v2_alpha_lora \
+  --train-jsonl $ART/train/medical_nla_sft_ddxplus_v2_alpha/sft_train.jsonl \
+  --val-jsonl $ART/train/medical_nla_sft_ddxplus_v2_alpha/sft_val.jsonl \
+  --out-dir $ART/adapters/medical_nla_ddxplus_v2_alpha_lora \
   --actor-prompt-template-file prompt_templates/medical_nla_v2_readout.txt \
   --epochs 1 \
   --batch-size 1 \
@@ -909,38 +938,38 @@ CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
   --lr 2e-4 \
   --weight-decay 0.0 \
   --max-eval-rows 128
-' > /data1/heejae/medical_nla/logs/medical_nla_ddxplus_v2_alpha_lora.log 2>&1 &
+' > $ART/logs/medical_nla_ddxplus_v2_alpha_lora.log 2>&1 &
 ```
 
 Generate structured readouts on the held-out test split:
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python -m src.run_nla \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_alpha/manifest_test.jsonl \
-  --output /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_alpha_readouts_test.jsonl \
-  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_v2_alpha_lora \
+  --manifest $ART/train/medical_nla_sft_ddxplus_v2_alpha/manifest_test.jsonl \
+  --output $ART/results/ddxplus_medical_nla_v2_alpha_readouts_test.jsonl \
+  --adapter-id $ART/adapters/medical_nla_ddxplus_v2_alpha_lora \
   --actor-prompt-template-file prompt_templates/medical_nla_v2_readout.txt
-' > /data1/heejae/medical_nla/logs/ddxplus_medical_nla_v2_alpha_readouts_test.log 2>&1 &
+' > $ART/logs/ddxplus_medical_nla_v2_alpha_readouts_test.log 2>&1 &
 ```
 
 Score answer and supporting-cue readout quality:
 
 ```bash
 python scripts/score_medical_nla_v2_readouts.py \
-  --input /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_alpha_readouts_test.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_alpha_readouts_test_scored.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_alpha_readouts_test_summary.md
+  --input $ART/results/ddxplus_medical_nla_v2_alpha_readouts_test.jsonl \
+  --output-jsonl $ART/results/ddxplus_medical_nla_v2_alpha_readouts_test_scored.jsonl \
+  --summary-md $ART/results/ddxplus_medical_nla_v2_alpha_readouts_test_summary.md
 ```
 
 ### v2-beta: Clean DDXPlus Cue Rendering
@@ -954,10 +983,10 @@ Generate cleaned DDXPlus probe rows:
 
 ```bash
 python scripts/make_ddxplus_probe_dataset.py \
-  --patients /data1/heejae/ddxplus/train.csv \
-  --evidences /data1/heejae/ddxplus/release_evidences.json \
-  --cases-output /data1/heejae/medical_nla/ddxplus_probe_v2_cases.jsonl \
-  --variants-output /data1/heejae/medical_nla/ddxplus_probe_v2_variants.jsonl \
+  --patients $RAW/ddxplus/train.csv \
+  --evidences $RAW/ddxplus/release_evidences.json \
+  --cases-output $ART/ddxplus_probe_v2_cases.jsonl \
+  --variants-output $ART/ddxplus_probe_v2_variants.jsonl \
   --examples-per-diagnosis 100 \
   --max-cues 3 \
   --seed 17 \
@@ -968,28 +997,28 @@ Extract cleaned activations:
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python -m src.extract_activations \
   --config configs/default.yaml \
-  --input /data1/heejae/medical_nla/ddxplus_probe_v2_variants.jsonl \
+  --input $ART/ddxplus_probe_v2_variants.jsonl \
   --run-name ddxplus_probe_v2
-' > /data1/heejae/medical_nla/logs/ddxplus_probe_v2_extract.log 2>&1 &
+' > $ART/logs/ddxplus_probe_v2_extract.log 2>&1 &
 ```
 
 Create the v2-beta structured SFT split:
 
 ```bash
 python scripts/make_medical_nla_v2_sft_splits.py \
-  --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v2/manifest.jsonl \
-  --out-dir /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_beta \
+  --manifest $ART/activations/ddxplus_probe_v2/manifest.jsonl \
+  --out-dir $ART/train/medical_nla_sft_ddxplus_v2_beta \
   --variants multi_format \
   --max-cues 3 \
   --seed 17
@@ -999,20 +1028,20 @@ Train v2-beta:
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
   --config configs/default.yaml \
-  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_beta/sft_train.jsonl \
-  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_beta/sft_val.jsonl \
-  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_v2_beta_lora \
+  --train-jsonl $ART/train/medical_nla_sft_ddxplus_v2_beta/sft_train.jsonl \
+  --val-jsonl $ART/train/medical_nla_sft_ddxplus_v2_beta/sft_val.jsonl \
+  --out-dir $ART/adapters/medical_nla_ddxplus_v2_beta_lora \
   --actor-prompt-template-file prompt_templates/medical_nla_v2_readout.txt \
   --epochs 1 \
   --batch-size 1 \
@@ -1020,36 +1049,36 @@ CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
   --lr 2e-4 \
   --weight-decay 0.0 \
   --max-eval-rows 128
-' > /data1/heejae/medical_nla/logs/medical_nla_ddxplus_v2_beta_lora.log 2>&1 &
+' > $ART/logs/medical_nla_ddxplus_v2_beta_lora.log 2>&1 &
 ```
 
 Generate and score v2-beta test readouts:
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python -m src.run_nla \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_v2_beta/manifest_test.jsonl \
-  --output /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_beta_readouts_test.jsonl \
-  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_v2_beta_lora \
+  --manifest $ART/train/medical_nla_sft_ddxplus_v2_beta/manifest_test.jsonl \
+  --output $ART/results/ddxplus_medical_nla_v2_beta_readouts_test.jsonl \
+  --adapter-id $ART/adapters/medical_nla_ddxplus_v2_beta_lora \
   --actor-prompt-template-file prompt_templates/medical_nla_v2_readout.txt
-' > /data1/heejae/medical_nla/logs/ddxplus_medical_nla_v2_beta_readouts_test.log 2>&1 &
+' > $ART/logs/ddxplus_medical_nla_v2_beta_readouts_test.log 2>&1 &
 ```
 
 ```bash
 python scripts/score_medical_nla_v2_readouts.py \
-  --input /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_beta_readouts_test.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_beta_readouts_test_scored.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_v2_beta_readouts_test_summary.md
+  --input $ART/results/ddxplus_medical_nla_v2_beta_readouts_test.jsonl \
+  --output-jsonl $ART/results/ddxplus_medical_nla_v2_beta_readouts_test_scored.jsonl \
+  --summary-md $ART/results/ddxplus_medical_nla_v2_beta_readouts_test_summary.md
 ```
 
 ## 5. Medical-NLA SFT Splits
@@ -1059,8 +1088,8 @@ The split is grouped by `base_id` and stratified by `diagnosis_id`.
 
 ```bash
 python scripts/make_medical_nla_sft_splits.py \
-  --manifest /data1/heejae/medical_nla/activations/ddxplus_probe_v1/manifest.jsonl \
-  --out-dir /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1 \
+  --manifest $ART/activations/ddxplus_probe_v1/manifest.jsonl \
+  --out-dir $ART/train/medical_nla_sft_ddxplus_multi_format_v1 \
   --variants multi_format \
   --style diagnosis_first \
   --train-frac 0.70 \
@@ -1071,8 +1100,8 @@ python scripts/make_medical_nla_sft_splits.py \
 Inspect examples before training:
 
 ```bash
-cat /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/summary.md
-head -3 /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/sft_train.jsonl
+cat $ART/train/medical_nla_sft_ddxplus_multi_format_v1/summary.md
+head -3 $ART/train/medical_nla_sft_ddxplus_multi_format_v1/sft_train.jsonl
 ```
 
 ## 6. Medical-NLA LoRA SFT
@@ -1081,27 +1110,27 @@ Trains a LoRA adapter on top of the released AV checkpoint.
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
   --config configs/default.yaml \
-  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/sft_train.jsonl \
-  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/sft_val.jsonl \
-  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_lora_v1 \
+  --train-jsonl $ART/train/medical_nla_sft_ddxplus_multi_format_v1/sft_train.jsonl \
+  --val-jsonl $ART/train/medical_nla_sft_ddxplus_multi_format_v1/sft_val.jsonl \
+  --out-dir $ART/adapters/medical_nla_ddxplus_lora_v1 \
   --epochs 1 \
   --batch-size 1 \
   --grad-accum-steps 8 \
   --lr 2e-4 \
   --lora-r 16 \
   --lora-alpha 32
-' > /data1/heejae/medical_nla/logs/medical_nla_ddxplus_lora_v1.log 2>&1 &
+' > $ART/logs/medical_nla_ddxplus_lora_v1.log 2>&1 &
 ```
 
 Evaluate the adapter with the same free-generation and logprob scripts:
@@ -1109,77 +1138,77 @@ Evaluate the adapter with the same free-generation and logprob scripts:
 ```bash
 CUDA_VISIBLE_DEVICES=0 python -m src.run_nla \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/manifest_test.jsonl \
-  --output /data1/heejae/medical_nla/results/ddxplus_medical_nla_multi_format_test_v1.jsonl \
-  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_lora_v1
+  --manifest $ART/train/medical_nla_sft_ddxplus_multi_format_v1/manifest_test.jsonl \
+  --output $ART/results/ddxplus_medical_nla_multi_format_test_v1.jsonl \
+  --adapter-id $ART/adapters/medical_nla_ddxplus_lora_v1
 
 CUDA_VISIBLE_DEVICES=0 python -m scripts.score_nla_diagnosis_logprobs \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/manifest_test.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_multi_format_logprobs_test_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_multi_format_logprobs_test_v1_summary.md \
-  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_lora_v1
+  --manifest $ART/train/medical_nla_sft_ddxplus_multi_format_v1/manifest_test.jsonl \
+  --output-jsonl $ART/results/ddxplus_medical_nla_multi_format_logprobs_test_v1.jsonl \
+  --summary-md $ART/results/ddxplus_medical_nla_multi_format_logprobs_test_v1_summary.md \
+  --adapter-id $ART/adapters/medical_nla_ddxplus_lora_v1
 ```
 
 Evaluate Medical-NLA with the same MC constraint on the held-out test split:
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python scripts/run_nla_diagnosis_mc.py \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/manifest_test.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard0.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard0_summary.md \
-  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_lora_v1 \
+  --manifest $ART/train/medical_nla_sft_ddxplus_multi_format_v1/manifest_test.jsonl \
+  --output-jsonl $ART/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard0.jsonl \
+  --summary-md $ART/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard0_summary.md \
+  --adapter-id $ART/adapters/medical_nla_ddxplus_lora_v1 \
   --shuffle-options \
   --seed 17 \
   --num-shards 2 \
   --shard-index 0 \
   --max-new-tokens 64
-' > /data1/heejae/medical_nla/logs/ddxplus_medical_nla_mc_shuffled_test_v1_shard0.log 2>&1 &
+' > $ART/logs/ddxplus_medical_nla_mc_shuffled_test_v1_shard0.log 2>&1 &
 ```
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
 unset HF_TOKEN
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=1 python scripts/run_nla_diagnosis_mc.py \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/train/medical_nla_sft_ddxplus_multi_format_v1/manifest_test.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard1_summary.md \
-  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_ddxplus_lora_v1 \
+  --manifest $ART/train/medical_nla_sft_ddxplus_multi_format_v1/manifest_test.jsonl \
+  --output-jsonl $ART/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard1.jsonl \
+  --summary-md $ART/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard1_summary.md \
+  --adapter-id $ART/adapters/medical_nla_ddxplus_lora_v1 \
   --shuffle-options \
   --seed 17 \
   --num-shards 2 \
   --shard-index 1 \
   --max-new-tokens 64
-' > /data1/heejae/medical_nla/logs/ddxplus_medical_nla_mc_shuffled_test_v1_shard1.log 2>&1 &
+' > $ART/logs/ddxplus_medical_nla_mc_shuffled_test_v1_shard1.log 2>&1 &
 ```
 
 ```bash
 python scripts/summarize_nla_diagnosis_mc.py \
   --inputs \
-    /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard0.jsonl \
-    /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard1.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_mc_shuffled_test_v1_summary.md
+    $ART/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard0.jsonl \
+    $ART/results/ddxplus_medical_nla_mc_shuffled_test_v1_shard1.jsonl \
+  --output-jsonl $ART/results/ddxplus_medical_nla_mc_shuffled_test_v1.jsonl \
+  --summary-md $ART/results/ddxplus_medical_nla_mc_shuffled_test_v1_summary.md
 ```
 
 ## 7. Error-Prediction Feature Table
@@ -1190,13 +1219,13 @@ Merges source correctness and NLA/probe features. All inputs must share the same
 
 ```bash
 python scripts/make_error_prediction_table.py \
-  --source-answers /data1/heejae/medical_nla/results/ddxplus_source_answers_v1.jsonl \
-  --source-logprobs /data1/heejae/medical_nla/results/ddxplus_source_multi_format_logprobs_v1.jsonl \
-  --nla-scored /data1/heejae/medical_nla/results/ddxplus_nla_multi_format_v1_scored.jsonl \
-  --nla-logprobs /data1/heejae/medical_nla/results/ddxplus_nla_multi_format_logprobs_v1.jsonl \
-  --probe-predictions /data1/heejae/medical_nla/probe/ddxplus_linear_probe_with_predictions_v1/multi_format.predictions.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/error_prediction_features_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/error_prediction_features_v1_summary.md
+  --source-answers $ART/results/ddxplus_source_answers_v1.jsonl \
+  --source-logprobs $ART/results/ddxplus_source_multi_format_logprobs_v1.jsonl \
+  --nla-scored $ART/results/ddxplus_nla_multi_format_v1_scored.jsonl \
+  --nla-logprobs $ART/results/ddxplus_nla_multi_format_logprobs_v1.jsonl \
+  --probe-predictions $ART/probe/ddxplus_linear_probe_with_predictions_v1/multi_format.predictions.jsonl \
+  --output-jsonl $ART/results/error_prediction_features_v1.jsonl \
+  --summary-md $ART/results/error_prediction_features_v1_summary.md
 ```
 
 ## 8. Diagnosis-Heldout (True OOD) Medical-AV
@@ -1209,9 +1238,9 @@ source-aligned v2 splits (substitute the actual all-cue source answers file).
 
 ```bash
 python scripts/make_medical_nla_diagnosis_heldout_splits.py \
-  --manifest /data1/heejae/medical_nla/activations/ddxplus_all_cue_format_v1/manifest.jsonl \
-  --source-answers /data1/heejae/medical_nla/results/ddxplus_source_mc_all_cue_v1.jsonl \
-  --out-dir /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v1 \
+  --manifest $ART/activations/ddxplus_all_cue_format_v1/manifest.jsonl \
+  --source-answers $ART/results/ddxplus_source_mc_all_cue_v1.jsonl \
+  --out-dir $ART/train/medical_nla_diagnosis_heldout_v1 \
   --variants cue_count_all \
   --heldout-frac 0.30 \
   --seed 17
@@ -1221,22 +1250,22 @@ Train the LoRA adapter on train-class rows only:
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
   --config configs/default.yaml \
-  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v1/sft_train.jsonl \
-  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v1/sft_val.jsonl \
-  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_diagnosis_heldout_v1_lora_e3 \
+  --train-jsonl $ART/train/medical_nla_diagnosis_heldout_v1/sft_train.jsonl \
+  --val-jsonl $ART/train/medical_nla_diagnosis_heldout_v1/sft_val.jsonl \
+  --out-dir $ART/adapters/medical_nla_diagnosis_heldout_v1_lora_e3 \
   --epochs 3 \
   --batch-size 2
-' > /data1/heejae/medical_nla/logs/medical_nla_diagnosis_heldout_v1_lora_e3.log 2>&1 &
+' > $ART/logs/medical_nla_diagnosis_heldout_v1_lora_e3.log 2>&1 &
 ```
 
 Run readouts on both test manifests with the identical adapter:
@@ -1245,14 +1274,14 @@ Run readouts on both test manifests with the identical adapter:
 for POOL in test_seen test_heldout; do
 CUDA_VISIBLE_DEVICES=0 python -m src.run_nla \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v1/manifest_${POOL}.jsonl \
-  --output /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_${POOL}.jsonl \
-  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_diagnosis_heldout_v1_lora_e3
+  --manifest $ART/train/medical_nla_diagnosis_heldout_v1/manifest_${POOL}.jsonl \
+  --output $ART/results/ddxplus_medical_nla_diagnosis_heldout_v1_${POOL}.jsonl \
+  --adapter-id $ART/adapters/medical_nla_diagnosis_heldout_v1_lora_e3
 
 python scripts/score_medical_nla_v2_readouts.py \
-  --input /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_${POOL}.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_${POOL}_scored.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_${POOL}_summary.md
+  --input $ART/results/ddxplus_medical_nla_diagnosis_heldout_v1_${POOL}.jsonl \
+  --output-jsonl $ART/results/ddxplus_medical_nla_diagnosis_heldout_v1_${POOL}_scored.jsonl \
+  --summary-md $ART/results/ddxplus_medical_nla_diagnosis_heldout_v1_${POOL}_summary.md
 done
 ```
 
@@ -1260,11 +1289,11 @@ Summarize seen-vs-heldout plus the classifier-collapse check:
 
 ```bash
 python scripts/summarize_diagnosis_heldout_readouts.py \
-  --heldout-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_test_heldout_scored.jsonl \
-  --seen-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_test_seen_scored.jsonl \
-  --split-dir /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v1 \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_analysis.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v1_analysis_summary.md
+  --heldout-scored $ART/results/ddxplus_medical_nla_diagnosis_heldout_v1_test_heldout_scored.jsonl \
+  --seen-scored $ART/results/ddxplus_medical_nla_diagnosis_heldout_v1_test_seen_scored.jsonl \
+  --split-dir $ART/train/medical_nla_diagnosis_heldout_v1 \
+  --output-jsonl $ART/results/ddxplus_medical_nla_diagnosis_heldout_v1_analysis.jsonl \
+  --summary-md $ART/results/ddxplus_medical_nla_diagnosis_heldout_v1_analysis_summary.md
 ```
 
 Reading the result: heldout `answer_hit` low with `cue_recall` high means the
@@ -1284,16 +1313,16 @@ AUROC comparison restricted to rows where both signals exist.
 
 ```bash
 python scripts/make_error_prediction_table.py \
-  --source-answers /data1/heejae/medical_nla/results/ddxplus_source_mc_all_cue_v1.jsonl \
-  --nla-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_all_cue_source_aligned_v2_readouts_test_e3_b2_scored.jsonl \
-  --probe-predictions /data1/heejae/medical_nla/probe/ddxplus_all_cue_format_linear_probe_v1/cue_count_all.predictions.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/error_prediction_features_probe_control_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/error_prediction_features_probe_control_v1_summary.md
+  --source-answers $ART/results/ddxplus_source_mc_all_cue_v1.jsonl \
+  --nla-scored $ART/results/ddxplus_medical_nla_all_cue_source_aligned_v2_readouts_test_e3_b2_scored.jsonl \
+  --probe-predictions $ART/probe/ddxplus_all_cue_format_linear_probe_v1/cue_count_all.predictions.jsonl \
+  --output-jsonl $ART/results/error_prediction_features_probe_control_v1.jsonl \
+  --summary-md $ART/results/error_prediction_features_probe_control_v1_summary.md
 
 python scripts/evaluate_error_prediction.py \
-  --input /data1/heejae/medical_nla/results/error_prediction_features_probe_control_v1.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/error_prediction_probe_control_v1.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/error_prediction_probe_control_v1_summary.md
+  --input $ART/results/error_prediction_features_probe_control_v1.jsonl \
+  --output-jsonl $ART/results/error_prediction_probe_control_v1.jsonl \
+  --summary-md $ART/results/error_prediction_probe_control_v1_summary.md
 ```
 
 If `nla_minus_probe_auroc` is near zero, the natural-language readout adds no
@@ -1330,8 +1359,8 @@ Generate v3 targets from the existing split (CPU, seconds):
 
 ```bash
 python scripts/make_medical_nla_v3_cue_first_targets.py \
-  --split-dir /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v1 \
-  --out-dir /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v3_cue_first \
+  --split-dir $ART/train/medical_nla_diagnosis_heldout_v1 \
+  --out-dir $ART/train/medical_nla_diagnosis_heldout_v3_cue_first \
   --seed 17
 ```
 
@@ -1339,56 +1368,56 @@ Train (GPU, hours):
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
   --config configs/default.yaml \
-  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v3_cue_first/sft_train.jsonl \
-  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v3_cue_first/sft_val.jsonl \
-  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_diagnosis_heldout_v3_cue_first_lora_e3 \
+  --train-jsonl $ART/train/medical_nla_diagnosis_heldout_v3_cue_first/sft_train.jsonl \
+  --val-jsonl $ART/train/medical_nla_diagnosis_heldout_v3_cue_first/sft_val.jsonl \
+  --out-dir $ART/adapters/medical_nla_diagnosis_heldout_v3_cue_first_lora_e3 \
   --epochs 3 \
   --batch-size 2
-' > /data1/heejae/medical_nla/logs/medical_nla_diagnosis_heldout_v3_cue_first_lora_e3.log 2>&1 &
+' > $ART/logs/medical_nla_diagnosis_heldout_v3_cue_first_lora_e3.log 2>&1 &
 ```
 
 Readout + scoring + seen-vs-heldout summary (GPU then CPU):
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 for POOL in test_seen test_heldout; do
 CUDA_VISIBLE_DEVICES=0 python -m src.run_nla \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v3_cue_first/manifest_${POOL}.jsonl \
-  --output /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_${POOL}.jsonl \
-  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_diagnosis_heldout_v3_cue_first_lora_e3
+  --manifest $ART/train/medical_nla_diagnosis_heldout_v3_cue_first/manifest_${POOL}.jsonl \
+  --output $ART/results/ddxplus_medical_nla_diagnosis_heldout_v3_${POOL}.jsonl \
+  --adapter-id $ART/adapters/medical_nla_diagnosis_heldout_v3_cue_first_lora_e3
 
 python scripts/score_medical_nla_v2_readouts.py \
-  --input /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_${POOL}.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_${POOL}_scored.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_${POOL}_summary.md
+  --input $ART/results/ddxplus_medical_nla_diagnosis_heldout_v3_${POOL}.jsonl \
+  --output-jsonl $ART/results/ddxplus_medical_nla_diagnosis_heldout_v3_${POOL}_scored.jsonl \
+  --summary-md $ART/results/ddxplus_medical_nla_diagnosis_heldout_v3_${POOL}_summary.md
 done
 
 python scripts/summarize_diagnosis_heldout_readouts.py \
-  --heldout-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_test_heldout_scored.jsonl \
-  --seen-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_test_seen_scored.jsonl \
-  --split-dir /data1/heejae/medical_nla/train/medical_nla_diagnosis_heldout_v3_cue_first \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_analysis.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_diagnosis_heldout_v3_analysis_summary.md
-' > /data1/heejae/medical_nla/logs/medical_nla_diagnosis_heldout_v3_readouts.log 2>&1 &
+  --heldout-scored $ART/results/ddxplus_medical_nla_diagnosis_heldout_v3_test_heldout_scored.jsonl \
+  --seen-scored $ART/results/ddxplus_medical_nla_diagnosis_heldout_v3_test_seen_scored.jsonl \
+  --split-dir $ART/train/medical_nla_diagnosis_heldout_v3_cue_first \
+  --output-jsonl $ART/results/ddxplus_medical_nla_diagnosis_heldout_v3_analysis.jsonl \
+  --summary-md $ART/results/ddxplus_medical_nla_diagnosis_heldout_v3_analysis_summary.md
+' > $ART/logs/medical_nla_diagnosis_heldout_v3_readouts.log 2>&1 &
 ```
 
 Reading the result: v1 memorization baselines are heldout output_cue_recall
@@ -1410,8 +1439,8 @@ Generate per-cue extraction rows from the existing all-cue manifest
 
 ```bash
 python scripts/make_ddxplus_cue_position_rows.py \
-  --input /data1/heejae/medical_nla/activations/ddxplus_all_cue_format_v1/manifest.jsonl \
-  --output /data1/heejae/medical_nla/activations/ddxplus_cue_position_v1_rows.jsonl \
+  --input $ART/activations/ddxplus_all_cue_format_v1/manifest.jsonl \
+  --output $ART/activations/ddxplus_cue_position_v1_rows.jsonl \
   --max-cues-per-case 4 \
   --seed 17
 ```
@@ -1420,27 +1449,27 @@ Extract activations at cue spans (GPU pass 1; layer comes from the config):
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python -m src.extract_activations \
   --config configs/default.yaml \
-  --input /data1/heejae/medical_nla/activations/ddxplus_cue_position_v1_rows.jsonl \
+  --input $ART/activations/ddxplus_cue_position_v1_rows.jsonl \
   --run-name ddxplus_cue_position_v1
-' > /data1/heejae/medical_nla/logs/ddxplus_cue_position_v1_extract.log 2>&1 &
+' > $ART/logs/ddxplus_cue_position_v1_extract.log 2>&1 &
 ```
 
 Cue-heldout splits (25% of cue strings never supervised) + single-cue targets:
 
 ```bash
 python scripts/make_medical_nla_v4_cue_position_splits.py \
-  --manifest /data1/heejae/medical_nla/activations/ddxplus_cue_position_v1/manifest.jsonl \
-  --out-dir /data1/heejae/medical_nla/train/medical_nla_cue_position_v4 \
+  --manifest $ART/activations/ddxplus_cue_position_v1/manifest.jsonl \
+  --out-dir $ART/train/medical_nla_cue_position_v4 \
   --heldout-cue-frac 0.25 \
   --seed 17
 ```
@@ -1449,55 +1478,55 @@ Train (same trainer; the train pool is larger than v3, expect a longer run):
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 CUDA_VISIBLE_DEVICES=0 python scripts/train_medical_nla_lora.py \
   --config configs/default.yaml \
-  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_cue_position_v4/sft_train.jsonl \
-  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_cue_position_v4/sft_val.jsonl \
-  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_cue_position_v4_lora_e3 \
+  --train-jsonl $ART/train/medical_nla_cue_position_v4/sft_train.jsonl \
+  --val-jsonl $ART/train/medical_nla_cue_position_v4/sft_val.jsonl \
+  --out-dir $ART/adapters/medical_nla_cue_position_v4_lora_e3 \
   --epochs 3 \
   --batch-size 2
-' > /data1/heejae/medical_nla/logs/medical_nla_cue_position_v4_lora_e3.log 2>&1 &
+' > $ART/logs/medical_nla_cue_position_v4_lora_e3.log 2>&1 &
 ```
 
 Readout + scoring + summary:
 
 ```bash
 nohup bash -lc '
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 for POOL in test_seen_cue test_heldout_cue; do
 CUDA_VISIBLE_DEVICES=0 python -m src.run_nla \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/train/medical_nla_cue_position_v4/manifest_${POOL}.jsonl \
-  --output /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_${POOL}.jsonl \
-  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_cue_position_v4_lora_e3
+  --manifest $ART/train/medical_nla_cue_position_v4/manifest_${POOL}.jsonl \
+  --output $ART/results/ddxplus_medical_nla_cue_position_v4_${POOL}.jsonl \
+  --adapter-id $ART/adapters/medical_nla_cue_position_v4_lora_e3
 
 python scripts/score_medical_nla_v2_readouts.py \
-  --input /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_${POOL}.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_${POOL}_scored.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_${POOL}_summary.md
+  --input $ART/results/ddxplus_medical_nla_cue_position_v4_${POOL}.jsonl \
+  --output-jsonl $ART/results/ddxplus_medical_nla_cue_position_v4_${POOL}_scored.jsonl \
+  --summary-md $ART/results/ddxplus_medical_nla_cue_position_v4_${POOL}_summary.md
 done
 
 python scripts/summarize_cue_position_readouts.py \
-  --seen-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_test_seen_cue_scored.jsonl \
-  --heldout-scored /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_test_heldout_cue_scored.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_analysis.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_medical_nla_cue_position_v4_analysis_summary.md
-' > /data1/heejae/medical_nla/logs/medical_nla_cue_position_v4_readouts.log 2>&1 &
+  --seen-scored $ART/results/ddxplus_medical_nla_cue_position_v4_test_seen_cue_scored.jsonl \
+  --heldout-scored $ART/results/ddxplus_medical_nla_cue_position_v4_test_heldout_cue_scored.jsonl \
+  --output-jsonl $ART/results/ddxplus_medical_nla_cue_position_v4_analysis.jsonl \
+  --summary-md $ART/results/ddxplus_medical_nla_cue_position_v4_analysis_summary.md
+' > $ART/logs/medical_nla_cue_position_v4_readouts.log 2>&1 &
 ```
 
 Reading the result (test_heldout_cue read_rate is the decision number):
@@ -1532,22 +1561,22 @@ Per layer L (substitute L=16 etc.; each stage mirrors section 11):
 # 1) extraction at layer L (GPU)
 CUDA_VISIBLE_DEVICES=9 python -m src.extract_activations \
   --config configs/layer16.yaml \
-  --input /data1/heejae/medical_nla/activations/ddxplus_cue_position_v1_rows.jsonl \
+  --input $ART/activations/ddxplus_cue_position_v1_rows.jsonl \
   --run-name ddxplus_cue_position_L16_v1
 
 # 2) splits (CPU; identical assignment to v4 by construction)
 python scripts/make_medical_nla_v4_cue_position_splits.py \
-  --manifest /data1/heejae/medical_nla/activations/ddxplus_cue_position_L16_v1/manifest.jsonl \
-  --out-dir /data1/heejae/medical_nla/train/medical_nla_cue_position_L16_v5 \
+  --manifest $ART/activations/ddxplus_cue_position_L16_v1/manifest.jsonl \
+  --out-dir $ART/train/medical_nla_cue_position_L16_v5 \
   --heldout-cue-frac 0.25 \
   --seed 17
 
 # 3) train per-layer LoRA (GPU)
 CUDA_VISIBLE_DEVICES=9 python scripts/train_medical_nla_lora.py \
   --config configs/default.yaml \
-  --train-jsonl /data1/heejae/medical_nla/train/medical_nla_cue_position_L16_v5/sft_train.jsonl \
-  --val-jsonl /data1/heejae/medical_nla/train/medical_nla_cue_position_L16_v5/sft_val.jsonl \
-  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_cue_position_L16_v5_lora_e2 \
+  --train-jsonl $ART/train/medical_nla_cue_position_L16_v5/sft_train.jsonl \
+  --val-jsonl $ART/train/medical_nla_cue_position_L16_v5/sft_val.jsonl \
+  --out-dir $ART/adapters/medical_nla_cue_position_L16_v5_lora_e2 \
   --epochs 2 \
   --batch-size 2
 
@@ -1574,42 +1603,42 @@ reader (the best operating point).
 ```bash
 nohup bash -lc '
 set -e
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 python scripts/make_cue_counterfactual_rows.py \
-  --cases /data1/heejae/medical_nla/activations/ddxplus_all_cue_format_v1/manifest.jsonl \
-  --split-dir /data1/heejae/medical_nla/train/medical_nla_cue_position_L24_v5 \
-  --output /data1/heejae/medical_nla/activations/ddxplus_cue_counterfactual_v1_rows.jsonl \
+  --cases $ART/activations/ddxplus_all_cue_format_v1/manifest.jsonl \
+  --split-dir $ART/train/medical_nla_cue_position_L24_v5 \
+  --output $ART/activations/ddxplus_cue_counterfactual_v1_rows.jsonl \
   --num-cases 150 \
   --seed 17
 
 CUDA_VISIBLE_DEVICES=9 python -m src.extract_activations \
   --config configs/layer24.yaml \
-  --input /data1/heejae/medical_nla/activations/ddxplus_cue_counterfactual_v1_rows.jsonl \
+  --input $ART/activations/ddxplus_cue_counterfactual_v1_rows.jsonl \
   --run-name ddxplus_cue_counterfactual_L24_v1
 
 CUDA_VISIBLE_DEVICES=9 python -m src.run_nla \
   --config configs/default.yaml \
-  --manifest /data1/heejae/medical_nla/activations/ddxplus_cue_counterfactual_L24_v1/manifest.jsonl \
-  --output /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1.jsonl \
-  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_cue_position_L24_v5_lora_e2
+  --manifest $ART/activations/ddxplus_cue_counterfactual_L24_v1/manifest.jsonl \
+  --output $ART/results/ddxplus_cue_counterfactual_L24_v1.jsonl \
+  --adapter-id $ART/adapters/medical_nla_cue_position_L24_v5_lora_e2
 
 python scripts/score_medical_nla_v2_readouts.py \
-  --input /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1_scored.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1_scored_summary.md
+  --input $ART/results/ddxplus_cue_counterfactual_L24_v1.jsonl \
+  --output-jsonl $ART/results/ddxplus_cue_counterfactual_L24_v1_scored.jsonl \
+  --summary-md $ART/results/ddxplus_cue_counterfactual_L24_v1_scored_summary.md
 
 python scripts/evaluate_cue_counterfactuals.py \
-  --scored /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1_scored.jsonl \
-  --output-jsonl /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1_eval.jsonl \
-  --summary-md /data1/heejae/medical_nla/results/ddxplus_cue_counterfactual_L24_v1_eval_summary.md
-' > /data1/heejae/medical_nla/logs/ddxplus_cue_counterfactual_L24_v1.log 2>&1 &
+  --scored $ART/results/ddxplus_cue_counterfactual_L24_v1_scored.jsonl \
+  --output-jsonl $ART/results/ddxplus_cue_counterfactual_L24_v1_eval.jsonl \
+  --summary-md $ART/results/ddxplus_cue_counterfactual_L24_v1_eval_summary.md
+' > $ART/logs/ddxplus_cue_counterfactual_L24_v1.log 2>&1 &
 ```
 
 Faithful-reader signature:
@@ -1640,8 +1669,8 @@ Step 0 — format-position rows (once):
 
 ```bash
 python scripts/make_format_position_rows.py \
-  --input /data1/heejae/medical_nla/activations/ddxplus_all_cue_format_v1/manifest.jsonl \
-  --output /data1/heejae/medical_nla/activations/ddxplus_format_position_rows.jsonl \
+  --input $ART/activations/ddxplus_all_cue_format_v1/manifest.jsonl \
+  --output $ART/activations/ddxplus_format_position_rows.jsonl \
   --variants cue_count_all
 ```
 
@@ -1651,17 +1680,17 @@ Per layer L (run L16 on GPU 9, L24 on GPU 8 in parallel; substitute
 ```bash
 nohup bash -lc '
 set -e
-cd /home/eagle0914/medical_nla
-source /data1/heejae/uv/medical_nla/bin/activate
-export PYTHONPATH=/home/eagle0914/medical_nla
-export HF_HOME=/data1/heejae/hf_cache
-export TRANSFORMERS_CACHE=/data1/heejae/hf_cache
-export HF_DATASETS_CACHE=/data1/heejae/hf_cache/datasets
+cd $MEDICAL_NLA_CODE_ROOT
+source $MEDICAL_NLA_DATA_ROOT/uv/medical_nla/bin/activate
+export PYTHONPATH=$MEDICAL_NLA_CODE_ROOT
+export HF_HOME=$HF_HOME
+export TRANSFORMERS_CACHE=$HF_HOME
+export HF_DATASETS_CACHE=$HF_HOME/datasets
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-A=/data1/heejae/medical_nla/activations
-T=/data1/heejae/medical_nla/train
-R=/data1/heejae/medical_nla/results
+A=$ART/activations
+T=$ART/train
+R=$ART/results
 
 CUDA_VISIBLE_DEVICES=9 python -m src.extract_activations \
   --config configs/layer16.yaml \
@@ -1670,7 +1699,7 @@ CUDA_VISIBLE_DEVICES=9 python -m src.extract_activations \
 
 python scripts/make_medical_nla_diagnosis_heldout_splits.py \
   --manifest $A/ddxplus_format_position_L16/manifest.jsonl \
-  --source-answers /data1/heejae/medical_nla/results/ddxplus_source_mc_cue_count_v1.jsonl \
+  --source-answers $ART/results/ddxplus_source_mc_cue_count_v1.jsonl \
   --out-dir $T/medical_nla_format_position_L16_heldout \
   --variants cue_count_all --heldout-frac 0.30 --seed 17
 
@@ -1682,7 +1711,7 @@ CUDA_VISIBLE_DEVICES=9 python scripts/train_medical_nla_lora.py \
   --config configs/default.yaml \
   --train-jsonl $T/medical_nla_format_position_L16_v3/sft_train.jsonl \
   --val-jsonl $T/medical_nla_format_position_L16_v3/sft_val.jsonl \
-  --out-dir /data1/heejae/medical_nla/adapters/medical_nla_format_position_L16_v3_lora_e3 \
+  --out-dir $ART/adapters/medical_nla_format_position_L16_v3_lora_e3 \
   --epochs 3 --batch-size 2
 
 for POOL in test_seen test_heldout; do
@@ -1690,7 +1719,7 @@ CUDA_VISIBLE_DEVICES=9 python -m src.run_nla \
   --config configs/default.yaml \
   --manifest $T/medical_nla_format_position_L16_v3/manifest_${POOL}.jsonl \
   --output $R/ddxplus_format_position_L16_v3_${POOL}.jsonl \
-  --adapter-id /data1/heejae/medical_nla/adapters/medical_nla_format_position_L16_v3_lora_e3
+  --adapter-id $ART/adapters/medical_nla_format_position_L16_v3_lora_e3
 python scripts/score_medical_nla_v2_readouts.py \
   --input $R/ddxplus_format_position_L16_v3_${POOL}.jsonl \
   --output-jsonl $R/ddxplus_format_position_L16_v3_${POOL}_scored.jsonl \
@@ -1703,7 +1732,7 @@ python scripts/summarize_diagnosis_heldout_readouts.py \
   --split-dir $T/medical_nla_format_position_L16_v3 \
   --output-jsonl $R/ddxplus_format_position_L16_v3_analysis.jsonl \
   --summary-md $R/ddxplus_format_position_L16_v3_analysis_summary.md
-' > /data1/heejae/medical_nla/logs/format_position_L16_v3.log 2>&1 &
+' > $ART/logs/format_position_L16_v3.log 2>&1 &
 ```
 
 Overlay reading: for each layer, format-position heldout cue_recall vs the

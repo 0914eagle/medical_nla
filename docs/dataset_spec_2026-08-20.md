@@ -322,11 +322,11 @@ DDXPlus는 정답 병리 하나뿐 아니라 **확률이 붙은 감별진단 목
 **받기** (재생성하지 않는다):
 
 ```bash
-export HF_HOME=/data/heejae/hf_cache
+export HF_HOME=$HF_HOME
 python -c "
 from huggingface_hub import snapshot_download
 snapshot_download('0914eagle/medical-nla-cases', repo_type='dataset',
-                  local_dir='/data/heejae/medical_nla/data', allow_patterns=['data/*'])
+                  local_dir='$ART/data', allow_patterns=['data/*'])
 "
 ```
 
