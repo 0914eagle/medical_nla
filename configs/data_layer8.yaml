@@ -13,6 +13,11 @@ source_model:
   model_id: google/gemma-3-12b-it
   dtype: bfloat16
   device_map: auto
+  # Stated rather than inferred: accelerate has offloaded part of the model onto
+  # meta with every card empty, and a meta tensor fails later inside cuBLAS.
+  max_memory:
+    0: 22GiB
+    1: 22GiB
   trust_remote_code: true
   layer: 8
   hidden_state_index_offset: 0

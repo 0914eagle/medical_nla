@@ -53,12 +53,24 @@ def free_memory_report() -> str:
 def load_causal_lm(
     model_cfg: dict[str, Any], *, cache_dir: str | None, allow_offload: bool = False
 ):
+    kwargs: dict[str, Any] = {}
+    # Left to its own heuristic, accelerate has offloaded a fifth of this model
+    # onto meta while every visible card was empty. Stating the budget removes
+    # the heuristic from the picture and makes placement reproducible.
+    max_memory = model_cfg.get("max_memory")
+    if max_memory:
+        kwargs["max_memory"] = {
+            (int(k) if str(k).isdigit() else k): v for k, v in dict(max_memory).items()
+        }
+        print(f"[model] max_memory -> {kwargs['max_memory']}", flush=True)
+
     model = AutoModelForCausalLM.from_pretrained(
         model_cfg["model_id"],
         torch_dtype=torch_dtype(model_cfg.get("dtype", "bfloat16")),
         device_map=model_cfg.get("device_map", "cuda"),
         cache_dir=cache_dir,
         trust_remote_code=model_cfg.get("trust_remote_code", True),
+        **kwargs,
     )
     placement = describe_placement(model)
     print(f"[model] {model_cfg['model_id']} placement -> {placement}", flush=True)
