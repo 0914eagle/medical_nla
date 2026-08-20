@@ -434,6 +434,72 @@ python scripts/audit_answer_matching.py \
   --answers /data/heejae/medical_nla/results/mcr_source_answers_test.jsonl --show 25
 ```
 
+## 0b3. What the corrected answers measure
+
+Both arms parse at 1.000 and the numbers below are the ones the paper quotes.
+
+**DDXPlus, direct: 0.3724 over 4,900 cases.** Accepting the names DDXPlus's
+labels are written as moved this from 0.292, +394 answers. Almost a quarter of
+that is one label: `Pulmonary neoplasm` went from 0 of 100 to 99 of 100, the
+model having answered "lung cancer" correctly every time and scored nothing.
+The lesson generalizes past this corpus -- a closed label set written for a
+classifier will not be the phrases an open-ended answer uses, and the gap is
+invisible in an accuracy number.
+
+Five diagnoses remain at 0 of 100, and reading what the model said instead
+confirms all five are genuine failures rather than unmatched names:
+`Acute otitis media` -> "Viral upper respiratory infection" (67 of 100),
+`Allergic sinusitis` -> "Allergic rhinitis" (92), `Localized edema` ->
+"Nephrotic Syndrome" (70), plus `Chagas` and `Viral pharyngitis`, which
+scatter. The model collapses each of these to one wrong answer almost
+deterministically.
+
+**The differential is where the rest of the signal is.** 1,691 answers (34.5%)
+name a condition in the case's own ranked differential, and 90.1% of those are
+in its top three, mean rank 1.8. The model is not guessing; it is choosing a
+neighbour.
+
+**MedCaseReasoning, direct: 0.1340 over 821 cases**, understated by a measured
+3.0 points. All 55 strict-versus-overlap disagreements were read by hand: 25
+are the same condition written differently (`Essential thrombocytosis` /
+`thrombocythemia`, `lichen spinulosus` / `spinulosum`, `membranous
+glomerulonephritis` / `membranous nephropathy`), 22 are genuine errors, several
+of them the distinction the case turns on (`deep soft tissue leiomyoma` against
+`Soft tissue sarcoma` -- benign against malignant; `arrhythmogenic **left**
+ventricular cardiomyopathy` against `ARVC`), and 8 are judgement. So the true
+figure is about **0.164**, at most 0.174.
+
+No threshold separates the 25 from the 22: at token-F1 0.75 a correct answer
+(`Recurrent Guillain Barre Syndrome` / `Relapsing Guillain-Barré syndrome`)
+sits beside a wrong one (`Leydig cell tumor of the ovary` / `Sertoli-Leydig
+cell tumor`), and at 0.50 likewise. The overlap score is therefore recorded per
+row and never used as the metric; the hand count is what the paper reports.
+
+### Error prediction has to clear the diagnosis label first
+
+Errors are concentrated: a predictor seeing nothing but the diagnosis label and
+answering with that diagnosis's majority outcome scores **0.850** on DDXPlus,
+against 0.628 for always guessing "wrong". An activation probe that scores 0.80
+has therefore shown nothing.
+
+Restricting to diagnoses that go both ways is necessary and, done naively, not
+sufficient: dropping only the exactly-constant ones left the bound at 0.833,
+because nine of the fifteen hardest diagnoses sit between 0.01 and 0.07 and a
+diagnosis right 1 time in 100 hands the label predictor 99%. The threshold is
+on the minority outcome's share:
+
+```bash
+python scripts/summarize_source_answers.py \
+  --answers /data/heejae/medical_nla/results/ddxplus_source_answers.jsonl \
+  --summary-json /data/heejae/medical_nla/results/ddxplus_source_answers_by_diagnosis.json \
+  --min-minority-rate 0.10
+```
+
+This selects the evaluation set on a property of the source model rather than
+of the probe. That is legitimate and must be stated: the bound is recomputed on
+the same subset, so the probe is never compared against a baseline measured
+somewhere else.
+
 ## 0c. Extraction: one pass per prompt, every layer at once
 
 The pilot's extractor ran the model once per row and once per layer. A case

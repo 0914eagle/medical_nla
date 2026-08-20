@@ -122,7 +122,10 @@ def mixed_outcome_rows(
     for name, group in by_diagnosis.items():
         correct = sum(1 for row in group if row.get("source_correct"))
         minority = min(correct, len(group) - correct) / len(group)
-        if len(group) < min_cases or minority < min_minority_rate:
+        # A constant diagnosis goes out whatever the threshold: at 0.0 the
+        # comparison below would let it back in, and it is the original case
+        # this function exists to exclude.
+        if len(group) < min_cases or minority <= 0 or minority < min_minority_rate:
             dropped.append(name)
             continue
         kept.extend(group)
