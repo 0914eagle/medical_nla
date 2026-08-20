@@ -215,19 +215,32 @@ python scripts/make_ddxplus_cue_count_cases.py \
   --evidences /data/heejae/ddxplus/release_evidences.json \
   --output /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
   --examples-per-diagnosis 100 --cue-counts all --seed 17 \
-  --negative-cues --no-prefer-symptoms --stop-when-full
+  --no-prefer-symptoms --stop-when-full
 ```
 
 Two flags decide what reaches the prompt, and both are recorded per case so the
 choice is never silent:
 
 - `--negative-cues` keeps negatively-answered items, rendered by negating the
-  question's auxiliary. Without it prompts carry positive findings only, which
-  drops about 10.6% of evidence entries — roughly two per patient.
+  question's auxiliary. It is **off** here. Negative answers are 10.6% of
+  evidence entries, but that number counts occurrences: measured across the
+  corpus they are a single distinct finding, `has not traveled out of the
+  country in the last 4 weeks`, present in 92.4% of cases. A near-constant cue
+  carries no diagnostic information and is free readout credit for a model that
+  learns to emit it unconditionally, which is the memorization path the whole
+  cue-heldout design exists to close. Negation is therefore measured on
+  MedCaseReasoning, whose prose carries varied, case-specific negatives
+  (`no fever at any point`, `denied any history of trauma`).
 - `--no-prefer-symptoms` keeps antecedents. The default drops every antecedent
-  whenever the case has any symptom, and antecedents are where most negative
-  answers live (travel, family history, smoking, prior diagnoses), so leaving it
-  on reduced negative cues to 0.35% of the corpus even with `--negative-cues` set.
+  whenever the case has any symptom, discarding smoking status, prior COPD or
+  diabetes, recent surgery and family history — diverse and diagnostic. This
+  stands on its own merit, independent of the negatives decision above.
+
+No frequency cap is applied, because the distribution does not call for one:
+outside that single negative, the most common cue is `shortness of breath` at
+45.5%, then `a cough` at 29.1%, across 823 distinct cues. Those are common
+symptoms carrying real signal, not constants. Cutting at 50% would remove
+exactly the one cue that the flag above already removes.
 
 `--stop-when-full` ends the scan once every diagnosis has its quota, which in
 practice happens around row 400,000 of the million-row CSV; the remaining rows

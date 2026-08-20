@@ -209,17 +209,31 @@ Have you traveled out of the country in the last 4 weeks? + no
 수정: 조동사를 떼지 말고 부정형으로 되살린다(`Have you` → `has not`).
 `render_negative_phrase()`가 7개 조동사를 매핑하고, 인식하지 못하는 문장 형태는
 비문을 내놓느니 제외한다. `--negative-cues` 플래그로 켜며 기본값은 꺼짐이라
-파일럿 동작이 그대로 재현된다. cue마다 `cue_polarity`가 기록되므로 양성/음성별
-판독률을 나눠 볼 수 있다.
+파일럿 동작이 그대로 재현된다. cue마다 `cue_polarity`가 기록된다.
 
-두 가지 단서:
+**결론: 켜지 않는다.** 10.6%는 등장 횟수였고, 코퍼스 전체에서 재보니 서로 다른
+음성 소견은 **1종**이었다 — `has not traveled out of the country in the last 4
+weeks`가 4,900 케이스 중 92.4%에 등장한다. 거의 상수인 cue는 진단 정보를 담지
+않으면서, 조건 없이 뱉기만 해도 판독 점수를 주는 암기 경로가 된다. cue-heldout
+설계 전체가 막으려던 바로 그 경로다. 빈도 상한 필터도 불필요하다: 그 하나를
+빼면 최빈 cue가 `shortness of breath` 45.5%, `a cough` 29.1%로, 823종에 걸쳐
+정상적인 증상 분포다. 50%에서 자르면 그 음성 하나만 잘린다.
+
+부정 표현의 판독은 **MedCaseReasoning에서 측정한다.** 실제 산문이라
+`no fever at any point`, `denied any history of trauma`처럼 다양하고 케이스마다
+다르다. 결과적으로 두 데이터셋의 역할 분담이 선명해진다 — DDX는 span이 확정된
+정밀 계측, MCR은 부정을 포함한 실제 임상 텍스트.
+
+살릴 여지가 있는 음성이 3개 남아 있다(`the pain does not radiate to another
+location`, `the lesion is not larger than 1cm`, `their lesions do not peel
+off`). 현재는 `negative_value_unrenderable`로 빠진다. 나머지 8개는 부모 소견이
+없어서 생긴 척도 0 값이라 중복이다. 필요해지면 그때 3개만 추가한다.
 
 - **암묵적 음성은 여전히 불가능하다.** 이진 문항에 "아니오"로 답한 항목은
-  `EVIDENCES` 목록에 아예 등장하지 않는다. 전체 문항에서 양성을 빼서 만들 수는
-  있지만 그것은 데이터가 아니라 우리의 가정이므로 하지 않는다.
-- **A3 수정이 반드시 함께 가야 한다.** 소프트 지표가 부정어 누락을 허용하는 한
-  `has not traveled...`를 `traveled...`로 읽어도 성공으로 집계되어, 음성 소견을
-  넣은 의미가 사라진다.
+  `EVIDENCES` 목록에 아예 등장하지 않는다.
+- **antecedent 유지는 이 결정과 무관하다.** `--no-prefer-symptoms`의 근거였던
+  "음성이 antecedent에 산다"는 사라졌지만, 흡연력·COPD·당뇨·수술력·가족력 자체가
+  다양하고 진단적이므로 유지한다.
 
 ### C7. wh-질문의 값 렌더링도 같은 방식으로 어색하다
 
