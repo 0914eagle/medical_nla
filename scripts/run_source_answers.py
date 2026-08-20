@@ -26,16 +26,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import torch
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.case_prompts import parse_answer
-from src.config import ensure_dir, load_config
 from src.jsonl import append_jsonl, read_jsonl
-from src.modeling import load_causal_lm, load_tokenizer
 
 PROMPT_FIELDS = {"direct": "prompt", "cot": "prompt_cot"}
 
@@ -93,6 +89,12 @@ def main() -> None:
     )
     parser.add_argument("--limit", type=int, default=None)
     args = parser.parse_args()
+
+    # Imported here so the scoring helpers stay testable without a GPU stack.
+    import torch
+
+    from src.config import ensure_dir, load_config
+    from src.modeling import load_causal_lm, load_tokenizer
 
     cfg = load_config(args.config)
     field = PROMPT_FIELDS[args.condition]
