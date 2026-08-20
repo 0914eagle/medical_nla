@@ -60,3 +60,72 @@ def test_make_prompt_puts_the_question_after_the_findings():
     # same activations serve every instruction that is appended here.
     prompt = make_prompt(["fever"])
     assert prompt.index("- fever") < prompt.index("What diagnosis")
+
+
+def _patient_csv(tmp_path, rows):
+    import csv
+
+    path = tmp_path / "patients.csv"
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["PATHOLOGY", "EVIDENCES"])
+        writer.writeheader()
+        writer.writerows(rows)
+    return path
+
+
+def _evidences(tmp_path):
+    import json
+
+    path = tmp_path / "evidences.json"
+    path.write_text(
+        json.dumps(
+            {
+                "E_COUGH": {"question_en": "Do you have a cough?", "is_antecedent": False},
+                "E_FEVER": {"question_en": "Do you have a fever?", "is_antecedent": False},
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _run(tmp_path, extra):
+    import subprocess
+    import sys
+
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    out = tmp_path / "cases.jsonl"
+    patients = _patient_csv(
+        tmp_path,
+        [{"PATHOLOGY": "Pneumonia", "EVIDENCES": "['E_COUGH', 'E_FEVER']"} for _ in range(50)],
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/make_ddxplus_cue_count_cases.py",
+            "--patients", str(patients),
+            "--evidences", str(_evidences(tmp_path)),
+            "--output", str(out),
+            "--cue-counts", "all",
+            "--max-diagnoses", "1",
+            "--examples-per-diagnosis", "5",
+            *extra,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return out.read_text(encoding="utf-8"), result.stdout
+
+
+def test_stop_when_full_matches_the_full_scan(tmp_path):
+    # Same output, without rendering the rows that cannot change it.
+    full, _ = _run(tmp_path / "a", [])
+    early, stdout = _run(tmp_path / "b", ["--stop-when-full"])
+    assert early == full
+    assert "stopping at row" in stdout
+
+
+def test_full_scan_is_the_default(tmp_path):
+    _, stdout = _run(tmp_path / "c", [])
+    assert "stopping at row" not in stdout

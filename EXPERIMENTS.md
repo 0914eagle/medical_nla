@@ -215,7 +215,7 @@ python scripts/make_ddxplus_cue_count_cases.py \
   --evidences /data/heejae/ddxplus/release_evidences.json \
   --output /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
   --examples-per-diagnosis 100 --cue-counts all --seed 17 \
-  --negative-cues --no-prefer-symptoms
+  --negative-cues --no-prefer-symptoms --stop-when-full
 ```
 
 Two flags decide what reaches the prompt, and both are recorded per case so the
@@ -229,7 +229,10 @@ choice is never silent:
   answers live (travel, family history, smoking, prior diagnoses), so leaving it
   on reduced negative cues to 0.35% of the corpus even with `--negative-cues` set.
 
-Both scans read the full 1M-row patient CSV and take several minutes on CPU.
+`--stop-when-full` ends the scan once every diagnosis has its quota, which in
+practice happens around row 400,000 of the million-row CSV; the remaining rows
+are rendered and discarded. Output is identical whenever the corpus holds
+exactly `--max-diagnoses` diagnoses, which DDXPlus does (49).
 
 Both reproduce the pilot's 4,900 cases (49 diagnoses × 100). Note that the
 cue-count generator's input is the *patient* CSV; the probe experiment's

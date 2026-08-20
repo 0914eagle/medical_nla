@@ -154,6 +154,17 @@ def main() -> None:
         ),
     )
     parser.add_argument("--prefer-symptoms", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--stop-when-full",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Stop scanning once every diagnosis seen has its quota and there are "
+            "at least --max-diagnoses of them. Output is identical whenever the "
+            "corpus holds exactly that many diagnoses, which DDXPlus does (49); "
+            "with more, later rows could still change which ones are selected."
+        ),
+    )
     parser.add_argument("--max-patient-rows", type=int, default=None)
     args = parser.parse_args()
 
@@ -199,6 +210,17 @@ def main() -> None:
         bucket = by_diagnosis[diagnosis_id]
         if len(bucket) < args.examples_per_diagnosis:
             bucket.append(rows)
+
+        if args.stop_when_full:
+            full = sum(
+                1 for cases in by_diagnosis.values() if len(cases) >= args.examples_per_diagnosis
+            )
+            if full >= args.max_diagnoses and full == len(by_diagnosis):
+                print(
+                    f"[scan] stopping at row {row_index:,}: all {full} diagnoses full",
+                    flush=True,
+                )
+                break
 
     selected_diagnoses = [
         diagnosis
