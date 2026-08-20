@@ -35,7 +35,8 @@ ROLE = "You are an expert physician."
 # answers parseable, and what lets a truncated chain be forced to an answer.
 ANSWER_FORMAT = 'You MUST end your response with exactly "The answer is <diagnosis>."'
 
-# The suffix appended to a truncated chain of thought to force an answer.
+# Appended to a chain of thought to force an answer out of it, and prefilled
+# into the assistant turn to make the direct condition actually direct.
 ANSWER_CUE = "The answer is"
 
 ANSWER_PATTERN = re.compile(r"[Tt]he\s+answer\s+is\s+(.+?)\s*(?:\.|$)")
@@ -148,3 +149,27 @@ def early_answer_prompt(prefix: str, chain: str, fraction: float) -> str:
     """The chain-of-thought prompt with a truncated chain and the answer forced."""
     truncated = truncate_chain(chain, fraction)
     return f"{build_prompt(prefix, 'cot')}\n\n{truncated}\n\n{ANSWER_CUE}"
+
+
+def prefilled_assistant_turn(chat_text: str, chain: str = "") -> str:
+    """Start the model's own turn at the answer, so nothing can precede it.
+
+    Asked for "the single most likely diagnosis", gemma-3-12b-it opens with
+    "Okay, let's break down this case" and reasons for hundreds of tokens. That
+    is not a budget problem to be solved by raising `max_new_tokens`: it means
+    the direct condition, left free, is a chain-of-thought condition, and the
+    contrast the paper rests on does not exist. Writing the answer cue into the
+    assistant turn removes the room to reason rather than asking it not to.
+
+    Under causal attention the appended tokens cannot change the hidden state of
+    any token before them, so both the cue positions and the format position --
+    the case prompt's final token -- are identical with and without the prefill.
+    One extraction still serves both conditions.
+
+    With `chain`, the same mechanism completes a chain of thought that ran out
+    of budget: the model's own reasoning is given back to it verbatim and only
+    the answer is asked for.
+    """
+    if chain:
+        return f"{chat_text}{chain.rstrip()}\n\n{ANSWER_CUE}"
+    return f"{chat_text}{ANSWER_CUE}"

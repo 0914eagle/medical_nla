@@ -105,3 +105,19 @@ def test_conditions_still_share_a_prefix_with_demographics():
     prefix = findings_prefix(["a cough"], age=34, sex="F")
     assert build_prompt(prefix, "direct").startswith(prefix)
     assert build_prompt(prefix, "cot").startswith(prefix)
+
+
+def test_prefilled_assistant_turn_starts_the_answer():
+    """No room to preamble: the turn already begins at the answer cue."""
+    from src.case_prompts import ANSWER_CUE, prefilled_assistant_turn
+
+    text = prefilled_assistant_turn("<start_of_turn>model\n")
+    assert text == f"<start_of_turn>model\n{ANSWER_CUE}"
+
+
+def test_prefilled_assistant_turn_hands_a_chain_back_verbatim():
+    """A chain cut off by the budget is completed, not re-reasoned."""
+    from src.case_prompts import ANSWER_CUE, prefilled_assistant_turn
+
+    text = prefilled_assistant_turn("<turn>", "The findings suggest pneumonia   ")
+    assert text == f"<turn>The findings suggest pneumonia\n\n{ANSWER_CUE}"
