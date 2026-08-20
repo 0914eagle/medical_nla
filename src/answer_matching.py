@@ -32,6 +32,10 @@ _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 # following lowercase letters so "PEComa" is not cut into "PEC oma".
 _ACRONYM_BOUNDARY = re.compile(r"(?<=[A-Z]{2})(?=[a-z]{4,})")
 
+# "Eagle's syndrome" / "Eagle syndrome". Both glyphs, because NFKD leaves the
+# typographic apostrophe alone -- it is a distinct character, not an accent.
+_POSSESSIVE = re.compile("[\u2019']s\\b")
+
 # Words that carry no diagnostic content on their own. Deliberately short:
 # "acute", "chronic", "primary" and "left" all change what is being named, so
 # dropping them to raise a match rate would be scoring a different question.
@@ -67,7 +71,12 @@ def normalize(text: str) -> str:
     """
     decomposed = unicodedata.normalize("NFKD", str(text or ""))
     stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
-    return " ".join(re.sub(r"[^a-z0-9]+", " ", stripped.lower()).split())
+    # The possessive on an eponym is a house style, not a claim: "Eagle's
+    # syndrome" and "Eagle syndrome" are the same name and both are in use.
+    # Dropped before punctuation becomes whitespace, or it would survive as a
+    # stray "s" token and still block the match.
+    depossessed = _POSSESSIVE.sub("", stripped.lower())
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", depossessed).split())
 
 
 def content_tokens(text: str) -> set[str]:

@@ -45,3 +45,18 @@ def test_per_diagnosis_table_is_hardest_first_and_respects_the_floor():
 
 def test_no_rows_gives_no_bound():
     assert diagnosis_only_accuracy([]) == {}
+
+
+def test_common_wrong_answers_shows_what_was_said_instead():
+    """A diagnosis at 0/n is a model failure or a label the scorer cannot
+    match, and only the answers tell them apart."""
+    from scripts.summarize_source_answers import common_wrong_answers
+
+    answers = [
+        {"diagnosis_id": "larygospasm", "source_correct": False, "answer": "Laryngospasm"},
+        {"diagnosis_id": "larygospasm", "source_correct": False, "answer": "Laryngospasm"},
+        {"diagnosis_id": "larygospasm", "source_correct": False, "answer": "Croup"},
+        {"diagnosis_id": "croup", "source_correct": True, "answer": "Croup"},
+    ]
+    assert common_wrong_answers(answers, "larygospasm", 4) == [("Laryngospasm", 2), ("Croup", 1)]
+    assert common_wrong_answers(answers, "croup", 4) == []

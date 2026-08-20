@@ -86,12 +86,42 @@ def per_diagnosis_table(rows: list[dict[str, Any]], min_cases: int) -> list[dict
     return sorted(table, key=lambda entry: (entry["accuracy"], -entry["n"]))
 
 
+def common_wrong_answers(
+    rows: list[dict[str, Any]], diagnosis: str, limit: int
+) -> list[tuple[str, int]]:
+    """What the model actually said when it was marked wrong.
+
+    A diagnosis at 0/100 is either a model that cannot do it or a scorer that
+    cannot see it, and the two are told apart by reading the answers. DDXPlus
+    stores "Larygospasm" -- its own typo -- so an answer of "Laryngospasm" is
+    correct and unscoreable, and abbreviated labels like "URTI" and "PSVT"
+    contain none of the words a model writes out in full.
+    """
+    given: Counter = Counter()
+    for row in rows:
+        key = str(row.get("diagnosis_id") or row.get("diagnosis_name") or "")
+        if key != diagnosis or row.get("source_correct"):
+            continue
+        given[str(row.get("answer") or "").strip()] += 1
+    return given.most_common(limit)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--answers", required=True)
     parser.add_argument("--summary-json", default=None)
     parser.add_argument("--min-cases", type=int, default=5)
     parser.add_argument("--show", type=int, default=15)
+    parser.add_argument(
+        "--answers-for-worst",
+        type=int,
+        default=8,
+        help=(
+            "Print the most common wrong answers for this many of the hardest "
+            "diagnoses, which is what separates a model failure from a label "
+            "the scorer cannot match. 0 to skip."
+        ),
+    )
     args = parser.parse_args()
 
     rows = list(read_jsonl(args.answers))
@@ -153,6 +183,15 @@ def main() -> None:
             f"n >= {args.min_cases}. Those two groups carry no error signal to "
             "learn beyond their own identity."
         )
+
+    if table and args.answers_for_worst:
+        print("\nWhat the model said where it never scored (answer x count):")
+        for entry in table[: args.answers_for_worst]:
+            if entry["accuracy"] > 0.0:
+                continue
+            print(f"  {entry['diagnosis']} (0 of {entry['n']}):")
+            for answer, count in common_wrong_answers(rows, entry["diagnosis"], 4):
+                print(f"      {count:>4}  {answer!r}")
 
     if args.summary_json:
         path = Path(args.summary_json)

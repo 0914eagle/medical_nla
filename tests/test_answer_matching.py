@@ -93,3 +93,16 @@ def test_markup_typography_and_accents_do_not_cost_a_match():
     assert is_correct("Guillain-Barre syndrome", "Guillain-Barré syndrome", [])
     assert is_correct("Whipple's disease", "Whipple’s disease", [])
     assert is_correct("vitamin D-dependent rickets", "vitamin D–dependent rickets", [])
+
+
+def test_the_possessive_on_an_eponym_is_house_style_not_a_claim():
+    """Both spellings are in use and name one condition; the apostrophe was
+    surviving normalization as a stray "s" token and blocking the match."""
+    assert is_correct("Eagle syndrome", "Eagle’s syndrome", [])
+    assert is_correct("Gitelman syndrome", "Gitelman's syndrome", [])
+    assert is_correct("Wernicke's encephalopathy", "Wernicke encephalopathy", [])
+    assert normalize("Eagle’s syndrome") == "eagle syndrome"
+
+
+def test_stripping_the_possessive_does_not_merge_different_eponyms():
+    assert not is_correct("Down syndrome", "Turner's syndrome", [])
