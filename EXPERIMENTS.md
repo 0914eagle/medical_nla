@@ -53,6 +53,44 @@ The backbone spans both GPUs on this server (`device_map: auto` in the
 `data*.yaml` configs), so extraction and readout runs take
 `CUDA_VISIBLE_DEVICES=2,3` rather than a single device.
 
+### Moving servers: pull the corpora instead of rebuilding them
+
+Rebuilding DDXPlus rescans a million-row CSV and replays every cue-rendering
+decision; MedCaseReasoning re-segments 12k case reports. Neither is expensive in
+compute, but both are expensive in decisions, and a move should not be a chance
+to silently pick different ones. Publish once, pull thereafter.
+
+```bash
+python scripts/push_datasets_to_hub.py \
+  --repo-id <account>/medical-nla-cases \
+  --files /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
+          /data/heejae/medical_nla/data/mcr_cases_train.jsonl \
+          /data/heejae/medical_nla/data/mcr_cases_test.jsonl
+```
+
+Private unless `--no-private` is passed: publishing redistributes derivatives of
+DDXPlus and MedCaseReasoning, so read the attribution in the generated card
+first. `--card-only` prints that card without uploading. The card is built from
+the artifacts, not the command line — the generator flags that shaped the corpus
+(`clean_cues`, `negative_cues`, `prefer_symptoms`) are recorded on every case
+row and reported from there, so a downloaded corpus says what it is.
+
+On the new machine:
+
+```bash
+export HF_HOME=/data/heejae/hf_cache
+python -c "
+from huggingface_hub import snapshot_download
+snapshot_download('<account>/medical-nla-cases', repo_type='dataset',
+                  local_dir='/data/heejae/medical_nla/data')
+"
+```
+
+Activations are deliberately not published. They are a function of the prompt,
+the backbone and the layer, so they are only worth freezing once the prompt is,
+and being derived from Gemma they carry that model's terms in a way these text
+artifacts do not.
+
 ### Previous server (`/data1/heejae`, configs `default.yaml` / `layer*.yaml`)
 
 ```bash
