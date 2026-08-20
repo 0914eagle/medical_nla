@@ -17,6 +17,29 @@ set -uo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source scripts/env.sh
 
+# Scale knobs, so a disk that cannot hold the full sweep does not mean editing
+# the script at 3am. Sizes below are measured per corpus, float32, d_model 3840.
+#
+#   LAYERS       13 hidden-state indices; halving them halves the reductions
+#   SPAN_LAYERS  full token spans, the expensive part -- empty disables them
+#                (about 8GB on DDXPlus and 28GB on MedCaseReasoning)
+#   STRATEGIES   last_subtoken alone halves the reductions again
+#   RUN_MCR      0 to stop after the DDXPlus sweep
+#
+# Full:  DDXPlus 17GB + MedCaseReasoning 47GB + a 25GB checkpoint.
+# No spans: about 5GB + 19GB.
+LAYERS="${LAYERS:-0 4 8 12 16 20 24 28 32 36 40 44 47}"
+SPAN_LAYERS="${SPAN_LAYERS-16 24 32}"
+STRATEGIES="${STRATEGIES:-last_subtoken span_mean}"
+RUN_MCR="${RUN_MCR:-1}"
+NEED_GB="${NEED_GB:-90}"
+
+span_args() {
+  # An empty SPAN_LAYERS must produce no flag at all: `--span-layers` with no
+  # values is an argparse error, not "none".
+  [ -n "$SPAN_LAYERS" ] && printf -- '--span-layers %s' "$SPAN_LAYERS"
+}
+
 LOGS="$ART/logs"
 RESULTS="$ART/results"
 mkdir -p "$LOGS" "$RESULTS"
@@ -26,12 +49,15 @@ MAIN="$LOGS/overnight_${STAMP}.log"
 
 say() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$MAIN"; }
 
-say "cards: CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-<all>}"
+say "cards:      CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-<all>}"
+say "layers:     $LAYERS"
+say "span:       ${SPAN_LAYERS:-<none>}"
+say "strategies: $STRATEGIES"
+say "run mcr:    $RUN_MCR"
 
 # Activations are the bulk of this and there is no partial credit for filling
 # a disk: the DDXPlus sweep is about 17GB and MedCaseReasoning about 47GB,
 # most of it the full spans kept at three layers, plus a 25GB checkpoint.
-NEED_GB=90
 AVAIL_GB=$(df -BG --output=avail "$MEDICAL_NLA_DATA_ROOT" | tail -1 | tr -dc '0-9')
 say "free space on $MEDICAL_NLA_DATA_ROOT: ${AVAIL_GB}GB (need about ${NEED_GB}GB)"
 if [ "${AVAIL_GB:-0}" -lt "$NEED_GB" ]; then
@@ -91,7 +117,7 @@ python -m src.extract_activations \
   --config configs/default.yaml \
   --input "$DATA/ddxplus_cuepos_rows.jsonl" \
   --run-name smoke --limit-prompts 8 --no-resume \
-  --layers 0 24 32 --strategies last_subtoken span_mean \
+  --layers 0 24 32 --strategies $STRATEGIES \
   >"$LOGS/extract_smoke.log" 2>&1
 if [ $? -ne 0 ]; then
   say "4/6 smoke FAILED -- see $LOGS/extract_smoke.log; not starting the sweeps"
@@ -106,24 +132,26 @@ python -m src.extract_activations \
   --config configs/default.yaml \
   --input "$DATA/ddxplus_cuepos_rows.jsonl" "$DATA/ddxplus_format_rows.jsonl" \
   --run-name ddxplus_sweep_v1 \
-  --layers 0 4 8 12 16 20 24 28 32 36 40 44 47 \
-  --span-layers 16 24 32 \
-  --strategies last_subtoken span_mean \
+  --layers $LAYERS $(span_args) \
+  --strategies $STRATEGIES \
   --batch-size 8 \
   >>"$LOGS/ddxplus_sweep.log" 2>&1 \
   && say "5/6 done" || say "5/6 FAILED -- see $LOGS/ddxplus_sweep.log"
 
-say "6/6 MedCaseReasoning sweep -> $LOGS/mcr_sweep.log"
-python -m src.extract_activations \
-  --config configs/default.yaml \
-  --input "$DATA/mcr_cuepos_train.jsonl" \
-  --run-name mcr_sweep_v1 \
-  --layers 0 4 8 12 16 20 24 28 32 36 40 44 47 \
-  --span-layers 16 24 32 \
-  --strategies last_subtoken span_mean \
-  --batch-size 4 \
-  >>"$LOGS/mcr_sweep.log" 2>&1 \
-  && say "6/6 done" || say "6/6 FAILED -- see $LOGS/mcr_sweep.log"
+if [ "$RUN_MCR" = "1" ]; then
+  say "6/6 MedCaseReasoning sweep -> $LOGS/mcr_sweep.log"
+  python -m src.extract_activations \
+    --config configs/default.yaml \
+    --input "$DATA/mcr_cuepos_train.jsonl" \
+    --run-name mcr_sweep_v1 \
+    --layers $LAYERS $(span_args) \
+    --strategies $STRATEGIES \
+    --batch-size 4 \
+    >>"$LOGS/mcr_sweep.log" 2>&1 \
+    && say "6/6 done" || say "6/6 FAILED -- see $LOGS/mcr_sweep.log"
+else
+  say "6/6 skipped (RUN_MCR=0)"
+fi
 
 # ------------------------------------------------------------------ report
 {
