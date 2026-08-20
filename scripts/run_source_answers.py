@@ -49,6 +49,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from src.answer_matching import is_correct, normalize, token_f1
 from src.case_prompts import ANSWER_CUE, parse_answer, prefilled_assistant_turn
 from src.jsonl import append_jsonl, read_jsonl
 
@@ -65,26 +66,6 @@ PREFILLED_MAX_NEW_TOKENS = 32
 
 # Enough to state a diagnosis after a chain of thought is handed back.
 FORCED_ANSWER_MAX_NEW_TOKENS = 32
-
-
-def normalize(text: str) -> str:
-    return " ".join(str(text or "").split()).lower().strip(" .")
-
-
-def is_correct(answer: str | None, gold: str, aliases: list[str]) -> bool:
-    """Match the parsed answer against the gold name or one of its aliases.
-
-    Containment in either direction, since a model may answer "acute otitis
-    media" for "Otitis media" or the reverse; both name the same condition.
-    """
-    if not answer:
-        return False
-    got = normalize(answer)
-    for candidate in [gold, *aliases]:
-        want = normalize(candidate)
-        if want and (want in got or got in want):
-            return True
-    return False
 
 
 def differential_rank(answer: str | None, differential: list[dict[str, Any]]) -> int | None:
@@ -218,6 +199,9 @@ def main() -> None:
         gold = str(row.get("diagnosis_name") or "")
         aliases = [str(a) for a in (row.get("diagnosis_aliases") or [])]
         correct = is_correct(answer, gold, aliases)
+        # Recorded, never used as the metric: it is how the strict rule's
+        # undercount is measured on free-text labels.
+        overlap = token_f1(answer, gold, aliases)
         rank = differential_rank(answer, row.get("differential_diagnosis") or [])
         n_parsed += answer is not None
         n_correct += correct
@@ -238,6 +222,7 @@ def main() -> None:
                 "answer_forced": forced,
                 "diagnosis_name": gold,
                 "source_correct": correct,
+                "answer_token_f1": round(overlap, 4),
                 "differential_rank": rank,
                 "model_id": model_cfg["model_id"],
             },
