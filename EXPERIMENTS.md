@@ -75,7 +75,8 @@ it explicitly by passing it: `source scripts/env.sh /data/heejae`. Pass it as
 an argument, not as `VAR=... source scripts/env.sh` -- `source` is a builtin,
 so a prefixed assignment is temporary and gone by the next command.
 
-It also pins `CUDA_VISIBLE_DEVICES=0,1`. The backbone is 24.4GB in bfloat16 and
+It also pins `CUDA_VISIBLE_DEVICES=0,1`, and nothing downstream names a
+device: `scripts/run_overnight.sh` and every command below inherit it. The backbone is 24.4GB in bfloat16 and
 needs two 24GB cards, and naming the pair here rather than in the config keeps
 the config free of device identity: a second job on the other pair is
 
