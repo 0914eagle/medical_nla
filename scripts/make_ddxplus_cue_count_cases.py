@@ -125,6 +125,9 @@ def make_rows_for_patient(
                 "cue_evidence_entries": [cue["evidence_entry"] for cue in selected],
                 "cue_value_ids": [cue["value_id"] for cue in selected],
                 "cue_value_labels": [cue["value_label"] for cue in selected],
+                "cue_merged_value_counts": [
+                    int(cue.get("merged_value_count") or 1) for cue in selected
+                ],
                 "clean_cues": clean_cues,
                 "negative_cues": negative_cues,
                 "prefer_symptoms": prefer_symptoms,

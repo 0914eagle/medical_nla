@@ -586,3 +586,28 @@ def test_drop_nested_cues_preserves_prompt_order():
         "a cough",
         "night sweats",
     ]
+
+
+def test_merged_cue_value_fields_keep_the_unmerged_type():
+    # A column holding both strings and lists cannot be loaded by any typed
+    # reader, which is how this surfaced: Parquet refused the case file.
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry, merge_multivalue_cues
+
+    meta = {
+        "E_LOC": {
+            "question_en": "Where is the pain located?",
+            "value_meaning": {"V_1": {"en": "lower chest"}, "V_2": {"en": "upper chest"}},
+            "is_antecedent": False,
+        },
+        "E_C": {"question_en": "Do you have a cough?", "is_antecedent": False},
+    }
+    cues = [cue_from_entry(f"E_LOC_@_{v}", meta, clean_cues=True) for v in ("V_1", "V_2")]
+    cues.append(cue_from_entry("E_C", meta, clean_cues=True))
+    merged = merge_multivalue_cues(cues)
+
+    for cue in merged:
+        assert isinstance(cue["value_label"], (str, type(None)))
+        assert isinstance(cue["value_id"], (str, type(None)))
+    combined = next(cue for cue in merged if cue["evidence_id"] == "E_LOC")
+    assert combined["value_label"] == "lower chest and upper chest"
+    assert combined["merged_value_count"] == 2

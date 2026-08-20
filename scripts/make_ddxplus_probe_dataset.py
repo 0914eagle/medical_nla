@@ -238,8 +238,11 @@ def merge_multivalue_cues(cues: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         out = dict(group[0])
         out["cue_text"] = combined
-        out["value_id"] = [cue.get("value_id") for cue in group]
-        out["value_label"] = labels
+        # Joined rather than listed: a merged cue's value fields must stay the
+        # same type as an unmerged cue's, or the column holds both strings and
+        # lists and no typed reader (Arrow, datasets) can load it.
+        out["value_id"] = ",".join(str(cue.get("value_id") or "") for cue in group)
+        out["value_label"] = join_values(labels)
         out["merged_value_count"] = len(group)
         merged.append(out)
     return merged
