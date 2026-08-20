@@ -95,6 +95,22 @@ DETERMINERS = {
 
 WH_WORDS = ("where", "what", "which", "when", "how", "why", "who")
 
+# "How severe is X?" asks about severity, not about "severe". Rating an answer
+# needs the noun; without one the dimension is left out rather than guessed.
+DIMENSION_NOUNS = {
+    "severe": "severity",
+    "intense": "intensity",
+    "painful": "pain",
+    "precise": "precision",
+    "fast": "onset speed",
+    "long": "duration",
+    "often": "frequency",
+    "bad": "severity",
+    "high": "level",
+    "much": "amount",
+    "many": "number",
+}
+
 # A rendering that still opens like a question, or that puts the auxiliary in
 # front of a preposition/conjunction, did not survive the rules. Such cues are
 # reported and dropped rather than silently written into a prompt.
@@ -110,6 +126,9 @@ MALFORMED_CUE_PATTERNS = [
     # "the patient" is third-person singular, so a plural verb means the rewrite
     # produced an agreement error: "the patient do feel like the patient are ...".
     r"\bthe patient\s+(?:do|are|were|have)\b",
+    # Stripping a clause-heading verb leaves a dangling subordinator, which
+    # cannot stand as a finding: "like they are choking".
+    r"^(?:like|that|as if|as though)\b",
 ]
 
 # The questionnaire is a fixed vocabulary, so the handful of questions the rules
@@ -294,26 +313,29 @@ def strip_question_to_phrase(text: str) -> str:
         flags=re.I,
     )
     phrase = re.sub(
-        r"^(have|has|feel|experience|experiencing|suffer from|present with|"
-        r"noticed|notice|observed|observe|objectified|felt|measured)\s+",
+        r"^(been|have|has|feel|experience|experiencing|suffer from|present with|"
+        r"noticed|notice|observed|observe|objectified|felt|measured)\s+"
+        r"(?!(?:like|that|as if)\b)",
         "",
         phrase,
         flags=re.I,
     )
-    phrase = re.sub(r"\bwhen you exhale\b", "when exhaling", phrase, flags=re.I)
-    phrase = re.sub(r"\byour\b", "their", phrase, flags=re.I)
-    phrase = re.sub(r"\byou\b", "the patient", phrase, flags=re.I)
-    phrase = re.sub(r"\b(yes or no|right now|currently)\b", "", phrase, flags=re.I)
-    phrase = normalize_space(phrase.strip(" ?.:;,-"))
+    phrase = re.sub(
+        r"^(feel|felt|experience|experiencing|notice|noticed)\s+(?=(?:like|that|as if)\b)",
+        r"they \1 ",
+        phrase,
+        flags=re.I,
+    )
+    phrase = rewrite_second_person(phrase)
     if not phrase:
         phrase = normalize_space(text).strip(" ?.")
-    return phrase[:1].lower() + phrase[1:]
+    return lower_first(phrase)
 
 
 def rewrite_second_person(text: str) -> str:
     text = re.sub(r"\bwhen you exhale\b", "when exhaling", text, flags=re.I)
     text = re.sub(r"\byour\b", "their", text, flags=re.I)
-    text = re.sub(r"\byou\b", "the patient", text, flags=re.I)
+    text = re.sub(r"\byou\b", "they", text, flags=re.I)
     text = re.sub(r"\b(yes or no|right now|currently)\b", "", text, flags=re.I)
     return normalize_space(text).strip(" ?.:;,-")
 
@@ -392,12 +414,15 @@ def render_wh_question(question: str, value_label: str) -> str | None:
         return lower_first(
             rewrite_second_person(f"{match.group(3)} {match.group(1)} {match.group(2)} {value}")
         )
-    # "How severe is the itching?" -> "the itching is severe: 7"
+    # "How severe is the itching?" answered 2 must not come out as "the itching
+    # is severe: 2" -- that asserts severity the rating contradicts.
     match = re.match(r"^how\s+(\w+)\s+(is|are|does|did)\s+(.+)$", text, flags=re.I)
     if match:
-        return lower_first(
-            rewrite_second_person(f"{match.group(3)} {match.group(2)} {match.group(1)}: {value}")
-        )
+        subject, dimension = match.group(3), DIMENSION_NOUNS.get(match.group(1).lower())
+        if is_numeric_value(value):
+            rated = f"{subject} rated {value} for {dimension}" if dimension else f"{subject} rated {value}"
+            return lower_first(rewrite_second_person(rated))
+        return lower_first(rewrite_second_person(f"{subject} {match.group(2)} {value}"))
     return None
 
 
@@ -492,6 +517,25 @@ def is_negative_or_low_information_value(value_label: str | None) -> bool:
 
 
 OPAQUE_VALUE_ID = re.compile(r"^[a-z]{1,3}[_-]?\d+$")
+NUMERIC_VALUE = re.compile(r"^\d+(?:\.\d+)?$")
+
+
+def is_numeric_value(value_label: str | None) -> bool:
+    """True for a rating-scale answer, which must not be pasted on as a bare number."""
+    if value_label is None:
+        return False
+    return bool(NUMERIC_VALUE.match(normalize_label(value_label)))
+
+
+def attach_value(phrase: str, value_label: str) -> str:
+    """Append an answer value in a form that reads as an answer.
+
+    A bare number produced "the rash is swollen 3"; parenthesising it says the
+    same thing without pretending to be part of the finding.
+    """
+    if is_numeric_value(value_label):
+        return normalize_space(f"{phrase} (rated {normalize_space(value_label)})")
+    return normalize_space(f"{phrase} {value_label}")
 
 
 def is_opaque_value_id(value_label: str | None) -> bool:
@@ -584,7 +628,7 @@ def cue_from_entry(
         # A real answer value ("chest", "red") belongs inside the statement, not
         # pasted onto the end of the question.
         folded = render_wh_question(question, value_label)
-        phrase = folded if folded else normalize_space(f"{phrase} {value_label}")
+        phrase = folded if folded else attach_value(phrase, value_label)
     elif not clean_cues and value_label and value_label.lower() not in {"yes", "true", "present"}:
         phrase = normalize_space(f"{phrase} {value_label}")
 
@@ -601,7 +645,7 @@ def cue_from_entry(
         )
         if repaired:
             if value_label and normalize_label(value_label) not in AFFIRMATIVE_VALUE_LABELS:
-                repaired = normalize_space(f"{repaired} {value_label}")
+                repaired = attach_value(repaired, value_label)
             phrase = repaired
         else:
             excluded = True
@@ -641,8 +685,24 @@ def join_cues(cues: list[str]) -> str:
     return ", ".join(cues[:-1]) + f", and {cues[-1]}"
 
 
-def make_prompt(cues: list[str]) -> str:
-    return f"A patient presents with {join_cues(cues)}. What diagnosis is most likely?"
+QUESTION_LINE = "What diagnosis is most likely?"
+
+
+def make_prompt(cues: list[str], *, question: str = QUESTION_LINE) -> str:
+    """Render findings as a list, with the question after them.
+
+    An inline "A patient presents with X, Y, and Z" sentence requires every cue
+    to be a noun phrase, but un-inverting a questionnaire item yields a clause
+    ("the rash is swollen"), and clauses do not fit that frame. A list takes
+    both. It also removes the ambiguity created by cues that contain commas of
+    their own, since the line break is the boundary.
+
+    The question stays after the findings so that, under causal attention, cue
+    positions are unaffected by whatever instruction follows them -- the same
+    activations serve every instruction condition.
+    """
+    findings = "\n".join(f"- {cue}" for cue in cues)
+    return f"A patient presents with the following findings:\n{findings}\n\n{question}"
 
 
 def make_case(

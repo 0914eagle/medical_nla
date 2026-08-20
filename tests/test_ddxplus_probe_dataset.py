@@ -337,8 +337,10 @@ def test_wh_answers_are_folded_into_the_statement():
     assert located["cue_text"] == "the swelling is located in the iliac wing(R)"
     colored = _cue("What color is the rash?", {"V2": {"en": "pink"}}, "V2")
     assert colored["cue_text"] == "the rash color is pink"
+    # A rating must not assert the adjective it was asked about: answering 7 to
+    # "How severe?" is not the same as stating the itching is severe.
     rated = _cue("How severe is the itching?", {"V7": {"en": "7"}}, "V7")
-    assert rated["cue_text"] == "the itching is severe: 7"
+    assert rated["cue_text"] == "the itching rated 7 for severity"
 
 
 def test_missing_answer_values_are_dropped():

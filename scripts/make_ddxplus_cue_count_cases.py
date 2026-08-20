@@ -18,9 +18,9 @@ from scripts.make_ddxplus_probe_dataset import (
     cue_from_entry,
     merge_multivalue_cues,
     get_field,
-    join_cues,
     parse_evidence_entries,
     read_json,
+    make_prompt as probe_make_prompt,
     read_patient_rows,
     slug,
     write_jsonl,
@@ -36,8 +36,9 @@ def parse_cue_count(value: str) -> int | None:
     return count
 
 
-def make_prompt(cues: list[str], *, diagnosis_options: bool = False) -> str:
-    return f"A patient presents with {join_cues(cues)}. What diagnosis is most likely?"
+def make_prompt(cues: list[str]) -> str:
+    """Same findings-list frame as the probe generator; see it for the rationale."""
+    return probe_make_prompt(cues)
 
 
 def cue_pool(
