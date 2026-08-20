@@ -80,3 +80,24 @@ def test_mixed_outcome_rows_also_drops_diagnoses_below_the_floor():
     spec = [("tiny", True), ("tiny", False)]
     kept, dropped = mixed_outcome_rows(rows(spec), min_cases=5)
     assert kept == [] and dropped == ["tiny"]
+
+
+def test_a_near_constant_diagnosis_is_dropped_too():
+    """Requiring merely both outcomes is too weak: a diagnosis at 1 of 100
+    hands a label-only predictor 99% just as a constant one does."""
+    from scripts.summarize_source_answers import mixed_outcome_rows
+
+    spec = [("lopsided", i == 0) for i in range(100)]
+    spec += [("balanced", i % 2 == 0) for i in range(100)]
+    kept, dropped = mixed_outcome_rows(rows(spec), min_cases=5)
+    assert {r["diagnosis_id"] for r in kept} == {"balanced"}
+    assert dropped == ["lopsided"]
+
+
+def test_the_threshold_is_settable_and_zero_keeps_both_outcomes():
+    from scripts.summarize_source_answers import mixed_outcome_rows
+
+    spec = [("lopsided", i == 0) for i in range(100)] + [("never", False)] * 100
+    kept, dropped = mixed_outcome_rows(rows(spec), min_cases=5, min_minority_rate=0.0)
+    assert {r["diagnosis_id"] for r in kept} == {"lopsided"}
+    assert dropped == ["never"]

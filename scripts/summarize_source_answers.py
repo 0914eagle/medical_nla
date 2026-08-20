@@ -39,6 +39,10 @@ from src.jsonl import read_jsonl
 # handful of rows rather than a property of the diagnosis.
 MIN_CASES_FOR_A_BOUND = 5
 
+# The minority outcome's share below which a diagnosis is effectively constant.
+# At 0.10 a diagnosis at 1 of 100 is out and one at 63 of 100 is in.
+MIN_MINORITY_RATE = 0.10
+
 
 def diagnosis_only_accuracy(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """How well the diagnosis label alone predicts correct/incorrect."""
@@ -87,17 +91,28 @@ def per_diagnosis_table(rows: list[dict[str, Any]], min_cases: int) -> list[dict
 
 
 def mixed_outcome_rows(
-    rows: list[dict[str, Any]], min_cases: int
+    rows: list[dict[str, Any]],
+    min_cases: int,
+    min_minority_rate: float = MIN_MINORITY_RATE,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Rows whose diagnosis is neither always right nor always wrong.
+    """Rows whose diagnosis goes both ways often enough to be worth predicting.
 
     A diagnosis at 0 of 100 contributes nothing an error probe could learn
-    except its own identity: within it, the label is constant, so any
+    except its own identity: the outcome is constant within it, so any
     within-diagnosis signal is zero by construction and any cross-diagnosis
-    signal is the label. Thirteen DDXPlus diagnoses are in that state and
-    supply 37.5% of all errors. Excluding them is what makes the remaining
-    question -- does the activation say this particular case will go wrong --
-    answerable at all.
+    signal is the label.
+
+    Requiring merely *both* outcomes is too weak, and measurably so: dropping
+    only the exactly-constant diagnoses left DDXPlus's bound at 0.833, because
+    a diagnosis at 1 of 100 hands a label-only predictor 99% just the same. The
+    threshold is on the minority outcome's share, so what remains is the
+    diagnoses where the source model is genuinely inconsistent -- the only ones
+    where "will this particular case go wrong" has an answer the label does not
+    already give.
+
+    This selects the evaluation set on a property of the source model rather
+    than of the probe, which is legitimate but has to be declared; the bound is
+    recomputed on the same subset, so the comparison stays honest.
     """
     by_diagnosis: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
@@ -106,7 +121,8 @@ def mixed_outcome_rows(
     dropped: list[str] = []
     for name, group in by_diagnosis.items():
         correct = sum(1 for row in group if row.get("source_correct"))
-        if len(group) < min_cases or correct == 0 or correct == len(group):
+        minority = min(correct, len(group) - correct) / len(group)
+        if len(group) < min_cases or minority < min_minority_rate:
             dropped.append(name)
             continue
         kept.extend(group)
@@ -139,6 +155,17 @@ def main() -> None:
     parser.add_argument("--summary-json", default=None)
     parser.add_argument("--min-cases", type=int, default=5)
     parser.add_argument("--show", type=int, default=15)
+    parser.add_argument(
+        "--min-minority-rate",
+        type=float,
+        default=MIN_MINORITY_RATE,
+        help=(
+            "Least often a diagnosis must go the minority way to stay in the "
+            "error-prediction set. 0.0 keeps any diagnosis with both outcomes, "
+            "which is too weak: one at 1 of 100 still hands a label-only "
+            "predictor 99 percent."
+        ),
+    )
     parser.add_argument(
         "--answers-for-worst",
         type=int,
@@ -194,13 +221,14 @@ def main() -> None:
             "splits are made."
         )
 
-    mixed, dropped = mixed_outcome_rows(rows, args.min_cases)
+    mixed, dropped = mixed_outcome_rows(rows, args.min_cases, args.min_minority_rate)
     if mixed and len(mixed) != len(rows):
         mixed_bound = diagnosis_only_accuracy(mixed)
         mixed_correct = sum(1 for row in mixed if row.get("source_correct"))
         print(
-            "\nRestricted to diagnoses with both outcomes -- the set on which "
-            "error prediction is a question rather than a lookup:"
+            "\nRestricted to diagnoses whose minority outcome reaches "
+            f"{args.min_minority_rate:.0%} -- the set on which error prediction "
+            "is a question rather than a lookup:"
         )
         print(
             json.dumps(
