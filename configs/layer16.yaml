@@ -16,12 +16,19 @@ paths:
 source_model:
   model_id: google/gemma-3-12b-it
   dtype: bfloat16
-  # "auto" so a 12B model can span two cards. If accelerate then puts part of
-  # it on meta -- it has, with every card empty -- load_causal_lm refuses at
-  # load time and names the free memory; add a max_memory block here, e.g.
-  #   max_memory: {0: 22GiB, 1: 22GiB}
-  # which states the budget instead of leaving it to the heuristic.
+  # "auto" so the 12B backbone can span two cards -- 24.4GB in bfloat16 does
+  # not fit on one 24GB card.
   device_map: auto
+  # Stated rather than inferred. Left to its own heuristic, accelerate put a
+  # fifth of this model on meta while every card was empty, and a meta tensor
+  # fails minutes later inside cuBLAS with an error naming neither the offload
+  # nor the memory. Two cards are named on purpose: the model needs about 44GB
+  # of the 48, and cards 2 and 3 stay free for a second job.
+  # On a machine with different GPUs, adjust or delete this -- load_causal_lm
+  # refuses a partly offloaded model at load time and prints the free memory.
+  max_memory:
+    0: 22GiB
+    1: 22GiB
   trust_remote_code: true
   layer: 16
   hidden_state_index_offset: 0
