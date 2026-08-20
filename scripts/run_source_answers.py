@@ -35,6 +35,12 @@ from src.jsonl import append_jsonl, read_jsonl
 
 PROMPT_FIELDS = {"direct": "prompt", "cot": "prompt_cot"}
 
+# A direct answer is one sentence, but a model that preambles before the fixed
+# closing string needs room to reach it -- truncating there costs a parse, not a
+# few tokens. Chain-of-thought needs enough room to finish reasoning AND emit the
+# closing string; the source format this follows allowed 1500-2048.
+DEFAULT_MAX_NEW_TOKENS = {"direct": 128, "cot": 1024}
+
 
 def normalize(text: str) -> str:
     return " ".join(str(text or "").split()).lower().strip(" .")
@@ -98,7 +104,14 @@ def main() -> None:
 
     cfg = load_config(args.config)
     field = PROMPT_FIELDS[args.condition]
-    max_new = args.max_new_tokens or (48 if args.condition == "direct" else 768)
+
+    # Generation settings come from the config so the copy stored beside the
+    # results describes the run; the condition default fills in only what the
+    # config leaves unset, and the flag overrides both.
+    generation = {k: v for k, v in (cfg.get("generation") or {}).items() if v is not None}
+    generation.pop("max_new_tokens", None)
+    generation.setdefault("do_sample", False)
+    max_new = args.max_new_tokens or DEFAULT_MAX_NEW_TOKENS[args.condition]
 
     rows = [row for row in read_jsonl(args.cases) if row.get(field)]
     if args.limit:
@@ -143,8 +156,8 @@ def main() -> None:
             generated = model.generate(
                 **encoded,
                 max_new_tokens=max_new,
-                do_sample=False,
                 pad_token_id=tokenizer.pad_token_id,
+                **generation,
             )
         completions = tokenizer.batch_decode(
             generated[:, encoded["input_ids"].shape[1] :], skip_special_tokens=True
@@ -180,6 +193,7 @@ def main() -> None:
             done = (index + 1) * args.batch_size
             print(
                 f"[gen] {min(done, len(rows)):,}/{len(rows):,} | "
+                f"parsed {n_parsed / max(done, 1):.3f} | "
                 f"correct {n_correct / max(done, 1):.3f}",
                 flush=True,
             )
@@ -187,6 +201,10 @@ def main() -> None:
     summary = {
         "cases": args.cases,
         "condition": args.condition,
+        "model_id": model_cfg["model_id"],
+        "max_new_tokens": max_new,
+        "generation": generation,
+        "batch_size": args.batch_size,
         "n": len(rows),
         "answer_parse_rate": round(n_parsed / len(rows), 4),
         "accuracy": round(n_correct / len(rows), 4),
