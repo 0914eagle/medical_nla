@@ -175,3 +175,33 @@ def test_audit_cases_counts_no_nesting_for_distinct_cues():
     ]
     _, summary = audit_cases(cases)
     assert summary["cases_with_nested_cues"] == 0
+
+
+def test_adult_onset_antecedents_in_a_child_are_reported():
+    """DDXPlus samples antecedents without conditioning on age; verified not to
+    be a rendering fault, so it is counted rather than failed."""
+    from scripts.audit_ddxplus_cue_rendering import adult_onset_antecedents_in_a_child
+
+    child = {"age": 4, "cue_targets": ["a cough", "parkinson's disease", "heart failure"]}
+    assert adult_onset_antecedents_in_a_child(child) == [
+        "parkinson's disease",
+        "heart failure",
+    ]
+
+
+def test_the_same_history_in_an_adult_is_not_reported():
+    from scripts.audit_ddxplus_cue_rendering import adult_onset_antecedents_in_a_child
+
+    adult = {"age": 71, "cue_targets": ["parkinson's disease", "heart failure"]}
+    assert adult_onset_antecedents_in_a_child(adult) == []
+    assert adult_onset_antecedents_in_a_child({"cue_targets": ["heart failure"]}) == []
+
+
+def test_soft_flags_report_what_raised_them():
+    """A flag firing on a tenth of a prose corpus is only usable if it says
+    which strings it matched."""
+    from scripts.audit_ddxplus_cue_rendering import suspicious_flag_matches
+
+    matches = dict(suspicious_flag_matches("the pain is located in the V_29 region"))
+    assert matches["uppercase_code"] == ["V_29"]
+    assert "uppercase_code" not in dict(suspicious_flag_matches("a COPD exacerbation"))

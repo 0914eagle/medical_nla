@@ -26,7 +26,7 @@ import argparse
 import json
 import re
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -130,20 +130,74 @@ def vocabulary_rows(
     return rows
 
 
-def suspicious_flags(text: str) -> list[str]:
+# Antecedents that a child does not have. DDXPlus's simulator samples
+# antecedents without conditioning on age, so a 4-year-old can be given
+# Parkinson's disease, heart failure, a prior stroke and COPD at once. Verified
+# not to be a rendering fault: those four are four distinct binary evidences
+# (E_95, E_106, E_107, E_123), not one multi-value question wrongly expanded.
+#
+# It is reported, never failed. The cue text is well-formed clinical English, so
+# the readout task -- recover the cue from its activation -- is unaffected, and
+# every contrast the paper draws is within-prompt (direct against chain of
+# thought, counterfactual against original), which holds the implausibility
+# constant. Only the absolute diagnostic accuracy is touched, and that is quoted
+# descriptively.
+ADULT_ONSET_ANTECEDENTS = (
+    "parkinson",
+    "heart failure",
+    "stroke",
+    "chronic obstructive pulmonary disease",
+    "myocardial infarction",
+    "atrial fibrillation",
+    "smoke cigarettes",
+)
+
+PAEDIATRIC_AGE_LIMIT = 12
+
+
+def adult_onset_antecedents_in_a_child(case: dict[str, Any]) -> list[str]:
+    """Adult-onset history attributed to a child, if any."""
+    try:
+        age = int(float(case.get("age")))
+    except (TypeError, ValueError):
+        return []
+    if age > PAEDIATRIC_AGE_LIMIT:
+        return []
+    return [
+        cue
+        for cue in (case.get("cue_targets") or [])
+        if any(term in str(cue).lower() for term in ADULT_ONSET_ANTECEDENTS)
+    ]
+
+
+def suspicious_flag_matches(text: str) -> list[tuple[str, list[str]]]:
+    """Soft flags with the strings that raised them.
+
+    The count alone is not usable on prose. `uppercase_code` looks for
+    unresolved identifiers ("V_29"), but case-report English is written in
+    abbreviations, so it fires on 9.8% of MedCaseReasoning cues -- a rate that
+    says nothing about whether any of them is an identifier. An allowlist
+    cannot keep up with clinical prose; reporting *what* matched can, because a
+    human scanning "CT, MRI, SpO2, BP" for a "V_29" needs one look.
+    """
     found = []
     for name, pattern in SUSPICIOUS_PATTERNS.items():
-        matches = pattern.findall(text)
+        matches = [
+            match if isinstance(match, str) else match[0] for match in pattern.findall(text)
+        ]
         if not matches:
             continue
-        if name == "uppercase_code" and all(
-            (match if isinstance(match, str) else match[0]) in KNOWN_ABBREVIATIONS
-            for match in matches
-        ):
-            # A named condition, not an unresolved code.
-            continue
-        found.append(name)
+        if name == "uppercase_code":
+            matches = [match for match in matches if match not in KNOWN_ABBREVIATIONS]
+            if not matches:
+                # A named condition, not an unresolved code.
+                continue
+        found.append((name, matches))
     return found
+
+
+def suspicious_flags(text: str) -> list[str]:
+    return [name for name, _ in suspicious_flag_matches(text)]
 
 
 def audit_vocabulary(rows: list[dict[str, Any]]) -> tuple[list[str], dict[str, Any]]:
@@ -202,6 +256,9 @@ def audit_cases(
     nested_cases = 0
     polarity: Counter = Counter()
     flags: Counter = Counter()
+    flag_examples: dict[str, Counter] = defaultdict(Counter)
+    paediatric_conflicts = 0
+    paediatric_examples: Counter = Counter()
 
     for case in cases:
         case_id = str(case.get("id") or case.get("base_id"))
@@ -232,8 +289,13 @@ def audit_cases(
             seen.add(cue.lower())
             if check_malformed and is_malformed_cue(cue):
                 failures.append(f"{case_id}: malformed cue in prompt -> {cue!r}")
-            for name in suspicious_flags(cue):
+            for name, matches in suspicious_flag_matches(cue):
                 flags[name] += 1
+                flag_examples[name].update(matches)
+        implausible = adult_onset_antecedents_in_a_child(case)
+        if implausible:
+            paediatric_conflicts += 1
+            paediatric_examples.update(implausible)
 
     def percentiles(values: list[int]) -> dict[str, float]:
         if not values:
@@ -257,6 +319,16 @@ def audit_cases(
         "cue_polarity": dict(polarity),
         "cases_with_nested_cues": nested_cases,
         "suspicious_in_prompts": dict(flags),
+        # What actually matched, so a flag that fires on a tenth of the corpus
+        # can be dismissed or acted on rather than only counted.
+        "adult_onset_antecedent_in_a_child": paediatric_conflicts,
+        "adult_onset_antecedent_examples": [
+            f"{cue} ({count})" for cue, count in paediatric_examples.most_common(8)
+        ],
+        "suspicious_examples": {
+            name: [token for token, _ in counter.most_common(10)]
+            for name, counter in sorted(flag_examples.items())
+        },
     }
     return failures, summary
 
