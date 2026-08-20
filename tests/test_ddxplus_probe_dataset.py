@@ -512,3 +512,77 @@ def test_with_article_leaves_an_existing_determiner_alone():
 
     assert with_article("chest") == "the chest"
     assert with_article("the chest") == "the chest"
+
+
+def test_second_person_rewrite_uses_object_case_when_it_should():
+    # "keeping you from" became "keeping they from" in the generated corpus.
+    from scripts.make_ddxplus_probe_dataset import rewrite_second_person
+
+    assert (
+        rewrite_second_person("keeping you from turning your head")
+        == "keeping them from turning their head"
+    )
+    assert (
+        rewrite_second_person("anything that prevents you from sleeping")
+        == "anything that prevents them from sleeping"
+    )
+
+
+def test_second_person_rewrite_keeps_subject_case_inside_a_clause():
+    from scripts.make_ddxplus_probe_dataset import rewrite_second_person
+
+    # A following auxiliary marks a subject even deep inside a relative clause.
+    assert (
+        rewrite_second_person("related to the condition you are consulting for")
+        == "related to the condition they are consulting for"
+    )
+    assert rewrite_second_person("that you are choking") == "that they are choking"
+    assert rewrite_second_person("you have a cough") == "they have a cough"
+
+
+def test_gate_catches_inversion_surviving_mid_sentence():
+    # A leading-auxiliary check cannot see this one.
+    from scripts.make_ddxplus_probe_dataset import is_malformed_cue
+
+    assert is_malformed_cue(
+        "in the last month, have they been in contact with anyone infected with the Ebola virus"
+    )
+    assert not is_malformed_cue("their symptoms are more prominent at night")
+
+
+def test_compound_screening_questions_are_excluded():
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry
+
+    for question in (
+        "Do you have any lesions, redness or problems on your skin that you believe are "
+        "related to the condition you are consulting for?",
+        "Do you have any new fatigue, generalized and vague discomfort, diffuse "
+        "(widespread) muscle aches or a change in your general well-being?",
+    ):
+        meta = {"E": {"question_en": question, "is_antecedent": False}}
+        cue = cue_from_entry("E", meta, clean_cues=True)
+        assert cue["excluded"]
+        assert cue["exclusion_reason"] == "generic_cue"
+
+
+def test_drop_nested_cues_keeps_the_more_specific_finding():
+    from scripts.make_ddxplus_probe_dataset import drop_nested_cues
+
+    cues = [
+        {"cue_text": "a cough that produces colored sputum"},
+        {"cue_text": "a cough"},
+        {"cue_text": "a fever"},
+    ]
+    kept = [cue["cue_text"] for cue in drop_nested_cues(cues)]
+    assert kept == ["a cough that produces colored sputum", "a fever"]
+
+
+def test_drop_nested_cues_preserves_prompt_order():
+    from scripts.make_ddxplus_probe_dataset import drop_nested_cues
+
+    cues = [{"cue_text": "a fever"}, {"cue_text": "a cough"}, {"cue_text": "night sweats"}]
+    assert [cue["cue_text"] for cue in drop_nested_cues(cues)] == [
+        "a fever",
+        "a cough",
+        "night sweats",
+    ]

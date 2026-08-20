@@ -129,6 +129,9 @@ MALFORMED_CUE_PATTERNS = [
     # Stripping a clause-heading verb leaves a dangling subordinator, which
     # cannot stand as a finding: "like they are choking".
     r"^(?:like|that|as if|as though)\b",
+    # Inversion surviving mid-sentence, where a leading-auxiliary check cannot
+    # see it: "in the last month, have they been in contact with ...".
+    r"\b(?:have|has|is|are|was|were|do|does|did)\s+(?:they|the patient)\b",
 ]
 
 # The questionnaire is a fixed vocabulary, so the handful of questions the rules
@@ -157,6 +160,10 @@ GENERIC_CUE_PATTERNS = [
     r"\bhow intense is the pain\b",
     r"\bhow precisely is the pain located\b",
     r"\bcharacterize their pain\b",
+    # Compound screening questions: not one finding, and they restate the
+    # specific cues recorded alongside them.
+    r"\bany lesions, redness or problems\b",
+    r"\bany new fatigue, generalized and vague discomfort\b",
 ]
 
 # Questions whose answer belongs somewhere other than the end of the phrase.
@@ -170,6 +177,26 @@ VALUE_PHRASE_TEMPLATES = [
         "{subject} radiates to {value}",
     ),
 ]
+
+
+def drop_nested_cues(cues: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Remove cues contained in another cue of the same case.
+
+    "a cough" alongside "a cough that produces colored sputum" gives the readout
+    credit for both when it emits one, and leaves two cues resolving to
+    overlapping token spans. The MCR segmenter already drops nested spans; this
+    is the same rule for assembled prompts. The longer cue is kept, since it
+    carries the more specific finding.
+    """
+    ordered = sorted(cues, key=lambda cue: -len(str(cue.get("cue_text") or "")))
+    kept: list[dict[str, Any]] = []
+    for cue in ordered:
+        text = str(cue.get("cue_text") or "").lower()
+        if any(text in str(other.get("cue_text") or "").lower() for other in kept):
+            continue
+        kept.append(cue)
+    keep_ids = {id(cue) for cue in kept}
+    return [cue for cue in cues if id(cue) in keep_ids]
 
 
 def join_values(values: list[str]) -> str:
@@ -342,10 +369,41 @@ def strip_question_to_phrase(text: str) -> str:
     return lower_first(phrase)
 
 
+# Words after which "you" is still the subject. Anywhere else it is an object,
+# where "they" is wrong: "keeping you from turning your head" must not become
+# "keeping they from turning their head".
+SUBJECT_LICENSORS = {
+    "that", "when", "if", "and", "or", "but", "because", "while", "whether",
+    "as", "since", "unless", "until", "before", "after", "though", "although",
+    "do", "does", "did", "are", "were", "have", "has", "is", "was", "can", "will",
+}
+
+
+def second_person_pronoun(preceding: str, following: str) -> str:
+    """Subject or object case for a rewritten `you`.
+
+    Two signals, either sufficient. A following auxiliary marks a subject even
+    deep inside a clause ("the condition you are consulting for"); a preceding
+    conjunction or clause opener marks one at the start of a clause. Anything
+    else is an object, where "they" would be wrong.
+    """
+    words = preceding.split()
+    last = words[-1].lower().strip(",;:") if words else ""
+    nxt = following.split()[0].lower().strip(",;:.") if following.split() else ""
+    if nxt in AUXILIARIES or nxt == "not":
+        return "they"
+    return "they" if (not last or last in SUBJECT_LICENSORS) else "them"
+
+
 def rewrite_second_person(text: str) -> str:
     text = re.sub(r"\bwhen you exhale\b", "when exhaling", text, flags=re.I)
     text = re.sub(r"\byour\b", "their", text, flags=re.I)
-    text = re.sub(r"\byou\b", "they", text, flags=re.I)
+    text = re.sub(
+        r"\byou\b",
+        lambda match: second_person_pronoun(text[: match.start()], text[match.end() :]),
+        text,
+        flags=re.I,
+    )
     text = re.sub(r"\b(yes or no|right now|currently)\b", "", text, flags=re.I)
     return normalize_space(text).strip(" ?.:;,-")
 
@@ -753,12 +811,14 @@ def make_case(
         )
         for entry in entries
     ]
-    cues = merge_multivalue_cues(
-        [
-            cue
-            for cue in all_cues
-            if cue["cue_text"] and cue["cue_text"].lower() != "none" and not cue["excluded"]
-        ]
+    cues = drop_nested_cues(
+        merge_multivalue_cues(
+            [
+                cue
+                for cue in all_cues
+                if cue["cue_text"] and cue["cue_text"].lower() != "none" and not cue["excluded"]
+            ]
+        )
     )
     symptom_cues = [cue for cue in cues if not cue["is_antecedent"]]
     candidate_cues = symptom_cues if prefer_symptoms and len(symptom_cues) >= max_cues else cues

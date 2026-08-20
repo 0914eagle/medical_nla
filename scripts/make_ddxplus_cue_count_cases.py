@@ -16,6 +16,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.make_ddxplus_probe_dataset import (
     cue_from_entry,
+    drop_nested_cues,
     merge_multivalue_cues,
     get_field,
     parse_evidence_entries,
@@ -56,12 +57,14 @@ def cue_pool(
         )
         for entry in entries
     ]
-    cues = merge_multivalue_cues(
-        [
-            cue
-            for cue in all_cues
-            if cue["cue_text"] and cue["cue_text"].lower() != "none" and not cue["excluded"]
-        ]
+    cues = drop_nested_cues(
+        merge_multivalue_cues(
+            [
+                cue
+                for cue in all_cues
+                if cue["cue_text"] and cue["cue_text"].lower() != "none" and not cue["excluded"]
+            ]
+        )
     )
     symptom_cues = [cue for cue in cues if not cue["is_antecedent"]]
     if prefer_symptoms and symptom_cues:

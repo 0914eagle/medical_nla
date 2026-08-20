@@ -187,7 +187,9 @@ def audit_cases(cases: list[dict[str, Any]]) -> tuple[list[str], dict[str, Any]]
     """Check every case, not a sample, for problems only assembly can create."""
     failures: list[str] = []
     cue_counts: list[int] = []
+    cue_words: list[int] = []
     prompt_words: list[int] = []
+    nested_cases = 0
     polarity: Counter = Counter()
     flags: Counter = Counter()
 
@@ -202,8 +204,15 @@ def audit_cases(cases: list[dict[str, Any]]) -> tuple[list[str], dict[str, Any]]
 
         if not cues:
             failures.append(f"{case_id}: no cues")
+        lowered = [cue.lower() for cue in cues]
+        if any(
+            i != j and a in b for i, a in enumerate(lowered) for j, b in enumerate(lowered)
+        ):
+            # One cue inside another gives the readout credit for both.
+            nested_cases += 1
         seen: set[str] = set()
         for cue in cues:
+            cue_words.append(len(cue.split()))
             # Extraction resolves cues by substring, so a cue that is not
             # verbatim in its own prompt cannot be located at all.
             if cue not in prompt:
@@ -233,8 +242,10 @@ def audit_cases(cases: list[dict[str, Any]]) -> tuple[list[str], dict[str, Any]]
     summary = {
         "cases": len(cases),
         "cue_count": percentiles(cue_counts),
+        "cue_words": percentiles(cue_words),
         "prompt_words": percentiles(prompt_words),
         "cue_polarity": dict(polarity),
+        "cases_with_nested_cues": nested_cases,
         "suspicious_in_prompts": dict(flags),
     }
     return failures, summary
@@ -259,7 +270,15 @@ def main() -> None:
     )
     parser.add_argument("--cases", default=None, help="Case JSONL to check for assembly problems.")
     parser.add_argument("--dump", default=None, help="Write every rendering to this TSV.")
-    parser.add_argument("--negative-cues", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--negative-cues",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Must match the flag the cases were generated with, or the vocabulary "
+            "pass reports renderings the corpus does not contain."
+        ),
+    )
     parser.add_argument("--show-longest", type=int, default=3)
     args = parser.parse_args()
 

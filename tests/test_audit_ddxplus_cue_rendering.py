@@ -148,3 +148,30 @@ def test_known_abbreviations_are_not_flagged_as_codes():
     assert suspicious_flags("infected with the human immunodeficiency virus (HIV)") == []
     assert "uppercase_code" in suspicious_flags("the pain is located in the V29 region")
     assert "uppercase_code" in suspicious_flags("the pain is located in the V_29 region")
+
+
+def test_audit_cases_reports_cue_length_and_nesting():
+    cases = [
+        {
+            "id": "c1",
+            "prompt": "A patient presents with a cough that produces sputum and a cough.",
+            "cue_targets": ["a cough that produces sputum", "a cough"],
+            "cue_polarities": ["positive", "positive"],
+        }
+    ]
+    _, summary = audit_cases(cases)
+    assert summary["cases_with_nested_cues"] == 1
+    assert summary["cue_words"]["max"] == 5
+
+
+def test_audit_cases_counts_no_nesting_for_distinct_cues():
+    cases = [
+        {
+            "id": "c1",
+            "prompt": "A patient presents with a fever and night sweats.",
+            "cue_targets": ["a fever", "night sweats"],
+            "cue_polarities": ["positive", "positive"],
+        }
+    ]
+    _, summary = audit_cases(cases)
+    assert summary["cases_with_nested_cues"] == 0
