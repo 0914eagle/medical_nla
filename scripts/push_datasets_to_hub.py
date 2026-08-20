@@ -63,7 +63,11 @@ def describe_artifact(path: Path, sample: int = 2000) -> dict[str, Any]:
     provenance = {
         field: rows[0][field] for field in PROVENANCE_FIELDS if rows and field in rows[0]
     }
-    cue_counts = [len(row.get("cue_targets") or []) for row in rows]
+    # Case files carry a cue list; cue-position rows carry one cue each.
+    cue_counts = [
+        len(row.get("cue_targets") or []) if row.get("cue_targets") else (1 if row.get("cue_text") else 0)
+        for row in rows
+    ]
     polarity: Counter = Counter()
     for row in rows:
         for value in row.get("cue_polarities") or []:
@@ -80,6 +84,28 @@ def describe_artifact(path: Path, sample: int = 2000) -> dict[str, Any]:
         "fields": sorted(rows[0]) if rows else [],
         "example_prompt": (rows[0].get("prompt") if rows else None),
     }
+
+
+def write_parquet(path: Path, out_dir: Path) -> Path | None:
+    """Also publish Parquet, so the dataset is browsable without our loader.
+
+    Not CSV: these rows carry list-valued fields (`cue_targets`,
+    `cue_polarities`) and prompts containing newlines, both of which CSV
+    flattens into strings that the reader has to parse back -- the same class of
+    bug that stringified evidence lists caused upstream. Parquet keeps the types.
+    """
+    try:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+    except ImportError:
+        print("[parquet] pyarrow not installed; skipping (JSONL is the source of truth)")
+        return None
+
+    rows = list(read_jsonl(str(path)))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    target = out_dir / f"{path.stem}.parquet"
+    pq.write_table(pa.Table.from_pylist(rows), target, compression="zstd")
+    return target
 
 
 def build_card(repo_id: str, artifacts: list[dict[str, Any]], private: bool) -> str:
@@ -102,6 +128,11 @@ def build_card(repo_id: str, artifacts: list[dict[str, Any]], private: bool) -> 
         "These are derivatives of the datasets listed under Sources; they contain",
         "no model outputs. Activations are not included, since they depend on the",
         "backbone and layer and are only meaningful with a frozen prompt.",
+        "",
+        "`data/` holds JSONL, which is what the pipeline reads and the source of",
+        "truth. `parquet/` holds the same rows for the Hub viewer. There is no CSV:",
+        "these rows carry list-valued fields and prompts containing newlines, and",
+        "CSV would flatten both into strings the reader has to parse back.",
         "",
         "## Artifacts",
         "",
@@ -185,6 +216,13 @@ def main() -> None:
         help="Private by default; publishing redistributes derivatives of the sources.",
     )
     parser.add_argument("--path-in-repo", default="data")
+    parser.add_argument(
+        "--parquet",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Also upload a Parquet copy, so the Hub viewer can render the rows.",
+    )
+    parser.add_argument("--parquet-dir", default=None, help="Where to write Parquet copies.")
     parser.add_argument("--card-only", action="store_true", help="Write the card locally and stop.")
     parser.add_argument("--card-out", default=None)
     args = parser.parse_args()
@@ -208,6 +246,7 @@ def main() -> None:
 
     api = HfApi()
     api.create_repo(args.repo_id, repo_type="dataset", private=args.private, exist_ok=True)
+    parquet_dir = Path(args.parquet_dir or (paths[0].parent / "parquet"))
     for path, artifact in zip(paths, artifacts):
         api.upload_file(
             path_or_fileobj=str(path),
@@ -216,6 +255,16 @@ def main() -> None:
             repo_type="dataset",
         )
         print(f"[push] {path.name} ({artifact['rows']:,} rows)")
+        if args.parquet:
+            table = write_parquet(path, parquet_dir)
+            if table is not None:
+                api.upload_file(
+                    path_or_fileobj=str(table),
+                    path_in_repo=f"parquet/{table.name}",
+                    repo_id=args.repo_id,
+                    repo_type="dataset",
+                )
+                print(f"[push] {table.name}")
     api.upload_file(
         path_or_fileobj=card.encode("utf-8"),
         path_in_repo="README.md",
