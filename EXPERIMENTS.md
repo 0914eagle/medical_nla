@@ -69,9 +69,23 @@ that missed one export does not error, it builds a path from an empty variable
 flags a data root that does not exist on this host, which is what being logged
 into the wrong machine looks like.
 
-The default root is `/data1/heejae`; on a machine with a different disk, set it
-first (`MEDICAL_NLA_DATA_ROOT=/data/heejae source scripts/env.sh`) or edit the
-default at the top of the file.
+The root is found from the uv virtualenv, which lives under it and is created
+once per machine, so nothing needs remembering when moving between hosts. Say
+it explicitly by passing it: `source scripts/env.sh /data/heejae`. Pass it as
+an argument, not as `VAR=... source scripts/env.sh` -- `source` is a builtin,
+so a prefixed assignment is temporary and gone by the next command.
+
+It also pins `CUDA_VISIBLE_DEVICES=0,1`. The backbone is 24.4GB in bfloat16 and
+needs two 24GB cards, and naming the pair here rather than in the config keeps
+the config free of device identity: a second job on the other pair is
+
+```bash
+export CUDA_VISIBLE_DEVICES=2,3
+source scripts/env.sh
+```
+
+with no edit anywhere, because `max_memory: {0: 22GiB, 1: 22GiB}` indexes the
+*visible* devices -- it means the visible pair, whichever pair that is.
 
 Note the older blocks below `unset HF_TOKEN` so the stored token file is used
 rather than a stale environment variable; keep that unless you deliberately

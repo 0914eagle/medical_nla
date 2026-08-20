@@ -8,14 +8,25 @@
 #
 # The data root is found from the uv virtualenv, which is created once per
 # machine underneath it, so nothing has to be remembered or edited when moving
-# between hosts with different disks. Override when that guess is wrong:
-#   MEDICAL_NLA_DATA_ROOT=/data9/somebody source scripts/env.sh
+# between hosts with different disks. Override by passing it:
+#
+#   source scripts/env.sh                  # find it
+#   source scripts/env.sh /data9/somebody  # say it
+#
+# Passed as an argument rather than as `VAR=... source scripts/env.sh`, which
+# looks right and is not: `source` is a builtin, so a prefixed assignment is
+# temporary and the value is gone by the time the next command runs.
 
 # The root differs per machine (/data/heejae here, /data1/heejae there), and
 # hard-coding either one is wrong on the other. The uv virtualenv is created
 # once per machine and lives under the root, so it identifies the root without
 # anyone having to remember which disk this host mounts.
 _MEDICAL_NLA_FOUND=""
+# Only an absolute path: sourced with no arguments, $1 is whatever the calling
+# shell had, which is not a data root.
+case "${1:-}" in
+  /*) MEDICAL_NLA_DATA_ROOT="$1"; _MEDICAL_NLA_FOUND="given as an argument" ;;
+esac
 if [ -z "${MEDICAL_NLA_DATA_ROOT:-}" ]; then
   _MEDICAL_NLA_CANDS=$(ls -d /data*/*/uv/medical_nla /data*/uv/medical_nla 2>/dev/null \
                        | sed 's|/uv/medical_nla$||')
@@ -53,6 +64,15 @@ export TRANSFORMERS_CACHE="$HF_HOME"
 export HF_DATASETS_CACHE="$HF_HOME/datasets"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
+# Two of the four cards. The backbone is 24.4GB in bfloat16 and needs two 24GB
+# cards; naming them here rather than in the config keeps the config free of
+# device identity, so a second job on the other pair is
+#   export CUDA_VISIBLE_DEVICES=2,3
+#   source scripts/env.sh
+# with no edit anywhere -- max_memory keys index the *visible* devices, so
+# {0: 22GiB, 1: 22GiB} means the visible pair, whichever pair that is.
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
+
 # Shorthands the commands in EXPERIMENTS.md are written against.
 export RAW="$MEDICAL_NLA_DATA_ROOT"
 export ART="$MEDICAL_NLA_DATA_ROOT/medical_nla"
@@ -65,4 +85,5 @@ echo "[env] data root $MEDICAL_NLA_DATA_ROOT $([ -d "$MEDICAL_NLA_DATA_ROOT" ] |
 echo "[env]           $_MEDICAL_NLA_FOUND"
 echo "[env] code root $MEDICAL_NLA_CODE_ROOT"
 echo "[env] hf cache  $HF_HOME"
+echo "[env] gpus      CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 unset _MEDICAL_NLA_FOUND
