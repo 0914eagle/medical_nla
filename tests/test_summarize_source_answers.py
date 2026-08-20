@@ -60,3 +60,23 @@ def test_common_wrong_answers_shows_what_was_said_instead():
     ]
     assert common_wrong_answers(answers, "larygospasm", 4) == [("Laryngospasm", 2), ("Croup", 1)]
     assert common_wrong_answers(answers, "croup", 4) == []
+
+
+def test_mixed_outcome_rows_drops_diagnoses_with_one_outcome():
+    """A diagnosis at 0 of n has zero within-diagnosis signal by construction,
+    so leaving it in lets the label stand in for the answer."""
+    from scripts.summarize_source_answers import mixed_outcome_rows
+
+    spec = [("mixed", i % 2 == 0) for i in range(10)]
+    spec += [("never", False)] * 10 + [("always", True)] * 10
+    kept, dropped = mixed_outcome_rows(rows(spec), min_cases=5)
+    assert {r["diagnosis_id"] for r in kept} == {"mixed"}
+    assert dropped == ["always", "never"]
+
+
+def test_mixed_outcome_rows_also_drops_diagnoses_below_the_floor():
+    from scripts.summarize_source_answers import mixed_outcome_rows
+
+    spec = [("tiny", True), ("tiny", False)]
+    kept, dropped = mixed_outcome_rows(rows(spec), min_cases=5)
+    assert kept == [] and dropped == ["tiny"]

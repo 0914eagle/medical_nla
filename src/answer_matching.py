@@ -36,6 +36,30 @@ _ACRONYM_BOUNDARY = re.compile(r"(?<=[A-Z]{2})(?=[a-z]{4,})")
 # typographic apostrophe alone -- it is a distinct character, not an accent.
 _POSSESSIVE = re.compile("[\u2019']s\\b")
 
+# British against American spelling is orthography, not disagreement, and it
+# separates a published case report ("pulmonary oedema", "anaemia") from what a
+# US-trained model writes. Spelled out rather than derived: folding "ae" and
+# "oe" wholesale would also rewrite "aerosol" and "coeliac trunk".
+_SPELLING_VARIANTS = (
+    ("oedema", "edema"),
+    ("anaemia", "anemia"),
+    ("ischaemi", "ischemi"),
+    ("haemo", "hemo"),
+    ("haemat", "hemat"),
+    ("haemorrhag", "hemorrhag"),
+    ("oesophag", "esophag"),
+    ("diarrhoea", "diarrhea"),
+    ("paediatric", "pediatric"),
+    ("orthopaedic", "orthopedic"),
+    ("gynaecolog", "gynecolog"),
+    ("leukaemia", "leukemia"),
+    ("oestrogen", "estrogen"),
+    ("caecum", "cecum"),
+    ("coeliac", "celiac"),
+    ("tumour", "tumor"),
+    ("aetiolog", "etiolog"),
+)
+
 # Words that carry no diagnostic content on their own. Deliberately short:
 # "acute", "chronic", "primary" and "left" all change what is being named, so
 # dropping them to raise a match rate would be scoring a different question.
@@ -61,13 +85,14 @@ def readable_diagnosis_label(label: str) -> str:
 def normalize(text: str) -> str:
     """Fold everything that is presentation rather than content.
 
-    Three kinds of difference all cost matches and none of them is a
+    Four kinds of difference all cost matches and none of them is a
     disagreement about the diagnosis: the markup a chat model writes
     ("**Erythema Multiforme**"), the typography of a published label
     ("Whipple's disease", "vitamin D-dependent" with an en dash), and accents
     ("Guillain-Barre" against "Guillain-Barré"). Accents are folded by
     decomposing and dropping the combining marks; everything that is not a
-    letter or a digit becomes a space.
+    letter or a digit becomes a space. The fourth is British against American
+    spelling, which separates a published case report from a US-trained model.
     """
     decomposed = unicodedata.normalize("NFKD", str(text or ""))
     stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
@@ -76,6 +101,8 @@ def normalize(text: str) -> str:
     # Dropped before punctuation becomes whitespace, or it would survive as a
     # stray "s" token and still block the match.
     depossessed = _POSSESSIVE.sub("", stripped.lower())
+    for british, american in _SPELLING_VARIANTS:
+        depossessed = depossessed.replace(british, american)
     return " ".join(re.sub(r"[^a-z0-9]+", " ", depossessed).split())
 
 

@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from src.ddxplus_aliases import aliases_for
 from scripts.make_ddxplus_probe_dataset import (
     cue_from_entry,
     drop_nested_cues,
@@ -122,7 +123,10 @@ def make_rows_for_patient(
                 "patient_id": str(patient_id),
                 "diagnosis_id": diagnosis_id,
                 "diagnosis_name": pathology,
-                "diagnosis_aliases": [pathology],
+                # DDXPlus labels are written for a classifier: "URTI", "PSVT",
+                # "Pancreatic neoplasm". Open-ended answers are scored against
+                # them, so the accepted spellings travel with the case.
+                "diagnosis_aliases": [pathology, *aliases_for(pathology)],
                 "age": age,
                 "sex": sex,
                 "differential_diagnosis": differential,

@@ -41,6 +41,7 @@ from scripts.make_ddxplus_probe_dataset import (
     meta_text,
     read_json,
 )
+from src.ddxplus_aliases import diagnoses_without_aliases, unknown_alias_keys
 from src.jsonl import read_jsonl
 
 # Renderings that pass the malformed check but still read badly enough to want
@@ -238,7 +239,10 @@ def audit_vocabulary(rows: list[dict[str, Any]]) -> tuple[list[str], dict[str, A
 
 
 def audit_cases(
-    cases: list[dict[str, Any]], *, check_malformed: bool = True
+    cases: list[dict[str, Any]],
+    *,
+    check_malformed: bool = True,
+    check_aliases: bool = False,
 ) -> tuple[list[str], dict[str, Any]]:
     """Check every case, not a sample, for problems only assembly can create.
 
@@ -297,6 +301,14 @@ def audit_cases(
             paediatric_conflicts += 1
             paediatric_examples.update(implausible)
 
+    # An alias key that matches no label is a line written from memory that
+    # will never fire, and reads as coverage it does not provide. Only asked on
+    # the corpus the table is written for: the free-text labels of
+    # MedCaseReasoning match none of it, and should not.
+    if check_aliases:
+        for key in unknown_alias_keys(case.get("diagnosis_name") or "" for case in cases):
+            failures.append(f"alias table: key {key!r} matches no diagnosis in the corpus")
+
     def percentiles(values: list[int]) -> dict[str, float]:
         if not values:
             return {}
@@ -330,6 +342,12 @@ def audit_cases(
             for name, counter in sorted(flag_examples.items())
         },
     }
+    if check_aliases:
+        # Not a fault: most labels are ordinary names that containment reaches.
+        # Reported so the table's coverage is visible rather than assumed.
+        summary["labels_without_aliases"] = diagnoses_without_aliases(
+            case.get("diagnosis_name") or "" for case in cases
+        )
     return failures, summary
 
 
@@ -406,7 +424,7 @@ def main() -> None:
     case_failures: list[str] = []
     if args.cases:
         cases = list(read_jsonl(args.cases))
-        case_failures, case_summary = audit_cases(cases)
+        case_failures, case_summary = audit_cases(cases, check_aliases=True)
         print("\n== composition ==")
         print(json.dumps(case_summary, indent=2))
         for case in longest_cases(cases, args.show_longest):

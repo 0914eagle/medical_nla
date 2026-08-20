@@ -86,6 +86,33 @@ def per_diagnosis_table(rows: list[dict[str, Any]], min_cases: int) -> list[dict
     return sorted(table, key=lambda entry: (entry["accuracy"], -entry["n"]))
 
 
+def mixed_outcome_rows(
+    rows: list[dict[str, Any]], min_cases: int
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Rows whose diagnosis is neither always right nor always wrong.
+
+    A diagnosis at 0 of 100 contributes nothing an error probe could learn
+    except its own identity: within it, the label is constant, so any
+    within-diagnosis signal is zero by construction and any cross-diagnosis
+    signal is the label. Thirteen DDXPlus diagnoses are in that state and
+    supply 37.5% of all errors. Excluding them is what makes the remaining
+    question -- does the activation say this particular case will go wrong --
+    answerable at all.
+    """
+    by_diagnosis: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        by_diagnosis[str(row.get("diagnosis_id") or row.get("diagnosis_name") or "")].append(row)
+    kept: list[dict[str, Any]] = []
+    dropped: list[str] = []
+    for name, group in by_diagnosis.items():
+        correct = sum(1 for row in group if row.get("source_correct"))
+        if len(group) < min_cases or correct == 0 or correct == len(group):
+            dropped.append(name)
+            continue
+        kept.extend(group)
+    return kept, sorted(dropped)
+
+
 def common_wrong_answers(
     rows: list[dict[str, Any]], diagnosis: str, limit: int
 ) -> list[tuple[str, int]]:
@@ -166,6 +193,35 @@ def main() -> None:
             "the latter, and the errors must be stratified by diagnosis when the "
             "splits are made."
         )
+
+    mixed, dropped = mixed_outcome_rows(rows, args.min_cases)
+    if mixed and len(mixed) != len(rows):
+        mixed_bound = diagnosis_only_accuracy(mixed)
+        mixed_correct = sum(1 for row in mixed if row.get("source_correct"))
+        print(
+            "\nRestricted to diagnoses with both outcomes -- the set on which "
+            "error prediction is a question rather than a lookup:"
+        )
+        print(
+            json.dumps(
+                {
+                    "n": len(mixed),
+                    "n_diagnoses": mixed_bound.get("n_diagnoses"),
+                    "accuracy": round(mixed_correct / len(mixed), 4),
+                    "n_errors": len(mixed) - mixed_correct,
+                    "majority_class_accuracy": mixed_bound.get("majority_class_accuracy"),
+                    "diagnosis_only_accuracy": mixed_bound.get("diagnosis_only_accuracy"),
+                    "excluded_diagnoses": len(dropped),
+                },
+                indent=2,
+            )
+        )
+        summary["mixed_outcome"] = {
+            "n": len(mixed),
+            "accuracy": round(mixed_correct / len(mixed), 4),
+            "diagnosis_only_accuracy": mixed_bound.get("diagnosis_only_accuracy"),
+            "excluded_diagnoses": dropped,
+        }
 
     table = per_diagnosis_table(rows, args.min_cases)
     if table:

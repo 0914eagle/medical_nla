@@ -106,3 +106,17 @@ def test_the_possessive_on_an_eponym_is_house_style_not_a_claim():
 
 def test_stripping_the_possessive_does_not_merge_different_eponyms():
     assert not is_correct("Down syndrome", "Turner's syndrome", [])
+
+
+def test_british_spelling_is_orthography_not_disagreement():
+    """A published case report writes "oedema"; a US-trained model writes
+    "edema". Neither is a claim about the diagnosis."""
+    assert is_correct("Acute pulmonary edema", "Acute pulmonary oedema", [])
+    assert is_correct("anemia", "anaemia", [])
+    assert is_correct("esophageal rupture", "oesophageal rupture", [])
+
+
+def test_spelling_folding_does_not_maul_unrelated_words():
+    """Folding "ae"/"oe" wholesale would rewrite these; the list is explicit."""
+    assert normalize("aerosol") == "aerosol"
+    assert normalize("anaesthesia") == "anaesthesia"
