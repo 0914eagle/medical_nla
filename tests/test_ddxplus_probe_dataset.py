@@ -415,13 +415,15 @@ def test_generic_filter_survives_uninversion():
     from scripts.make_ddxplus_probe_dataset import cue_from_entry
 
     meta = {
-        "E_RADIATE": {
-            "question_en": "Does the pain radiate to another location?",
-            "value_meaning": {"V_B": {"en": "biceps(R)"}},
+        "E_INTENSITY": {
+            "question_en": "How intense is the pain?",
+            "value_meaning": {"V_7": {"en": "7"}},
             "is_antecedent": False,
         }
     }
-    cue = cue_from_entry("E_RADIATE_@_V_B", meta, clean_cues=True)
+    # The rendering ("the pain rated 7 for intensity") shares no wording with the
+    # pattern, so only matching the question keeps this excluded.
+    cue = cue_from_entry("E_INTENSITY_@_V_7", meta, clean_cues=True)
     assert cue["excluded"]
     assert cue["exclusion_reason"] == "generic_cue"
 
@@ -460,3 +462,53 @@ def test_agreement_errors_are_treated_as_malformed():
 
     assert is_malformed_cue("the patient do feel like the patient are choking")
     assert not is_malformed_cue("the patient does have a cough")
+
+
+def test_pain_radiation_is_kept_and_names_its_sites():
+    # Radiation is diagnostic (arm/jaw radiation reads as cardiac). It was
+    # excluded only because appending the site produced "pain radiate biceps(R)".
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry
+
+    meta = {
+        "E_RAD": {
+            "question_en": "Does the pain radiate to another location?",
+            "value_meaning": {"V_A": {"en": "biceps(L)"}},
+            "is_antecedent": False,
+        }
+    }
+    cue = cue_from_entry("E_RAD_@_V_A", meta, clean_cues=True)
+    assert not cue["excluded"]
+    assert cue["cue_text"] == "the pain radiates to the biceps(L)"
+
+
+def test_multivalue_merge_works_for_yes_no_questions_too():
+    # Merging previously required a wh-question, so the radiation item would
+    # have come back as one cue per site.
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry, merge_multivalue_cues
+
+    meta = {
+        "E_RAD": {
+            "question_en": "Does the pain radiate to another location?",
+            "value_meaning": {"V_A": {"en": "biceps(L)"}, "V_B": {"en": "thyroid cartilage"}},
+            "is_antecedent": False,
+        }
+    }
+    merged = merge_multivalue_cues(
+        [cue_from_entry(f"E_RAD_@_{vid}", meta, clean_cues=True) for vid in ("V_A", "V_B")]
+    )
+    assert len(merged) == 1
+    assert merged[0]["cue_text"] == "the pain radiates to the biceps(L) and thyroid cartilage"
+
+
+def test_generic_screening_questions_are_still_excluded():
+    from scripts.make_ddxplus_probe_dataset import cue_from_entry
+
+    meta = {"E": {"question_en": "Do you have pain somewhere?", "is_antecedent": False}}
+    assert cue_from_entry("E", meta, clean_cues=True)["exclusion_reason"] == "generic_cue"
+
+
+def test_with_article_leaves_an_existing_determiner_alone():
+    from scripts.make_ddxplus_probe_dataset import with_article
+
+    assert with_article("chest") == "the chest"
+    assert with_article("the chest") == "the chest"

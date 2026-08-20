@@ -176,13 +176,22 @@ python scripts/make_ddxplus_cue_count_cases.py \
   --patients /data/heejae/ddxplus/train.csv \
   --evidences /data/heejae/ddxplus/release_evidences.json \
   --output /data/heejae/medical_nla/data/ddxplus_cue_count_cases.jsonl \
-  --examples-per-diagnosis 100 --cue-counts all --seed 17 --negative-cues
+  --examples-per-diagnosis 100 --cue-counts all --seed 17 \
+  --negative-cues --no-prefer-symptoms
 ```
 
-`--negative-cues` keeps negatively-answered items, rendered by negating the
-question's auxiliary. Without it prompts carry positive findings only, which
-drops about 10.6% of evidence entries — roughly two per patient. Both scans read
-the full 1M-row patient CSV and take several minutes on CPU.
+Two flags decide what reaches the prompt, and both are recorded per case so the
+choice is never silent:
+
+- `--negative-cues` keeps negatively-answered items, rendered by negating the
+  question's auxiliary. Without it prompts carry positive findings only, which
+  drops about 10.6% of evidence entries — roughly two per patient.
+- `--no-prefer-symptoms` keeps antecedents. The default drops every antecedent
+  whenever the case has any symptom, and antecedents are where most negative
+  answers live (travel, family history, smoking, prior diagnoses), so leaving it
+  on reduced negative cues to 0.35% of the corpus even with `--negative-cues` set.
+
+Both scans read the full 1M-row patient CSV and take several minutes on CPU.
 
 Both reproduce the pilot's 4,900 cases (49 diagnoses × 100). Note that the
 cue-count generator's input is the *patient* CSV; the probe experiment's

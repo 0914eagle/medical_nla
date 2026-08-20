@@ -157,8 +157,18 @@ GENERIC_CUE_PATTERNS = [
     r"\bhow intense is the pain\b",
     r"\bhow precisely is the pain located\b",
     r"\bcharacterize their pain\b",
-    r"\bdoes the pain radiate\b",
-    r"\bpain radiate\b",
+]
+
+# Questions whose answer belongs somewhere other than the end of the phrase.
+# Written as (pattern, template) so the value is placed, not appended: the
+# radiation item names its sites in place of "another location".
+VALUE_PHRASE_TEMPLATES = [
+    (
+        re.compile(
+            r"^(?:does|do)\s+(?P<subject>.+?)\s+radiate to another location$", re.I
+        ),
+        "{subject} radiates to {value}",
+    ),
 ]
 
 
@@ -193,7 +203,7 @@ def merge_multivalue_cues(cues: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if len(group) == 1 or not all(labels):
             merged.extend(group)
             continue
-        combined = render_wh_question(str(group[0].get("question") or ""), join_values(labels))
+        combined = fold_value_into_question(str(group[0].get("question") or ""), join_values(labels))
         if not combined or is_malformed_cue(combined):
             merged.extend(group)
             continue
@@ -389,13 +399,20 @@ def drop_do_support(question: str) -> str | None:
     return lower_first(rewrite_second_person(match.group(2)))
 
 
-def render_wh_question(question: str, value_label: str) -> str | None:
-    """Fold a wh-question's answer into a statement.
+def fold_value_into_question(question: str, value_label: str) -> str | None:
+    """Place an answer inside the statement instead of after it.
 
     'Where is the swelling located?' + 'iliac wing(R)' becomes 'the swelling is
-    located in iliac wing(R)' rather than the two pasted together.
+    located in the iliac wing(R)' rather than the two pasted together. Returning
+    a single phrase for a whole answer set is also what lets one item answered
+    with several values collapse into one cue.
     """
     text = normalize_space(question).strip(" ?.")
+    for pattern, template in VALUE_PHRASE_TEMPLATES:
+        match = pattern.match(text)
+        if match:
+            filled = template.format(value=with_article(value_label), **match.groupdict())
+            return lower_first(rewrite_second_person(filled))
     value = normalize_space(value_label)
     # A bare site name reads as a location only with an article: "in the chest".
     site = value if value.split()[:1] and value.split()[0].lower() in DETERMINERS else f"the {value}"
@@ -424,6 +441,15 @@ def render_wh_question(question: str, value_label: str) -> str | None:
             return lower_first(rewrite_second_person(rated))
         return lower_first(rewrite_second_person(f"{subject} {match.group(2)} {value}"))
     return None
+
+
+def with_article(value_label: str) -> str:
+    """A bare site name reads as a location only with an article: 'in the chest'."""
+    value = normalize_space(value_label)
+    first = value.split()[:1]
+    if first and first[0].lower() in DETERMINERS:
+        return value
+    return f"the {value}"
 
 
 def is_malformed_cue(text: str) -> bool:
@@ -627,7 +653,7 @@ def cue_from_entry(
     elif clean_cues and value_label and normalize_label(value_label) not in AFFIRMATIVE_VALUE_LABELS:
         # A real answer value ("chest", "red") belongs inside the statement, not
         # pasted onto the end of the question.
-        folded = render_wh_question(question, value_label)
+        folded = fold_value_into_question(question, value_label)
         phrase = folded if folded else attach_value(phrase, value_label)
     elif not clean_cues and value_label and value_label.lower() not in {"yes", "true", "present"}:
         phrase = normalize_space(f"{phrase} {value_label}")
@@ -758,6 +784,7 @@ def make_case(
         "cue_value_labels": [cue["value_label"] for cue in selected],
         "clean_cues": clean_cues,
         "negative_cues": negative_cues,
+        "prefer_symptoms": prefer_symptoms,
         "excluded_cue_count": sum(1 for cue in all_cues if cue["excluded"]),
         "excluded_cue_entries": [
             {

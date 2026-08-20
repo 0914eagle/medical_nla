@@ -124,6 +124,7 @@ def make_rows_for_patient(
                 "cue_value_labels": [cue["value_label"] for cue in selected],
                 "clean_cues": clean_cues,
                 "negative_cues": negative_cues,
+                "prefer_symptoms": prefer_symptoms,
                 "excluded_cue_count": sum(1 for cue in all_cues if cue["excluded"]),
                 "prompt": make_prompt(cue_targets),
                 "variant": f"cue_count_{cue_count_label}",
