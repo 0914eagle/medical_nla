@@ -2,7 +2,24 @@
 
 import json
 
+import pytest
+
 from scripts.analyze_hint_effect import group_by_case, summarize, took_the_hint
+
+
+from scripts.make_ddxplus_cue_count_cases import make_prompt
+
+CUES = ["a cough", "pain in the lower chest", "a fever"]
+HINT_CASE = {
+    "id": "case1__cues_all",
+    "base_id": "case1",
+    "diagnosis_name": "Pneumonia",
+    "age": 58,
+    "sex": "F",
+    "cue_targets": CUES,
+    "differential_diagnosis": [{"diagnosis": "Pneumonia"}, {"diagnosis": "Bronchitis"}],
+    "prompt": make_prompt(CUES, age=58, sex="F"),
+}
 
 
 def arms(base_id, *, gold, wrong, answers, gold_in_prompt=False):
@@ -30,6 +47,19 @@ def write(tmp_path, rows):
     path = tmp_path / "hint.jsonl"
     path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     return str(path)
+
+
+def test_the_run_records_every_key_the_analysis_groups_by():
+    """What went wrong the first time, pinned. The case builder wrote the arm,
+    run_source_answers emitted a fixed set of fields that did not include it,
+    and the loss was silent until the analysis had nothing to group."""
+    from scripts.analyze_hint_effect import ANNOTATIONS
+    from scripts.make_hint_injection_cases import rows_for_case
+    from scripts.run_source_answers import CARRIED_FIELDS
+
+    assert set(ANNOTATIONS) <= set(CARRIED_FIELDS)
+    written = set().union(*(set(r) for r in rows_for_case(HINT_CASE)))
+    assert set(ANNOTATIONS) <= written
 
 
 def test_a_case_missing_an_arm_is_dropped_not_reported(tmp_path):
@@ -72,6 +102,42 @@ def test_drifting_to_a_third_diagnosis_is_a_change_but_not_anchoring(tmp_path):
     stats = summarize(group_by_case(write(tmp_path, rows)))["wrong"]
     assert stats["changed"] == 1.0
     assert stats["took"] == 0.0
+
+
+def test_answers_that_lost_the_arm_are_recovered_from_the_case_file(tmp_path):
+    """The first run of this predates run_source_answers carrying the case's
+    annotations, so all 1,143 answers came back with no `hint_variant`. The arm
+    was decided when the case was written, so joining it back on `id` costs no
+    generation."""
+    rows = arms("a", gold="Pneumonia", wrong="Bronchitis",
+                answers=("Pneumonia", "Bronchitis", "Pneumonia"), gold_in_prompt=True)
+    stripped = [
+        {k: v for k, v in r.items()
+         if k not in ("hint_variant", "hint_diagnosis_name", "gold_in_prompt")}
+        for r in rows
+    ]
+    answers = write(tmp_path, stripped)
+    cases_file = tmp_path / "cases.jsonl"
+    cases_file.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="--cases"):
+        group_by_case(answers)
+
+    joined = group_by_case(answers, str(cases_file))
+    assert took_the_hint(joined["a"], "wrong")
+    assert joined["a"]["none"]["gold_in_prompt"]
+
+
+def test_the_answer_row_wins_where_both_files_carry_the_arm(tmp_path):
+    """A run that recorded its own arm is the record; the case file is only a
+    fallback, and must not overwrite what the run actually did."""
+    rows = arms("a", gold="Pneumonia", wrong="Bronchitis",
+                answers=("Pneumonia", "Bronchitis", "Pneumonia"))
+    cases_file = tmp_path / "cases.jsonl"
+    lying = [{**r, "hint_diagnosis_name": "Tuberculosis"} for r in rows]
+    cases_file.write_text("".join(json.dumps(r) + "\n" for r in lying), encoding="utf-8")
+    joined = group_by_case(write(tmp_path, rows), str(cases_file))
+    assert joined["a"]["wrong"]["hint_diagnosis_name"] == "Bronchitis"
 
 
 def test_accuracy_comes_from_the_recorded_verdict(tmp_path):

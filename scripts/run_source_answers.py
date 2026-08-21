@@ -70,6 +70,25 @@ PREFILLED_MAX_NEW_TOKENS = 64
 # Enough to state a diagnosis after a chain of thought is handed back.
 FORCED_ANSWER_MAX_NEW_TOKENS = 32
 
+# Case annotations copied onto the answer row. These say which arm of an
+# experiment a row belongs to, and nothing downstream can reconstruct them from
+# a prompt and an answer.
+CARRIED_FIELDS = (
+    "variant",
+    "hint_variant",
+    "hint_diagnosis_name",
+    "gold_in_prompt",
+    "target_role",
+    "target_text",
+    "cue_text",
+    "cue_targets",
+    "position_mode",
+    "age",
+    "sex",
+    "source",
+    "patient_id",
+)
+
 
 def differential_rank(answer: str | None, differential: list[dict[str, Any]]) -> int | None:
     """1-based position of the answer in a ranked differential, or None."""
@@ -202,6 +221,22 @@ def main() -> None:
             generated[:, encoded["input_ids"].shape[1] :], skip_special_tokens=True
         )
 
+    def carried(row: dict[str, Any]) -> dict[str, Any]:
+        """The case's own annotations, copied through to the answer row.
+
+        A case file that stacks several arms of one experiment says which arm
+        each row is; this file is what gets analyzed, and without those keys the
+        arms are indistinguishable. The referring-note run wrote 1,143 answers
+        with no `hint_variant` on any of them, so every case looked incomplete
+        and the analysis reported nothing -- the same shape of loss as scoring
+        with the alias table and not recording it.
+
+        Listed rather than copied wholesale: the case row also carries the
+        other conditions' prompts and the full differential, which would treble
+        the file for no reader.
+        """
+        return {key: row[key] for key in CARRIED_FIELDS if key in row}
+
     def emit(row: dict[str, Any], response: str, *, forced: bool) -> None:
         nonlocal n_parsed, n_correct, n_forced
         answer = parse_answer(response)
@@ -240,6 +275,7 @@ def main() -> None:
                 "answer_token_f1": round(overlap, 4),
                 "differential_rank": rank,
                 "model_id": model_cfg["model_id"],
+                **carried(row),
             },
         )
 

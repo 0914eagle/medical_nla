@@ -49,18 +49,49 @@ VARIANTS = ("none", "wrong", "correct")
 Case = dict[str, dict[str, Any]]
 
 
-def group_by_case(path: str) -> dict[str, Case]:
+ANNOTATIONS = ("hint_variant", "hint_diagnosis_name", "gold_in_prompt")
+
+
+def annotations_by_id(path: str | None) -> dict[str, dict[str, Any]]:
+    """Which arm each row is, read back from the case file it was built from.
+
+    Needed because the first referring-note run predates run_source_answers
+    carrying these keys: 1,143 answers came back with no `hint_variant` on any
+    of them, so no case had three arms and nothing could be reported. The join
+    is on `id`, which both files carry, and it costs no generation -- the arm a
+    row belongs to was decided when the case was written, not when it was
+    answered.
+    """
+    if not path:
+        return {}
+    return {
+        str(row.get("id")): {key: row[key] for key in ANNOTATIONS if key in row}
+        for row in read_jsonl(path)
+    }
+
+
+def group_by_case(path: str, cases_path: str | None = None) -> dict[str, Case]:
     """Rows keyed by case, keeping only cases that have all three arms.
 
     A partial case is dropped rather than reported: every number here is a
     difference between two arms of the same case, so an arm that is missing
     because the run was cut short would otherwise show up as an effect.
     """
+    annotations = annotations_by_id(cases_path)
     cases: dict[str, Case] = defaultdict(dict)
+    seen_any = False
     for row in read_jsonl(path):
+        row = {**annotations.get(str(row.get("id")), {}), **row}
         variant = str(row.get("hint_variant") or "")
         if variant in VARIANTS:
+            seen_any = True
             cases[str(row.get("base_id"))][variant] = row
+    if not seen_any:
+        raise SystemExit(
+            "no answer row says which arm it is. This run was produced before\n"
+            "run_source_answers carried the case's annotations; pass the case\n"
+            "file it was built from with --cases to join them back."
+        )
     return {case: arms for case, arms in cases.items() if len(arms) == len(VARIANTS)}
 
 
@@ -118,10 +149,14 @@ def report(name: str, cases: dict[str, Case]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--answers", required=True, help="run_source_answers on hint cases.")
+    parser.add_argument(
+        "--cases",
+        help="The hint case file, for runs whose answers do not carry the arm.",
+    )
     parser.add_argument("--show", type=int, default=5, help="Flipped cases to print.")
     args = parser.parse_args()
 
-    cases = group_by_case(args.answers)
+    cases = group_by_case(args.answers, args.cases)
     if not cases:
         raise SystemExit("no case had all three arms; is the run finished?")
 
