@@ -101,6 +101,33 @@ def load_nla_sidecar(
     return sidecar
 
 
+AV_PROMPT_FILENAME = "av_prompt.txt"
+
+
+def adapter_av_prompt(adapter_id: str | None) -> str | None:
+    """The AV prompt an adapter was trained under, if it recorded one.
+
+    Training and generation must use the same prompt, and a flag that has to be
+    remembered at both ends is a flag that gets forgotten: the pilot trained
+    against an <observed> target while generation fell back to the checkpoint's
+    own diagnosis prompt, so the adapter had learned a format nothing asked it
+    for. The trainer writes the template it used beside the adapter; reading it
+    back here makes the pair structural rather than remembered.
+
+    Returns None for a hub id or a directory without the file, leaving the
+    caller's own resolution untouched.
+    """
+    if not adapter_id:
+        return None
+    path = Path(adapter_id) / AV_PROMPT_FILENAME
+    try:
+        if path.is_file():
+            return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    return None
+
+
 def build_nla_prompt(
     tokenizer: Any,
     sidecar: NlaSidecar,

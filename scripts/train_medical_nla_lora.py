@@ -25,7 +25,7 @@ if str(REPO_ROOT) not in sys.path:
 from src.config import load_config
 from src.jsonl import read_jsonl
 from src.modeling import load_causal_lm, load_tokenizer
-from src.nla import build_nla_inputs_embeds, load_nla_sidecar
+from src.nla import AV_PROMPT_FILENAME, build_nla_inputs_embeds, load_nla_sidecar
 
 
 @dataclass
@@ -110,11 +110,21 @@ def evaluate(
     sidecar: Any,
     actor_prompt_template: str | None,
     batch_size: int,
-    max_eval_rows: int | None,
 ) -> float:
+    """Mean loss over `rows`, leaving the model's mode as it was found.
+
+    Restoring it is not tidiness. Without it the model stayed in eval mode
+    after the first epoch's evaluation, so epoch 1 trained with dropout and
+    every later epoch trained without it -- and since the layer sweep also ran
+    different epoch counts per layer, the resulting L16/L24/L32 trajectory mixed
+    a layer effect with a dropout-coverage effect.
+
+    The caller chooses `rows`; this no longer truncates. Truncation here took
+    the file's first n rows, which on a corpus grouped by diagnosis is one
+    corner of the label space rather than a sample of it.
+    """
+    was_training = model.training
     model.eval()
-    if max_eval_rows is not None:
-        rows = rows[:max_eval_rows]
     losses = []
     for start in range(0, len(rows), batch_size):
         batch_rows = rows[start : start + batch_size]
@@ -133,13 +143,33 @@ def evaluate(
         inputs_embeds, attention_mask, labels = collate_examples(examples)
         out = model(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels)
         losses.append(float(out.loss.item()))
+    if was_training:
+        model.train()
     return sum(losses) / max(len(losses), 1)
 
 
 def read_actor_prompt_template(path: str | None) -> str | None:
-    if path is None:
+    """The AV prompt text, or None to fall back to the checkpoint's own.
+
+    The literal "sidecar" is accepted so the fallback stays reachable without
+    anyone having to know that an absent flag means it.
+    """
+    if path is None or path == "sidecar":
         return None
-    return Path(path).read_text(encoding="utf-8")
+    text = Path(path).read_text(encoding="utf-8")
+    if "{injection_char}" not in text:
+        raise ValueError(f"{path} has no {{injection_char}} placeholder; the vector would not be injected.")
+    return text
+
+
+def save_av_prompt(out_dir: Path, template: str | None, sidecar: Any) -> None:
+    """Record the AV prompt beside the adapter it was trained under.
+
+    Generation reads it back (`src.nla.adapter_av_prompt`), so the pair cannot
+    drift apart the way it did when both ends took a flag that could be omitted.
+    """
+    text = template if template is not None else sidecar.actor_prompt_template
+    (out_dir / AV_PROMPT_FILENAME).write_text(text, encoding="utf-8")
 
 
 def main() -> None:
@@ -155,16 +185,53 @@ def main() -> None:
         ),
     )
     parser.add_argument("--out-dir", required=True)
-    parser.add_argument("--actor-prompt-template-file", default=None)
-    parser.add_argument("--epochs", type=int, default=1)
+    parser.add_argument(
+        "--actor-prompt-template-file",
+        default=str(REPO_ROOT / "prompt_templates" / "cue_position_readout.txt"),
+        help=(
+            "The AV prompt. Defaults to the cue-position template because "
+            "leaving it unset fell back to the checkpoint sidecar's own prompt, "
+            "which asks for a diagnosis while the supervised target contains "
+            "only <observed> findings -- the adapter then learns a format the "
+            "prompt never asked for. Pass a path to override; pass 'sidecar' to "
+            "restore the old fallback."
+        ),
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=3,
+        help=(
+            "Must be the same for every layer and both corpora. The pilot ran 3 "
+            "at L32 and 2 at L16/L24 while the write-up said one recipe, which "
+            "left the layer trajectory mixing a layer effect with an epoch one."
+        ),
+    )
     parser.add_argument("--max-steps", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--grad-accum-steps", type=int, default=8)
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--weight-decay", type=float, default=0.0)
     parser.add_argument("--val-frac", type=float, default=0.05)
-    parser.add_argument("--max-eval-rows", type=int, default=128)
-    parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument(
+        "--max-eval-rows",
+        type=int,
+        default=128,
+        help=(
+            "Validation rows to score per epoch, sampled at random once and "
+            "reused across epochs so the per-epoch losses are comparable."
+        ),
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=17,
+        help=(
+            "One run is a point estimate. Train at least three seeds per "
+            "configuration and report mean +/- sd; the seed is recorded in "
+            "metadata.json and best.json so runs can be pooled afterwards."
+        ),
+    )
     parser.add_argument("--lora-r", type=int, default=16)
     parser.add_argument("--lora-alpha", type=int, default=32)
     parser.add_argument("--lora-dropout", type=float, default=0.05)
@@ -181,6 +248,7 @@ def main() -> None:
     cache_dir = cfg["paths"].get("cache_dir")
     nla_cfg = cfg["nla_model"]
     torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
     random.seed(args.seed)
 
     train_input_rows = list(read_jsonl(args.train_jsonl))
@@ -230,10 +298,20 @@ def main() -> None:
         target_modules=args.target_modules,
     )
     model = get_peft_model(model, peft_config)
+    # The base is loaded in bfloat16, so the adapter is created in bfloat16 and
+    # the AdamW moments are kept in it too -- 8 mantissa bits for a quantity
+    # that accumulates over thousands of steps. Standard practice is to train
+    # the adapter in float32 while the frozen base stays bfloat16, and it
+    # affects stability rather than only precision.
+    trainable = [p for p in model.parameters() if p.requires_grad]
+    for param in trainable:
+        param.data = param.data.float()
     model.print_trainable_parameters()
     model.train()
     embed_layer = model.get_input_embeddings()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    # Only the adapter: handing AdamW the frozen base as well invites optimizer
+    # state for parameters that never receive a gradient.
+    optimizer = torch.optim.AdamW(trainable, lr=args.lr, weight_decay=args.weight_decay)
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -248,8 +326,24 @@ def main() -> None:
     }
     (out_dir / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    # Drawn once, so the per-epoch losses are comparable, and drawn at random,
+    # because the first n rows of a file grouped by diagnosis are one corner of
+    # the label space.
+    eval_rows = val_rows
+    if args.max_eval_rows is not None and len(val_rows) > args.max_eval_rows:
+        eval_rows = random.Random(args.seed).sample(val_rows, args.max_eval_rows)
+    print(
+        f"[eval] validating on {len(eval_rows):,} of {len(val_rows):,} rows "
+        f"(random, seed {args.seed})",
+        flush=True,
+    )
+
     global_step = 0
     optimizer_step = 0
+    # The adapter kept was the last epoch's, whatever the validation loss did.
+    # out_dir now always holds the best epoch, and best.json says which.
+    best_val_loss = float("inf")
+    best_epoch: int | None = None
     metrics_path = out_dir / "metrics.jsonl"
     if metrics_path.exists():
         metrics_path.unlink()
@@ -276,7 +370,7 @@ def main() -> None:
             loss.backward()
             global_step += 1
             if global_step % args.grad_accum_steps == 0:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                torch.nn.utils.clip_grad_norm_(trainable, 1.0)
                 optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
                 optimizer_step += 1
@@ -294,22 +388,62 @@ def main() -> None:
                 if args.max_steps is not None and optimizer_step >= args.max_steps:
                     break
         val_loss = evaluate(
-            rows=val_rows,
+            rows=eval_rows,
             model=model,
             tokenizer=tokenizer,
             embed_layer=embed_layer,
             sidecar=sidecar,
             actor_prompt_template=actor_prompt_template,
             batch_size=args.batch_size,
-            max_eval_rows=args.max_eval_rows,
         )
-        print(f"[eval] epoch={epoch} val_loss={val_loss:.4f}", flush=True)
+        improved = val_loss < best_val_loss
+        print(
+            f"[eval] epoch={epoch} val_loss={val_loss:.4f}"
+            + (" (best so far, saving)" if improved else f" (best {best_val_loss:.4f})"),
+            flush=True,
+        )
+        with metrics_path.open("a", encoding="utf-8") as f:
+            f.write(
+                json.dumps(
+                    {"epoch": epoch, "step": optimizer_step, "val_loss": val_loss},
+                    sort_keys=True,
+                )
+                + "\n"
+            )
+        if improved:
+            best_val_loss, best_epoch = val_loss, epoch
+            model.save_pretrained(out_dir)
+            tokenizer.save_pretrained(out_dir)
+            save_av_prompt(out_dir, actor_prompt_template, sidecar)
         if args.max_steps is not None and optimizer_step >= args.max_steps:
             break
 
-    model.save_pretrained(out_dir)
-    tokenizer.save_pretrained(out_dir)
-    print(f"[done] saved LoRA adapter to {out_dir}", flush=True)
+    if best_epoch is None:
+        # No epoch improved on infinity only if evaluation never ran.
+        model.save_pretrained(out_dir)
+        tokenizer.save_pretrained(out_dir)
+        save_av_prompt(out_dir, actor_prompt_template, sidecar)
+        print(f"[done] saved the final LoRA adapter to {out_dir}", flush=True)
+    else:
+        (out_dir / "best.json").write_text(
+            json.dumps(
+                {
+                    "best_epoch": best_epoch,
+                    "best_val_loss": round(best_val_loss, 6),
+                    "epochs_run": epoch,
+                    "n_val_rows_used": len(eval_rows),
+                    "n_val_rows_available": len(val_rows),
+                    "seed": args.seed,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        print(
+            f"[done] kept epoch {best_epoch} (val_loss {best_val_loss:.4f}) "
+            f"of {epoch} in {out_dir}",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

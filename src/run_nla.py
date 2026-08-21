@@ -11,7 +11,13 @@ import torch
 from .config import ensure_dir, load_config
 from .jsonl import append_jsonl, read_jsonl
 from .modeling import load_causal_lm, load_tokenizer, maybe_load_peft_adapter
-from .nla import build_nla_inputs_embeds, cjk_fraction, extract_explanation, load_nla_sidecar
+from .nla import (
+    adapter_av_prompt,
+    build_nla_inputs_embeds,
+    cjk_fraction,
+    extract_explanation,
+    load_nla_sidecar,
+)
 
 
 PASSTHROUGH_FIELDS = [
@@ -158,13 +164,21 @@ def main() -> None:
     actor_prompt_template = read_actor_prompt_template(args.actor_prompt_template_file)
     if actor_prompt_template is not None and args.actor_prompt_suffix_file is not None:
         raise ValueError("Use either --actor-prompt-template-file or --actor-prompt-suffix-file, not both.")
+
+    adapter_id = args.adapter_id or nla_cfg.get("adapter_id")
+    # An adapter records the AV prompt it was trained under. Generating under a
+    # different one is what let the pilot train against an <observed> target
+    # while asking, at inference, for a diagnosis. An explicit flag still wins.
+    if actor_prompt_template is None and args.actor_prompt_suffix_file is None:
+        actor_prompt_template = adapter_av_prompt(adapter_id)
+        if actor_prompt_template is not None:
+            print(f"[nla] AV prompt taken from the adapter at {adapter_id}", flush=True)
     if actor_prompt_template is None:
         actor_prompt_template = actor_prompt_template_with_suffix(
             sidecar.actor_prompt_template,
             args.actor_prompt_suffix_file,
         )
     model = load_causal_lm(nla_cfg, cache_dir=cache_dir)
-    adapter_id = args.adapter_id or nla_cfg.get("adapter_id")
     model = maybe_load_peft_adapter(model, adapter_id, cache_dir=cache_dir)
     model.eval()
 

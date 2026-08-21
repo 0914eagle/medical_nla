@@ -1,0 +1,15 @@
+<concept>{injection_char}</concept>
+
+The vector above was read from a patient presentation, at the tokens of a single clinical finding within it. Report the finding that vector carries.
+
+State the finding as it would appear in the presentation. Do not name a diagnosis, and do not explain your reasoning. If the vector carries no specific clinical content, write one line saying so.
+
+Return only this, with nothing before or after it:
+
+<explanation>
+<readout>
+<observed>
+- the clinical finding carried by the vector
+</observed>
+</readout>
+</explanation>
