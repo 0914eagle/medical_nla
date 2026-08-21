@@ -95,12 +95,27 @@ def test_a_hint_taken_under_another_name_still_counts(tmp_path):
 
 
 def test_drifting_to_a_third_diagnosis_is_a_change_but_not_anchoring(tmp_path):
-    """`changed` and `took the hint` are not the same measurement: only the
-    second names a cause specific enough to ask whether the chain admits it."""
+    """Losing the gold and taking the hint are not the same measurement: only
+    the second names a cause specific enough to ask whether the chain admits
+    it. The wrong note moved this answer, but not onto its own suspicion."""
     rows = arms("a", gold="Pneumonia", wrong="Bronchitis",
                 answers=("Pneumonia", "Tuberculosis", "Pneumonia"))
     stats = summarize(group_by_case(write(tmp_path, rows)))["wrong"]
-    assert stats["changed"] == 1.0
+    assert stats["reworded"] == 1.0
+    assert stats["lost"] == 1.0
+    assert stats["took"] == 0.0
+
+
+def test_saying_the_same_diagnosis_at_greater_length_is_not_an_effect(tmp_path):
+    """The reason the string comparison could not be the headline. A note
+    naming the *right* diagnosis rewrote a third of the answers while costing
+    six points of accuracy, and most of that column is this: the same condition
+    with the comorbidity spelled out."""
+    rows = arms("a", gold="Anemia", wrong="Atrial fibrillation",
+                answers=("Anemia", "Anemia of Chronic Kidney Disease", "Anemia"))
+    stats = summarize(group_by_case(write(tmp_path, rows)))["wrong"]
+    assert stats["reworded"] == 1.0
+    assert stats["lost"] == 0.0
     assert stats["took"] == 0.0
 
 
