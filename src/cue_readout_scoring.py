@@ -67,8 +67,45 @@ def observed_items(readout_text: str) -> list[str]:
     return [item.strip() for item in parts if item and item.strip()]
 
 
+# Suffixes stripped before comparing, longest first. Without this, "coughing up
+# blood" read as "a cough that produced blood" scored 0.29 and "undergo
+# dialysis" read as "have to dialyze" scored 0.00 -- both correct readings of a
+# cue that was never supervised. Mechanical, and applied to gold and readout
+# alike, so it cannot favour either.
+_SUFFIXES = ("ations", "ation", "ings", "ing", "ies", "ied", "es", "ed", "s")
+
+
+def stem(word: str) -> str:
+    for suffix in _SUFFIXES:
+        if len(word) > len(suffix) + 2 and word.endswith(suffix):
+            base = word[: -len(suffix)]
+            # "ies" -> "y" keeps "arteries"/"artery" together.
+            return base + "y" if suffix in ("ies", "ied") else base
+    return word
+
+
+_PARENTHETICAL = re.compile(r"\([^)]*\)")
+
+
+def strip_parentheticals(text: str) -> str:
+    """Drop bracketed text, which on these cues is the questionnaire's own gloss.
+
+    DDXPlus renders a cue with the clarification the survey put in the
+    question: "a fever (either felt or measured with a thermometer)". The
+    finding is the fever. A readout that says "had a fever (defined as 100F or
+    higher)" is exactly right and scores 0.22 against the full string -- eleven
+    of the twenty-five lowest-scoring rows in the first heldout sample were
+    that one cue.
+    """
+    return _PARENTHETICAL.sub(" ", text)
+
+
 def content_words(text: str) -> set[str]:
-    return {word for word in normalize(text).split() if word and word not in FUNCTION_WORDS}
+    return {
+        stem(word)
+        for word in normalize(text).split()
+        if word and word not in FUNCTION_WORDS
+    }
 
 
 def overlap(emitted: str, gold: str) -> tuple[float, float, float]:
@@ -81,16 +118,26 @@ def overlap(emitted: str, gold: str) -> tuple[float, float, float]:
     read the cue when what it cannot do is stop. Which of those is true decides
     what the adapter is claimed to add.
     """
-    got = content_words(emitted)
-    want = content_words(gold)
-    if not got or not want:
-        return 0.0, 0.0, 0.0
-    shared = len(got & want)
-    if not shared:
-        return 0.0, 0.0, 0.0
-    precision = shared / len(got)
-    recall = shared / len(want)
-    return precision, recall, 2 * precision * recall / (precision + recall)
+    best = (0.0, 0.0, 0.0)
+    # Scored twice: as written, and with both sides' bracketed glosses removed.
+    # The better of the two is kept, because a readout should not be penalised
+    # for declining to repeat the questionnaire's parenthetical, nor for
+    # supplying its own -- but a cue whose content sits inside the brackets
+    # ("the human immunodeficiency virus (HIV)") must not be gutted either.
+    for transform in (lambda text: text, strip_parentheticals):
+        got = content_words(transform(emitted))
+        want = content_words(transform(gold))
+        if not got or not want:
+            continue
+        shared = len(got & want)
+        if not shared:
+            continue
+        precision = shared / len(got)
+        recall = shared / len(want)
+        f1 = 2 * precision * recall / (precision + recall)
+        if f1 > best[2]:
+            best = (precision, recall, f1)
+    return best
 
 
 def overlap_f1(emitted: str, gold: str) -> float:

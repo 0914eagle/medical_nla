@@ -111,3 +111,50 @@ def test_the_adapter_output_scores_well_on_both():
     result = score_readout(read, gold)
     assert result["output_recall"] > 0.5
     assert result["output_precision"] > 0.5
+
+
+# Real heldout rows, with the verdict a human gave them. The scorer's job is
+# only to sort; these pin what it does to readings already known to be right.
+HAND_LABELLED = [
+    ("A", "a fever (either felt or measured with a thermometer)",
+     "had a fever (defined as 100F or higher)"),
+    ("A", "coughing up blood", "recently had a cough that produced blood"),
+    ("A", "had chills or shivers",
+     "they feel like they are shivering or have muscle spasms"),
+    ("C", "an itchy nose or an itchy back of the throat",
+     "they ever felt like there was something in the upper gum or bottom lip of the throat"),
+    ("C", "find that their symptoms have worsened over the last 2 weeks and that "
+          "progressively less effort is required to cause the symptoms",
+     "their symptoms are worse when they are still and alleviated when moving"),
+]
+
+
+def test_the_questionnaire_gloss_no_longer_sinks_a_correct_reading():
+    """Eleven of the twenty-five lowest-scoring heldout rows were this one cue,
+    read correctly each time and scored 0.22 for not repeating the survey's
+    own parenthetical."""
+    _, gold, read = HAND_LABELLED[0]
+    assert overlap_f1(read, gold) == 1.0
+
+
+def test_inflection_no_longer_sinks_a_correct_reading():
+    _, gold, read = HAND_LABELLED[1]
+    assert overlap_f1(read, gold) > 0.5
+
+
+def test_wrong_readings_stay_low():
+    for verdict, gold, read in HAND_LABELLED:
+        if verdict == "C":
+            assert overlap_f1(read, gold) < 0.25
+
+
+def test_no_threshold_separates_right_from_wrong():
+    """The reason the labelling cannot be replaced by a cutoff, kept as an
+    executable fact rather than a claim in prose: a correct reading of
+    "undergo dialysis" as "have to dialyze" shares no stem with the gold and
+    scores zero, below every wrong reading here."""
+    correct_but_zero = overlap_f1("have to dialyze", "undergo dialysis")
+    worst_wrong = max(
+        overlap_f1(read, gold) for verdict, gold, read in HAND_LABELLED if verdict == "C"
+    )
+    assert correct_but_zero < worst_wrong
