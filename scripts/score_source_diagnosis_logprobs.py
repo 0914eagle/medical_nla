@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import random
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -291,7 +292,17 @@ def main() -> None:
         default="logprob_mean",
     )
     parser.add_argument("--candidate-batch-size", type=int, default=8)
-    parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help=(
+            "Score this many cases, drawn at random. The candidate set is "
+            "always the whole file's labels, so a limit shortens the run "
+            "without narrowing the choice."
+        ),
+    )
+    parser.add_argument("--sample-seed", type=int, default=17)
     parser.add_argument("--top-k-output", type=int, default=10)
     parser.add_argument(
         "--calibration-prompt",
@@ -307,12 +318,26 @@ def main() -> None:
     cache_dir = cfg["paths"].get("cache_dir")
     model_cfg = cfg["source_model"]
     rows = list(read_jsonl(args.input))
-    if args.limit is not None:
-        rows = rows[: args.limit]
     rows = [row for row in rows if row.get("prompt") and row.get("diagnosis_id")]
     if not rows:
         raise ValueError("No input rows with prompt and diagnosis_id found.")
+
+    # Candidates come from the whole file, before any limit. Deriving them from
+    # the limited rows made --limit change the task rather than shorten it: the
+    # case file is grouped by diagnosis at a hundred cases each, so --limit 200
+    # left two labels, and a two-way choice scored top1 200/200 and mrr 1.0000
+    # against a source model that answers these cases at 0.3724.
     candidates = read_candidates(args.candidates_jsonl, rows)
+    if args.limit is not None and len(rows) > args.limit:
+        # Sampled for the same reason: the front of a diagnosis-grouped file is
+        # a corner of the label space, not a sample of it.
+        available = len(rows)
+        rows = random.Random(args.sample_seed).sample(rows, args.limit)
+        print(
+            f"[logprob] {args.limit:,} of {available:,} rows, sampled with seed "
+            f"{args.sample_seed}; scoring against all {len(candidates)} candidates",
+            flush=True,
+        )
     candidate_by_id = {row["diagnosis_id"]: row for row in candidates}
 
     tokenizer = load_tokenizer(
