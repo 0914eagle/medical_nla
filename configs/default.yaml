@@ -11,7 +11,12 @@ paths:
   log_dir: ${MEDICAL_NLA_DATA_ROOT}/medical_nla/logs
   train_dir: ${MEDICAL_NLA_DATA_ROOT}/medical_nla/train
   raw_dir: ${MEDICAL_NLA_DATA_ROOT}
-  cache_dir: ${MEDICAL_NLA_DATA_ROOT}/hf_cache
+  # The hub directory itself, not its parent. `from_pretrained(cache_dir=X)`
+  # and `hf_hub_download(cache_dir=X)` treat X as the cache, the way the
+  # deprecated TRANSFORMERS_CACHE did -- while HF_HOME names the parent and
+  # puts the cache in HF_HOME/hub. Pointing this at $HF_HOME gave two caches
+  # and two downloads of every checkpoint, 46GB of duplicates before it showed.
+  cache_dir: ${MEDICAL_NLA_DATA_ROOT}/hf_cache/hub
 
 source_model:
   model_id: google/gemma-3-12b-it
