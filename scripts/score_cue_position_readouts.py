@@ -26,7 +26,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from src.cue_readout_scoring import score_readout
 from src.jsonl import read_jsonl
-from src.nla import extract_explanation
+from src.nla_text import extract_explanation
 
 THRESHOLDS = (0.3, 0.5, 0.67, 0.8, 1.0)
 
