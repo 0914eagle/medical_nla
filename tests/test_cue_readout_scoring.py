@@ -80,3 +80,34 @@ def test_the_best_item_wins_when_a_readout_emits_several():
 
 def test_an_empty_readout_scores_zero_rather_than_raising():
     assert score_readout("", "slightly dizzy")["f1"] == 0.0
+
+
+VANILLA = (
+    "they feel that their eyes produce excessive tears",
+    'Excessive lacrimation/tears\nThe phrase "eyes produce excessive tears" '
+    "establishes a symptom description, likely continuing with dry eye syndrome "
+    "or conjunctivitis context.\nNo additional elaboration or conclusion is "
+    "needed; the sentence ends a factual observation about the physiological "
+    "symptom, implying a structured medical description or a transition to the "
+    'topic sentence. Final token "tears" immediately expects a continuation.',
+)
+
+
+def test_a_rambling_baseline_is_credited_for_reading_and_penalised_for_length():
+    """Real vanilla AV output, which names the finding and then writes on about
+    what token comes next. Judged by F1 alone it looks unable to read the
+    vector; the two failures have to stay separate, because which one is true
+    decides what the adapter is claimed to add."""
+    gold, read = VANILLA
+    result = score_readout(read, gold)
+    assert result["output_recall"] > 0.5, "the finding is in the output"
+    assert result["output_precision"] < 0.2, "and so is a great deal else"
+    assert result["f1"] > 0.5, "one line of it is a clean reading"
+    assert result["n_chars"] > 400
+
+
+def test_the_adapter_output_scores_well_on_both():
+    gold, read = PARAPHRASE
+    result = score_readout(read, gold)
+    assert result["output_recall"] > 0.5
+    assert result["output_precision"] > 0.5

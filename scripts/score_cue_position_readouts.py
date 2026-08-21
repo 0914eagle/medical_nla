@@ -86,17 +86,40 @@ def report(name: str, rows: list[dict[str, Any]]) -> dict[str, float]:
         "parsed": sum(r["parsed"] for r in rows) / n,
         "cjk": sum(r["cjk"] > 0.05 for r in rows) / n,
         "exact": sum(r["exact"] for r in rows) / n,
+        "mean_chars": sum(r["n_chars"] for r in rows) / n,
+        "mean_f1": sum(r["f1"] for r in rows) / n,
+        "mean_precision": sum(r["precision"] for r in rows) / n,
+        "mean_recall": sum(r["recall"] for r in rows) / n,
+        "mean_output_precision": sum(r["output_precision"] for r in rows) / n,
+        "mean_output_recall": sum(r["output_recall"] for r in rows) / n,
     }
     for threshold in THRESHOLDS:
         out[f"f1>={threshold}"] = sum(r["f1"] >= threshold for r in rows) / n
-    out["mean_f1"] = sum(r["f1"] for r in rows) / n
+        out[f"read>={threshold}"] = sum(r["output_recall"] >= threshold for r in rows) / n
     print(f"\n{name}  (n={n:,})")
-    print(f"  parsed the tag        {out['parsed']:.4f}")
+    print(f"  emitted the tag       {out['parsed']:.4f}")
     print(f"  non-latin output      {out['cjk']:.4f}")
+    print(f"  mean output length    {out['mean_chars']:.0f} chars")
     print(f"  literal containment   {out['exact']:.4f}   <- the v2 rule")
+    print("  -- did it read the finding (recall over the whole output) --")
+    for threshold in THRESHOLDS:
+        print(f"  read >= {threshold:.2f}          {out[f'read>={threshold}']:.4f}")
+    print(
+        f"  whole-output p/r      {out['mean_output_precision']:.4f} / "
+        f"{out['mean_output_recall']:.4f}   <- low p = unusable as an explanation"
+    )
+    print("  -- is the output about the finding (F1 on its best line) --")
     for threshold in THRESHOLDS:
         print(f"  overlap f1 >= {threshold:.2f}    {out[f'f1>={threshold}']:.4f}")
-    print(f"  mean overlap f1       {out['mean_f1']:.4f}")
+    print(
+        f"  mean p/r/f1           {out['mean_precision']:.4f} / "
+        f"{out['mean_recall']:.4f} / {out['mean_f1']:.4f}"
+    )
+    print(
+        "  A baseline that names the finding and then writes on for a thousand\n"
+        "  characters scores high coverage and low precision. That is a different\n"
+        "  failure from not reading the vector, and the two must not share a number."
+    )
     return out
 
 
@@ -119,7 +142,7 @@ def main() -> None:
 
     if "seen" in summaries and summaries["seen"] and summaries["heldout"]:
         print("\nheldout minus seen (the number the design turns on):")
-        for key in ("exact", "f1>=0.5", "f1>=0.8", "mean_f1"):
+        for key in ("exact", "read>=0.5", "f1>=0.5", "f1>=0.8", "mean_f1"):
             gap = summaries["heldout"][key] - summaries["seen"][key]
             print(f"  {key:<14} {gap:+.4f}")
         print(

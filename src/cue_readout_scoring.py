@@ -71,18 +71,31 @@ def content_words(text: str) -> set[str]:
     return {word for word in normalize(text).split() if word and word not in FUNCTION_WORDS}
 
 
-def overlap_f1(emitted: str, gold: str) -> float:
-    """F1 over content words, so neither padding nor truncating is rewarded."""
+def overlap(emitted: str, gold: str) -> tuple[float, float, float]:
+    """Precision, recall and F1 over content words.
+
+    All three are reported because the vanilla AV baseline separates them.
+    Given the same vector it names the finding correctly and then writes 1,600
+    characters about what token might come next -- so its recall is high and
+    its precision is near zero, and a single F1 would report it as unable to
+    read the cue when what it cannot do is stop. Which of those is true decides
+    what the adapter is claimed to add.
+    """
     got = content_words(emitted)
     want = content_words(gold)
     if not got or not want:
-        return 0.0
+        return 0.0, 0.0, 0.0
     shared = len(got & want)
     if not shared:
-        return 0.0
+        return 0.0, 0.0, 0.0
     precision = shared / len(got)
     recall = shared / len(want)
-    return 2 * precision * recall / (precision + recall)
+    return precision, recall, 2 * precision * recall / (precision + recall)
+
+
+def overlap_f1(emitted: str, gold: str) -> float:
+    """F1 alone, so neither padding nor truncating is rewarded."""
+    return overlap(emitted, gold)[2]
 
 
 def exact_containment(emitted: str, gold: str) -> bool:
@@ -102,12 +115,32 @@ def score_readout(emitted_text: str, gold_cue: str) -> dict[str, object]:
     """
     items = observed_items(emitted_text) or ([emitted_text] if emitted_text else [])
     if not items:
-        return {"f1": 0.0, "exact": False, "best_item": "", "n_items": 0}
-    scored = [(overlap_f1(item, gold_cue), item) for item in items]
-    best_f1, best_item = max(scored, key=lambda pair: pair[0])
+        return {
+            "f1": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "output_precision": 0.0,
+            "output_recall": 0.0,
+            "exact": False,
+            "best_item": "",
+            "n_items": 0,
+            "n_chars": 0,
+        }
+    whole = overlap(emitted_text, gold_cue)
+    scored = [(overlap(item, gold_cue), item) for item in items]
+    (best_p, best_r, best_f1), best_item = max(scored, key=lambda pair: pair[0][2])
     return {
         "f1": best_f1,
+        "precision": best_p,
+        "recall": best_r,
+        # Over the whole output rather than its best line. The best line asks
+        # "is there a usable sentence in here", which a rambling baseline
+        # passes; these ask "did it read the finding" and "is the output about
+        # the finding", and it passes the first and fails the second.
+        "output_precision": whole[0],
+        "output_recall": whole[1],
         "exact": any(exact_containment(item, gold_cue) for item in items),
         "best_item": best_item,
         "n_items": len(items),
+        "n_chars": len(emitted_text),
     }
