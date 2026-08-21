@@ -16,6 +16,10 @@ source scripts/env.sh >/dev/null
 
 FOLLOW=0
 INTERVAL=30
+# Long enough that a slow run is not reported as stopped. A vanilla AV readout
+# emits no terminating tag and runs to the full token budget, which is three to
+# four times the adapter's seconds per row.
+SAMPLE_WINDOW="${SAMPLE_WINDOW:-20}"
 if [ "${1:-}" = "-f" ]; then
   FOLLOW=1
   [ -n "${2:-}" ] && INTERVAL="$2"
@@ -61,26 +65,31 @@ snapshot() {
     names+=("$f")
     before+=("$(wc -l < "$f" 2>/dev/null || echo 0)")
   done
-  sleep 10
+  sleep "$SAMPLE_WINDOW"
   local i=0
   for f in "${names[@]}"; do
     local now delta rate name
     now=$(wc -l < "$f" 2>/dev/null || echo 0)
     delta=$(( now - ${before[$i]} ))
-    name=$(basename "$f")
+    # Adapter directories all hold a best.json and a metrics.jsonl, so the
+    # basename alone lists the same two names several times over.
+    case "$f" in
+      */adapters/*) name="$(basename "$(dirname "$f")")/$(basename "$f")" ;;
+      *) name=$(basename "$f") ;;
+    esac
     if [ "$delta" -gt 0 ]; then
-      # Lines per 10s into a per-row time, and a guess at what is left if the
-      # run is one of the 770-row readout pools.
-      rate=$(awk -v d="$delta" 'BEGIN{printf "%.1fs/row", 10/d}')
+      # Lines per window into a per-row time, and a guess at what is left if
+      # the run is one of the 770-row readout pools.
+      rate=$(awk -v d="$delta" -v w="$SAMPLE_WINDOW" 'BEGIN{printf "%.1fs/row", w/d}')
       if [ "$now" -lt 770 ]; then
         local eta
-        eta=$(awk -v n="$now" -v d="$delta" 'BEGIN{printf "~%d min to 770", (770-n)/d*10/60}')
+        eta=$(awk -v n="$now" -v d="$delta" -v w="$SAMPLE_WINDOW" 'BEGIN{printf "~%d min to 770", (770-n)/d*w/60}')
         printf '  %-52s %6d  %-10s %s\n' "$name" "$now" "$rate" "$eta"
       else
         printf '  %-52s %6d  %-10s\n' "$name" "$now" "$rate"
       fi
     else
-      printf '  %-52s %6d  (idle)\n' "$name" "$now"
+      printf '  %-52s %6d  (no new rows in %ss)\n' "$name" "$now" "$SAMPLE_WINDOW"
     fi
     i=$((i + 1))
   done
