@@ -27,12 +27,13 @@ esac
 LAYERS="${LAYERS:-16 24 32}"
 SEEDS="${SEEDS:-17 18 19}"
 EPOCHS="${EPOCHS:-3}"
-# Effective batch is BATCH x GRAD_ACCUM. Eight sequences in one forward rather
-# than eight accumulated forwards is the same optimizer step for several times
-# the throughput; the labels are padded with -100 and masked out of attention,
-# so batching changes nothing but speed.
-BATCH="${BATCH:-8}"
-GRAD_ACCUM="${GRAD_ACCUM:-1}"
+# Effective batch is BATCH x GRAD_ACCUM, and 4x2 is the same optimizer step as
+# 1x8 or 8x1 -- labels are padded with -100 and padding is masked out of
+# attention, so the split changes memory and speed, not the objective. Four per
+# forward rather than eight because activations for the backward pass are what
+# ran a 24GB card out of memory even with the weights split across two.
+BATCH="${BATCH:-4}"
+GRAD_ACCUM="${GRAD_ACCUM:-2}"
 # Validation is now a random sample reused across epochs, so a larger number
 # buys precision rather than a longer look at the same corner of the corpus.
 MAX_EVAL_ROWS="${MAX_EVAL_ROWS:-512}"

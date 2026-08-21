@@ -232,6 +232,16 @@ def main() -> None:
             "metadata.json and best.json so runs can be pooled afterwards."
         ),
     )
+    parser.add_argument(
+        "--gradient-checkpointing",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Recompute block activations in the backward pass instead of "
+            "storing them. About 30% slower and the difference between fitting "
+            "and not fitting a 12B adapter run on two 24GB cards."
+        ),
+    )
     parser.add_argument("--lora-r", type=int, default=16)
     parser.add_argument("--lora-alpha", type=int, default=32)
     parser.add_argument("--lora-dropout", type=float, default=0.05)
@@ -298,6 +308,19 @@ def main() -> None:
         target_modules=args.target_modules,
     )
     model = get_peft_model(model, peft_config)
+    if args.gradient_checkpointing:
+        # Storing every block's activations for the backward pass costs about
+        # 12GB at batch 8 here, which is what pushed a card holding 11.8GB of
+        # weights over its 24GB. Recomputing them instead trades roughly 30%
+        # throughput for most of that memory.
+        #
+        # enable_input_require_grads is not optional with checkpointing: this
+        # trainer feeds `inputs_embeds` it builds itself, and a checkpointed
+        # first block whose input does not require grad produces no gradient
+        # for the adapter at all -- a silent no-op, not an error.
+        model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+        model.enable_input_require_grads()
+        print("[train] gradient checkpointing on", flush=True)
     # The base is loaded in bfloat16, so the adapter is created in bfloat16 and
     # the AdamW moments are kept in it too -- 8 mantissa bits for a quantity
     # that accumulates over thousands of steps. Standard practice is to train
