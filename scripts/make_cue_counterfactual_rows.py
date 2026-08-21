@@ -32,14 +32,32 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.make_ddxplus_cue_position_rows import cue_spans_in_prompt
-from scripts.make_ddxplus_probe_dataset import join_cues
+from scripts.make_ddxplus_probe_dataset import make_prompt as probe_make_prompt
 from src.jsonl import read_jsonl, write_jsonl
 
-CARRY_FIELDS = ("diagnosis_id", "diagnosis_name", "diagnosis_aliases", "source", "patient_id")
+CARRY_FIELDS = (
+    "diagnosis_id",
+    "diagnosis_name",
+    "diagnosis_aliases",
+    "source",
+    "patient_id",
+    "age",
+    "sex",
+)
 
 
-def make_prompt(cues: list[str]) -> str:
-    return f"A patient presents with {join_cues(cues)}. What diagnosis is most likely?"
+def make_prompt(
+    cues: list[str], *, condition: str = "direct", age: Any = None, sex: Any = None
+) -> str:
+    """The frame the cases were built with, not a second copy of it.
+
+    This held its own inline "A patient presents with X, Y and Z" sentence
+    while the corpus moved to the findings-list frame, so the round-trip check
+    below rejected every case and the script produced no rows at all. The check
+    was right; the builder was stale. Importing the one the cases use makes the
+    two impossible to drift apart again.
+    """
+    return probe_make_prompt(cues, condition=condition, age=age, sex=sex)
 
 
 def extraction_row(
@@ -49,6 +67,7 @@ def extraction_row(
     variant: str,
     role: str,
     prompt: str,
+    cot_prompt: str,
     cues_in_prompt: list[str],
     slot: int,
     gold_cue: str,
@@ -70,6 +89,12 @@ def extraction_row(
             "cf_role": role,
             "cf_slot": slot,
             "prompt": prompt,
+            # The chain-of-thought form of the same presentation. Without it the
+            # CoT arm has nothing to run on: run_source_answers reads
+            # prompt_cot in the cot condition, and hypothesis 1 is a comparison
+            # against that arm, so its absence left the comparison with no
+            # other side.
+            "prompt_cot": cot_prompt,
             "target_role": "cue",
             "cue_text": gold_cue,
             "cue_targets": [gold_cue],
@@ -93,7 +118,15 @@ def counterfactual_rows_for_case(
     cues = [str(cue) for cue in (case.get("cue_targets") or []) if str(cue).strip()]
     if len(cues) < 3:
         return None
-    if make_prompt(cues) != str(case.get("prompt") or ""):
+    age, sex = case.get("age"), case.get("sex")
+
+    def prompt_of(cue_list: list[str]) -> str:
+        return make_prompt(cue_list, age=age, sex=sex)
+
+    # Construction-exact: the prompt this script would build for the unchanged
+    # cues has to be the prompt the case carries, or the counterfactual differs
+    # from the original in ways beyond the one cue that was meant to change.
+    if prompt_of(cues) != str(case.get("prompt") or ""):
         return None
 
     base_id = str(case.get("base_id") or case["id"])
@@ -118,14 +151,14 @@ def counterfactual_rows_for_case(
     }
     rows = []
     specs = [
-        ("orig", "swapped_slot", make_prompt(cues), cues, slot, cues[slot]),
-        ("swap", "swapped_slot", make_prompt(swap_cues), swap_cues, slot, replacement),
+        ("orig", "swapped_slot", prompt_of(cues), cues, slot, cues[slot]),
+        ("swap", "swapped_slot", prompt_of(swap_cues), swap_cues, slot, replacement),
     ]
     for r in retained_slots:
-        specs.append(("orig", "retained", make_prompt(cues), cues, r, cues[r]))
-        specs.append(("swap", "retained", make_prompt(swap_cues), swap_cues, r, cues[r]))
+        specs.append(("orig", "retained", prompt_of(cues), cues, r, cues[r]))
+        specs.append(("swap", "retained", prompt_of(swap_cues), swap_cues, r, cues[r]))
         specs.append(
-            ("removed", "retained", make_prompt(removed_cues), removed_cues,
+            ("removed", "retained", prompt_of(removed_cues), removed_cues,
              removed_slot_of[r], cues[r])
         )
     for variant, role, prompt, cues_in_prompt, s, gold in specs:
@@ -135,6 +168,10 @@ def counterfactual_rows_for_case(
             variant=variant,
             role=role,
             prompt=prompt,
+            # Built from the same cue list as the direct prompt, so the two
+            # conditions differ only in the instruction that follows the
+            # presentation -- which is what makes the arms comparable.
+            cot_prompt=make_prompt(cues_in_prompt, condition="cot", age=age, sex=sex),
             cues_in_prompt=cues_in_prompt,
             slot=s,
             gold_cue=gold,

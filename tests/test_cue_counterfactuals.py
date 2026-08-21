@@ -95,3 +95,64 @@ def test_evaluate_counterfactuals_math():
     assert result["retained_degraded_under_removal"] == 1.0
     assert result["retained_degraded_under_swap"] == 0.0
     assert result["phantom_rate_removed_cue"] == 1.0
+
+
+def corpus_case(cues: list[str], age=41, sex="M") -> dict:
+    """A case built the way the corpus builder builds one.
+
+    The tests above make their case with this script's own make_prompt, so they
+    pass whatever format that is -- which is how the script came to hold an
+    inline "A patient presents with X, Y and Z" sentence long after the corpus
+    moved to a findings list. Every real case then failed the round-trip check
+    and the script produced no rows at all, silently, because producing none is
+    what the check is supposed to do when a prompt cannot be rebuilt.
+    """
+    from scripts.make_ddxplus_cue_count_cases import make_prompt as corpus_make_prompt
+
+    return {
+        "id": "case1__cue_count_all",
+        "base_id": "case1",
+        "diagnosis_id": "urti",
+        "cue_targets": cues,
+        "age": age,
+        "sex": sex,
+        "prompt": corpus_make_prompt(cues, age=age, sex=sex),
+        "prompt_cot": corpus_make_prompt(cues, condition="cot", age=age, sex=sex),
+    }
+
+
+def test_a_case_from_the_corpus_builder_round_trips():
+    case = corpus_case(CUES)
+    rows = counterfactual_rows_for_case(
+        case, vocab=VOCAB, rng=random.Random(3), strategy="last_subtoken"
+    )
+    assert rows is not None and len(rows) == 8
+
+
+def test_age_and_sex_are_carried_into_the_rebuilt_prompt():
+    """They head the presentation, so dropping them rebuilds a different case."""
+    case = corpus_case(CUES, age=7, sex="F")
+    rows = counterfactual_rows_for_case(
+        case, vocab=VOCAB, rng=random.Random(3), strategy="last_subtoken"
+    )
+    assert rows is not None
+    orig = next(r for r in rows if r["cf_variant"] == "orig")
+    assert orig["prompt"] == case["prompt"]
+
+
+def test_every_row_carries_a_chain_of_thought_prompt():
+    """run_source_answers reads prompt_cot in the cot condition, and hypothesis
+    1 is a comparison against that arm."""
+    from src.case_prompts import COT_INSTRUCTION, DIRECT_INSTRUCTION
+
+    rows = counterfactual_rows_for_case(
+        corpus_case(CUES), vocab=VOCAB, rng=random.Random(3), strategy="last_subtoken"
+    )
+    for row in rows:
+        assert row["prompt_cot"], row["id"]
+        assert row["prompt_cot"].endswith(COT_INSTRUCTION)
+        assert row["prompt"].endswith(DIRECT_INSTRUCTION)
+        # The two differ only after the presentation.
+        assert row["prompt"].split(DIRECT_INSTRUCTION)[0] == (
+            row["prompt_cot"].split(COT_INSTRUCTION)[0]
+        )
