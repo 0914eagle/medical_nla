@@ -223,6 +223,12 @@ def main() -> None:
                 "answer_prefilled": prefill,
                 "answer_forced": forced,
                 "diagnosis_name": gold,
+                # Carried, not just consulted. Scoring here and omitting the
+                # alias list left every later re-scoring of this file silently
+                # stricter than the run that produced it: the audit recomputed
+                # DDXPlus at 0.2920 against the recorded 0.3724, the whole
+                # difference being the 49-name alias table it could not see.
+                "diagnosis_aliases": aliases,
                 "source_correct": correct,
                 "answer_token_f1": round(overlap, 4),
                 "differential_rank": rank,
