@@ -30,6 +30,7 @@ one file.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -97,11 +98,15 @@ def gold_is_written_in(presentation: str, case: dict[str, Any]) -> bool:
     Flagged rather than dropped, because the split is the interesting part: a
     referring note that moves the answer even where the chart names the
     diagnosis is a stronger result than one that moves only the rest.
+
+    Matched on word boundaries. Plain containment made "PE", an alias of
+    pulmonary embolism, match inside "the posterior as-pe-ct of the ankle", and
+    twenty-one of the thirty-four flagged cue strings were that one collision.
     """
     haystack = normalize(presentation)
     for name in [case.get("diagnosis_name"), *(case.get("diagnosis_aliases") or [])]:
         needle = normalize(str(name or ""))
-        if needle and needle in haystack:
+        if needle and re.search(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", haystack):
             return True
     return False
 

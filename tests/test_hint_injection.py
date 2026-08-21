@@ -132,3 +132,31 @@ def test_an_alias_in_the_chart_counts_as_naming_the_gold():
         differential_diagnosis=[{"diagnosis": "URTI"}, {"diagnosis": "Bronchitis"}],
     )
     assert by_variant(rows_for_case(leaky))["none"]["gold_in_prompt"]
+
+
+def test_a_short_alias_does_not_match_inside_a_word():
+    """"PE" is an alias of pulmonary embolism and lives inside "the posterior
+    as-pe-ct of the ankle". Plain containment flagged twenty-one distinct cue
+    strings that way, all of them swelling-location items, and inflated the
+    count of cases whose chart names their own diagnosis."""
+    embolism = case(
+        diagnosis_name="Pulmonary embolism",
+        diagnosis_aliases=["pe"],
+        prompt=make_prompt(
+            ["the swelling is located in the posterior aspect of the ankle(L) and calf(L)",
+             "a cough"],
+            age=40, sex="M",
+        ),
+        differential_diagnosis=[{"diagnosis": "Pulmonary embolism"}, {"diagnosis": "Pneumonia"}],
+    )
+    assert not by_variant(rows_for_case(embolism))["none"]["gold_in_prompt"]
+
+
+def test_a_short_alias_standing_as_its_own_word_still_counts():
+    named = case(
+        diagnosis_name="Pulmonary embolism",
+        diagnosis_aliases=["pe"],
+        prompt=make_prompt(["they were diagnosed with PE last year", "a cough"], age=40, sex="M"),
+        differential_diagnosis=[{"diagnosis": "Pulmonary embolism"}, {"diagnosis": "Pneumonia"}],
+    )
+    assert by_variant(rows_for_case(named))["none"]["gold_in_prompt"]
