@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import sys
 from collections import Counter
 from pathlib import Path
@@ -51,14 +52,20 @@ SOURCES = {
 }
 
 
-def describe_artifact(path: Path, sample: int = 2000) -> dict[str, Any]:
-    """Summarize one JSONL artifact, including the flags that shaped it."""
-    rows = []
-    for index, row in enumerate(read_jsonl(str(path))):
-        if index >= sample:
-            break
-        rows.append(row)
-    n_lines = sum(1 for _ in path.open(encoding="utf-8"))
+def describe_artifact(path: Path, example_seed: int = 17) -> dict[str, Any]:
+    """Summarize one JSONL artifact, including the flags that shaped it.
+
+    Every row is read. Summarizing a prefix instead understated DDXPlus at
+    "mean 6.59, max 15" against a true 6.79 and 21, because the file is grouped
+    by diagnosis and its first 2,000 rows are twenty of the forty-nine labels.
+    The files are tens of megabytes and the row count already required a full
+    pass, so the prefix bought nothing.
+
+    The example prompt is drawn at random rather than taken from the top, for
+    the same reason: row 0 of a file grouped by diagnosis is not a sample of it.
+    """
+    rows = list(read_jsonl(str(path)))
+    n_lines = len(rows)
 
     provenance = {
         field: rows[0][field] for field in PROVENANCE_FIELDS if rows and field in rows[0]
@@ -72,17 +79,19 @@ def describe_artifact(path: Path, sample: int = 2000) -> dict[str, Any]:
     for row in rows:
         for value in row.get("cue_polarities") or []:
             polarity[str(value)] += 1
+    example = random.Random(example_seed).choice(rows) if rows else None
 
     return {
         "name": path.name,
         "rows": n_lines,
-        "sampled": len(rows),
+        "sampled": n_lines,
+        "example_seed": example_seed,
         "provenance": provenance,
         "mean_cues": round(sum(cue_counts) / len(cue_counts), 2) if cue_counts else None,
         "max_cues": max(cue_counts) if cue_counts else None,
         "cue_polarity": dict(polarity),
         "fields": sorted(rows[0]) if rows else [],
-        "example_prompt": (rows[0].get("prompt") if rows else None),
+        "example_prompt": (example.get("prompt") if example else None),
     }
 
 
@@ -141,9 +150,7 @@ def build_card(repo_id: str, artifacts: list[dict[str, Any]], private: bool) -> 
         lines.append(f"### `{artifact['name']}`")
         lines.append("")
         lines.append(f"- rows: {artifact['rows']:,}")
-        sampled = artifact["sampled"]
-        exact = sampled >= artifact["rows"]
-        note = "" if exact else f" (first {sampled:,} rows)"
+        note = ""
         if artifact["mean_cues"] is not None:
             lines.append(
                 f"- cues per case: mean {artifact['mean_cues']}, "

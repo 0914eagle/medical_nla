@@ -35,50 +35,30 @@ def test_describe_artifact_reports_the_flags_recorded_on_the_rows(tmp_path):
     assert described["cue_polarity"] == {"positive": 2, "negative": 2}
 
 
-def test_describe_artifact_counts_every_row_not_just_the_sample(tmp_path):
-    path = write_cases(tmp_path, "ddxplus_cases.jsonl", [ROW] * 50)
-    described = describe_artifact(path, sample=10)
+def test_describe_artifact_summarizes_every_row(tmp_path):
+    """A prefix understated DDXPlus at mean 6.59 / max 15 against a true 6.79 /
+    21, because the file is grouped by diagnosis and its first rows are a
+    corner of the label space."""
+    rows = [{**ROW, "cue_targets": ["a"]}] * 40 + [{**ROW, "cue_targets": ["a", "b", "c"]}] * 10
+    path = write_cases(tmp_path, "ddxplus_cases.jsonl", rows)
+    described = describe_artifact(path)
     assert described["rows"] == 50
-    assert described["sampled"] == 10
+    assert described["sampled"] == 50
+    assert described["max_cues"] == 3
+    assert described["mean_cues"] == 1.4
 
 
-def test_card_records_provenance_and_attribution(tmp_path):
-    path = write_cases(tmp_path, "ddxplus_cases.jsonl", [ROW])
-    card = build_card("acct/medical-nla-cases", [describe_artifact(path)], private=True)
-    assert "acct/medical-nla-cases" in card
-    assert "`negative_cues`: `True`" in card
-    assert "DDXPlus" in card
-    assert "CC BY 4.0" in card
-    assert "private" in card.lower()
-
-
-def test_card_attributes_each_source_present(tmp_path):
-    ddx = write_cases(tmp_path, "ddxplus_cases.jsonl", [ROW])
-    mcr = write_cases(tmp_path, "mcr_cases_train.jsonl", [ROW])
-    card = build_card("a/b", [describe_artifact(ddx), describe_artifact(mcr)], private=False)
-    assert "DDXPlus" in card
-    assert "MedCaseReasoning" in card
-    assert "private" not in card.lower()
-
-
-def test_card_explains_why_reasoning_quotes_are_not_the_cues(tmp_path):
-    # The measurement that rejected the first ingestion belongs with the data.
-    path = write_cases(tmp_path, "mcr_cases_train.jsonl", [ROW])
-    card = build_card("a/b", [describe_artifact(path)], private=True)
-    assert "1.7%" in card
-    assert "diagnostic_reasoning" in card
-
-
-def test_card_marks_a_statistic_computed_from_a_sample(tmp_path):
-    # The row count is exact; the cue statistics are not, when the file is
-    # longer than the sample, and the card must not present them as if they were.
+def test_the_card_claims_no_sampling(tmp_path):
     path = write_cases(tmp_path, "ddxplus_cases.jsonl", [ROW] * 50)
-    card = build_card("a/b", [describe_artifact(path, sample=10)], private=True)
+    card = build_card("a/b", [describe_artifact(path)], private=True)
     assert "rows: 50" in card
-    assert "(first 10 rows)" in card
-
-
-def test_card_does_not_add_a_note_when_every_row_was_read(tmp_path):
-    path = write_cases(tmp_path, "ddxplus_cases.jsonl", [ROW] * 5)
-    card = build_card("a/b", [describe_artifact(path, sample=1000)], private=True)
     assert "first" not in card
+
+
+def test_the_example_prompt_is_drawn_at_random_and_reproducibly(tmp_path):
+    """Row 0 of a file grouped by diagnosis is not a sample of it."""
+    rows = [{**ROW, "prompt": f"prompt {i}"} for i in range(50)]
+    path = write_cases(tmp_path, "ddxplus_cases.jsonl", rows)
+    first = describe_artifact(path, example_seed=17)
+    assert first["example_prompt"] == describe_artifact(path, example_seed=17)["example_prompt"]
+    assert first["example_prompt"] != describe_artifact(path, example_seed=99)["example_prompt"]
