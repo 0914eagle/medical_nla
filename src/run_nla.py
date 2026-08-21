@@ -137,8 +137,8 @@ def main() -> None:
         help=(
             "Generate for this many manifest rows, drawn at random rather than "
             "taken from the front. Used to hold two pools to the same size when "
-            "their rates are being compared -- the seen-cue pool is 2,940 rows "
-            "against the heldout pool's 770, and generation is one row at a time."
+            "their rates are being compared: the seen-cue pool is 2,940 rows "
+            "against the heldout pool's 770."
         ),
     )
     parser.add_argument(
@@ -146,6 +146,16 @@ def main() -> None:
         type=int,
         default=17,
         help="Seed for --limit, so the same subset is scored on every re-run.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=16,
+        help=(
+            "Rows generated together. Every AV prompt is the same length, so a "
+            "batch needs no padding and the rows stack as they are. Lower it if "
+            "the KV cache runs the card out of memory on long outputs."
+        ),
     )
     args = parser.parse_args()
 
@@ -216,73 +226,88 @@ def main() -> None:
             f"sampled with seed {args.sample_seed}",
             flush=True,
         )
-    # Generation is one row at a time and a pool is several hundred, so the run
-    # is silent for half an hour. That silence has twice been read as a hang and
-    # investigated; a counter costs nothing and answers the question on screen.
+    # Batched. Every AV prompt is the same template with one embedding replaced,
+    # so every row tokenizes to the identical length and a batch needs no
+    # padding at all -- the rows stack as they are. One at a time was 4.2s per
+    # row for the adapter and 20s for vanilla AV, which is where an afternoon
+    # went; the work per row is a few dozen tokens against a 12B model, so it is
+    # almost entirely per-call overhead.
     total_rows = len(manifest_rows)
     started = time.monotonic()
-    print(f"[nla] generating {total_rows:,} rows", flush=True)
-    for index, row in enumerate(manifest_rows, start=1):
-        activation = torch.load(row["activation_path"], map_location="cpu", weights_only=True)
-        result = build_nla_inputs_embeds(
-            tokenizer=tokenizer,
-            embed_layer=embed_layer,
-            sidecar=sidecar,
-            activation=activation,
-            device=model.device,
-            actor_prompt_template=actor_prompt_template,
-        )
+    done = 0
+    print(f"[nla] generating {total_rows:,} rows, batch {args.batch_size}", flush=True)
+    for start in range(0, total_rows, args.batch_size):
+        batch_rows = manifest_rows[start : start + args.batch_size]
+        results = [
+            build_nla_inputs_embeds(
+                tokenizer=tokenizer,
+                embed_layer=embed_layer,
+                sidecar=sidecar,
+                activation=torch.load(
+                    row["activation_path"], map_location="cpu", weights_only=True
+                ),
+                device=model.device,
+                actor_prompt_template=actor_prompt_template,
+            )
+            for row in batch_rows
+        ]
+        lengths = {r.inputs_embeds.shape[1] for r in results}
+        if len(lengths) != 1:
+            # The no-padding assumption, checked rather than trusted: a template
+            # that tokenized differently per row would silently misalign here.
+            raise ValueError(f"AV prompts differ in length within a batch: {sorted(lengths)}")
         generated = model.generate(
-            inputs_embeds=result.inputs_embeds,
-            attention_mask=result.attention_mask,
+            inputs_embeds=torch.cat([r.inputs_embeds for r in results], dim=0),
+            attention_mask=torch.cat([r.attention_mask for r in results], dim=0),
             pad_token_id=tokenizer.pad_token_id,
             eos_token_id=tokenizer.eos_token_id,
             **gen_kwargs,
         )
-        raw_text = tokenizer.decode(generated[0], skip_special_tokens=False)
-        explanation, parsed_explanation = extract_explanation(raw_text)
-        result_row = {
-                "id": row["id"],
-                "base_id": row.get("base_id", row["id"]),
-                "prompt": row["prompt"],
-                "query": result.prompt_text,
-                "actor_prompt_template_file": args.actor_prompt_template_file,
-                "actor_prompt_suffix_file": args.actor_prompt_suffix_file,
-                "adapter_id": adapter_id,
-                "nla_output": explanation,
-                "raw_nla_output": raw_text,
-                "parsed_explanation_tag": parsed_explanation,
-                "cjk_fraction": cjk_fraction(raw_text),
-                "layer": row["layer"],
-                "position": row["position"],
-                "position_family": row.get("position_family"),
-                "position_mode": row.get("position_mode"),
-                "target_text": row.get("target_text"),
-                "target_text_strategy": row.get("target_text_strategy"),
-                "target_token_span": row.get("target_token_span"),
-                "target_char_span": row.get("target_char_span"),
-                "activation_path": row["activation_path"],
-                "activation_norm": result.activation_norm,
-                "scaled_activation_norm": result.scaled_activation_norm,
-                "injection_position": result.injection_position,
-                "injection_scale": sidecar.injection_scale,
-                "injection_token_id": sidecar.injection_token_id,
-                "sidecar_path": sidecar.path,
-                "gen_config": gen_kwargs,
-                "timestamp": datetime.now(UTC).isoformat(),
-        }
-        for field in PASSTHROUGH_FIELDS:
-            if field in row:
-                result_row[field] = row.get(field)
-        append_jsonl(output_path, result_row)
-        if index % 25 == 0 or index == total_rows:
-            elapsed = time.monotonic() - started
-            remaining = elapsed / index * (total_rows - index)
-            print(
-                f"[nla] {index:,}/{total_rows:,} "
-                f"({elapsed / index:.1f}s/row, ~{remaining / 60:.0f} min left)",
-                flush=True,
-            )
+        texts = tokenizer.batch_decode(generated, skip_special_tokens=False)
+        for row, result, raw_text in zip(batch_rows, results, texts, strict=True):
+            explanation, parsed_explanation = extract_explanation(raw_text)
+            result_row = {
+                    "id": row["id"],
+                    "base_id": row.get("base_id", row["id"]),
+                    "prompt": row["prompt"],
+                    "query": result.prompt_text,
+                    "actor_prompt_template_file": args.actor_prompt_template_file,
+                    "actor_prompt_suffix_file": args.actor_prompt_suffix_file,
+                    "adapter_id": adapter_id,
+                    "nla_output": explanation,
+                    "raw_nla_output": raw_text,
+                    "parsed_explanation_tag": parsed_explanation,
+                    "cjk_fraction": cjk_fraction(raw_text),
+                    "layer": row["layer"],
+                    "position": row["position"],
+                    "position_family": row.get("position_family"),
+                    "position_mode": row.get("position_mode"),
+                    "target_text": row.get("target_text"),
+                    "target_text_strategy": row.get("target_text_strategy"),
+                    "target_token_span": row.get("target_token_span"),
+                    "target_char_span": row.get("target_char_span"),
+                    "activation_path": row["activation_path"],
+                    "activation_norm": result.activation_norm,
+                    "scaled_activation_norm": result.scaled_activation_norm,
+                    "injection_position": result.injection_position,
+                    "injection_scale": sidecar.injection_scale,
+                    "injection_token_id": sidecar.injection_token_id,
+                    "sidecar_path": sidecar.path,
+                    "gen_config": gen_kwargs,
+                    "timestamp": datetime.now(UTC).isoformat(),
+            }
+            for field in PASSTHROUGH_FIELDS:
+                if field in row:
+                    result_row[field] = row.get(field)
+            append_jsonl(output_path, result_row)
+            done += 1
+        elapsed = time.monotonic() - started
+        remaining = elapsed / done * (total_rows - done)
+        print(
+            f"[nla] {done:,}/{total_rows:,} "
+            f"({elapsed / done:.2f}s/row, ~{remaining / 60:.0f} min left)",
+            flush=True,
+        )
 
     del model
     torch.cuda.empty_cache()
