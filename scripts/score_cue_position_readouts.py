@@ -130,6 +130,18 @@ def main() -> None:
     parser.add_argument("--dump", help="TSV of sampled rows, with a blank verdict column.")
     parser.add_argument("--dump-sample", type=int, default=0)
     parser.add_argument("--dump-seed", type=int, default=17)
+    parser.add_argument(
+        "--shuffle-control",
+        action="store_true",
+        help=(
+            "Also score each readout against a different row's gold. A long "
+            "output covers a short gold's content words partly by chance, so a "
+            "rate on the real pairing means nothing without the rate on the "
+            "wrong ones -- the vanilla baseline writes 1,557 characters where "
+            "the adapter writes 52."
+        ),
+    )
+    parser.add_argument("--shuffle-seed", type=int, default=17)
     args = parser.parse_args()
 
     pools = {"heldout": load_pool(args.heldout)}
@@ -139,6 +151,23 @@ def main() -> None:
     summaries = {}
     for name, rows in pools.items():
         summaries[name] = report(name, score_pool(rows))
+        if args.shuffle_control:
+            # Each readout against the next row's gold, so every readout and
+            # every gold is used exactly once and only the pairing is broken.
+            golds = [row["gold"] for row in rows]
+            rotated = golds[1:] + golds[:1]
+            control = [
+                {**row, "gold": gold} for row, gold in zip(rows, rotated, strict=True)
+            ]
+            shuffled = report(f"{name} [gold shuffled]", score_pool(control))
+            print(f"\n  {name}: real minus shuffled")
+            for key in ("read>=0.5", "f1>=0.5", "mean_output_recall"):
+                real, chance = summaries[name][key], shuffled[key]
+                print(f"    {key:<20} {real:.4f} - {chance:.4f} = {real - chance:+.4f}")
+            print(
+                "    What is left after subtracting the shuffled rate is the part\n"
+                "    that needed this readout to go with this vector."
+            )
 
     if "seen" in summaries and summaries["seen"] and summaries["heldout"]:
         print("\nheldout minus seen (the number the design turns on):")
