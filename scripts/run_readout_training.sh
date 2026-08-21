@@ -44,23 +44,30 @@ MAX_EVAL_ROWS="${MAX_EVAL_ROWS:-512}"
 # It also cuts the queue's wall clock by more than half.
 MAX_TRAIN_ROWS="${MAX_TRAIN_ROWS:-10195}"
 
-# Weights alone are 11.8 GB a card once the model is split across two, before
-# any activation memory, so a card carrying somebody else's job has nothing
-# like enough. Checked once here rather than discovered eighteen times: without
-# it every run dies in the same nine seconds, the loop dutifully continues, and
-# the summary table is eighteen rows of "(did not finish)".
-if ! python scripts/check_gpu_setup.py --config configs/default.yaml --require-free-gb 20; then
-  echo "Refusing to start the queue. Free the cards, or run on the other pair with"
-  echo "  export CUDA_VISIBLE_DEVICES=2,3 && source scripts/env.sh"
-  exit 1
-fi
-
 LOGS="$ART/logs"
 ADAPTERS="$ART/train/adapters"
 mkdir -p "$LOGS" "$ADAPTERS"
 STAMP=$(date +%Y%m%d_%H%M%S)
 MAIN="$LOGS/readout_${CORPUS}_${STAMP}.log"
 say() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$MAIN"; }
+
+# Weights alone are 11.8 GB a card once the model is split across two, before
+# any activation memory, so a card carrying somebody else's job has nothing
+# like enough. Checked once here rather than discovered eighteen times: without
+# it every run dies in the same nine seconds, the loop dutifully continues, and
+# the summary table is eighteen rows of "(did not finish)".
+#
+# After the log exists, not before. The queue is meant to be launched with
+# nohup into /dev/null -- the header says so -- and a refusal printed to stdout
+# then leaves nothing behind but "Exit 1" and no file to look in.
+if ! python scripts/check_gpu_setup.py --config configs/default.yaml --require-free-gb 20 >>"$MAIN" 2>&1; then
+  say "REFUSED: not enough free GPU memory on CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-<all>}"
+  say "  the per-card report is above; another job is most likely holding a card:"
+  say "    nvidia-smi --query-compute-apps=pid,used_memory --format=csv"
+  say "  to use the other pair:  export CUDA_VISIBLE_DEVICES=2,3 && source scripts/env.sh"
+  echo "Refused -- see $MAIN" >&2
+  exit 1
+fi
 
 say "corpus $CORPUS | layers $LAYERS | seeds $SEEDS | epochs $EPOCHS | batch $BATCH x $GRAD_ACCUM"
 say "train rows capped at $MAX_TRAIN_ROWS (same budget for both corpora)"
