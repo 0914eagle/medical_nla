@@ -123,7 +123,7 @@ def load_activation(path: str | Path) -> torch.Tensor:
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"activation_path does not exist: {p}")
-    activation = torch.load(p, map_location="cpu")
+    activation = torch.load(p, map_location="cpu", weights_only=True)
     if activation.ndim != 1:
         raise ValueError(f"Expected 1-D activation at {p}, got shape {tuple(activation.shape)}")
     return activation.float()

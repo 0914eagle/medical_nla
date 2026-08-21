@@ -101,7 +101,7 @@ def load_matrix(rows: list[dict[str, Any]], class_to_idx: dict[str, int]) -> tup
     xs = []
     ys = []
     for row in rows:
-        tensor = torch.load(row["activation_path"], map_location="cpu")
+        tensor = torch.load(row["activation_path"], map_location="cpu", weights_only=True)
         xs.append(tensor.flatten().float())
         ys.append(class_to_idx[str(row["diagnosis_id"])])
     return torch.stack(xs), torch.tensor(ys, dtype=torch.long)

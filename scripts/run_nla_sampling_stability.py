@@ -121,7 +121,7 @@ def main() -> None:
     if args.limit is not None:
         rows = rows[: args.limit]
     for row_index, row in enumerate(rows, start=1):
-        activation = torch.load(row["activation_path"], map_location="cpu")
+        activation = torch.load(row["activation_path"], map_location="cpu", weights_only=True)
         injected = build_nla_inputs_embeds(
             tokenizer=tokenizer,
             embed_layer=embed_layer,

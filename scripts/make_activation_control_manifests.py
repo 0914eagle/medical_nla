@@ -33,7 +33,7 @@ def diagnosis_id(row: dict[str, Any]) -> str:
 
 
 def load_activation(path: str) -> torch.Tensor:
-    tensor = torch.load(path, map_location="cpu")
+    tensor = torch.load(path, map_location="cpu", weights_only=True)
     if tensor.ndim != 1:
         raise ValueError(f"Expected 1D activation at {path}, got shape {tuple(tensor.shape)}")
     return tensor

@@ -401,7 +401,7 @@ def main() -> None:
         gold_id = str(row["diagnosis_id"])
         if gold_id not in candidate_by_id:
             raise ValueError(f"Gold diagnosis_id {gold_id!r} is not in candidate set.")
-        activation = torch.load(row["activation_path"], map_location="cpu")
+        activation = torch.load(row["activation_path"], map_location="cpu", weights_only=True)
         injected = build_nla_inputs_embeds(
             tokenizer=tokenizer,
             embed_layer=embed_layer,

@@ -247,7 +247,7 @@ def main() -> None:
             ordered,
             answer_style=args.answer_style,
         )
-        activation = torch.load(row["activation_path"], map_location="cpu")
+        activation = torch.load(row["activation_path"], map_location="cpu", weights_only=True)
         injected = build_nla_inputs_embeds(
             tokenizer=tokenizer,
             embed_layer=embed_layer,

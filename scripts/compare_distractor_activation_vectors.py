@@ -34,7 +34,7 @@ def variant(row: dict) -> str:
 
 
 def load_vector(path: str) -> torch.Tensor:
-    tensor = torch.load(path, map_location="cpu")
+    tensor = torch.load(path, map_location="cpu", weights_only=True)
     return tensor.float().reshape(-1)
 
 

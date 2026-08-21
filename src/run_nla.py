@@ -4,6 +4,7 @@ import argparse
 import random
 import shutil
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -215,8 +216,14 @@ def main() -> None:
             f"sampled with seed {args.sample_seed}",
             flush=True,
         )
-    for row in manifest_rows:
-        activation = torch.load(row["activation_path"], map_location="cpu")
+    # Generation is one row at a time and a pool is several hundred, so the run
+    # is silent for half an hour. That silence has twice been read as a hang and
+    # investigated; a counter costs nothing and answers the question on screen.
+    total_rows = len(manifest_rows)
+    started = time.monotonic()
+    print(f"[nla] generating {total_rows:,} rows", flush=True)
+    for index, row in enumerate(manifest_rows, start=1):
+        activation = torch.load(row["activation_path"], map_location="cpu", weights_only=True)
         result = build_nla_inputs_embeds(
             tokenizer=tokenizer,
             embed_layer=embed_layer,
@@ -268,6 +275,14 @@ def main() -> None:
             if field in row:
                 result_row[field] = row.get(field)
         append_jsonl(output_path, result_row)
+        if index % 25 == 0 or index == total_rows:
+            elapsed = time.monotonic() - started
+            remaining = elapsed / index * (total_rows - index)
+            print(
+                f"[nla] {index:,}/{total_rows:,} "
+                f"({elapsed / index:.1f}s/row, ~{remaining / 60:.0f} min left)",
+                flush=True,
+            )
 
     del model
     torch.cuda.empty_cache()
