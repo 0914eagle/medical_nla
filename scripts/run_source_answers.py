@@ -52,6 +52,7 @@ if str(REPO_ROOT) not in sys.path:
 from src.answer_matching import is_correct, normalize, token_f1
 from src.case_prompts import ANSWER_CUE, parse_answer, prefilled_assistant_turn
 from src.jsonl import append_jsonl, read_jsonl
+from src.sampling import sample_rows
 
 PROMPT_FIELDS = {"direct": "prompt", "cot": "prompt_cot"}
 
@@ -126,6 +127,12 @@ def main() -> None:
         ),
     )
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--sample-seed",
+        type=int,
+        default=17,
+        help="Seed for --limit, which samples rather than taking the front.",
+    )
     args = parser.parse_args()
 
     # Imported here so the scoring helpers stay testable without a GPU stack.
@@ -154,7 +161,7 @@ def main() -> None:
 
     rows = [row for row in read_jsonl(args.cases) if row.get(field)]
     if args.limit:
-        rows = rows[: args.limit]
+        rows = sample_rows(rows, args.limit, seed=args.sample_seed, label="cases")
     if not rows:
         raise SystemExit(f"no rows in {args.cases} carrying {field!r}")
 

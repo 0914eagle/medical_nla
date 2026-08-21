@@ -23,6 +23,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.config import ensure_dir, load_config
+from src.sampling import sample_rows
 from src.jsonl import append_jsonl, read_jsonl
 from src.modeling import load_causal_lm, load_tokenizer, maybe_load_peft_adapter
 from src.nla import build_nla_inputs_embeds, build_nla_prompt, load_nla_sidecar
@@ -295,6 +296,12 @@ def main() -> None:
         default="logprob_mean",
     )
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--sample-seed",
+        type=int,
+        default=17,
+        help="Seed for --limit, which samples rather than taking the front.",
+    )
     parser.add_argument("--top-k-output", type=int, default=10)
     parser.add_argument("--actor-prompt-template-file", default=None)
     parser.add_argument("--actor-prompt-suffix-file", default=None)
@@ -325,12 +332,13 @@ def main() -> None:
     shutil.copy2(args.config, output_path.parent / f"{output_path.stem}.config.yaml")
 
     rows = list(read_jsonl(args.manifest))
-    if args.limit is not None:
-        rows = rows[: args.limit]
     rows = [row for row in rows if row.get("diagnosis_id") and row.get("activation_path")]
     if not rows:
         raise ValueError("No manifest rows with diagnosis_id and activation_path found.")
+    # Candidates from the whole manifest, before any limit: derived from the
+    # limited rows, --limit narrows the choice instead of shortening the run.
     candidates = read_candidates(args.candidates_jsonl, rows)
+    rows = sample_rows(rows, args.limit, seed=args.sample_seed, label="manifest rows")
     candidate_by_id = {row["diagnosis_id"]: row for row in candidates}
 
     cache_dir = paths.get("cache_dir")

@@ -25,6 +25,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.run_source_model_mc import parse_selection
 from scripts.score_source_diagnosis_logprobs import read_candidates
+from src.sampling import sample_rows
 from src.config import ensure_dir, load_config
 from src.jsonl import append_jsonl, read_jsonl, write_jsonl
 from src.modeling import load_causal_lm, load_tokenizer, maybe_load_peft_adapter
@@ -169,6 +170,12 @@ def main() -> None:
     parser.add_argument("--candidates-jsonl", default=None)
     parser.add_argument("--max-new-tokens", type=int, default=64)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--sample-seed",
+        type=int,
+        default=17,
+        help="Seed for --limit, which samples rather than taking the front.",
+    )
     parser.add_argument("--num-shards", type=int, default=1)
     parser.add_argument("--shard-index", type=int, default=0)
     parser.add_argument("--seed", type=int, default=17)
@@ -191,13 +198,15 @@ def main() -> None:
     all_rows = [
         row for row in read_jsonl(args.manifest) if row.get("diagnosis_id") and row.get("activation_path")
     ]
-    if args.limit is not None:
-        all_rows = all_rows[: args.limit]
+    # Candidates from every row, before the limit: derived from a limited row
+    # set, the option list shrinks with it and the run scores a k-way choice
+    # rather than the intended one.
+    candidates = read_candidates(args.candidates_jsonl, all_rows)
+    all_rows = sample_rows(all_rows, args.limit, seed=args.sample_seed)
     rows = [row for idx, row in enumerate(all_rows) if idx % args.num_shards == args.shard_index]
     if not rows:
         raise ValueError("No rows selected for this shard.")
 
-    candidates = read_candidates(args.candidates_jsonl, all_rows)
     candidate_by_id = {row["diagnosis_id"]: row for row in candidates}
     missing = sorted({str(row["diagnosis_id"]) for row in rows} - set(candidate_by_id))
     if missing:
