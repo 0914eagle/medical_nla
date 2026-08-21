@@ -102,6 +102,27 @@ def differential_rank(answer: str | None, differential: list[dict[str, Any]]) ->
     return None
 
 
+def parse_where(specs: list[str]) -> dict[str, set[str]]:
+    """`hint_variant=none,wrong` -> {"hint_variant": {"none", "wrong"}}.
+
+    Compared as lowercased strings, so `gold_in_prompt=false` selects the rows
+    whose flag is the JSON boolean without the caller having to know that.
+    """
+    filters: dict[str, set[str]] = {}
+    for spec in specs:
+        key, sep, values = str(spec).partition("=")
+        if not sep or not key.strip():
+            raise SystemExit(f"--where wants KEY=VALUE, got {spec!r}")
+        filters.setdefault(key.strip(), set()).update(
+            value.strip().lower() for value in values.split(",") if value.strip()
+        )
+    return filters
+
+
+def matches_where(row: dict[str, Any], filters: dict[str, set[str]]) -> bool:
+    return all(str(row.get(key)).lower() in wanted for key, wanted in filters.items())
+
+
 def batched(rows: list[dict[str, Any]], size: int):
     for start in range(0, len(rows), size):
         yield rows[start : start + size]
@@ -145,6 +166,18 @@ def main() -> None:
             "reasoning back and ask only for the answer. Marked answer_forced."
         ),
     )
+    parser.add_argument(
+        "--where",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE[,VALUE]",
+        help=(
+            "Keep rows whose KEY is one of the VALUEs. Repeat to require several "
+            "keys at once. For case files that stack the arms of an experiment: "
+            "a chain-of-thought run over an arm nothing will read is a third of "
+            "the run spent on 2048-token generations for nobody."
+        ),
+    )
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument(
         "--sample-seed",
@@ -179,6 +212,16 @@ def main() -> None:
     force_answer = args.force_answer and not prefill
 
     rows = [row for row in read_jsonl(args.cases) if row.get(field)]
+    if args.where:
+        filters = parse_where(args.where)
+        kept = [row for row in rows if matches_where(row, filters)]
+        if not kept:
+            raise SystemExit(
+                f"--where kept none of {len(rows):,} rows. Filters: {filters}\n"
+                "A silent empty run would look like a finished one."
+            )
+        print(f"[where] {len(kept):,} of {len(rows):,} rows kept by {filters}", flush=True)
+        rows = kept
     if args.limit:
         rows = sample_rows(rows, args.limit, seed=args.sample_seed, label="cases")
     if not rows:
