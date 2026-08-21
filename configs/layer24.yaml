@@ -54,7 +54,15 @@ nla_model:
   ar_model_id: kitft/nla-gemma3-12b-L32-ar
   adapter_id: null
   dtype: bfloat16
-  device_map: cuda
+  # The same treatment as source_model, and for a sharper reason: this model is
+  # loaded for *training*, so beyond its 23.6GB of bfloat16 weights the card
+  # also holds activations for the batch, gradients, and the optimizer state.
+  # Left on one card it loaded at 100% of cuda:0 -- 23.5GB of a 24GB card --
+  # and the first forward pass died asking for 84MB.
+  device_map: auto
+  max_memory:
+    0: 22GiB
+    1: 22GiB
   trust_remote_code: true
   sidecar_filename: nla_meta.yaml
   # NLA sidecar values are mandatory. These optional fields are only for hard
