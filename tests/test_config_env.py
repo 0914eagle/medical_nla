@@ -45,3 +45,22 @@ def test_the_shipped_configs_all_resolve(monkeypatch):
     for path in sorted(glob.glob("configs/*.yaml")):
         cfg = load_config(path)
         assert "${" not in str(cfg["paths"]), path
+
+
+def test_a_root_path_from_an_empty_variable_names_the_unsourced_shell(monkeypatch, tmp_path):
+    """`$ART/results/x` in a shell that never sourced env.sh is `/results/x`,
+    and the bare PermissionError names neither the variable nor the fix."""
+    import pathlib
+
+    import pytest
+
+    from src.config import ensure_dir
+
+    def refuse(self, *a, **k):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(pathlib.Path, "mkdir", refuse)
+    with pytest.raises(PermissionError) as excinfo:
+        ensure_dir("/results")
+    assert "source scripts/env.sh" in str(excinfo.value)
+    assert "/results" in str(excinfo.value)

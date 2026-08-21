@@ -62,7 +62,19 @@ def load_config(path: str | Path) -> dict[str, Any]:
 
 def ensure_dir(path: str | Path) -> Path:
     p = Path(path)
-    p.mkdir(parents=True, exist_ok=True)
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+    except PermissionError as exc:
+        # `$ART/results/x.jsonl` in a shell that never sourced scripts/env.sh
+        # is `/results/x.jsonl`, and the mkdir fails at the filesystem root
+        # with an error that names neither the variable nor the shell. The
+        # command looks right on screen, which is what makes it cost minutes
+        # every time.
+        raise PermissionError(
+            f"Cannot create {p}. A path starting at / usually means an empty "
+            "shell variable -- $ART or $DATA in a shell that has not run:\n"
+            "    source scripts/env.sh"
+        ) from exc
     return p
 
 

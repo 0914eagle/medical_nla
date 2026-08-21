@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import random
 import shutil
 import sys
 from datetime import UTC, datetime
@@ -128,6 +129,23 @@ def main() -> None:
         default=None,
         help="Optional PEFT/LoRA adapter path or HF id for evaluating Medical-NLA.",
     )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help=(
+            "Generate for this many manifest rows, drawn at random rather than "
+            "taken from the front. Used to hold two pools to the same size when "
+            "their rates are being compared -- the seen-cue pool is 2,940 rows "
+            "against the heldout pool's 770, and generation is one row at a time."
+        ),
+    )
+    parser.add_argument(
+        "--sample-seed",
+        type=int,
+        default=17,
+        help="Seed for --limit, so the same subset is scored on every re-run.",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -184,7 +202,20 @@ def main() -> None:
 
     embed_layer = model.get_input_embeddings()
     gen_kwargs = generation_kwargs(cfg)
-    for row in read_jsonl(args.manifest):
+    manifest_rows = list(read_jsonl(args.manifest))
+    if args.limit is not None and len(manifest_rows) > args.limit:
+        # Sampled, not truncated. These manifests are grouped by diagnosis, so
+        # the first n rows are a corner of the label space -- the same mistake
+        # that put a validation set, a dataset card, and an appendix table on
+        # twenty of forty-nine diagnoses before it was caught.
+        available = len(manifest_rows)
+        manifest_rows = random.Random(args.sample_seed).sample(manifest_rows, args.limit)
+        print(
+            f"[nla] {args.limit:,} of {available:,} rows, "
+            f"sampled with seed {args.sample_seed}",
+            flush=True,
+        )
+    for row in manifest_rows:
         activation = torch.load(row["activation_path"], map_location="cpu")
         result = build_nla_inputs_embeds(
             tokenizer=tokenizer,
