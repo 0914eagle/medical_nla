@@ -93,6 +93,28 @@ def cue_first_target_text(
     return "\n".join(lines)
 
 
+def content_char_spans(target_text: str) -> list[tuple[int, int]]:
+    """Character ranges of the cue text inside a target this module wrote.
+
+    The inverse of `cue_first_target_text`, and here beside it so the two
+    cannot drift: everything except the "- <cue>" lines is the same XML in
+    every row of the corpus, so a loss averaged over the whole target is mostly
+    a measure of how well the adapter has learned six constant lines. The
+    training loop uses these spans to report the finding's tokens separately.
+
+    Characters rather than re-tokenized pieces, because the boundaries have to
+    be mapped onto the training tokenization rather than change it: the target
+    is still encoded in one call, and offsets locate the content within it.
+    """
+    spans = []
+    offset = 0
+    for line in target_text.split("\n"):
+        if line.startswith("- ") and len(line) > 2:
+            spans.append((offset + 2, offset + len(line)))
+        offset += len(line) + 1
+    return spans
+
+
 def write_summary(path: Path, *, counts: Counter, cue_counts: list[int], source_dir: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:

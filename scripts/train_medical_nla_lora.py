@@ -25,6 +25,7 @@ if str(REPO_ROOT) not in sys.path:
 from src.config import load_config
 from src.jsonl import read_jsonl
 from src.modeling import load_causal_lm, load_tokenizer
+from scripts.make_medical_nla_v3_cue_first_targets import content_char_spans
 from src.nla import AV_PROMPT_FILENAME, build_nla_inputs_embeds, load_nla_sidecar
 
 
@@ -33,6 +34,32 @@ class TrainMetrics:
     step: int
     epoch: int
     loss: float
+
+
+@dataclass
+class EvalMetrics:
+    """Validation loss split by what the token is.
+
+    A target is seven lines of which six are the same XML in every row, so
+    roughly thirty of a thirty-six-token target are a constant. The adapter
+    learns that constant in the first hundred steps and the mean loss collapses
+    toward zero whether or not the vector was read at all -- DDXPlus reached
+    1e-4 a quarter of the way through its first epoch. Selecting a best epoch
+    on that number, or reading an L16-vs-L24-vs-L32 trajectory off it, is
+    reading the brackets.
+
+    `content_loss` is the same cross-entropy restricted to the tokens of the
+    clinical finding itself, which is the only part of the target the vector
+    can supply.
+    """
+
+    loss: float
+    content_loss: float
+    scaffold_loss: float
+    content_tokens: int
+    scaffold_tokens: int
+
+
 
 
 def split_rows(rows: list[dict[str, Any]], *, val_frac: float, seed: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -68,23 +95,33 @@ def build_training_example(
         device=model.device,
         actor_prompt_template=actor_prompt_template,
     )
-    target_ids = tokenizer.encode(str(row["target_text"]), add_special_tokens=False)
+    target_text = str(row["target_text"])
+    encoded = tokenizer(target_text, add_special_tokens=False, return_offsets_mapping=True)
+    target_ids = list(encoded["input_ids"])
+    spans = content_char_spans(target_text)
+    is_content = [
+        any(start < span_end and end > span_start for span_start, span_end in spans)
+        for start, end in encoded["offset_mapping"]
+    ]
     if eos_token_id is not None:
         target_ids = target_ids + [int(eos_token_id)]
+        is_content = is_content + [False]
     target = torch.tensor(target_ids, dtype=torch.long, device=model.device).unsqueeze(0)
     with torch.no_grad():
         target_embeds = embed_layer(target)
     inputs_embeds = torch.cat([injected.inputs_embeds, target_embeds], dim=1).squeeze(0)
     attention_mask = torch.ones(inputs_embeds.shape[0], dtype=torch.long, device=model.device)
     labels = torch.full((inputs_embeds.shape[0],), -100, dtype=torch.long, device=model.device)
+    content = torch.zeros(inputs_embeds.shape[0], dtype=torch.bool, device=model.device)
     prefix_len = injected.inputs_embeds.shape[1]
     labels[prefix_len:] = target.squeeze(0)
-    return inputs_embeds, attention_mask, labels
+    content[prefix_len:] = torch.tensor(is_content, dtype=torch.bool, device=model.device)
+    return inputs_embeds, attention_mask, labels, content
 
 
 def collate_examples(
-    examples: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    examples: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]],
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     max_len = max(example[0].shape[0] for example in examples)
     hidden = examples[0][0].shape[-1]
     device = examples[0][0].device
@@ -92,12 +129,14 @@ def collate_examples(
     batch_embeds = torch.zeros((len(examples), max_len, hidden), dtype=dtype, device=device)
     batch_attention = torch.zeros((len(examples), max_len), dtype=torch.long, device=device)
     batch_labels = torch.full((len(examples), max_len), -100, dtype=torch.long, device=device)
-    for idx, (embeds, attention, labels) in enumerate(examples):
+    batch_content = torch.zeros((len(examples), max_len), dtype=torch.bool, device=device)
+    for idx, (embeds, attention, labels, content) in enumerate(examples):
         length = embeds.shape[0]
         batch_embeds[idx, :length] = embeds
         batch_attention[idx, :length] = attention
         batch_labels[idx, :length] = labels
-    return batch_embeds, batch_attention, batch_labels
+        batch_content[idx, :length] = content
+    return batch_embeds, batch_attention, batch_labels, batch_content
 
 
 @torch.inference_mode()
@@ -110,8 +149,8 @@ def evaluate(
     sidecar: Any,
     actor_prompt_template: str | None,
     batch_size: int,
-) -> float:
-    """Mean loss over `rows`, leaving the model's mode as it was found.
+) -> EvalMetrics:
+    """Loss over `rows`, split scaffold from content, leaving the model's mode as found.
 
     Restoring it is not tidiness. Without it the model stayed in eval mode
     after the first epoch's evaluation, so epoch 1 trained with dropout and
@@ -125,7 +164,11 @@ def evaluate(
     """
     was_training = model.training
     model.eval()
-    losses = []
+    # Summed rather than averaged per batch: batches hold unequal numbers of
+    # supervised tokens, so a mean of batch means weights a short target the
+    # same as a long one.
+    totals = {"all": 0.0, "content": 0.0, "scaffold": 0.0}
+    counts = {"all": 0, "content": 0, "scaffold": 0}
     for start in range(0, len(rows), batch_size):
         batch_rows = rows[start : start + batch_size]
         examples = [
@@ -140,12 +183,32 @@ def evaluate(
             )
             for row in batch_rows
         ]
-        inputs_embeds, attention_mask, labels = collate_examples(examples)
-        out = model(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels)
-        losses.append(float(out.loss.item()))
+        inputs_embeds, attention_mask, labels, content = collate_examples(examples)
+        out = model(inputs_embeds=inputs_embeds, attention_mask=attention_mask)
+        # The shift the model applies internally, applied here so the same
+        # per-token losses can be grouped: logits at t predict the label at t+1.
+        flat_logits = out.logits[:, :-1, :].float().reshape(-1, out.logits.shape[-1])
+        flat_labels = labels[:, 1:].reshape(-1)
+        flat_content = content[:, 1:].reshape(-1)
+        per_token = torch.nn.functional.cross_entropy(
+            flat_logits, flat_labels, reduction="none", ignore_index=-100
+        )
+        supervised = flat_labels != -100
+        is_content = supervised & flat_content
+        is_scaffold = supervised & ~flat_content
+        for key, mask in (("all", supervised), ("content", is_content), ("scaffold", is_scaffold)):
+            totals[key] += float(per_token[mask].sum().item())
+            counts[key] += int(mask.sum().item())
     if was_training:
         model.train()
-    return sum(losses) / max(len(losses), 1)
+    mean = lambda key: totals[key] / counts[key] if counts[key] else float("nan")
+    return EvalMetrics(
+        loss=mean("all"),
+        content_loss=mean("content"),
+        scaffold_loss=mean("scaffold"),
+        content_tokens=counts["content"],
+        scaffold_tokens=counts["scaffold"],
+    )
 
 
 def read_actor_prompt_template(path: str | None) -> str | None:
@@ -241,6 +304,17 @@ def main() -> None:
         help=(
             "Validation rows to score per epoch, sampled at random once and "
             "reused across epochs so the per-epoch losses are comparable."
+        ),
+    )
+    parser.add_argument(
+        "--select-on",
+        choices=("content", "total"),
+        default="content",
+        help=(
+            "Which validation loss picks the best epoch. 'content' uses only "
+            "the tokens of the clinical finding; 'total' also counts the fixed "
+            "XML scaffold, which is most of every target and is learned in the "
+            "first hundred steps."
         ),
     )
     parser.add_argument(
@@ -398,6 +472,7 @@ def main() -> None:
     # The adapter kept was the last epoch's, whatever the validation loss did.
     # out_dir now always holds the best epoch, and best.json says which.
     best_val_loss = float("inf")
+    best_val: EvalMetrics | None = None
     best_epoch: int | None = None
     metrics_path = out_dir / "metrics.jsonl"
     if metrics_path.exists():
@@ -419,7 +494,7 @@ def main() -> None:
                 )
                 for row in batch_rows
             ]
-            inputs_embeds, attention_mask, labels = collate_examples(examples)
+            inputs_embeds, attention_mask, labels, _content = collate_examples(examples)
             out = model(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels)
             loss = out.loss / args.grad_accum_steps
             loss.backward()
@@ -442,7 +517,7 @@ def main() -> None:
                 )
                 if args.max_steps is not None and optimizer_step >= args.max_steps:
                     break
-        val_loss = evaluate(
+        val = evaluate(
             rows=eval_rows,
             model=model,
             tokenizer=tokenizer,
@@ -451,22 +526,30 @@ def main() -> None:
             actor_prompt_template=actor_prompt_template,
             batch_size=args.batch_size,
         )
-        improved = val_loss < best_val_loss
+        # Selected on the finding's tokens, not on the whole target. Six of
+        # every seven target lines are the same XML in every row, so the mean
+        # is a constant the adapter has already learned; ranking epochs by it
+        # ranks them by rounding error.
+        selector = val.content_loss if args.select_on == "content" else val.loss
+        improved = selector < best_val_loss
         print(
-            f"[eval] epoch={epoch} val_loss={val_loss:.4f}"
+            f"[eval] epoch={epoch} val_loss={val.loss:.4f} "
+            f"content={val.content_loss:.4f} scaffold={val.scaffold_loss:.4f} "
+            f"({val.content_tokens:,} content / {val.scaffold_tokens:,} scaffold tokens)"
             + (" (best so far, saving)" if improved else f" (best {best_val_loss:.4f})"),
             flush=True,
         )
         with metrics_path.open("a", encoding="utf-8") as f:
             f.write(
                 json.dumps(
-                    {"epoch": epoch, "step": optimizer_step, "val_loss": val_loss},
+                    {"epoch": epoch, "step": optimizer_step, **asdict(val)},
                     sort_keys=True,
                 )
                 + "\n"
             )
         if improved:
-            best_val_loss, best_epoch = val_loss, epoch
+            best_val_loss, best_epoch = selector, epoch
+            best_val = val
             model.save_pretrained(out_dir)
             tokenizer.save_pretrained(out_dir)
             save_av_prompt(out_dir, actor_prompt_template, sidecar)
@@ -484,7 +567,10 @@ def main() -> None:
             json.dumps(
                 {
                     "best_epoch": best_epoch,
-                    "best_val_loss": round(best_val_loss, 6),
+                    "best_val_loss": round(best_val.loss, 6),
+                    "best_val_content_loss": round(best_val.content_loss, 6),
+                    "best_val_scaffold_loss": round(best_val.scaffold_loss, 6),
+                    "selected_on": args.select_on,
                     "epochs_run": epoch,
                     "n_val_rows_used": len(eval_rows),
                     "n_val_rows_available": len(val_rows),
@@ -495,8 +581,8 @@ def main() -> None:
             encoding="utf-8",
         )
         print(
-            f"[done] kept epoch {best_epoch} (val_loss {best_val_loss:.4f}) "
-            f"of {epoch} in {out_dir}",
+            f"[done] kept epoch {best_epoch} (content {best_val.content_loss:.4f}, "
+            f"val_loss {best_val.loss:.4f}) of {epoch} in {out_dir}",
             flush=True,
         )
 
