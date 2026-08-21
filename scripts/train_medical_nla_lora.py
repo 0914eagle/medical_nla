@@ -212,6 +212,27 @@ def main() -> None:
     parser.add_argument("--grad-accum-steps", type=int, default=8)
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--weight-decay", type=float, default=0.0)
+    parser.add_argument(
+        "--max-train-rows",
+        type=int,
+        default=None,
+        help=(
+            "Cap the training set, sampled at random. Used to give both corpora "
+            "the same budget: MedCaseReasoning carries 32,724 training rows "
+            "against DDXPlus's 10,195, so without a cap a difference between "
+            "them could be the prose or could be the 3.2x more data."
+        ),
+    )
+    parser.add_argument(
+        "--train-subsample-seed",
+        type=int,
+        default=17,
+        help=(
+            "Seed for --max-train-rows, held separate from --seed so that "
+            "several seeds see the same subset and vary only in initialization "
+            "and ordering. Sharing the seed would confound the two."
+        ),
+    )
     parser.add_argument("--val-frac", type=float, default=0.05)
     parser.add_argument(
         "--max-eval-rows",
@@ -281,6 +302,17 @@ def main() -> None:
             train_input_rows,
             val_frac=args.val_frac,
             seed=args.seed,
+        )
+
+    if args.max_train_rows is not None and len(train_rows) > args.max_train_rows:
+        before = len(train_rows)
+        train_rows = random.Random(args.train_subsample_seed).sample(
+            train_rows, args.max_train_rows
+        )
+        print(
+            f"[data] training on {len(train_rows):,} of {before:,} rows "
+            f"(random, seed {args.train_subsample_seed})",
+            flush=True,
         )
 
     tokenizer = load_tokenizer(

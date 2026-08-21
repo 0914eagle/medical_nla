@@ -37,6 +37,12 @@ GRAD_ACCUM="${GRAD_ACCUM:-2}"
 # Validation is now a random sample reused across epochs, so a larger number
 # buys precision rather than a longer look at the same corner of the corpus.
 MAX_EVAL_ROWS="${MAX_EVAL_ROWS:-512}"
+# One training budget for both corpora. MedCaseReasoning has 32,724 training
+# rows against DDXPlus's 10,195 -- 2.4x the cases at the same cues per case --
+# so left uncapped a difference between the two could be the prose or could be
+# the extra data, and the cross-corpus comparison is the point of having both.
+# It also cuts the queue's wall clock by more than half.
+MAX_TRAIN_ROWS="${MAX_TRAIN_ROWS:-10195}"
 
 LOGS="$ART/logs"
 ADAPTERS="$ART/train/adapters"
@@ -46,6 +52,7 @@ MAIN="$LOGS/readout_${CORPUS}_${STAMP}.log"
 say() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$MAIN"; }
 
 say "corpus $CORPUS | layers $LAYERS | seeds $SEEDS | epochs $EPOCHS | batch $BATCH x $GRAD_ACCUM"
+say "train rows capped at $MAX_TRAIN_ROWS (same budget for both corpora)"
 say "cards CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-<all>}"
 
 for L in $LAYERS; do
@@ -70,6 +77,7 @@ for L in $LAYERS; do
       --epochs "$EPOCHS" --seed "$SEED" \
       --batch-size "$BATCH" --grad-accum-steps "$GRAD_ACCUM" \
       --max-eval-rows "$MAX_EVAL_ROWS" \
+      --max-train-rows "$MAX_TRAIN_ROWS" \
       >"$LOG" 2>&1 \
       && say "  done" || say "  FAILED -- see $LOG"
   done
