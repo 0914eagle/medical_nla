@@ -59,9 +59,15 @@ export MEDICAL_NLA_CODE_ROOT="${MEDICAL_NLA_CODE_ROOT:-$_MEDICAL_NLA_HERE}"
 unset _MEDICAL_NLA_HERE
 
 export PYTHONPATH="$MEDICAL_NLA_CODE_ROOT"
+
+# HF_HOME only. TRANSFORMERS_CACHE is deprecated and, worse, means something
+# different: HF_HOME puts the hub cache under $HF_HOME/hub, while
+# TRANSFORMERS_CACHE *is* the hub cache directory. Setting both to the same
+# path sent snapshot_download to hub/ and from_pretrained to the root, and each
+# downloaded its own copy -- 46GB of duplicate checkpoints on this machine
+# before it was noticed. HF_DATASETS_CACHE is likewise derived, not overridden.
+unset TRANSFORMERS_CACHE
 export HF_HOME="$MEDICAL_NLA_DATA_ROOT/hf_cache"
-export TRANSFORMERS_CACHE="$HF_HOME"
-export HF_DATASETS_CACHE="$HF_HOME/datasets"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Two of the four cards. The backbone is 24.4GB in bfloat16 and needs two 24GB

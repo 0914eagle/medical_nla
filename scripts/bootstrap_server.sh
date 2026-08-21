@@ -28,13 +28,13 @@ CODE_ROOT="${MEDICAL_NLA_CODE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && 
 export MEDICAL_NLA_CODE_ROOT="$CODE_ROOT"
 export PYTHONPATH="$CODE_ROOT"
 
-# Hugging Face writes its cache under whichever of these it finds; pointing all
-# of them at the data disk keeps a 25GB checkpoint off the home partition,
-# which is where a "no space left on device" halfway through a download
-# otherwise comes from.
+# HF_HOME keeps a 25GB checkpoint off the home partition, which is where a
+# "no space left on device" halfway through a download otherwise comes from.
+# Only this one: TRANSFORMERS_CACHE names the hub directory itself while
+# HF_HOME names its parent, so setting both to one path gives two caches and
+# two downloads of every checkpoint.
+unset TRANSFORMERS_CACHE
 export HF_HOME="$DATA_ROOT/hf_cache"
-export HF_DATASETS_CACHE="$DATA_ROOT/hf_cache/datasets"
-export TRANSFORMERS_CACHE="$DATA_ROOT/hf_cache"
 
 SKIP_FETCH=0
 [[ "${1:-}" == "--skip-fetch" ]] && SKIP_FETCH=1
