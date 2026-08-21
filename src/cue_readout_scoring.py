@@ -80,8 +80,15 @@ def stem(word: str) -> str:
         if len(word) > len(suffix) + 2 and word.endswith(suffix):
             base = word[: -len(suffix)]
             # "ies" -> "y" keeps "arteries"/"artery" together.
-            return base + "y" if suffix in ("ies", "ied") else base
-    return word
+            if suffix in ("ies", "ied"):
+                return base + "y"
+            # A silent final "e" is dropped before -ing and -ed, so the stem of
+            # "smoking" is "smok" while the bare form is "smoke". Dropping the
+            # "e" from both is what puts them together; a chain saying "history
+            # of smoking" was not being credited with the cue "smoke
+            # cigarettes".
+            return base[:-1] if base.endswith("e") and len(base) > 4 else base
+    return word[:-1] if word.endswith("e") and len(word) > 4 else word
 
 
 _PARENTHETICAL = re.compile(r"\([^)]*\)")

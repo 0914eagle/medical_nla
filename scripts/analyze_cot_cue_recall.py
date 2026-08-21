@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import random
+import re
 import sys
 from pathlib import Path
 from statistics import mean
@@ -28,18 +29,54 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.cue_readout_scoring import content_words
+from src.cue_readout_scoring import content_words, strip_parentheticals
 from src.jsonl import read_jsonl
 
-# Share of a cue's content words that must appear anywhere in the chain.
-NAMED = 0.6
+# Share of a cue's content words that must appear anywhere in the chain. Set to
+# the readout scorer's threshold, because the point of this number is to sit
+# beside that one -- a chain and a readout have to be credited by the same rule
+# or their coverage cannot be compared.
+#
+# It is still a lower bound. "smoke cigarettes" named as "history of smoking"
+# and "had surgery within the last month" named as "recent surgery" both fall
+# under it, and no threshold on word overlap will catch those; that is what the
+# judge in make_readout_judge_requests.py is for, if the number needs to be
+# exact rather than indicative.
+NAMED = 0.5
+
+
+_PAREN = re.compile(r"\(([^)]*)\)")
+_ALTERNATIVES = re.compile(r"\s+(?:or|and/or)\s+")
+
+
+def cue_variants(cue: str) -> list[str]:
+    """The forms of a cue that a chain naming it might actually use.
+
+    DDXPlus writes questionnaire items, and they carry two things a clinician
+    writing prose would not repeat. A gloss -- "a fever (either felt or
+    measured with a thermometer)" -- where the finding is the fever. And a list
+    of synonyms -- "had chills or shivers", "shortness of breath or difficulty
+    breathing in a significant way" -- where naming one is naming the finding.
+    The parenthetical is sometimes the whole point, as in "a chronic
+    obstructive pulmonary disease (COPD)", so it is kept as a form of its own
+    rather than discarded.
+
+    Counting only the full string credited chains with 0.70 of their case's
+    findings where reading them showed nearly all named.
+    """
+    forms = {cue, strip_parentheticals(cue)}
+    forms.update(match.group(1) for match in _PAREN.finditer(cue))
+    for form in list(forms):
+        forms.update(_ALTERNATIVES.split(form))
+    return [form.strip() for form in forms if form.strip()]
 
 
 def mentions(text_words: set[str], cue: str) -> bool:
-    want = content_words(cue)
-    if not want:
-        return False
-    return len(text_words & want) / len(want) >= NAMED
+    for form in cue_variants(cue):
+        want = content_words(form)
+        if want and len(text_words & want) / len(want) >= NAMED:
+            return True
+    return False
 
 
 def main() -> None:
@@ -71,7 +108,7 @@ def main() -> None:
         if not case or not case["cues"]:
             continue
         chain = str(row.get("response") or "")
-        words = content_words(chain)
+        words = content_words(chain) | content_words(strip_parentheticals(chain))
         lengths.append(len(chain))
 
         own = [mentions(words, cue) for cue in case["cues"]]
