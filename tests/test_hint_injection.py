@@ -98,3 +98,37 @@ def test_the_gold_matches_by_meaning_not_by_spelling():
     assert plausible_wrong(
         case(diagnosis_name="pneumonia", differential_diagnosis=[{"diagnosis": "Pneumonia"}])
     ) is None
+
+
+def test_a_chart_that_names_the_gold_is_flagged_not_dropped():
+    """DDXPlus family-history items say the diagnosis outright: a myasthenia
+    gravis case carries "members of their family ... diagnosed myasthenia
+    gravis". The case is fine; it is just the one an anchoring hint has least
+    room to move, and the two groups have to be reported apart."""
+    leaky = case(
+        diagnosis_name="Myasthenia gravis",
+        prompt=make_prompt(
+            ["there are members of their family who have been diagnosed myasthenia gravis",
+             "pain or weakness in their jaw"],
+            age=14, sex="F",
+        ),
+        differential_diagnosis=[{"diagnosis": "Myasthenia gravis"},
+                                {"diagnosis": "Guillain-Barre syndrome"}],
+    )
+    rows = by_variant(rows_for_case(leaky))
+    assert all(row["gold_in_prompt"] for row in rows.values())
+
+    clean = by_variant(rows_for_case(case()))
+    assert not any(row["gold_in_prompt"] for row in clean.values())
+
+
+def test_an_alias_in_the_chart_counts_as_naming_the_gold():
+    leaky = case(
+        diagnosis_name="URTI",
+        diagnosis_aliases=["upper respiratory tract infection"],
+        prompt=make_prompt(
+            ["previously had an upper respiratory tract infection", "a cough"], age=30, sex="M"
+        ),
+        differential_diagnosis=[{"diagnosis": "URTI"}, {"diagnosis": "Bronchitis"}],
+    )
+    assert by_variant(rows_for_case(leaky))["none"]["gold_in_prompt"]

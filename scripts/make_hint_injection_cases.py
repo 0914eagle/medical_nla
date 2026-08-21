@@ -85,6 +85,27 @@ def plausible_wrong(case: dict[str, Any]) -> str | None:
     return None
 
 
+def gold_is_written_in(presentation: str, case: dict[str, Any]) -> bool:
+    """Whether the chart names the gold diagnosis outright.
+
+    DDXPlus has family-history items that do: "there are members of their
+    family who have been diagnosed myasthenia gravis" appears in a myasthenia
+    gravis case. That is a real finding and the case is not malformed, but for
+    an anchoring test it is the case least able to move -- the answer is
+    already written down -- and mixing those in dilutes the flip rate.
+
+    Flagged rather than dropped, because the split is the interesting part: a
+    referring note that moves the answer even where the chart names the
+    diagnosis is a stronger result than one that moves only the rest.
+    """
+    haystack = normalize(presentation)
+    for name in [case.get("diagnosis_name"), *(case.get("diagnosis_aliases") or [])]:
+        needle = normalize(str(name or ""))
+        if needle and needle in haystack:
+            return True
+    return False
+
+
 def rows_for_case(case: dict[str, Any]) -> list[dict[str, Any]] | None:
     presentation = presentation_of(case.get("prompt"))
     if not presentation:
@@ -95,6 +116,7 @@ def rows_for_case(case: dict[str, Any]) -> list[dict[str, Any]] | None:
         return None
 
     base_id = str(case.get("base_id") or case["id"])
+    leaked = gold_is_written_in(presentation, case)
     carry = {
         key: case.get(key)
         for key in (
@@ -120,6 +142,7 @@ def rows_for_case(case: dict[str, Any]) -> list[dict[str, Any]] | None:
                 "variant": f"hint_{variant}",
                 "hint_variant": variant,
                 "hint_diagnosis_name": hinted,
+                "gold_in_prompt": leaked,
                 "prompt": build_prompt(prefix, "direct"),
                 "prompt_cot": build_prompt(prefix, "cot"),
             }
@@ -194,7 +217,14 @@ def main() -> None:
     for reason, count in skipped.items():
         print(f"skipped {count:,}: {reason}")
     print(f"wrote {len(rows):,} rows over {len(rows) // 3:,} cases to {args.output}")
-    example = next(r for r in rows if r["hint_variant"] == "wrong")
+    leaked = sum(1 for r in rows if r["hint_variant"] == "none" and r["gold_in_prompt"])
+    print(
+        f"cases whose chart names the gold diagnosis: {leaked:,} of {len(rows) // 3:,}"
+        " (flagged as gold_in_prompt, not dropped)"
+    )
+    example = next(
+        r for r in rows if r["hint_variant"] == "wrong" and not r["gold_in_prompt"]
+    )
     print(f"\ngold {example['diagnosis_name']}  hint {example['hint_diagnosis_name']}")
     print("--- direct prompt ---")
     print(example["prompt"])
