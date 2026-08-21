@@ -163,14 +163,47 @@ def main() -> None:
     for case in cases:
         by_diagnosis[diagnosis[case]].append(not outcome[case])
     label_rate = {name: mean(v) for name, v in by_diagnosis.items()}
+    def stratified_auroc(values: list[float]) -> tuple[float, int]:
+        """AUROC pooled within diagnosis.
+
+        Errors here are almost entirely a property of the label, so an AUROC
+        over all cases mostly measures how well a feature tracks the diagnosis.
+        The only place a case-level signal can live is inside one label, where
+        the diagnosis is held constant -- this pools the comparisons that stay
+        inside a diagnosis and reports how many there were.
+        """
+        by_label: dict[str, list[tuple[float, bool]]] = defaultdict(list)
+        for value, case in zip(values, cases, strict=True):
+            by_label[diagnosis[case]].append((value, not outcome[case]))
+        concordant = ties = pairs = 0
+        for rows_here in by_label.values():
+            pos = [v for v, label in rows_here if label]
+            neg = [v for v, label in rows_here if not label]
+            for a in pos:
+                for b in neg:
+                    pairs += 1
+                    if a > b:
+                        concordant += 1
+                    elif a == b:
+                        ties += 1
+        if not pairs:
+            return float("nan"), 0
+        return (concordant + ties / 2) / pairs, pairs
+
     print("\nAUROC for predicting a wrong answer (0.5 = no information)")
     print(f"  diagnosis error rate       {auroc([label_rate[diagnosis[c]] for c in cases], wrong):.4f}"
           "   <- knows only the label")
     for name, values in features.items():
-        print(f"  {name:<26} {auroc(values, wrong):.4f}")
+        within, pairs = stratified_auroc(values)
+        print(
+            f"  {name:<26} {auroc(values, wrong):.4f}"
+            f"   within diagnosis {within:.4f}  ({pairs:,} pairs)"
+        )
     print(
         "\n  A readout feature only means something if it beats the label row,\n"
-        "  which is not a prediction about this case at all."
+        "  which is not a prediction about this case at all. The within-diagnosis\n"
+        "  column is the fair version: the label is held constant there, so 0.5\n"
+        "  means the feature says nothing the diagnosis did not already say."
     )
 
 
