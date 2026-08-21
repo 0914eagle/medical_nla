@@ -78,15 +78,24 @@ snapshot() {
       *) name=$(basename "$f") ;;
     esac
     if [ "$delta" -gt 0 ]; then
-      # Lines per window into a per-row time, and a guess at what is left if
-      # the run is one of the 770-row readout pools.
-      rate=$(awk -v d="$delta" -v w="$SAMPLE_WINDOW" 'BEGIN{printf "%.1fs/row", w/d}')
-      if [ "$now" -lt 770 ]; then
+      # A readout pool is 770 rows and a one-epoch metrics.jsonl is 1,274
+      # optimizer steps plus an eval line. Applying the pool's target to both
+      # printed "~15 min to 770" against a training log that was going to 1,275,
+      # which is worse than printing no estimate.
+      local target unit
+      case "$f" in
+        */metrics.jsonl) target=1275; unit="step" ;;
+        */results/*.jsonl) target=770; unit="row" ;;
+        *) target=0; unit="line" ;;
+      esac
+      rate=$(awk -v d="$delta" -v w="$SAMPLE_WINDOW" -v u="$unit" 'BEGIN{printf "%.1fs/%s", w/d, u}')
+      if [ "$target" -gt 0 ] && [ "$now" -lt "$target" ]; then
         local eta
-        eta=$(awk -v n="$now" -v d="$delta" -v w="$SAMPLE_WINDOW" 'BEGIN{printf "~%d min to 770", (770-n)/d*w/60}')
-        printf '  %-52s %6d  %-10s %s\n' "$name" "$now" "$rate" "$eta"
+        eta=$(awk -v n="$now" -v d="$delta" -v w="$SAMPLE_WINDOW" -v t="$target" \
+              'BEGIN{printf "~%d min to %d", (t-n)/d*w/60, t}')
+        printf '  %-52s %6d  %-12s %s\n' "$name" "$now" "$rate" "$eta"
       else
-        printf '  %-52s %6d  %-10s\n' "$name" "$now" "$rate"
+        printf '  %-52s %6d  %-12s\n' "$name" "$now" "$rate"
       fi
     else
       printf '  %-52s %6d  (no new rows in %ss)\n' "$name" "$now" "$SAMPLE_WINDOW"
