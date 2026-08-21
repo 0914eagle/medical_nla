@@ -24,6 +24,15 @@ from src.config import load_config
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/default.yaml")
+    parser.add_argument(
+        "--require-free-gb",
+        type=float,
+        help=(
+            "Exit non-zero unless this much is free on every visible GPU. For "
+            "a queue to check before it starts, rather than after it has "
+            "reported every run as failed."
+        ),
+    )
     args = parser.parse_args()
 
     import torch
@@ -39,9 +48,10 @@ def main() -> None:
             "\nNo GPU visible to torch. device_map='auto' would place the model on "
             "CPU. Check the driver, the CUDA build of torch, and CUDA_VISIBLE_DEVICES."
         )
-        return
+        raise SystemExit(1 if args.require_free_gb else 0)
 
     total_free = 0.0
+    short = []
     for index in range(torch.cuda.device_count()):
         free, total = torch.cuda.mem_get_info(index)
         name = torch.cuda.get_device_name(index)
@@ -49,6 +59,21 @@ def main() -> None:
         print(
             f"  [{index}] {name}: {free / 1e9:.1f} GB free / {total / 1e9:.1f} GB total"
         )
+        if args.require_free_gb and free / 1e9 < args.require_free_gb:
+            short.append((index, free / 1e9))
+
+    if short:
+        # An occupied card is the one failure a queue cannot survive quietly:
+        # every run dies in the same nine seconds, the loop keeps going, and
+        # the morning's summary table is eighteen rows of "(did not finish)".
+        for index, free in short:
+            print(
+                f"\n[!] GPU {index} has {free:.1f} GB free, "
+                f"{args.require_free_gb:.1f} GB required."
+            )
+        print("Another process is most likely still holding it:")
+        print("  nvidia-smi --query-compute-apps=pid,used_memory --format=csv")
+        raise SystemExit(1)
 
     for section in ("source_model", "nla_model"):
         model_cfg = cfg.get(section) or {}

@@ -44,6 +44,17 @@ MAX_EVAL_ROWS="${MAX_EVAL_ROWS:-512}"
 # It also cuts the queue's wall clock by more than half.
 MAX_TRAIN_ROWS="${MAX_TRAIN_ROWS:-10195}"
 
+# Weights alone are 11.8 GB a card once the model is split across two, before
+# any activation memory, so a card carrying somebody else's job has nothing
+# like enough. Checked once here rather than discovered eighteen times: without
+# it every run dies in the same nine seconds, the loop dutifully continues, and
+# the summary table is eighteen rows of "(did not finish)".
+if ! python scripts/check_gpu_setup.py --config configs/default.yaml --require-free-gb 20; then
+  echo "Refusing to start the queue. Free the cards, or run on the other pair with"
+  echo "  export CUDA_VISIBLE_DEVICES=2,3 && source scripts/env.sh"
+  exit 1
+fi
+
 LOGS="$ART/logs"
 ADAPTERS="$ART/train/adapters"
 mkdir -p "$LOGS" "$ADAPTERS"
@@ -64,8 +75,17 @@ for L in $LAYERS; do
   for SEED in $SEEDS; do
     OUT="$ADAPTERS/${CORPUS}_L${L}_s${SEED}"
     if [ -s "$OUT/best.json" ]; then
-      say "skip ${CORPUS} L${L} seed ${SEED} (already trained)"
-      continue
+      # Skipping finished work is what lets an interrupted queue be relaunched,
+      # but only when the finished work was produced the same way. An adapter
+      # whose best.json predates the content/scaffold split had its best epoch
+      # chosen on a loss that is mostly constant XML, and reusing it would put
+      # two selection rules inside one layer's three seeds.
+      if grep -q '"selected_on"' "$OUT/best.json"; then
+        say "skip ${CORPUS} L${L} seed ${SEED} (already trained)"
+        continue
+      fi
+      say "retrain ${CORPUS} L${L} seed ${SEED} (best.json predates --select-on)"
+      rm -rf "$OUT"
     fi
     LOG="$LOGS/train_${CORPUS}_L${L}_s${SEED}.log"
     say "train ${CORPUS} L${L} seed ${SEED} -> $LOG"
