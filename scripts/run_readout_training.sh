@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# Train the cue-position readout across layers and seeds.
+#
+#   nohup bash scripts/run_readout_training.sh ddxplus > /dev/null 2>&1 &
+#   LAYERS="24" SEEDS="17" nohup bash scripts/run_readout_training.sh mcr > /dev/null 2>&1 &
+#
+# Two operational rules the audit left open are enforced here rather than
+# remembered. Every layer gets the same epoch count -- the pilot ran 3 at L32
+# and 2 at L16/L24 while claiming one recipe, so its layer trajectory mixed a
+# layer effect with an epoch one. And every configuration gets several seeds,
+# because one run is a point estimate and the trajectory is read as if the
+# differences between layers were larger than the noise within one.
+#
+# A run whose best.json already exists is skipped, so an interrupted queue can
+# be relaunched without repeating what finished.
+set -uo pipefail
+
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source scripts/env.sh
+
+CORPUS="${1:-ddxplus}"
+case "$CORPUS" in
+  ddxplus|mcr) ;;
+  *) echo "usage: $0 [ddxplus|mcr]" >&2; exit 2 ;;
+esac
+
+LAYERS="${LAYERS:-16 24 32}"
+SEEDS="${SEEDS:-17 18 19}"
+EPOCHS="${EPOCHS:-3}"
+# Effective batch is BATCH x GRAD_ACCUM. Eight sequences in one forward rather
+# than eight accumulated forwards is the same optimizer step for several times
+# the throughput; the labels are padded with -100 and masked out of attention,
+# so batching changes nothing but speed.
+BATCH="${BATCH:-8}"
+GRAD_ACCUM="${GRAD_ACCUM:-1}"
+# Validation is now a random sample reused across epochs, so a larger number
+# buys precision rather than a longer look at the same corner of the corpus.
+MAX_EVAL_ROWS="${MAX_EVAL_ROWS:-512}"
+
+LOGS="$ART/logs"
+ADAPTERS="$ART/train/adapters"
+mkdir -p "$LOGS" "$ADAPTERS"
+STAMP=$(date +%Y%m%d_%H%M%S)
+MAIN="$LOGS/readout_${CORPUS}_${STAMP}.log"
+say() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$MAIN"; }
+
+say "corpus $CORPUS | layers $LAYERS | seeds $SEEDS | epochs $EPOCHS | batch $BATCH x $GRAD_ACCUM"
+say "cards CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-<all>}"
+
+for L in $LAYERS; do
+  SPLIT_DIR="$ART/train/${CORPUS}_cuepos_L${L}"
+  if [ ! -s "$SPLIT_DIR/sft_train.jsonl" ]; then
+    say "no splits at $SPLIT_DIR -- skipping layer $L"
+    continue
+  fi
+  for SEED in $SEEDS; do
+    OUT="$ADAPTERS/${CORPUS}_L${L}_s${SEED}"
+    if [ -s "$OUT/best.json" ]; then
+      say "skip ${CORPUS} L${L} seed ${SEED} (already trained)"
+      continue
+    fi
+    LOG="$LOGS/train_${CORPUS}_L${L}_s${SEED}.log"
+    say "train ${CORPUS} L${L} seed ${SEED} -> $LOG"
+    python scripts/train_medical_nla_lora.py \
+      --config configs/default.yaml \
+      --train-jsonl "$SPLIT_DIR/sft_train.jsonl" \
+      --val-jsonl "$SPLIT_DIR/sft_val.jsonl" \
+      --out-dir "$OUT" \
+      --epochs "$EPOCHS" --seed "$SEED" \
+      --batch-size "$BATCH" --grad-accum-steps "$GRAD_ACCUM" \
+      --max-eval-rows "$MAX_EVAL_ROWS" \
+      >"$LOG" 2>&1 \
+      && say "  done" || say "  FAILED -- see $LOG"
+  done
+done
+
+{
+  echo
+  echo "============== $CORPUS readout training =============="
+  printf "%-8s %-6s %-12s %s\n" layer seed best_epoch best_val_loss
+  for L in $LAYERS; do
+    for SEED in $SEEDS; do
+      f="$ADAPTERS/${CORPUS}_L${L}_s${SEED}/best.json"
+      if [ -s "$f" ]; then
+        python -c "
+import json
+d = json.load(open('$f'))
+print(f\"{'L$L':<8} {'$SEED':<6} {d['best_epoch']:<12} {d['best_val_loss']:.4f}\")
+"
+      else
+        printf "%-8s %-6s %-12s %s\n" "L$L" "$SEED" "-" "(did not finish)"
+      fi
+    done
+  done
+  echo
+  echo "A layer's numbers are only comparable to another layer's if both rows"
+  echo "show the same best_epoch range and the seeds agree with each other."
+  echo "logs: $LOGS"
+  echo "====================================================="
+} | tee -a "$MAIN"
+
+say "all done"
