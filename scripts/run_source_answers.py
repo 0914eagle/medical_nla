@@ -74,6 +74,7 @@ FORCED_ANSWER_MAX_NEW_TOKENS = 32
 # experiment a row belongs to, and nothing downstream can reconstruct them from
 # a prompt and an answer.
 CARRIED_FIELDS = (
+    "base_id",
     "variant",
     "hint_variant",
     "hint_diagnosis_name",

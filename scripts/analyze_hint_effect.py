@@ -55,7 +55,7 @@ VARIANTS = ("none", "neutral", "wrong", "correct")
 Case = dict[str, dict[str, Any]]
 
 
-ANNOTATIONS = ("hint_variant", "hint_diagnosis_name", "gold_in_prompt")
+ANNOTATIONS = ("base_id", "hint_variant", "hint_diagnosis_name", "gold_in_prompt")
 
 
 def annotations_by_id(path: str | None) -> dict[str, dict[str, Any]]:

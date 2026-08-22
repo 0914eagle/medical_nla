@@ -58,6 +58,13 @@ PASSTHROUGH_FIELDS = [
     "source",
     "patient_id",
     "diagnosis_id",
+    # Which case and which arm of an experiment this readout is. Dropped once:
+    # 5,241 hint-position readouts came back with target_role but no
+    # hint_variant or base_id, so nothing downstream could pair the arms.
+    "base_id",
+    "hint_variant",
+    "hint_diagnosis_name",
+    "gold_in_prompt",
     "diagnosis_name",
     "cue_targets",
     "cue_types",

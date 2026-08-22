@@ -43,7 +43,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.analyze_hint_effect import Case, group_by_case, lost_the_gold, took_the_hint
+from scripts.analyze_hint_effect import (
+    Case,
+    annotations_by_id,
+    group_by_case,
+    lost_the_gold,
+    took_the_hint,
+)
 from scripts.analyze_hint_mention import cites_referral, mentions_diagnosis
 from scripts.predict_error_from_readouts import auroc
 from scripts.score_cue_position_readouts import readout_body
@@ -53,17 +59,40 @@ from src.jsonl import read_jsonl
 Readouts = dict[tuple[str, str, str], str]
 
 
-def load_readouts(paths: list[str]) -> Readouts:
-    """Keyed by (case, arm, position). One text per key; later files win."""
+def load_readouts(paths: list[str], manifests: list[str] | None = None) -> Readouts:
+    """Keyed by (case, arm, position). One text per key; later files win.
+
+    `manifests` are the extraction manifests the readouts were generated from,
+    joined back by id. Needed for runs made before run_nla carried
+    hint_variant: 5,241 readouts came back with target_role but no arm, and
+    the arm was decided when the extraction row was written, so this costs no
+    GPU time. The readout row's own values win where both carry a key.
+    """
+    annotations: dict[str, dict[str, Any]] = {}
+    for path in manifests or []:
+        annotations.update(annotations_by_id(path))
     out: Readouts = {}
+    joined = missing = 0
     for path in paths:
         for row in read_jsonl(path):
+            fallback = annotations.get(str(row.get("id")), {})
+            row = {**fallback, **{k: v for k, v in row.items() if v is not None}}
+            if fallback:
+                joined += 1
+            if row.get("hint_variant") is None:
+                missing += 1
+                continue
             key = (
                 str(row.get("base_id")),
                 str(row.get("hint_variant") or ""),
                 str(row.get("target_role") or ""),
             )
             out[key] = readout_body(row)
+    if missing:
+        print(
+            f"[!] {missing:,} readout rows carry no hint_variant and were skipped; "
+            "pass the extraction manifests with --readout-manifests to join them."
+        )
     return out
 
 
@@ -162,6 +191,13 @@ def main() -> None:
     parser.add_argument(
         "--readouts", nargs="+", default=[], help="run_nla outputs over the hint position rows."
     )
+    parser.add_argument(
+        "--readout-manifests",
+        nargs="+",
+        default=[],
+        help="Extraction manifests, to restore the arm on readouts from runs "
+        "that predate run_nla carrying it.",
+    )
     args = parser.parse_args()
 
     cases = group_by_case(args.answers, args.cases)
@@ -190,7 +226,7 @@ def main() -> None:
             )
 
     if args.readouts:
-        readouts = load_readouts(args.readouts)
+        readouts = load_readouts(args.readouts, args.readout_manifests)
         built = defaultdict(list)
         kept: list[str] = []
         for case_id, case in cases.items():
