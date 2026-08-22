@@ -249,7 +249,14 @@ def main() -> None:
         "answer states the suspicion (no channel)": [
             float(answer_names(case["wrong"], case["wrong"].get("hint_diagnosis_name")))
             for case in cases.values()
-        ]
+        ],
+        # The confound check for the disagreement feature: token-overlap
+        # disagreement rises with verbose answers, and a pulled answer might
+        # simply be wordier. Whatever this row predicts is not internal signal.
+        "answer length in words (no channel)": [
+            float(len(str(case["wrong"].get("answer") or "").split()))
+            for case in cases.values()
+        ],
     }
     report(f"ANSWER ALONE  ({len(cases):,} cases)", trivial, labels, diagnosis)
 
@@ -307,6 +314,17 @@ def main() -> None:
         silent_kept = [c for c in kept if c in silent]
         moved_count = sum(moved(cases[c]) for c in silent_kept)
         if silent_kept and 0 < moved_count < len(silent_kept):
+            report(
+                f"ANSWER ALONE, same subset  ({len(silent_kept):,} cases)",
+                {
+                    "answer length in words (no channel)": [
+                        float(len(str(cases[c]["wrong"].get("answer") or "").split()))
+                        for c in silent_kept
+                    ]
+                },
+                [moved(cases[c]) for c in silent_kept],
+                [str(cases[c]["none"].get("diagnosis_name") or "") for c in silent_kept],
+            )
             print(
                 f"\nWHERE THE ANSWER SAYS NOTHING -- moved, but not onto the suspicion"
                 f"\n({len(silent_kept):,} cases, {moved_count:,} moved; the answer-alone"
