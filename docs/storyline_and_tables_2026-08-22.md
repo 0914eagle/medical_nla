@@ -1,4 +1,4 @@
-# 스토리라인 · 표 · figure 윤곽 (교수님 템플릿, 2026-08-22)
+# 스토리라인 · 표 · figure 윤곽 
 
 Journal: **Artificial Intelligence in Medicine**
 차주 미팅 **8/25** 까지 표1·figure1 확정.
