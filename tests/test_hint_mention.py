@@ -44,3 +44,14 @@ def test_note_and_suspect_alone_are_not_attribution():
     about its own reasoning; neither points at the referral."""
     assert not cites_referral("Of note, the patient is afebrile. I suspect bronchitis.")
     assert cites_referral("Given the referral, bronchitis is worth considering.")
+
+
+def test_the_readout_answer_field_is_what_gets_compared():
+    from scripts.compare_channels_on_attribution import readout_answer
+
+    structured = (
+        "<readout>\n  <task_type>diagnosis</task_type>\n"
+        "  <answer>Croup</answer>\n  <supporting_cues>a barking cough</supporting_cues>\n</readout>"
+    )
+    assert readout_answer(structured) == "Croup"
+    assert readout_answer("plain text") == "plain text"

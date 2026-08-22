@@ -116,6 +116,13 @@ def chain_features(case: Case) -> dict[str, float]:
     }
 
 
+def readout_answer(text: str) -> str:
+    """The <answer> field of a structured readout, or the whole body."""
+    if "<answer>" in text and "</answer>" in text:
+        return text.split("<answer>", 1)[1].split("</answer>", 1)[0]
+    return text
+
+
 def readout_features(case: Case, readouts: Readouts) -> dict[str, float] | None:
     """What the internal readout offers, from the same arm alone.
 
@@ -134,6 +141,12 @@ def readout_features(case: Case, readouts: Readouts) -> dict[str, float] | None:
         "readout before the answer names the suspicion": float(
             mentions_diagnosis(final_wrong, hint)
         ),
+        # The project's original signal, repurposed: v1 flagged errors when the
+        # internal conclusion disagreed with the emitted answer. Here it asks
+        # whether a pulled answer leaves the conclusion state still pointing
+        # elsewhere -- readable from one run, no counterfactual needed.
+        "internal conclusion contradicts the answer": 1.0
+        - overlap_f1(readout_answer(final_wrong), str(case["wrong"].get("answer") or "")),
     }
     final_none = readouts.get((base, "none", "final"))
     if final_none is not None:
@@ -193,6 +206,11 @@ def main() -> None:
         "--readouts", nargs="+", default=[], help="run_nla outputs over the hint position rows."
     )
     parser.add_argument(
+        "--restrict-diagnoses",
+        help="File of diagnosis names (one per line): keep only these cases. "
+        "For reading a conclusion adapter only on the classes it was trained on.",
+    )
+    parser.add_argument(
         "--readout-manifests",
         nargs="+",
         default=[],
@@ -202,6 +220,19 @@ def main() -> None:
     args = parser.parse_args()
 
     cases = group_by_case(args.answers, args.cases)
+    if args.restrict_diagnoses:
+        wanted = {
+            line.strip().lower()
+            for line in Path(args.restrict_diagnoses).read_text().splitlines()
+            if line.strip()
+        }
+        before = len(cases)
+        cases = {
+            c: arms
+            for c, arms in cases.items()
+            if str(arms["none"].get("diagnosis_name") or "").lower() in wanted
+        }
+        print(f"[restrict] {len(cases):,} of {before:,} cases in {len(wanted)} diagnoses")
     if "wrong" not in {v for arms in cases.values() for v in arms}:
         raise SystemExit("the wrong-note arm is what attribution is asked about")
 
