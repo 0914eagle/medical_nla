@@ -98,6 +98,13 @@ PASSTHROUGH_FIELDS = [
     "cue_evidence_ids",
     "cue_evidence_entries",
     "notes",
+    # Which case and which arm of an experiment this row is. Without them a
+    # manifest of several arms is one undifferentiated pile, and the analysis
+    # that needs the pairing has nothing to pair on.
+    "base_id",
+    "hint_variant",
+    "hint_diagnosis_name",
+    "gold_in_prompt",
 ]
 
 # Every fourth block, plus the last one before the final norm. 48 (post-norm)
