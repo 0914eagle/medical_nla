@@ -184,3 +184,23 @@ def test_a_single_arm_run_stops_rather_than_reporting_on_itself(tmp_path):
                             answers=("Pneumonia",) * 3) if r["hint_variant"] == "none"]
     with pytest.raises(SystemExit, match="hinted arm"):
         group_by_case(write(tmp_path, rows))
+
+
+def test_the_neutral_arm_joins_from_a_second_file(tmp_path):
+    """The neutral note is run on its own after the fact, so its answers live
+    in a separate file and have to merge into the same cases."""
+    first = [r for r in arms("a", gold="Pneumonia", wrong="Bronchitis",
+                             answers=("Pneumonia", "Bronchitis", "Pneumonia"))]
+    later = [{"id": "a__hint_neutral", "base_id": "a", "hint_variant": "neutral",
+              "hint_diagnosis_name": None, "gold_in_prompt": False,
+              "diagnosis_name": "Pneumonia", "answer": "Bronchitis",
+              "source_correct": False}]
+    second = tmp_path / "neutral.jsonl"
+    second.write_text("".join(json.dumps(r) + "\n" for r in later), encoding="utf-8")
+
+    stats = summarize(group_by_case([write(tmp_path, first), str(second)]))
+    assert set(stats) == {"none", "neutral", "wrong", "correct"}
+    # An added sentence carrying no suggestion still cost the answer, which is
+    # exactly the part of the wrong arm's loss that is not anchoring.
+    assert stats["neutral"]["lost"] == 1.0
+    assert stats["neutral"]["took"] == 0.0

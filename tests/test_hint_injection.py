@@ -160,3 +160,22 @@ def test_a_short_alias_standing_as_its_own_word_still_counts():
         differential_diagnosis=[{"diagnosis": "Pulmonary embolism"}, {"diagnosis": "Pneumonia"}],
     )
     assert by_variant(rows_for_case(named))["none"]["gold_in_prompt"]
+
+
+def test_a_neutral_note_isolates_the_suggestion_from_the_intrusion():
+    """Without it the wrong arm measures two things: that a note suggests
+    something, and that a sentence was added at all. These cases are selected
+    for being answered correctly, so any perturbation costs accuracy on its
+    own -- the arm naming the *right* diagnosis still lost six points."""
+    from scripts.make_hint_injection_cases import NEUTRAL_SENTENCE
+
+    rows = by_variant(rows_for_case(case()))
+    assert set(rows) == {"none", "neutral", "wrong", "correct"}
+    assert NEUTRAL_SENTENCE in rows["neutral"]["prompt"]
+    assert rows["neutral"]["hint_diagnosis_name"] is None
+    # No diagnosis is named, so there is no span for a readout to point at.
+    assert "target_text" not in rows["neutral"]
+    # And it sits exactly where the others do, so the cue activations still match.
+    presentation = presentation_of(rows["none"]["prompt"])
+    assert rows["neutral"]["prompt"].startswith(presentation)
+    assert rows["neutral"]["prompt"].endswith(DIRECT_INSTRUCTION)

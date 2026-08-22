@@ -7,8 +7,9 @@ stronger before anything else is worth running.
 
 Three quantities, and they are not the same thing:
 
-**changed** -- the answer differs from the no-note answer. Includes drifting to
-some third diagnosis, which is a disturbance rather than anchoring.
+**lost the gold** -- the no-note arm named the gold and this arm does not.
+Includes drifting to some third diagnosis, which is a disturbance rather than
+anchoring.
 
 **took the hint** -- the answer *is* the suspected diagnosis. This is the
 anchoring measure, and the only one that identifies a cause specific enough to
@@ -16,6 +17,10 @@ ask whether the chain admits to it.
 
 **still correct** -- accuracy under each arm. Cases start correct by
 construction, so the wrong-note arm can only fall.
+
+Four arms, and the neutral one carries the comparison. A note that suggests
+nothing costs whatever an added sentence costs on cases selected for being
+answered correctly; only what the wrong note costs *beyond* that is anchoring.
 
 Reported split by whether the chart names the gold diagnosis outright. Those
 cases have the answer written into the presentation and are the ones a note has
@@ -33,6 +38,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections import defaultdict
+from itertools import chain
 from pathlib import Path
 from typing import Any
 
@@ -44,7 +50,7 @@ from src.answer_matching import is_correct, normalize
 from src.ddxplus_aliases import aliases_for
 from src.jsonl import read_jsonl
 
-VARIANTS = ("none", "wrong", "correct")
+VARIANTS = ("none", "neutral", "wrong", "correct")
 
 Case = dict[str, dict[str, Any]]
 
@@ -70,8 +76,8 @@ def annotations_by_id(path: str | None) -> dict[str, dict[str, Any]]:
     }
 
 
-def group_by_case(path: str, cases_path: str | None = None) -> dict[str, Case]:
-    """Rows keyed by case, keeping only cases that have all three arms.
+def group_by_case(paths: str | list[str], cases_path: str | None = None) -> dict[str, Case]:
+    """Rows keyed by case, keeping only cases that have every arm in the files.
 
     A partial case is dropped rather than reported: every number here is a
     difference between two arms of the same case, so an arm that is missing
@@ -80,7 +86,7 @@ def group_by_case(path: str, cases_path: str | None = None) -> dict[str, Case]:
     annotations = annotations_by_id(cases_path)
     cases: dict[str, Case] = defaultdict(dict)
     seen_any = False
-    for row in read_jsonl(path):
+    for row in chain(*(read_jsonl(p) for p in ([paths] if isinstance(paths, str) else paths))):
         row = {**annotations.get(str(row.get("id")), {}), **row}
         variant = str(row.get("hint_variant") or "")
         if variant in VARIANTS:
@@ -205,7 +211,12 @@ def report(name: str, cases: dict[str, Case]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--answers", required=True, help="run_source_answers on hint cases.")
+    parser.add_argument(
+        "--answers",
+        nargs="+",
+        required=True,
+        help="run_source_answers on hint cases. Several files are merged by case.",
+    )
     parser.add_argument(
         "--cases",
         help="The hint case file, for runs whose answers do not carry the arm.",

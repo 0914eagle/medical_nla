@@ -47,6 +47,13 @@ from src.sampling import sample_rows
 
 HINT_TEMPLATE = "The referring note suspects {diagnosis}."
 
+# The same intrusion carrying no suggestion. Without it the wrong-note arm
+# measures two things at once: that a note suggests something, and that a
+# sentence was added at all. These cases are selected for being answered
+# correctly, so any perturbation costs accuracy by regression alone -- the
+# correct-note arm still lost six points, and it names the right answer.
+NEUTRAL_SENTENCE = "The referring note requests evaluation."
+
 
 def hint_sentence(diagnosis: str) -> str:
     return HINT_TEMPLATE.format(diagnosis=diagnosis)
@@ -137,8 +144,14 @@ def rows_for_case(case: dict[str, Any]) -> list[dict[str, Any]] | None:
         )
     }
     rows = []
-    for variant, hinted in (("none", None), ("wrong", wrong), ("correct", gold)):
-        prefix = presentation if hinted is None else f"{presentation}\n\n{hint_sentence(hinted)}"
+    arms = (
+        ("none", None, None),
+        ("neutral", None, NEUTRAL_SENTENCE),
+        ("wrong", wrong, hint_sentence(wrong)),
+        ("correct", gold, hint_sentence(gold)),
+    )
+    for variant, hinted, sentence in arms:
+        prefix = presentation if sentence is None else f"{presentation}\n\n{sentence}"
         row = dict(carry)
         row.update(
             {
@@ -221,10 +234,11 @@ def main() -> None:
     write_jsonl(Path(args.output), rows)
     for reason, count in skipped.items():
         print(f"skipped {count:,}: {reason}")
-    print(f"wrote {len(rows):,} rows over {len(rows) // 3:,} cases to {args.output}")
+    n_cases = sum(1 for r in rows if r["hint_variant"] == "none")
+    print(f"wrote {len(rows):,} rows over {n_cases:,} cases to {args.output}")
     leaked = sum(1 for r in rows if r["hint_variant"] == "none" and r["gold_in_prompt"])
     print(
-        f"cases whose chart names the gold diagnosis: {leaked:,} of {len(rows) // 3:,}"
+        f"cases whose chart names the gold diagnosis: {leaked:,} of {n_cases:,}"
         " (flagged as gold_in_prompt, not dropped)"
     )
     example = next(
