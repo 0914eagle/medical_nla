@@ -76,6 +76,13 @@ FORCED_ANSWER_MAX_NEW_TOKENS = 32
 CARRIED_FIELDS = (
     "base_id",
     "variant",
+    "hint_wording",
+    "ladder_rung",
+    "first_answer",
+    "first_correct",
+    "moved",
+    "readout_conclusion",
+    "correction_flag",
     "hint_variant",
     "hint_diagnosis_name",
     "gold_in_prompt",

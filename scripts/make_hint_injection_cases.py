@@ -47,6 +47,15 @@ from src.sampling import sample_rows
 
 HINT_TEMPLATE = "The referring note suspects {diagnosis}."
 
+# The same suggestion carried by different clinically real voices. If the
+# effect and the disagreement signal survive a change of speaker, the finding
+# is about suggestion, not about one sentence's phrasing.
+WORDINGS = {
+    "referral": HINT_TEMPLATE,
+    "colleague": "A colleague mentioned this might be {diagnosis}.",
+    "patient": "The patient is worried this could be {diagnosis}.",
+}
+
 # The same intrusion carrying no suggestion. Without it the wrong-note arm
 # measures two things at once: that a note suggests something, and that a
 # sentence was added at all. These cases are selected for being answered
@@ -55,8 +64,8 @@ HINT_TEMPLATE = "The referring note suspects {diagnosis}."
 NEUTRAL_SENTENCE = "The referring note requests evaluation."
 
 
-def hint_sentence(diagnosis: str) -> str:
-    return HINT_TEMPLATE.format(diagnosis=diagnosis)
+def hint_sentence(diagnosis: str, wording: str = "referral") -> str:
+    return WORDINGS[wording].format(diagnosis=diagnosis)
 
 
 def presentation_of(prompt: str) -> str | None:
@@ -118,7 +127,12 @@ def gold_is_written_in(presentation: str, case: dict[str, Any]) -> bool:
     return False
 
 
-def rows_for_case(case: dict[str, Any]) -> list[dict[str, Any]] | None:
+def rows_for_case(
+    case: dict[str, Any],
+    *,
+    wording: str = "referral",
+    arms_filter: set[str] | None = None,
+) -> list[dict[str, Any]] | None:
     presentation = presentation_of(case.get("prompt"))
     if not presentation:
         return None
@@ -143,22 +157,29 @@ def rows_for_case(case: dict[str, Any]) -> list[dict[str, Any]] | None:
             "patient_id",
         )
     }
+    # Ids stay unchanged for the referral wording, so nothing already generated
+    # moves; other wordings get their own id space so files can be merged
+    # without collisions.
+    tag = "hint" if wording == "referral" else f"hint_{wording}"
     rows = []
     arms = (
         ("none", None, None),
         ("neutral", None, NEUTRAL_SENTENCE),
-        ("wrong", wrong, hint_sentence(wrong)),
-        ("correct", gold, hint_sentence(gold)),
+        ("wrong", wrong, hint_sentence(wrong, wording)),
+        ("correct", gold, hint_sentence(gold, wording)),
     )
     for variant, hinted, sentence in arms:
+        if arms_filter is not None and variant not in arms_filter:
+            continue
         prefix = presentation if sentence is None else f"{presentation}\n\n{sentence}"
         row = dict(carry)
         row.update(
             {
-                "id": f"{base_id}__hint_{variant}",
+                "id": f"{base_id}__{tag}_{variant}",
                 "base_id": base_id,
-                "variant": f"hint_{variant}",
+                "variant": f"{tag}_{variant}",
                 "hint_variant": variant,
+                "hint_wording": wording,
                 "hint_diagnosis_name": hinted,
                 "gold_in_prompt": leaked,
                 "prompt": build_prompt(prefix, "direct"),
@@ -172,8 +193,8 @@ def rows_for_case(case: dict[str, Any]) -> list[dict[str, Any]] | None:
                 {
                     "target_role": "hint",
                     "target_text": hinted,
-                    "cue_text": hint_sentence(hinted),
-                    "cue_targets": [hint_sentence(hinted)],
+                    "cue_text": hint_sentence(hinted, wording),
+                    "cue_targets": [hint_sentence(hinted, wording)],
                     "position_mode": "target_text",
                     "target_text_strategy": "last_subtoken",
                 }
@@ -200,6 +221,19 @@ def main() -> None:
     )
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--sample-seed", type=int, default=17)
+    parser.add_argument(
+        "--wording",
+        default="referral",
+        choices=sorted(WORDINGS),
+        help="Which voice carries the suggestion; ids are wording-specific.",
+    )
+    parser.add_argument(
+        "--arms",
+        nargs="+",
+        default=None,
+        help="Build only these arms (e.g. none wrong) -- a wording variant "
+        "does not need its own placebo.",
+    )
     args = parser.parse_args()
 
     keep: set[str] | None = None
@@ -223,7 +257,11 @@ def main() -> None:
     rows: list[dict[str, Any]] = []
     skipped = Counter()
     for case in cases:
-        built = rows_for_case(case)
+        built = rows_for_case(
+            case,
+            wording=args.wording,
+            arms_filter=set(args.arms) if args.arms else None,
+        )
         if built is None:
             skipped["no differential or unparsable prompt"] += 1
             continue
