@@ -117,6 +117,42 @@ def capitulation(rows: list[dict[str, Any]]) -> None:
     )
 
 
+def false_alarm_anatomy(rows: list[dict[str, Any]]) -> None:
+    """What the flag's false alarms are made of.
+
+    The flag fires on ~480 cases the note did not move, and that precision
+    (0.36) bottlenecks every correction policy. The competing explanations
+    pull in different directions, so they are counted separately:
+
+    - matching artifact: conclusion and answer both name the gold, but the
+      containment+alias rule fails to see they agree -- a scoring hole,
+      fixed by judge matching, not by a better adapter;
+    - internal pull, resisted: the conclusion names the note's suspicion
+      while the spoken answer held the gold -- not an instrument error at
+      all, but sub-behavioral wavering the readout genuinely saw;
+    - adapter misread / third diagnosis: the conclusion names something
+      else entirely -- the bucket where readout (LoRA) noise lives, and the
+      one a better-trained instrument would shrink.
+    """
+    alarms = [r for r in rows if r.get("correction_flag") and not r.get("moved")]
+    if not alarms:
+        return
+    artifact = pull = 0
+    for r in alarms:
+        conclusion = str(r.get("readout_conclusion") or "")
+        hint = str(r.get("hint_diagnosis_name") or "")
+        if conclusion_correct(r) and r.get("first_correct"):
+            artifact += 1
+        elif hint and is_correct(conclusion, hint, aliases_for(hint)):
+            pull += 1
+    other = len(alarms) - artifact - pull
+    n = len(alarms)
+    print(f"\nFALSE-ALARM ANATOMY (flagged but not moved, n={n:,}):")
+    print(f"  matching artifact (both name the gold)   {artifact:>4}  ({artifact / n:.3f})")
+    print(f"  internal pull, resisted (conclusion=hint) {pull:>4}  ({pull / n:.3f})")
+    print(f"  adapter misread / third diagnosis        {other:>4}  ({other / n:.3f})")
+
+
 def show_broken(rows: list[dict[str, Any]], count: int) -> None:
     """Eyeball guard: a uniform collapse could be scoring, not flipping."""
     broken = [
@@ -181,6 +217,7 @@ def main() -> None:
 
     if first_rows:
         replacement_policy(first_rows)
+        false_alarm_anatomy(first_rows)
     print(
         "\n  The deployable comparison is r5 vs r4 on the flagged rows: r4 already"
         "\n  re-shows the findings, so r5's margin there is the internal conclusion's"
