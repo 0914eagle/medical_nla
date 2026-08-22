@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.analyze_hint_effect import group_by_case
+from scripts.analyze_hint_effect import group_by_case, took_the_hint
 from scripts.compare_channels_on_attribution import moved
 from scripts.evaluate_probe_disagreement import fold_of, train_probe
 from src.answer_matching import is_correct
@@ -97,7 +97,14 @@ def main() -> None:
             print(f"\n{role}: only {len(usable)} usable cases, skipped")
             continue
 
-        stats: dict[str, list[tuple[float, float, bool]]] = {"moved": [], "kept": []}
+        # moved splits in two: cases pulled ONTO the suggestion should show the
+        # suggestion's mass overtaking, while cases that merely lost the gold
+        # may show only the gold's collapse -- averaging them smears both.
+        stats: dict[str, list[tuple[float, float, bool]]] = {
+            "kept": [],
+            "moved-onto-hint": [],
+            "moved-lost-gold": [],
+        }
         heldout_hits = heldout_n = 0
         for fold in (0, 1):
             train = [(b, c) for b, c in usable if fold_of(b) != fold]
@@ -127,7 +134,12 @@ def main() -> None:
                         ),
                         default=0.0,
                     )
-                    group = "moved" if moved(case) else "kept"
+                    if not moved(case):
+                        group = "kept"
+                    elif took_the_hint(case, "wrong"):
+                        group = "moved-onto-hint"
+                    else:
+                        group = "moved-lost-gold"
                     stats[group].append(
                         (float(p[class_index[gold]]), hint_mass, argmax_name == gold)
                     )
@@ -142,7 +154,7 @@ def main() -> None:
 
         print(f"\n{role.upper()}  (n={len(usable):,}"
               + (f", none-arm decode {heldout_hits / heldout_n:.3f})" if train_variant == "none" else ", trained on wrong arm)"))
-        for group in ("kept", "moved"):
+        for group in ("kept", "moved-onto-hint", "moved-lost-gold"):
             rows = stats[group]
             if not rows:
                 continue
