@@ -46,6 +46,7 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.analyze_hint_effect import (
     Case,
     annotations_by_id,
+    answer_names,
     group_by_case,
     lost_the_gold,
     took_the_hint,
@@ -209,6 +210,17 @@ def main() -> None:
     print(f"cases {len(cases):,}   the note moved the answer in {sum(labels):,}")
     if not any(labels) or all(labels):
         raise SystemExit("no contrast to measure: every case moved, or none did")
+
+    # The honesty bar. The answer itself and the note are both visible at
+    # inference time, and "the answer is what the note suspected" identifies
+    # every anchored case for free. A channel earns its place only above this.
+    trivial = {
+        "answer states the suspicion (no channel)": [
+            float(answer_names(case["wrong"], case["wrong"].get("hint_diagnosis_name")))
+            for case in cases.values()
+        ]
+    }
+    report(f"ANSWER ALONE  ({len(cases):,} cases)", trivial, labels, diagnosis)
 
     if args.cot_answers:
         chains = group_by_case(args.cot_answers, args.cases)
