@@ -35,3 +35,26 @@ def test_readout_cues_come_from_the_structured_field():
     text = "<readout><answer>TB</answer><supporting_cues>a; b</supporting_cues></readout>"
     assert readout_cues(text) == "a; b"
     assert readout_cues("no tags") == ""
+
+
+def test_replacement_policy_swaps_only_where_flagged():
+    """The free policy: conclusion replaces the answer only on flagged rows,
+    so an unflagged case keeps its first-pass verdict even when the
+    conclusion happens to be wrong."""
+    from scripts.analyze_correction_ladder import conclusion_correct
+
+    flagged_right = {
+        "correction_flag": True,
+        "first_correct": False,
+        "readout_conclusion": "Tuberculosis",
+        "diagnosis_name": "Tuberculosis",
+        "diagnosis_aliases": ["TB"],
+    }
+    flagged_wrong = dict(flagged_right, readout_conclusion="Bronchitis")
+    empty_conclusion = dict(flagged_right, readout_conclusion="")
+    assert conclusion_correct(flagged_right)
+    assert not conclusion_correct(flagged_wrong)
+    # An empty readout must count as wrong, not as a vacuous containment match.
+    assert not conclusion_correct(empty_conclusion)
+    # Aliases go through the same containment matching as regular scoring.
+    assert conclusion_correct(dict(flagged_right, readout_conclusion="TB"))
