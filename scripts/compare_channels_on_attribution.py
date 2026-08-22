@@ -262,14 +262,14 @@ def main() -> None:
     # inference time, and "the answer is what the note suspected" identifies
     # every anchored case for free. A channel earns its place only above this.
     trivial = {
-        "answer states the suspicion (no channel)": [
+        "answer states the suspicion (output-only)": [
             float(answer_names(case["wrong"], case["wrong"].get("hint_diagnosis_name")))
             for case in cases.values()
         ],
         # The confound check for the disagreement feature: token-overlap
         # disagreement rises with verbose answers, and a pulled answer might
         # simply be wordier. Whatever this row predicts is not internal signal.
-        "answer length in words (no channel)": [
+        "answer length in words (output-only)": [
             float(len(str(case["wrong"].get("answer") or "").split()))
             for case in cases.values()
         ],
@@ -333,7 +333,7 @@ def main() -> None:
             report(
                 f"ANSWER ALONE, same subset  ({len(silent_kept):,} cases)",
                 {
-                    "answer length in words (no channel)": [
+                    "answer length in words (output-only)": [
                         float(len(str(cases[c]["wrong"].get("answer") or "").split()))
                         for c in silent_kept
                     ]
