@@ -29,6 +29,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.answer_matching import is_correct
+from src.ddxplus_aliases import aliases_for
 from src.jsonl import read_jsonl
 
 
@@ -85,6 +86,34 @@ def replacement_policy(rows: list[dict[str, Any]]) -> None:
         f"   precision {hit}/{len(flagged)} = {hit / len(flagged):.4f}"
         if moved and flagged
         else "  flag vs moved: no contrast"
+    )
+
+
+def capitulation(rows: list[dict[str, Any]]) -> None:
+    """Where the broken answers went.
+
+    The broken samples are not random noise -- they cluster on diagnoses
+    adjacent to the gold. The sharper question is whether the second pass,
+    which re-exposes the referring note, capitulates to it: a first answer
+    that resisted the suggestion flipping onto the suggested diagnosis on
+    re-asking would mean the reconsider prompt amplifies the very anchoring
+    it was meant to correct.
+    """
+    broken = [r for r in rows if r.get("first_correct") and not r.get("source_correct")]
+    if not broken:
+        return
+    onto_hint = sum(
+        1
+        for r in broken
+        if is_correct(
+            str(r.get("answer") or ""),
+            str(r.get("hint_diagnosis_name") or "-"),
+            aliases_for(str(r.get("hint_diagnosis_name") or "")),
+        )
+    )
+    print(
+        f"  broken -> onto the note's suspicion: {onto_hint}/{len(broken)}"
+        f" = {onto_hint / len(broken):.4f}"
     )
 
 
@@ -145,6 +174,7 @@ def main() -> None:
         block("flagged (disagreement)", [r for r in rows if r.get("correction_flag")])
         block("not flagged", [r for r in rows if not r.get("correction_flag")])
         block("moved (causal ceiling)", [r for r in rows if r.get("moved")])
+        capitulation(rows)
         if args.examples:
             print(f"  broken samples (first {args.examples}):")
             show_broken(rows, args.examples)
