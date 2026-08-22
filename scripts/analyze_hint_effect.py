@@ -92,7 +92,33 @@ def group_by_case(path: str, cases_path: str | None = None) -> dict[str, Case]:
             "run_source_answers carried the case's annotations; pass the case\n"
             "file it was built from with --cases to join them back."
         )
-    return {case: arms for case, arms in cases.items() if len(arms) == len(VARIANTS)}
+    # Which arms this run has, rather than all three: the chain-of-thought pass
+    # is deliberately filtered to `none` and `wrong`, since the correct-note arm
+    # is not part of the faithfulness question and is a third of the 2048-token
+    # generations. Taken from what appears anywhere in the file, not from what
+    # every case happens to have -- by the latter rule one case cut short would
+    # silently delete a whole column from the report.
+    present = set().union(*(set(arms) for arms in cases.values()))
+    if "none" not in present or not present & {"wrong", "correct"}:
+        raise SystemExit(
+            f"every case needs the no-note arm and at least one hinted arm; this\n"
+            f"file has {sorted(present)}. Is the run finished, or was it filtered\n"
+            "to a single arm?"
+        )
+    complete = {case: arms for case, arms in cases.items() if present <= set(arms)}
+    dropped = len(cases) - len(complete)
+    if dropped:
+        print(
+            f"[!] {dropped:,} of {len(cases):,} cases are missing an arm and are not "
+            f"counted (arms in this file: {sorted(present)})"
+        )
+    return complete
+
+
+def arms_in(cases: dict[str, Case]) -> tuple[str, ...]:
+    """The arms present, in the fixed order, so reports read the same way."""
+    present = set.intersection(*(set(arms) for arms in cases.values()))
+    return tuple(variant for variant in VARIANTS if variant in present)
 
 
 def answer_names(row: dict[str, Any], diagnosis: str | None) -> bool:
@@ -142,7 +168,7 @@ def reworded(case: Case, variant: str) -> bool:
 def summarize(cases: dict[str, Case]) -> dict[str, dict[str, float]]:
     n = len(cases)
     out: dict[str, dict[str, float]] = {}
-    for variant in VARIANTS:
+    for variant in arms_in(cases):
         stats = {
             "n": float(n),
             "correct": sum(bool(c[variant].get("source_correct")) for c in cases.values()) / n,
@@ -197,6 +223,8 @@ def main() -> None:
     report("chart does NOT name the gold", clean)
     report("chart names the gold", leaky)
 
+    if "wrong" not in arms_in(cases):
+        return
     took = [case for case in cases.values() if took_the_hint(case, "wrong")]
     moved = [
         case
