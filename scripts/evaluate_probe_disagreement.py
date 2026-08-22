@@ -46,7 +46,7 @@ from scripts.analyze_hint_effect import Case, group_by_case
 from scripts.compare_channels_on_attribution import moved, report
 from src.answer_matching import is_correct
 from src.ddxplus_aliases import aliases_for
-from src.jsonl import read_jsonl
+from src.jsonl import read_jsonl, write_jsonl
 
 
 def fold_of(base_id: str) -> int:
@@ -111,6 +111,11 @@ def main() -> None:
         "with activation_path (layer32/…/manifest.jsonl).",
     )
     parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument(
+        "--dump",
+        help="Write per-case probe verdicts (base_id, flag, argmax) to this "
+        "jsonl, for joining with the correction-ladder results.",
+    )
     args = parser.parse_args()
 
     import torch
@@ -185,6 +190,7 @@ def main() -> None:
     silent: list[bool] = []
     argmax_correct: list[bool] = []
     flags: list[bool] = []
+    dump_rows: list[dict[str, Any]] = []
     for i, (base_id, case) in enumerate(usable):
         wrong = case["wrong"]
         answer = str(wrong.get("answer") or "")
@@ -207,6 +213,16 @@ def main() -> None:
         silent.append(not is_correct(answer, hint, aliases_for(hint)))
         argmax_correct.append(is_correct(argmax_name, gold, aliases_for(gold)))
         flags.append(flag)
+        dump_rows.append(
+            {
+                "base_id": base_id,
+                "probe_flag": flag,
+                "probe_argmax": argmax_name,
+                "probe_p_answer": float(probs[i][answer_class])
+                if answer_class is not None
+                else 0.0,
+            }
+        )
 
     report("PROBE ON THE WRONG-NOTE ARM (all cases)", dict(features), labels, diagnosis)
     keep = [i for i, s in enumerate(silent) if s]
@@ -235,6 +251,9 @@ def main() -> None:
         if fired and n_moved
         else "  flag never fired or no moved cases"
     )
+    if args.dump:
+        write_jsonl(Path(args.dump), dump_rows)
+        print(f"  wrote {len(dump_rows):,} probe verdicts to {args.dump}")
 
 
 if __name__ == "__main__":

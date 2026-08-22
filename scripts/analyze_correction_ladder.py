@@ -153,6 +153,42 @@ def false_alarm_anatomy(rows: list[dict[str, Any]]) -> None:
     print(f"  adapter misread / third diagnosis        {other:>4}  ({other / n:.3f})")
 
 
+def hybrid_policy(
+    rung_rows: dict[Any, list[dict[str, Any]]], probe: dict[str, dict[str, Any]]
+) -> None:
+    """The two instruments composed: probe picks the cases, content fixes them.
+
+    The ladder's failure was never detection -- it was that the readout flag's
+    0.36 precision made every intervention pay more in collateral than it
+    earned. The probe flag has precision 0.94 on the same cases. So intervene
+    only where the probe fires, and compare three treatments there: keep the
+    first answer, swap in the probe's own argmax (probe does everything), and
+    take the r5 second pass (probe selects, readout content corrects).
+    """
+    for rung, rows in sorted(rung_rows.items()):
+        n = len(rows)
+        picked = [r for r in rows if probe.get(str(r["base_id"]), {}).get("probe_flag")]
+        if not picked:
+            print(f"\nHYBRID (rung {rung}): probe flag matched no rows")
+            continue
+        keep = sum(bool(r.get("first_correct")) for r in rows)
+        swap = keep
+        second = keep
+        for r in picked:
+            argmax = str(probe[str(r["base_id"])].get("probe_argmax") or "")
+            argmax_right = is_correct(
+                argmax, str(r.get("diagnosis_name") or ""), r.get("diagnosis_aliases") or []
+            )
+            swap += argmax_right - bool(r.get("first_correct"))
+            second += bool(r.get("source_correct")) - bool(r.get("first_correct"))
+        print(
+            f"\nHYBRID on probe-flagged cases (rung {rung}, picked {len(picked):,}/{n:,}):"
+        )
+        print(f"  keep first everywhere              {keep / n:.4f}")
+        print(f"  probe picks, probe argmax replaces {swap / n:.4f}")
+        print(f"  probe picks, rung-{rung} second pass     {second / n:.4f}")
+
+
 def show_broken(rows: list[dict[str, Any]], count: int) -> None:
     """Eyeball guard: a uniform collapse could be scoring, not flipping."""
     broken = [
@@ -195,9 +231,15 @@ def main() -> None:
         default=0,
         help="Print this many broken (first right, second wrong) samples per rung.",
     )
+    parser.add_argument(
+        "--probe-flags",
+        help="Per-case probe verdicts from evaluate_probe_disagreement --dump; "
+        "adds the hybrid policy (probe selects, content corrects).",
+    )
     args = parser.parse_args()
 
     first_rows: list[dict[str, Any]] = []
+    rung_rows: dict[Any, list[dict[str, Any]]] = {}
     for path in args.rungs:
         rows = list(read_jsonl(path))
         if not rows:
@@ -205,6 +247,7 @@ def main() -> None:
             continue
         first_rows = first_rows or rows
         rung = rows[0].get("ladder_rung")
+        rung_rows[rung] = rows
         print(f"\nRUNG {rung}  ({path})")
         block("all cases", rows)
         block("flagged (disagreement)", [r for r in rows if r.get("correction_flag")])
@@ -218,6 +261,9 @@ def main() -> None:
     if first_rows:
         replacement_policy(first_rows)
         false_alarm_anatomy(first_rows)
+    if args.probe_flags and rung_rows:
+        probe = {str(r["base_id"]): r for r in read_jsonl(args.probe_flags)}
+        hybrid_policy(rung_rows, probe)
     print(
         "\n  The deployable comparison is r5 vs r4 on the flagged rows: r4 already"
         "\n  re-shows the findings, so r5's margin there is the internal conclusion's"
