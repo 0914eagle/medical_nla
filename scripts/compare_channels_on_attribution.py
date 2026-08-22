@@ -261,6 +261,37 @@ def main() -> None:
             [str(cases[c]["none"].get("diagnosis_name") or "") for c in kept],
         )
 
+    # The decisive cut. "The answer states the suspicion" identifies every
+    # anchored case for free, so a channel matters only where that baseline is
+    # blind: the cases the note moved somewhere OTHER than its own suspicion.
+    # In this subset the answer looks unremarkable -- it names some plausible
+    # diagnosis that simply is not what the model would have said unhinted --
+    # and anything that flags it is information the output does not carry.
+    if args.readouts:
+        silent = {
+            case_id: case
+            for case_id, case in cases.items()
+            if not answer_names(case["wrong"], case["wrong"].get("hint_diagnosis_name"))
+        }
+        silent_kept = [c for c in kept if c in silent]
+        moved_count = sum(moved(cases[c]) for c in silent_kept)
+        if silent_kept and 0 < moved_count < len(silent_kept):
+            print(
+                f"\nWHERE THE ANSWER SAYS NOTHING -- moved, but not onto the suspicion"
+                f"\n({len(silent_kept):,} cases, {moved_count:,} moved; the answer-alone"
+                " baseline is constant here, AUROC 0.5 by construction)"
+            )
+            index = {c: i for i, c in enumerate(kept)}
+            report(
+                "",
+                {
+                    name: [values[index[c]] for c in silent_kept]
+                    for name, values in built.items()
+                },
+                [moved(cases[c]) for c in silent_kept],
+                [str(cases[c]["none"].get("diagnosis_name") or "") for c in silent_kept],
+            )
+
     print(
         "\n  0.5 is no information. The chain's row is expected to sit there --\n"
         "  it mentions the note whether or not the note mattered. A readout row\n"
