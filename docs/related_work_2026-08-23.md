@@ -169,43 +169,50 @@ MCR을 쓰게 되면: Wu et al. **MedCaseReasoning**, arXiv:2505.11733 (Stanford
 
 ---
 
-## 3. Related Work 절 구성안 — 최종: 2절 (2026-08-23 확정)
+## 3. Related Work 절 구성안 — 최종: 2절 (2026-08-23 재확정)
 
-논리: 두 절이 각각 "의료엔 이게 없다"(3.1)와 "방법은 있는데 의료·인과
-검증이 없다"(3.2)로 끝나고, 두 공백의 교집합이 본 연구가 되는 구조.
+축은 "의료 / 방법"이 아니라 **"문제 / 도구"**. 처음 안(3.1 =
+"Interpretability of medical LLMs")은 행동 평가(충실성·편향 주입)를
+interpretability라는 제목 아래 넣어 제목이 내용의 절반과 안 맞았다 —
+편향 주입은 모델을 밖에서 흔드는 행동 평가지 내부 해석이 아니다.
+아래 구조는 2.1이 전부 행동 논문, 2.2가 전부 내부 논문이라 제목-내용
+불일치가 없고, 교집합 구조(문제의 공백 × 도구의 공백 = 본 연구)는 유지.
 
-### 3.1 Interpretability of medical LLMs
+### 3.1 Cognitive bias and unfaithful explanations in medical LLMs (문제)
 
-- 문단 1 — 행동 흐름: 의료 설명 충실성은 행동 섭동으로 평가되어 왔다.
-  Faithful or Just Plausible(인과 절제·힌트 주입; 폐쇄형이라 내부 불가),
-  Clinical Reasoning Graphs(추론 단계는 장식적). 인지 편향 주입 계열 —
-  BiasMedQA, 추론도 못 막음(medRxiv 2025), Mahajan(트레이스를 감사 고리로
-  제안). 전부 정확도 하락까지만 잰다.
-- 문단 2 — 내부 흐름: 프로브(ADR, 정렬-저항, AIIM 2026 환각 프로브)와
-  SAE(JMIR AI, EHR SAE), 영상 쪽 개념 병목 — 지식의 소재·정오 스칼라까지만.
-- 마감: 두 흐름이 만나지 않았다. 행동 쪽은 설명을 믿을 수 없음을 보이지만
-  대안이 없고, 내부 쪽은 지식이 있음을 보이지만 개별 사례의 실패를
-  설명하지 않는다. 개별 케이스에서 무엇이 답을 움직였는지를 임상의가
-  읽을 수 있는 형태로 내놓는 시도는 없다.
+- 문단 1 — 일반→임상: 설명이 답의 원인을 말하지 않는 현상(Turpin 한 줄) +
+  임상 anchoring의 실재(Croskerry). → 의료 LLM 편향 주입: BiasMedQA,
+  추론도 못 막음(medRxiv 2025), Mahajan(트레이스를 감사 고리로 제안).
+- 문단 2 — 의료 설명 충실성 평가: Faithful or Just Plausible(인과 절제·
+  힌트 주입; 폐쇄형이라 내부 접근 불가), Clinical Reasoning Graphs(추론
+  단계는 장식적).
+- 마감: 이 문헌 전체가 행동만 본다. 편향이 정확도를 떨어뜨린다는 것은
+  알지만, 배포된 단일 실행에서 어느 케이스가 지금 밀렸는지는 알 수 없다 —
+  출력 기반 탐지가 원리적으로 장님이 되는 부분집합이 존재한다(§결과).
 
-### 3.2 Natural-language readouts of LLM internals
+### 3.2 Reading LLM internals: from probes to natural-language readouts (도구)
 
-- 문단 1 — 계보: probe/lens/SAE는 플래그와 미리 정한 개념을 준다(Belinkov,
-  tuned lens, SAE 계열) → 열린 언어화: Patchscopes, SelfIE, LatentQA →
-  NLA(비지도 재구성 목적함수; 본 연구의 도구).
-- 문단 2 — 검증 논쟁 + 내부-외부 불일치: Li et al.("서술이 언어화 모델의
-  지식일 수 있다") → 본 연구의 계기 검증 배터리·인과 테스트베드가 답.
-  비의료의 내부 신호 CoT 불충실 탐지 — CIE-SCORER(그래프 거리), Yuan
+- 문단 1 — 일반 계보: probe/lens/SAE는 플래그와 미리 정한 개념을 준다
+  (Belinkov, tuned lens, SAE 계열) → 열린 언어화: Patchscopes, SelfIE,
+  LatentQA → NLA(비지도 재구성 목적함수; 본 연구의 도구) → Li et al.
+  비판("서술이 언어화 모델의 지식일 수 있다")과 본 연구의 답(계기 검증
+  배터리·인과 테스트베드).
+- 문단 2 — 의료의 내부 접근(이 절로 이사): ADR·정렬-저항 프로브, AIIM
+  2026 환각 프로브, JMIR AI SAE, EHR SAE — 의료에 내부 방법이 도달했지만
+  지식 소재·정오 스칼라에서 멈춘다.
+- 문단 3 — 내부-외부 불일치 탐지(비의료): CIE-SCORER(그래프 거리), Yuan
   ("진단적, 비인과적"), Mehrafarin(은닉 상태에 정답이 산다) — 전부
-  비의료·비언어적·정오 판정이고 원인 귀속이 아니다.
-- 마감: 본 연구는 이 방법 계열을 의료 진단으로 가져와, 인과적으로 통제된
-  개입 위에서 계기로 검증한다.
+  비언어적·정오 판정·비의료.
+- 마감: 내부를 읽는 도구는 성숙했지만, 의료 진단에서 개별 사례의 원인을
+  자연어로 귀속한 적은 없다. 본 연구는 이 계열을 인과적으로 통제된 의료
+  개입 위에서 계기로 검증해 그 자리를 채운다.
 
 ### 두 절 밖으로 이사하는 인용
 
-- Turpin/Lanham/Chen(일반 CoT 불충실) → **Introduction** (문제 설정의 원형).
-- Croskerry + npj 사망 통계(연 4–8만, 인지 편향 40–80% 관여) →
-  **Introduction** 첫 문단의 임상 동기.
+- Lanham/Chen(충실성 측정 방법론·최신 추론 모델) → **Introduction** 또는
+  3.1 문단 1의 보조 인용 (Turpin은 3.1 도입 한 줄).
+- npj 사망 통계(연 4–8만, 인지 편향 40–80% 관여) → **Introduction** 첫
+  문단의 임상 동기 (Croskerry는 3.1에서 재인용).
 - Sharma(시코펀시)·Huang(자기교정 한계) → **Table 5(사다리) 결과 논의** —
   related work에서 미리 소비하지 않는다.
 - MedGemma TR·H-DDx·MedS-Bench(DDXPlus 성능 선행) → **Methods/데이터 절**
