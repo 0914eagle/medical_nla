@@ -54,7 +54,9 @@ from scripts.analyze_hint_effect import (
 from scripts.analyze_hint_mention import cites_referral, mentions_diagnosis
 from scripts.predict_error_from_readouts import auroc
 from scripts.score_cue_position_readouts import readout_body
+from src.answer_matching import is_correct
 from src.cue_readout_scoring import content_words, overlap_f1
+from src.ddxplus_aliases import aliases_for
 from src.jsonl import read_jsonl
 
 Readouts = dict[tuple[str, str, str], str]
@@ -147,6 +149,20 @@ def readout_features(case: Case, readouts: Readouts) -> dict[str, float] | None:
         # elsewhere -- readable from one run, no counterfactual needed.
         "internal conclusion contradicts the answer": 1.0
         - overlap_f1(readout_answer(final_wrong), str(case["wrong"].get("answer") or "")),
+        # The length-robust form of the same signal. Token overlap falls as the
+        # answer grows, and pulled answers are wordier (length alone reaches
+        # 0.67 within diagnosis), so the f1 version part-measures verbosity.
+        # Containment with aliases does not: "Anemia of CKD" contains the
+        # conclusion "Anemia" however long it gets, and a drifted answer fails
+        # to contain it for reasons of content, not style.
+        "answer omits the internal conclusion (containment)": 1.0
+        - float(
+            is_correct(
+                case["wrong"].get("answer"),
+                readout_answer(final_wrong).strip() or "-",
+                aliases_for(readout_answer(final_wrong).strip()),
+            )
+        ),
     }
     final_none = readouts.get((base, "none", "final"))
     if final_none is not None:

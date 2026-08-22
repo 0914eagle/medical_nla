@@ -55,3 +55,23 @@ def test_the_readout_answer_field_is_what_gets_compared():
     )
     assert readout_answer(structured) == "Croup"
     assert readout_answer("plain text") == "plain text"
+
+
+def test_containment_disagreement_ignores_verbosity():
+    """A long answer that still contains the internal conclusion agrees with
+    it; token-overlap f1 would call the same pair a disagreement, which is how
+    answer length leaked into the signal."""
+    from scripts.compare_channels_on_attribution import readout_features
+
+    case = {
+        "none": {"base_id": "a"},
+        "wrong": {"hint_diagnosis_name": "Bronchitis",
+                  "answer": "Anemia of Chronic Kidney Disease with GI bleeding"},
+    }
+    reads = {
+        ("a", "wrong", "hint"): "suspects Bronchitis",
+        ("a", "wrong", "final"): "<answer>Anemia</answer>",
+    }
+    feats = readout_features(case, reads)
+    assert feats["answer omits the internal conclusion (containment)"] == 0.0
+    assert feats["internal conclusion contradicts the answer"] > 0.5
