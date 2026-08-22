@@ -125,6 +125,13 @@ def readout_answer(text: str) -> str:
     return text
 
 
+def readout_cues(text: str) -> str:
+    """The <supporting_cues> field of a structured readout, or empty."""
+    if "<supporting_cues>" in text and "</supporting_cues>" in text:
+        return text.split("<supporting_cues>", 1)[1].split("</supporting_cues>", 1)[0].strip()
+    return ""
+
+
 def readout_features(case: Case, readouts: Readouts) -> dict[str, float] | None:
     """What the internal readout offers, from the same arm alone.
 
@@ -142,6 +149,15 @@ def readout_features(case: Case, readouts: Readouts) -> dict[str, float] | None:
         "readout at the note names it": float(mentions_diagnosis(hint_read, hint)),
         "readout before the answer names the suspicion": float(
             mentions_diagnosis(final_wrong, hint)
+        ),
+        # The "why" fields: does the readout's *grounds* slot carry the note?
+        # A conclusion is what the state points at; the supporting_cues field
+        # is what the state treats as evidence. If pulled cases cite the note
+        # there, the readout is verbalizing the cause per case -- the one
+        # thing no classifier head emits.
+        "readout cues cite the referral": float(cites_referral(readout_cues(final_wrong))),
+        "readout cues name the suspicion": float(
+            mentions_diagnosis(readout_cues(final_wrong), hint)
         ),
         # The project's original signal, repurposed: v1 flagged errors when the
         # internal conclusion disagreed with the emitted answer. Here it asks

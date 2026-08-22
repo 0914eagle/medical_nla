@@ -39,7 +39,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.analyze_hint_effect import group_by_case, lost_the_gold, took_the_hint
-from scripts.compare_channels_on_attribution import load_readouts, readout_answer
+from scripts.compare_channels_on_attribution import (
+    load_readouts,
+    readout_answer,
+    readout_cues,
+)
 from src.answer_matching import is_correct
 from src.case_prompts import build_prompt
 from src.ddxplus_aliases import aliases_for
@@ -51,12 +55,6 @@ RECONSIDER = (
     "Your previous answer was: {answer}.\n"
     "Please reconsider the case carefully and give your best final diagnosis."
 )
-
-
-def readout_cues(text: str) -> str:
-    if "<supporting_cues>" in text and "</supporting_cues>" in text:
-        return text.split("<supporting_cues>", 1)[1].split("</supporting_cues>", 1)[0].strip()
-    return ""
 
 
 def rung_prompt(rung: int, presentation: str, first_answer: str,
