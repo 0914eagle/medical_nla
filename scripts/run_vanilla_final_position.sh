@@ -30,7 +30,7 @@ TEMPLATE="${TEMPLATE:-prompt_templates/medical_nla_v2_readout.txt}"
 # The readout manifest is whatever make_trajectory_readout_manifest.py wrote
 # for the tuned run -- the same rows, so the two channels are compared on
 # identical vectors. Override MANIFEST= if it lives elsewhere.
-MANIFEST="${MANIFEST:-$DATA/ddxplus_trajectory_readout_manifest.jsonl}"
+MANIFEST="${MANIFEST:-$DATA/trajectory_readout_manifest.jsonl}"
 
 LOGS="$ART/logs"; mkdir -p "$LOGS" "$ART/results"
 MAIN="$LOGS/vanilla_final_$(date +%Y%m%d_%H%M%S).log"
