@@ -35,7 +35,9 @@ one finding moves the description 99.3% of the time and never leaves the
 original wording behind.*
 
 ▢ 남은 것: shuffle-control 값, swap/memorization의 정확한 n, 답-위치
-vanilla 행(실행 중; 들어가면 Reference type "untuned"의 한 행).
+vanilla 행(실행 중), **MCR 산문 서술률 행** — 계기가 실제 임상 문장도
+읽는지는 1기 mcr_sweep 산출물 재집계(CPU)로 채운다. 이 행이 있어야 T1이
+DDXPlus 전용 검증표가 아니게 된다.
 
 ---
 
@@ -72,6 +74,21 @@ n = 1,747 each.
 | Patient | .867 | 224 | 17 |
 | Realistic multi-sentence note | **.745** | **445** | **236** |
 
+**Table 2d** (2c와 한 쌍 — 같은 해리의 두 번째 조작). Suggestion source on
+MedCaseReasoning: the model's own confusions vs. a cue-similar neighbour's
+diagnosis (no differential field exists).
+
+| Suggestion source | n | Wrong-arm acc. | Moved | Adopted |
+|---|---:|---:|---:|---:|
+| Model's own confusion | 849 | .682 | 257 | 106 |
+| Nearest-neighbour diagnosis | 694 | .728 | 182 | 32 |
+
+*Destabilisation barely differs (30.3% vs 26.2% moved, z = 1.75, n.s.);
+persuasion differs 2.3× (41.2% vs 17.6% adopted, z = 5.26). The same
+dissociation the patient-voice wording shows in 2c, from an unrelated
+manipulation: persuasion tracks the note's properties, destabilisation
+mostly does not.*
+
 ---
 
 ## Table 3 — Single-run attribution (§4.3)
@@ -96,8 +113,11 @@ is open (6,934 labels, most occurring once).
 condition. ᵇ No class set exists to train on.
 
 *CoT 값은 특징 3종(0.50–0.53) 중 최댓값 하나로 통일해 셀당 값 하나 규칙을
-지킨다; 특징별 값은 부록. MCR의 CoT·출력 채널 AUROC는 계산 예정(▢) —
-나오면 "AUROC, MCR" 열을 추가하는 대신 부록 표로.*
+지킨다; 특징별 값은 부록. **MCR의 CoT·출력 채널 AUROC는 개입이 끝났으므로
+지금 CPU로 계산 가능(▢ 최우선)** — 나오면 "AUROC, MCR (behavioural)" 열을
+추가한다: 두 행동 채널 + probe "n.a." + readout "ᵈ"로 열이 완성되고, 열린
+어휘에서 행동 채널도 우연 수준이면 "MCR에서는 아직 아무도 탐지 못 한다"가
+어댑터 동기의 마지막 조각이 된다.*
 
 ---
 
@@ -116,7 +136,10 @@ landing on the suggested diagnosis (first-pass counterpart .293).
 
 *First-pass baseline: overall .814, moved .012. r5 − r4 = +22.8 pp on moved
 (+17.7 pp on the 3× replication); r5 has the lowest capitulation
-(z = 6.1/10.6).*
+(z = 6.1/10.6). The ladder is DDXPlus-only so far: on MedCaseReasoning, r3
+and r4 need no adapter (▢ planned), r5 requires the conclusion adapter (in
+training), and r6 cannot exist — no class set to feed back. That asymmetry
+is the point §4.4 ends on.*
 
 **Table 4b.** r5 vs. r6 with fed-back content accuracy held fixed. Unseen
 replication set (n = 3,319), exact McNemar on discordant pairs.
