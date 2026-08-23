@@ -12,8 +12,11 @@ PRESENTATION = (
 def test_every_rung_keeps_the_note_in_place():
     """Deployment does not get to delete the confounder; a rung that quietly
     removed the note would be measuring a different, easier problem."""
-    for rung in (3, 4, 5):
-        prompt = rung_prompt(rung, PRESENTATION, "Silicosis", ["a fever"], "Tuberculosis", "")
+    for rung in (3, 4, 5, 6):
+        prompt = rung_prompt(
+            rung, PRESENTATION, "Silicosis", ["a fever"], "Tuberculosis", "",
+            probe_class="Tuberculosis",
+        )
         assert "The referring note suspects Bronchitis." in prompt
         assert "Your previous answer was: Silicosis." in prompt
         assert prompt.endswith(DIRECT_INSTRUCTION)
@@ -29,6 +32,23 @@ def test_the_rungs_differ_only_in_what_is_appended():
     # each rung isolates one addition, or the comparison between them is mush.
     assert "internal conclusion" not in r4
     assert "patient's findings" not in r5
+
+
+def test_rung_six_carries_the_probe_class_and_nothing_else():
+    """r6 is the probe-content control: a class name with no phrasing and no
+    grounds. It must use the probe's argmax, not the readout's conclusion --
+    the two can disagree, and feeding the readout's word under a probe label
+    would make r5 minus r6 measure nothing."""
+    r6 = rung_prompt(
+        6, PRESENTATION, "Silicosis", ["a fever"], "Tuberculosis",
+        "coughing blood", probe_class="Pneumonia",
+    )
+    assert "classifier probe" in r6
+    assert "predicts: Pneumonia" in r6
+    assert "Tuberculosis" not in r6
+    assert "internal conclusion" not in r6
+    assert "coughing blood" not in r6
+    assert "patient's findings" not in r6
 
 
 def test_readout_cues_come_from_the_structured_field():

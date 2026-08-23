@@ -20,6 +20,11 @@ answer coexists with a recoverable unanchored conclusion (the 0.84 result),
 handing the model its own conclusion should recover cases the other rungs do
 not.
 
+**r6 (probe feedback)** -- r3 plus the linear probe's argmax class, and nothing
+else. Everything a classifier head can offer is a class name; r5 minus r6 is
+therefore the pure contribution of the readout's natural-language content
+beyond naming a diagnosis. Requires `--probe-verdicts`.
+
 Each row carries `correction_flag` -- whether the deployable disagreement
 signal fired on the first pass -- so the analysis can compare "intervene
 everywhere" with "intervene only where flagged" without recomputing anything.
@@ -47,7 +52,7 @@ from scripts.compare_channels_on_attribution import (
 from src.answer_matching import is_correct
 from src.case_prompts import build_prompt
 from src.ddxplus_aliases import aliases_for
-from src.jsonl import write_jsonl
+from src.jsonl import read_jsonl, write_jsonl
 
 from scripts.make_hint_injection_cases import presentation_of
 
@@ -58,7 +63,8 @@ RECONSIDER = (
 
 
 def rung_prompt(rung: int, presentation: str, first_answer: str,
-                cue_targets: list[str], conclusion: str, cues_read: str) -> str:
+                cue_targets: list[str], conclusion: str, cues_read: str,
+                probe_class: str = "") -> str:
     block = RECONSIDER.format(answer=first_answer)
     if rung == 4:
         bullets = "\n".join(f"- {cue}" for cue in cue_targets)
@@ -70,6 +76,17 @@ def rung_prompt(rung: int, presentation: str, first_answer: str,
             f"- internal conclusion: {conclusion}\n"
             + (f"- encoded findings: {cues_read}" if cues_read else "")
         ).rstrip()
+    if rung == 6:
+        # The probe-content control: everything a classifier head can offer
+        # is a class name, so this rung feeds back the probe's argmax and
+        # nothing else. r5 minus r6 is the pure contribution of the readout's
+        # natural-language content (conclusion phrasing + grounds) beyond
+        # naming a diagnosis -- the experiment a reviewer would otherwise
+        # run for us.
+        block += (
+            "\n\nAn independent classifier probe of the model's internal "
+            f"state, taken just before the previous answer, predicts: {probe_class}"
+        )
     return build_prompt(f"{presentation}\n\n{block}", "direct")
 
 
@@ -80,14 +97,30 @@ def main() -> None:
     parser.add_argument("--readouts", nargs="+", required=True, help="v2 conclusion readouts.")
     parser.add_argument("--readout-manifests", nargs="+", default=[])
     parser.add_argument("--rungs", nargs="+", type=int, default=[3, 4, 5])
+    parser.add_argument(
+        "--probe-verdicts",
+        help="probe_verdicts.jsonl from evaluate_probe_disagreement --dump; "
+        "required for rung 6, whose feedback is the probe's argmax class.",
+    )
     parser.add_argument("--output-prefix", required=True, help="Writes {prefix}_r{n}.jsonl")
     args = parser.parse_args()
+
+    probe_argmax: dict[str, str] = {}
+    if args.probe_verdicts:
+        probe_argmax = {
+            str(row["base_id"]): str(row.get("probe_argmax") or "").strip()
+            for row in read_jsonl(args.probe_verdicts)
+        }
+        print(f"probe verdicts loaded: {len(probe_argmax):,}")
+    if 6 in args.rungs and not probe_argmax:
+        raise SystemExit("rung 6 needs --probe-verdicts (its content is the probe argmax)")
 
     cases = group_by_case(args.answers, args.cases)
     readouts = load_readouts(args.readouts, args.readout_manifests)
 
     outputs: dict[int, list[dict[str, Any]]] = {r: [] for r in args.rungs}
     skipped = 0
+    no_probe = 0
     for base_id, case in cases.items():
         wrong = case["wrong"]
         presentation = presentation_of(str(wrong.get("prompt") or ""))
@@ -113,14 +146,23 @@ def main() -> None:
             "correction_flag": flag,
         }
         cue_targets = [str(c) for c in (wrong.get("cue_targets") or [])]
+        probe_class = probe_argmax.get(base_id, "")
         for rung in args.rungs:
+            if rung == 6:
+                if not probe_class:
+                    no_probe += 1
+                    continue
+                carry_r = {**carry, "probe_argmax": probe_class}
+            else:
+                carry_r = carry
             outputs[rung].append(
                 {
-                    **carry,
+                    **carry_r,
                     "id": f"{base_id}__ladder_r{rung}",
                     "ladder_rung": rung,
                     "prompt": rung_prompt(
-                        rung, presentation, first_answer, cue_targets, conclusion, cues_read
+                        rung, presentation, first_answer, cue_targets,
+                        conclusion, cues_read, probe_class
                     ),
                 }
             )
@@ -135,6 +177,8 @@ def main() -> None:
         print(f"rung {rung}: {len(rows):,} rows -> {path}  (flagged {flagged:,}, moved {moved:,})")
     if skipped:
         print(f"skipped {skipped:,} cases without a wrong-arm answer or readout")
+    if no_probe:
+        print(f"rung 6: dropped {no_probe:,} cases with no probe verdict")
 
 
 if __name__ == "__main__":
