@@ -25,6 +25,22 @@ else. Everything a classifier head can offer is a class name; r5 minus r6 is
 therefore the pure contribution of the readout's natural-language content
 beyond naming a diagnosis. Requires `--probe-verdicts`.
 
+**r7 (self-explanation feedback)** -- r3 plus the model's own chain of thought
+from the first pass. The ladder as first built compared internal feedback
+against re-showing the *input* (r4), which leaves the obvious rival untested:
+the model already produces a written account of its reasoning, so before
+claiming that internals are the thing worth feeding back, the account itself
+has to be fed back and measured. This is the rung a reviewer asks for, and it
+is the one that decides whether §4.4's claim is "feed back internals" or the
+weaker "feed back something". Requires `--cot-answers`.
+
+Because the chain comes from a CoT-prompted run whose own answer can differ
+from the direct first pass, r7 is restricted to cases where the two agree
+under the project's alias rule -- otherwise the prompt would state one
+previous answer and quote reasoning that concluded another. The retained
+count is printed, and rows carry `cot_agreed` so the analysis can report the
+population honestly rather than comparing rungs across different case sets.
+
 Each row carries `correction_flag` -- whether the deployable disagreement
 signal fired on the first pass -- so the analysis can compare "intervene
 everywhere" with "intervene only where flagged" without recomputing anything.
@@ -64,7 +80,7 @@ RECONSIDER = (
 
 def rung_prompt(rung: int, presentation: str, first_answer: str,
                 cue_targets: list[str], conclusion: str, cues_read: str,
-                probe_class: str = "") -> str:
+                probe_class: str = "", chain: str = "") -> str:
     block = RECONSIDER.format(answer=first_answer)
     if rung == 4:
         bullets = "\n".join(f"- {cue}" for cue in cue_targets)
@@ -87,6 +103,16 @@ def rung_prompt(rung: int, presentation: str, first_answer: str,
             "\n\nAn independent classifier probe of the model's internal "
             f"state, taken just before the previous answer, predicts: {probe_class}"
         )
+    if rung == 7:
+        # The self-explanation rival. Framed as the model's own words rather
+        # than as an independent source, because that is what it is -- and
+        # because r5 and r6 both announce their content as an outside reading,
+        # the wording difference is deliberate and belongs in the limitations
+        # rather than being hidden by a false symmetry.
+        block += (
+            "\n\nYour own reasoning for the previous answer was:\n"
+            f"{chain.strip()}"
+        )
     return build_prompt(f"{presentation}\n\n{block}", "direct")
 
 
@@ -102,8 +128,32 @@ def main() -> None:
         help="probe_verdicts.jsonl from evaluate_probe_disagreement --dump; "
         "required for rung 6, whose feedback is the probe's argmax class.",
     )
+    parser.add_argument(
+        "--cot-answers",
+        nargs="+",
+        default=[],
+        help="run_source_answers cot output for the wrong arm; required for "
+        "rung 7, whose feedback is the model's own first-pass chain.",
+    )
     parser.add_argument("--output-prefix", required=True, help="Writes {prefix}_r{n}.jsonl")
     args = parser.parse_args()
+
+    # The chain and the answer it reached, keyed by case. Only the wrong arm:
+    # the ladder's population is the wrong-note condition, and a chain written
+    # under a different note is not this case's reasoning.
+    chains: dict[str, tuple[str, str]] = {}
+    for path in args.cot_answers:
+        for row in read_jsonl(path):
+            if str(row.get("hint_variant") or "wrong") != "wrong":
+                continue
+            base_id = str(row.get("base_id") or row.get("id") or "")
+            chain = str(row.get("response") or "").strip()
+            if base_id and chain:
+                chains[base_id] = (chain, str(row.get("answer") or "").strip())
+    if args.cot_answers:
+        print(f"chains loaded: {len(chains):,}")
+    if 7 in args.rungs and not chains:
+        raise SystemExit("rung 7 needs --cot-answers (its content is the model's own chain)")
 
     probe_argmax: dict[str, str] = {}
     if args.probe_verdicts:
@@ -121,6 +171,8 @@ def main() -> None:
     outputs: dict[int, list[dict[str, Any]]] = {r: [] for r in args.rungs}
     skipped = 0
     no_probe = 0
+    no_chain = 0
+    disagreed = 0
     for base_id, case in cases.items():
         wrong = case["wrong"]
         presentation = presentation_of(str(wrong.get("prompt") or ""))
@@ -147,14 +199,24 @@ def main() -> None:
         }
         cue_targets = [str(c) for c in (wrong.get("cue_targets") or [])]
         probe_class = probe_argmax.get(base_id, "")
+        chain, chain_answer = chains.get(base_id, ("", ""))
         for rung in args.rungs:
+            carry_r = carry
             if rung == 6:
                 if not probe_class:
                     no_probe += 1
                     continue
                 carry_r = {**carry, "probe_argmax": probe_class}
-            else:
-                carry_r = carry
+            if rung == 7:
+                if not chain:
+                    no_chain += 1
+                    continue
+                # Same rule the rest of the codebase scores answers with, so
+                # "the two passes agree" means here what it means elsewhere.
+                if not is_correct(chain_answer, first_answer, aliases_for(first_answer)):
+                    disagreed += 1
+                    continue
+                carry_r = {**carry, "cot_agreed": True, "cot_answer": chain_answer}
             outputs[rung].append(
                 {
                     **carry_r,
@@ -162,7 +224,7 @@ def main() -> None:
                     "ladder_rung": rung,
                     "prompt": rung_prompt(
                         rung, presentation, first_answer, cue_targets,
-                        conclusion, cues_read, probe_class
+                        conclusion, cues_read, probe_class, chain
                     ),
                 }
             )
@@ -179,6 +241,12 @@ def main() -> None:
         print(f"skipped {skipped:,} cases without a wrong-arm answer or readout")
     if no_probe:
         print(f"rung 6: dropped {no_probe:,} cases with no probe verdict")
+    if no_chain or disagreed:
+        # Printed, not silent: r7 sits on a smaller population than r3-r6, and
+        # any comparison that forgets this is comparing different case sets.
+        print(f"rung 7: dropped {no_chain:,} with no chain, "
+              f"{disagreed:,} whose chain reached a different answer "
+              f"-- compare r7 against the other rungs restricted to the same ids")
 
 
 if __name__ == "__main__":

@@ -140,6 +140,7 @@ landing on the suggested diagnosis (first-pass counterpart .293).
 | r4 | + findings re-shown (control) | .417 | .398 | .644 |
 | r5 | + readout conclusion & grounds | .418 | .627 | .498 |
 | r6 | + probe class label | .467 | .830 | .527 |
+| r7 | + the model's own chain (▢ 실행 대기) | – | – | – |
 
 *First-pass baseline: overall .814, moved .012. r5 − r4 = +22.8 pp on moved
 (+17.7 pp on the 3× replication); r5 has the lowest capitulation
@@ -147,6 +148,38 @@ landing on the suggested diagnosis (first-pass counterpart .293).
 and r4 need no adapter (▢ planned), r5 requires the conclusion adapter (in
 training), and r6 cannot exist — no class set to feed back. That asymmetry
 is the point §4.4 ends on.*
+
+**이 표가 확립하는 명제는 "내부를 되먹여라"이지 "자연어로 되먹여라"가
+아니다 (08-25).** r5와 r6이 둘 다 r4(입력 재제시)를 이기고, 내용 정확도를
+맞추면 둘 사이 차이는 0이다(4b 1행). 교정 축의 결론은 **채널 중립**이며,
+자연어가 필요해지는 곳은 회복률이 아니라 **클래스 채널이 존재하지 않는
+코퍼스**와 **근거 제시가 요구되는 상황**이다(Table 5).
+
+**r7이 이 명제를 완성한다 (▢ 실행 대기).** 지금까지 내부 되먹임의 비교
+대상은 "입력을 다시 보여주기"였고, 가장 명백한 경쟁자 — **모델 자신의 CoT를
+되먹이기** — 는 측정된 적이 없다. 그것 없이는 "내부를 되먹여라"가 서지
+않는다. 어댑터 불필요, DDXPlus CoT 산출물 재사용
+(`make_correction_ladder_cases.py --rungs 7 --cot-answers`). CoT 실행의 답이
+direct 첫 답과 다른 케이스는 제외되므로 r7의 모집단이 작다 — **같은 id로
+제한한 r3–r6과만 비교하고, 표에는 그 제한된 열을 따로 싣는다.**
+
+**r6은 제안하는 방법이 아니라 통제다 (08-25 명시).** 표를 처음 보는 독자는
+r6의 moved .830을 "probe가 이긴다"로 읽고, 곧바로 **"클래스명을 되먹이는
+건 정답을 쥐여 주는 것 아닌가"**라고 되묻는다. 그 되물음은 옳고, 수치가
+그대로 인정한다: probe argmax의 정답률은 moved에서 **.8642**(전체 .9599),
+AV 판독 결론은 **.5185**(전체 .6754)다. r6의 .830은 .8642를 거의 그대로
+따라간다. r6이 존재하는 이유가 바로 이것이다 — r5가 r4를 이긴 것이
+**문장이라서**인지 **내용이 맞아서**인지 가르려면 내용만 있고 문장이 없는
+단이 필요했고, Table 4b가 그 교란을 제거한다. 답은 내용이다.
+
+세 가지를 본문에 함께 적는다. ① probe는 오라클이 아니라 활성값만 읽는
+**교차적합** 분류기이며 해당 케이스의 정답 라벨을 본 적이 없다 — 배포
+시점에 실제로 실행 가능한 채널이므로 정답지 누출이 아니다. ② 그러나 probe는
+다른 케이스들의 **정답 라벨로 지도학습**되고 AV 판독은 그 감독을 받지
+않으므로, r5 vs r6은 형식만이 아니라 **감독 수준도** 다르다. ③ probe가
+정의되는 코퍼스라면 r6은 애초에 쓸 정책이 아니다 — Table 4c에서 재실행
+없는 argmax 교체(.966)가 r6 재실행(.954)보다 낫다. r6은 사다리의 통제로서
+자기 일을 했고, 배포 권고에는 들어가지 않는다.
 
 **Table 4b.** r5 vs. r6 with fed-back content accuracy held fixed. Unseen
 replication set (n = 3,319), exact McNemar on discordant pairs.
@@ -159,7 +192,10 @@ replication set (n = 3,319), exact McNemar on discordant pairs.
 | correct / wrong | 35 | .600 | .086 | 19 : 1 | <.001 |
 
 *Form contributes nothing once content accuracy is matched (row 1); the two
-one-sided rows reflect content accuracy, not form.*
+one-sided rows reflect content accuracy, not form. Where form does show is
+row 3: when both channels hand over a wrong diagnosis, prose is the safer
+carrier (main run .400 vs .240, 8 : 0, p = .008) — a bare name has nothing to
+check against the chart, a conclusion with its grounds does.*
 
 **Table 4c.** Deployment policies.
 

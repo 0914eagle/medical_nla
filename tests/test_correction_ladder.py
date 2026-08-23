@@ -12,10 +12,10 @@ PRESENTATION = (
 def test_every_rung_keeps_the_note_in_place():
     """Deployment does not get to delete the confounder; a rung that quietly
     removed the note would be measuring a different, easier problem."""
-    for rung in (3, 4, 5, 6):
+    for rung in (3, 4, 5, 6, 7):
         prompt = rung_prompt(
             rung, PRESENTATION, "Silicosis", ["a fever"], "Tuberculosis", "",
-            probe_class="Tuberculosis",
+            probe_class="Tuberculosis", chain="The fever points to infection.",
         )
         assert "The referring note suspects Bronchitis." in prompt
         assert "Your previous answer was: Silicosis." in prompt
@@ -49,6 +49,25 @@ def test_rung_six_carries_the_probe_class_and_nothing_else():
     assert "internal conclusion" not in r6
     assert "coughing blood" not in r6
     assert "patient's findings" not in r6
+
+
+def test_rung_seven_carries_the_chain_and_no_internal_reading():
+    """r7 is the self-explanation rival: the model's own written reasoning and
+    nothing from inside the model. If it leaked the readout's conclusion or the
+    probe's class, it would stop being the baseline it exists to be -- the rung
+    that decides whether 4.4 claims 'feed back internals' or only 'feed back
+    something'."""
+    r7 = rung_prompt(
+        7, PRESENTATION, "Silicosis", ["a fever"], "Tuberculosis",
+        "coughing blood", probe_class="Pneumonia",
+        chain="The fever and haemoptysis suggested an occupational cause.",
+    )
+    assert "Your own reasoning for the previous answer was:" in r7
+    assert "occupational cause" in r7
+    assert "internal conclusion" not in r7
+    assert "classifier probe" not in r7
+    assert "Pneumonia" not in r7
+    assert "patient's findings" not in r7
 
 
 def test_readout_cues_come_from_the_structured_field():
