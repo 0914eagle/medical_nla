@@ -51,3 +51,30 @@ def test_none_arm_skips_the_note_landmark():
 def test_missing_cue_string_is_a_loud_skip_not_a_bad_anchor():
     rows, reason = landmark_rows(case(cue_targets=["not in the prompt"]))
     assert rows == [] and "cue" in reason
+
+
+def test_last_cue_anchors_on_the_findings_even_as_the_builder_writes_them():
+    """The hinted arm as make_hint_injection_cases actually emits it:
+    cue_targets overwritten with the note sentence, because that is what the
+    note-position readout is aimed at.
+
+    Anchoring last_cue on that field put the two arms' first landmark at
+    different positions -- the none arm at the last bullet, the hinted arm at
+    the end of the note -- so they disagreed where causal masking makes them
+    the same tensor. The findings must come from the none arm.
+    """
+    as_built = case(
+        cue_targets=["The referring note suspects Bronchitis."],
+        cue_text="The referring note suspects Bronchitis.",
+        target_role="hint",
+        target_text="Bronchitis",
+    )
+    rows, reason = landmark_rows(as_built, ["coughing up blood", "a fever"])
+    assert reason is None
+    assert rows[0]["target_role"] == "last_cue"
+    assert rows[0]["target_text"] == "a fever"
+
+    # And without the none-arm findings it must refuse rather than silently
+    # anchor on the note: a wrong position is worse than a missing one.
+    rows, reason = landmark_rows(as_built)
+    assert rows == [] and reason is not None

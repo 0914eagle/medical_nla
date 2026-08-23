@@ -93,7 +93,16 @@ def neighbor_gold(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cases", required=True, help="MCR case file.")
+    parser.add_argument(
+        "--cases",
+        nargs="+",
+        required=True,
+        help="MCR case files. Both splits are accepted: the split is theirs, "
+        "made for fine-tuning a reasoner, and nothing here trains on it -- "
+        "widening the pool only widens what the intervention can be measured "
+        "on. (If the readout adapter is ever trained, it trains on train and "
+        "is read out on test; that rule is not affected by this.)",
+    )
     parser.add_argument(
         "--answers",
         nargs="+",
@@ -114,7 +123,7 @@ def main() -> None:
     }
     print(f"direct-correct cases: {len(correct_ids):,}   golds with confusions: {len(confused):,}")
 
-    all_cases = list(read_jsonl(args.cases))
+    all_cases = [row for path in args.cases for row in read_jsonl(path)]
     corpus = [
         (cue_words(c), str(c.get("diagnosis_name") or "").strip())
         for c in all_cases

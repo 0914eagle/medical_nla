@@ -69,8 +69,21 @@ INSTRUCTION_LANDMARKS = (
 )
 
 
-def landmark_rows(case: dict[str, Any]) -> tuple[list[dict[str, Any]], str | None]:
-    """All landmark rows for one arm's prompt, or a reason it was skipped."""
+def landmark_rows(
+    case: dict[str, Any], findings_cues: list[str] | None = None
+) -> tuple[list[dict[str, Any]], str | None]:
+    """All landmark rows for one arm's prompt, or a reason it was skipped.
+
+    `findings_cues` must be the patient's findings, taken from the none arm.
+    A hinted arm's own `cue_targets` is not that: the injection builder
+    overwrites the field with the note sentence, because for the note-position
+    readout the note *is* the target. Anchoring last_cue on that field
+    therefore put the hinted arm's "last finding" landmark at the end of the
+    note, some tokens after the note landmark itself, while the none arm sat
+    at the real last bullet. The two arms' first landmark then measured
+    different positions -- which showed up as the arms disagreeing at a
+    position where causal masking makes them the same tensor.
+    """
     prompt = str(case.get("prompt") or "")
     carry = {field: case.get(field) for field in CARRY_FIELDS}
     case_id = str(case["id"])
@@ -90,10 +103,18 @@ def landmark_rows(case: dict[str, Any]) -> tuple[list[dict[str, Any]], str | Non
 
     rows: list[dict[str, Any]] = []
 
-    cues = [str(c) for c in (case.get("cue_targets") or [])]
-    last_cue = next((c for c in reversed(cues) if c and c in prompt), None)
+    cues = [
+        str(c)
+        for c in (
+            findings_cues if findings_cues is not None else case.get("cue_targets") or []
+        )
+    ]
+    hint_sentence = str(case.get("cue_text") or "")
+    last_cue = next(
+        (c for c in reversed(cues) if c and c in prompt and c != hint_sentence), None
+    )
     if last_cue is None:
-        return [], "no cue string found verbatim in the prompt"
+        return [], "no findings cue found verbatim in the prompt"
     rows.append(anchored("last_cue", last_cue))
 
     hinted = str(case.get("hint_diagnosis_name") or "").strip()
@@ -130,6 +151,15 @@ def main() -> None:
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
+    # The findings live on the none arm; hinted arms carry the note sentence in
+    # cue_targets instead, so every arm's last_cue anchor is taken from here.
+    findings: dict[str, list[str]] = {}
+    for case in read_jsonl(args.cases):
+        if str(case.get("hint_variant") or "") == "none":
+            base_id = str(case.get("base_id") or case.get("id") or "")
+            findings[base_id] = [str(c) for c in (case.get("cue_targets") or [])]
+    print(f"findings cues loaded from the none arm: {len(findings):,} cases")
+
     rows: list[dict[str, Any]] = []
     skipped = Counter()
     n_cases = 0
@@ -137,7 +167,11 @@ def main() -> None:
         if str(case.get("hint_variant") or "") not in set(args.arms):
             continue
         n_cases += 1
-        built, reason = landmark_rows(case)
+        base_id = str(case.get("base_id") or case.get("id") or "")
+        if base_id not in findings:
+            skipped["no none-arm sibling to take findings from"] += 1
+            continue
+        built, reason = landmark_rows(case, findings[base_id])
         if reason:
             skipped[reason] += 1
             continue
