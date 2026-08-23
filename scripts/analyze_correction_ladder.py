@@ -20,6 +20,7 @@ cases the findings alone do not.
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -189,6 +190,23 @@ def hybrid_policy(
         print(f"  probe picks, rung-{rung} second pass     {second / n:.4f}")
 
 
+def mcnemar_exact(only_a: int, only_b: int) -> float:
+    """Two-sided exact McNemar p-value for paired binary outcomes.
+
+    Written out rather than pulled from scipy so the scoring scripts keep
+    running without it. Under the null the discordant pairs split 50/50, so
+    the test is a binomial sign test on those pairs alone -- the cases both
+    rungs got right, or both got wrong, carry no information about which rung
+    is better and must not inflate the sample.
+    """
+    n = only_a + only_b
+    if n == 0:
+        return 1.0
+    k = min(only_a, only_b)
+    tail = sum(math.comb(n, i) for i in range(k + 1)) / (2**n)
+    return min(1.0, 2 * tail)
+
+
 def content_showdown(
     rung_rows: dict[Any, list[dict[str, Any]]], probe: dict[str, dict[str, Any]]
 ) -> None:
@@ -238,15 +256,30 @@ def content_showdown(
     n6 = sum(probe_right(b, by_id6[b]) for b in shared)
     print(f"  content accuracy on moved: readout {n5 / len(shared):.4f}"
           f"   probe {n6 / len(shared):.4f}   (n={len(shared):,})")
-    print(f"  {'readout / probe content':<28}{'n':>6}{'r5':>9}{'r6':>9}{'r6-r5':>9}")
+    print(f"  {'readout / probe content':<26}{'n':>5}{'r5':>8}{'r6':>8}{'r6-r5':>9}"
+          f"{'r5only':>8}{'r6only':>8}{'p':>9}")
     for (c5, c6), ids in sorted(cells.items(), key=lambda kv: (-len(kv[1]),)):
         label = f"{'right' if c5 else 'wrong':>5} / {'right' if c6 else 'wrong':<5}"
         a5 = sum(bool(by_id5[b].get("source_correct")) for b in ids) / len(ids)
         a6 = sum(bool(by_id6[b].get("source_correct")) for b in ids) / len(ids)
-        print(f"  {label:<28}{len(ids):>6}{a5:>9.4f}{a6:>9.4f}{a6 - a5:>+9.4f}")
+        # The rungs are run on the same cases, so the honest test is paired:
+        # only the cases the two rungs disagree on carry information, and a
+        # cell of 161 with seven discordant pairs is not 161 observations.
+        only5 = sum(
+            bool(by_id5[b].get("source_correct")) and not by_id6[b].get("source_correct")
+            for b in ids
+        )
+        only6 = sum(
+            bool(by_id6[b].get("source_correct")) and not by_id5[b].get("source_correct")
+            for b in ids
+        )
+        p = mcnemar_exact(only5, only6)
+        print(f"  {label:<26}{len(ids):>5}{a5:>8.4f}{a6:>8.4f}{a6 - a5:>+9.4f}"
+              f"{only5:>8}{only6:>8}{p:>9.3f}")
     print("  The both-right row is the like-for-like one: same correct")
     print("  diagnosis in both prompts, differing only in whether it arrived")
-    print("  as a sentence with grounds or as a bare class name.")
+    print("  as a sentence with grounds or as a bare class name. r5only/r6only")
+    print("  are the discordant pairs and p is their exact McNemar test.")
 
 
 def show_broken(rows: list[dict[str, Any]], count: int) -> None:

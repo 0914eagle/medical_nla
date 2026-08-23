@@ -78,3 +78,19 @@ def test_replacement_policy_swaps_only_where_flagged():
     assert not conclusion_correct(empty_conclusion)
     # Aliases go through the same containment matching as regular scoring.
     assert conclusion_correct(dict(flagged_right, readout_conclusion="TB"))
+
+
+def test_mcnemar_counts_only_the_pairs_that_disagree():
+    """A cell of 161 cases where the rungs differ on seven is seven
+    observations, not 161. Treating it as 161 is how a null result gets
+    reported as a finding."""
+    from scripts.analyze_correction_ladder import mcnemar_exact
+
+    assert mcnemar_exact(0, 0) == 1.0
+    # Perfectly split discordance is maximally uninformative.
+    assert mcnemar_exact(10, 10) == 1.0
+    # A lopsided split is significant only once there are enough pairs.
+    assert mcnemar_exact(0, 3) > 0.05
+    assert mcnemar_exact(0, 6) < 0.05
+    # Symmetric in its arguments: which rung won does not change the p-value.
+    assert mcnemar_exact(2, 11) == mcnemar_exact(11, 2)
