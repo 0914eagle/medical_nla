@@ -20,9 +20,16 @@ source scripts/env.sh
 
 CORPUS="${1:-ddxplus}"
 case "$CORPUS" in
-  ddxplus|mcr) ;;
-  *) echo "usage: $0 [ddxplus|mcr]" >&2; exit 2 ;;
+  ddxplus|mcr|mcr_conclusion) ;;
+  *) echo "usage: $0 [ddxplus|mcr|mcr_conclusion]" >&2; exit 2 ;;
 esac
+
+# The cue-position readouts live in {corpus}_cuepos_L{layer}; the MCR
+# conclusion readout reads the answer position instead, so its splits sit in
+# their own directory. Named here rather than branched on further down, so the
+# rest of the queue is identical for all three.
+SPLIT_KIND="${SPLIT_KIND:-cuepos}"
+if [ "$CORPUS" = "mcr_conclusion" ]; then SPLIT_KIND="conclusion"; fi
 
 LAYERS="${LAYERS:-16 24 32}"
 SEEDS="${SEEDS:-17 18 19}"
@@ -74,7 +81,7 @@ say "train rows capped at $MAX_TRAIN_ROWS (same budget for both corpora)"
 say "cards CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-<all>}"
 
 for L in $LAYERS; do
-  SPLIT_DIR="$ART/train/${CORPUS}_cuepos_L${L}"
+  SPLIT_DIR="$ART/train/${CORPUS}_${SPLIT_KIND}_L${L}"
   if [ ! -s "$SPLIT_DIR/sft_train.jsonl" ]; then
     say "no splits at $SPLIT_DIR -- skipping layer $L"
     continue
