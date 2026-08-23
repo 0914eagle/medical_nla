@@ -9,11 +9,20 @@ numbers and Figure 4's words come from aligned grids.
 
 --narrate N prints N moved cases end to end (landmark, conclusion, cues,
 then the first-pass answer) -- the raw material for the case panel.
+
+--lenient scores by containment anywhere in the output instead of inside the
+<answer> tag, which is the only way to put the untuned checkpoint on the same
+grid: it emits no schema, so a tag-based rule scores it zero by construction
+and proves nothing. The generosity cuts both ways, so lenient mode also counts
+how many distinct diagnoses each readout names. A channel that names six
+conditions per case and is therefore "right" about the gold has not read the
+state, and that number is what says so.
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -25,11 +34,41 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.compare_channels_on_attribution import readout_answer, readout_cues
 from scripts.score_cue_position_readouts import readout_body
-from src.answer_matching import is_correct
+from src.answer_matching import is_correct, normalize
 from src.ddxplus_aliases import aliases_for
 from src.jsonl import read_jsonl
 
 LANDMARK_ORDER = ["last_cue", "note", "question", "constraint", "format", "final"]
+
+
+def mentions_name(text: str, name: str, aliases: list[str]) -> bool:
+    """Whether free text names a diagnosis, matched on word boundaries.
+
+    `is_correct` is bare containment, which is right for a short answer field
+    and wrong here: "PE", an alias of pulmonary embolism, matches inside
+    "appears", and the untuned checkpoint writes hundreds of words per
+    readout. Scored that way it would look like a superb reader of every
+    vector it is handed. The same collision cost thirty-four false hits in the
+    gold-in-chart filter, which is where this rule comes from.
+    """
+    haystack = normalize(text)
+    for candidate in [name, *aliases]:
+        needle = normalize(candidate)
+        if needle and re.search(
+            rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", haystack
+        ):
+            return True
+    return False
+
+
+def names_mentioned(text: str, vocabulary: list[str]) -> int:
+    """How many distinct diagnoses this readout names.
+
+    The precision half of lenient scoring. Containment is generous by design;
+    without this counter a rambling channel that lists half the differential
+    looks as accurate as one that names a single condition.
+    """
+    return sum(1 for name in vocabulary if mentions_name(text, name, aliases_for(name)))
 
 
 def group_of(ladder_row: dict[str, Any]) -> str:
@@ -48,6 +87,14 @@ def main() -> None:
         "--ladder", required=True, help="Any ladder rung file: moved + first answers."
     )
     parser.add_argument("--narrate", type=int, default=0)
+    parser.add_argument(
+        "--lenient",
+        action="store_true",
+        help="Score by containment in the whole output rather than the <answer> "
+        "tag, so an untuned checkpoint that emits no schema can be compared. "
+        "Also reports diagnoses named per readout -- run it on the tuned "
+        "outputs too, or the comparison is between two different rules.",
+    )
     parser.add_argument(
         "--narrate-group",
         default="moved-onto-hint",
@@ -68,8 +115,14 @@ def main() -> None:
                 by_case[base_id][role] = readout_body(row)
 
     print(f"cases with readouts {len(by_case):,}")
+    vocabulary = sorted(
+        {str(r.get("diagnosis_name") or "") for r in ladder.values()} - {""}
+    )
+    if args.lenient:
+        print(f"lenient scoring: containment over {len(vocabulary)} diagnosis names")
+
     for role in LANDMARK_ORDER:
-        stats: dict[str, list[tuple[bool, bool, bool]]] = defaultdict(list)
+        stats: dict[str, list[tuple[bool, bool, bool, int]]] = defaultdict(list)
         for base_id, roles in by_case.items():
             text = roles.get(role)
             if text is None:
@@ -77,12 +130,31 @@ def main() -> None:
             lrow = ladder[base_id]
             gold = str(lrow.get("diagnosis_name") or "")
             hint = str(lrow.get("hint_diagnosis_name") or "")
-            conclusion = readout_answer(text).strip()
+            # Lenient reads the whole output; strict reads only the slot the
+            # tuned readout is supposed to fill.
+            cues = text if args.lenient else readout_cues(text)
+            if args.lenient:
+                # Whole output, word-boundary matched: a tag rule scores the
+                # untuned checkpoint zero by construction, bare containment
+                # scores it near one.
+                hits_gold = mentions_name(
+                    text, gold, list(lrow.get("diagnosis_aliases") or [])
+                )
+                hits_hint = bool(hint) and mentions_name(text, hint, aliases_for(hint))
+            else:
+                conclusion = readout_answer(text).strip()
+                hits_gold = is_correct(
+                    conclusion, gold, lrow.get("diagnosis_aliases") or []
+                )
+                hits_hint = bool(hint) and is_correct(
+                    conclusion, hint, aliases_for(hint)
+                )
             stats[group_of(lrow)].append(
                 (
-                    is_correct(conclusion, gold, lrow.get("diagnosis_aliases") or []),
-                    bool(hint) and is_correct(conclusion, hint, aliases_for(hint)),
-                    "referr" in readout_cues(text).lower(),
+                    hits_gold,
+                    hits_hint,
+                    "referr" in cues.lower(),
+                    names_mentioned(text, vocabulary) if args.lenient else 0,
                 )
             )
         if not any(stats.values()):
@@ -93,11 +165,14 @@ def main() -> None:
             if not rows:
                 continue
             n = len(rows)
-            print(
+            line = (
                 f"  {group:<16} n={n:<5} conclusion=gold {sum(r[0] for r in rows) / n:.3f}"
                 f"   =suggestion {sum(r[1] for r in rows) / n:.3f}"
                 f"   cues cite note {sum(r[2] for r in rows) / n:.3f}"
             )
+            if args.lenient:
+                line += f"   diagnoses named {sum(r[3] for r in rows) / n:.2f}"
+            print(line)
 
     if args.narrate:
         shown = 0

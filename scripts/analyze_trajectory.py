@@ -3,9 +3,14 @@
 Input is the trajectory extraction (make_trajectory_rows -> extract at L32).
 At every landmark a linear probe is trained on the *other* fold's cases
 (gold labels, split within diagnosis) and applied to this fold, so no probe
-ever saw its test patient. The none arm supplies the counterfactual curve;
-positions before the note are bit-identical across arms by design, so any
-departure of the wrong-arm curve is downstream of the note by construction.
+ever saw its test patient. Each probe is then read twice on its held-out
+cases -- once on the wrong arm, once on the same cases' none arm. That second
+read is the control the headline needs: the findings are bit-identical up to
+the note, so "the moved cases still carry the gold" is only a claim about
+anchoring if the note-free vectors of those same cases carry *more*. The gap
+between the two curves is the note's entire effect on the internals, and the
+last_cue landmark is its own check -- the arms are the same tensor there, so
+the two curves must coincide exactly or the extraction is wrong.
 
 Read out per landmark, moved cases against not-moved:
 - p(gold) and p(suggestion): the two masses whose crossing is the flip;
@@ -105,6 +110,18 @@ def main() -> None:
             "moved-onto-hint": [],
             "moved-lost-gold": [],
         }
+        # The same probe read on the SAME cases' none-arm vectors. Without it
+        # "the moved cases still carry the gold" has a deflationary reading --
+        # the findings are bit-identical up to the note, so a probe that can
+        # read gold anywhere would read it here too, note or no note. The
+        # counterfactual curve is what turns "gold is present" into "the note
+        # barely moved the state": the wrong-arm drop from this baseline is
+        # the note's whole effect on the internals.
+        counterfactual: dict[str, list[tuple[float, float, bool]]] = {
+            "kept": [],
+            "moved-onto-hint": [],
+            "moved-lost-gold": [],
+        }
         heldout_hits = heldout_n = 0
         for fold in (0, 1):
             train = [(b, c) for b, c in usable if fold_of(b) != fold]
@@ -143,6 +160,22 @@ def main() -> None:
                     stats[group].append(
                         (float(p[class_index[gold]]), hint_mass, argmax_name == gold)
                     )
+                    none_key = (bid, "none", role)
+                    if none_key in paths:
+                        xn = ((load(none_key) - mean) / std).unsqueeze(0)
+                        pn = torch.softmax(probe(xn), dim=1)[0]
+                        n_argmax = class_names[int(pn.argmax())]
+                        n_hint = max(
+                            (
+                                float(pn[i])
+                                for i, n in enumerate(class_names)
+                                if hint and is_correct(n, hint, aliases_for(hint))
+                            ),
+                            default=0.0,
+                        )
+                        counterfactual[group].append(
+                            (float(pn[class_index[gold]]), n_hint, n_argmax == gold)
+                        )
                     if moved(case):
                         verdicts[bid][role] = (
                             "gold"
@@ -153,17 +186,28 @@ def main() -> None:
                         )
 
         print(f"\n{role.upper()}  (n={len(usable):,}"
-              + (f", none-arm decode {heldout_hits / heldout_n:.3f})" if train_variant == "none" else ", trained on wrong arm)"))
+              + (f", wrong-arm argmax==gold {heldout_hits / heldout_n:.3f})"
+                 if train_variant == "none" else ", trained on wrong arm)"))
         for group in ("kept", "moved-onto-hint", "moved-lost-gold"):
             rows = stats[group]
             if not rows:
                 continue
             n = len(rows)
             print(
-                f"  {group:<6} p(gold) {sum(r[0] for r in rows) / n:.3f}"
+                f"  {group:<16} p(gold) {sum(r[0] for r in rows) / n:.3f}"
                 f"   p(suggestion) {sum(r[1] for r in rows) / n:.3f}"
                 f"   still holds gold {sum(r[2] for r in rows) / n:.3f}"
             )
+            base = counterfactual[group]
+            if base:
+                m = len(base)
+                b_gold = sum(r[0] for r in base) / m
+                print(
+                    f"  {'  same cases, no note':<16} p(gold) {b_gold:.3f}"
+                    f"   p(suggestion) {sum(r[1] for r in base) / m:.3f}"
+                    f"   still holds gold {sum(r[2] for r in base) / m:.3f}"
+                    f"   [note costs {sum(r[0] for r in rows) / n - b_gold:+.3f}]"
+                )
 
     flips = Counter()
     for bid, by_role in verdicts.items():
