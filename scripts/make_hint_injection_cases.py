@@ -191,6 +191,14 @@ def rows_for_case(
                 "hint_wording": wording,
                 "hint_diagnosis_name": hinted,
                 "gold_in_prompt": leaked,
+                # Where the suspicion came from. DDXPlus hands us a ranked
+                # differential, so the wrong arm carries a condition the
+                # dataset itself ranks as next-most-likely. MCR has no such
+                # field and has to derive one, which is why the field exists
+                # at all: the two corpora's wrong arms are not equally
+                # plausible interventions and the analysis splits on this.
+                "suggestion_source": "differential",
+                "suggestion_score": 1.0,
                 "prompt": build_prompt(prefix, "direct"),
                 "prompt_cot": build_prompt(prefix, "cot"),
             }

@@ -76,11 +76,21 @@ def cue_words(case: dict[str, Any]) -> set[str]:
 
 def neighbor_gold(
     case: dict[str, Any], gold: str, aliases: list[str], corpus: list[tuple[set[str], str]]
-) -> str | None:
-    """The diagnosis of the most cue-similar other case -- Jaccard on cue words."""
+) -> tuple[str | None, float]:
+    """The diagnosis of the most cue-similar other case -- Jaccard on cue words.
+
+    Returns the score too, because the fallback's whole risk is here. DDXPlus
+    hands us a ranked differential, so its wrong arm carries a condition the
+    model itself considers second-most likely. MCR has no such field, and a
+    nearest neighbour found on one or two shared words is not a differential:
+    it produced 'bullous dermatomyositis' for a hypothalamic hamartoma. A
+    suggestion the model dismisses on sight moves nothing and measures
+    nothing, so the score travels with the case and the analysis splits on it
+    rather than averaging a real intervention together with a nonsensical one.
+    """
     own = cue_words(case)
     if not own:
-        return None
+        return None, 0.0
     best, best_score = None, 0.0
     for words, other_gold in corpus:
         if not words or is_correct(other_gold, gold, aliases):
@@ -88,7 +98,7 @@ def neighbor_gold(
         score = len(own & words) / len(own | words)
         if score > best_score:
             best, best_score = other_gold, score
-    return best
+    return best, best_score
 
 
 def main() -> None:
@@ -149,10 +159,12 @@ def main() -> None:
             skipped["no gold diagnosis"] += 1
             continue
         wrong = plausible_wrong(gold, aliases, confused.get(gold))
+        source, score = "confusion", 1.0
         if wrong:
             sourced["confusion"] += 1
         else:
-            wrong = neighbor_gold(case, gold, aliases, corpus)
+            wrong, score = neighbor_gold(case, gold, aliases, corpus)
+            source = "neighbor"
             if wrong:
                 sourced["neighbor"] += 1
         if not wrong:
@@ -192,6 +204,8 @@ def main() -> None:
                     "hint_wording": "referral",
                     "hint_diagnosis_name": hinted,
                     "gold_in_prompt": leaked,
+                    "suggestion_source": source,
+                    "suggestion_score": round(score, 4),
                     "prompt": build_prompt(prefix, "direct"),
                     "prompt_cot": build_prompt(prefix, "cot"),
                 }
@@ -208,8 +222,29 @@ def main() -> None:
         f"neighbor {sourced['neighbor']:,}"
     )
     print(f"wrote {len(rows):,} rows over {n_cases:,} cases to {args.output}")
-    example = next(r for r in rows if r["hint_variant"] == "wrong")
-    print(f"\ngold {example['diagnosis_name']!r}  suggestion {example['hint_diagnosis_name']!r}")
+
+    # Printed per source and worst-first within the fallback: the suggestions
+    # that need eyeballing are the low-overlap ones, and one cherry-picked
+    # example hid exactly those.
+    wrongs = [r for r in rows if r["hint_variant"] == "wrong"]
+    for source in ("confusion", "neighbor"):
+        sample = [r for r in wrongs if r["suggestion_source"] == source]
+        if not sample:
+            continue
+        sample.sort(key=lambda r: r["suggestion_score"])
+        print(f"\n--- {source} ({len(sample):,}) ---")
+        for row in sample[:5]:
+            score = "" if source == "confusion" else f"  overlap {row['suggestion_score']:.3f}"
+            print(f"  gold {row['diagnosis_name']!r}"
+                  f"  suggestion {row['hint_diagnosis_name']!r}{score}")
+    fallback = [r["suggestion_score"] for r in wrongs if r["suggestion_source"] == "neighbor"]
+    if fallback:
+        fallback.sort()
+        print(f"\nneighbour overlap: median {fallback[len(fallback) // 2]:.3f}, "
+              f"min {fallback[0]:.3f}, max {fallback[-1]:.3f}")
+        print("  Split the effect on suggestion_source before averaging: a "
+              "suggestion the model dismisses on sight is not a weaker "
+              "intervention, it is a different one.")
 
 
 if __name__ == "__main__":

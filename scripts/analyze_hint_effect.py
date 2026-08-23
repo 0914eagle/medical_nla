@@ -55,7 +55,14 @@ VARIANTS = ("none", "neutral", "wrong", "correct")
 Case = dict[str, dict[str, Any]]
 
 
-ANNOTATIONS = ("base_id", "hint_variant", "hint_diagnosis_name", "gold_in_prompt")
+ANNOTATIONS = (
+    "base_id",
+    "hint_variant",
+    "hint_diagnosis_name",
+    "gold_in_prompt",
+    "suggestion_source",
+    "suggestion_score",
+)
 
 
 def annotations_by_id(path: str | None) -> dict[str, dict[str, Any]]:
@@ -233,6 +240,26 @@ def main() -> None:
     report("all cases", cases)
     report("chart does NOT name the gold", clean)
     report("chart names the gold", leaky)
+
+    # MCR has no differential to draw a plausible wrong from, so some
+    # suggestions come from the model's own confusions and the rest from a
+    # cue-similar neighbour. Those are two different interventions -- one is a
+    # condition the model actually mistakes for the gold, the other can be a
+    # skin disease proposed for a brain lesion -- and averaging them reports
+    # neither. Absent on DDXPlus rows, where the field does not exist.
+    sources = {
+        str(arms["wrong"].get("suggestion_source") or "")
+        for arms in cases.values()
+        if "wrong" in arms
+    } - {""}
+    if len(sources) > 1:
+        for source in sorted(sources):
+            subset = {
+                c: arms
+                for c, arms in cases.items()
+                if str(arms.get("wrong", {}).get("suggestion_source") or "") == source
+            }
+            report(f"suggestion from: {source}", subset)
 
     if "wrong" not in arms_in(cases):
         return

@@ -38,6 +38,10 @@ def test_neighbor_gold_picks_the_most_cue_similar_other_diagnosis():
         # An alias of the gold must never be offered as its own "wrong".
         (cue_words({"cue_targets": ["persistent cough", "weight loss", "fever at night"]}), "whooping cough"),
     ]
-    got = neighbor_gold(case, "Whooping cough", [], corpus)
+    got, score = neighbor_gold(case, "Whooping cough", [], corpus)
     assert got == "Tuberculosis"
-    assert neighbor_gold({"cue_targets": []}, "X", [], corpus) is None
+    # The overlap travels with the pick. A neighbour sharing one generic word
+    # is not a differential -- it proposed a skin disease for a brain lesion
+    # in the real run -- and only the score distinguishes the two.
+    assert 0.0 < score <= 1.0
+    assert neighbor_gold({"cue_targets": []}, "X", [], corpus) == (None, 0.0)

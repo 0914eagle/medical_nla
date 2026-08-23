@@ -89,6 +89,8 @@ CARRIED_FIELDS = (
     "hint_variant",
     "hint_diagnosis_name",
     "gold_in_prompt",
+    "suggestion_source",
+    "suggestion_score",
     "target_role",
     "target_text",
     "cue_text",
