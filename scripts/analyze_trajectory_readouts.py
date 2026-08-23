@@ -48,6 +48,13 @@ def main() -> None:
         "--ladder", required=True, help="Any ladder rung file: moved + first answers."
     )
     parser.add_argument("--narrate", type=int, default=0)
+    parser.add_argument(
+        "--narrate-group",
+        default="moved-onto-hint",
+        choices=["kept", "moved-onto-hint", "moved-lost-gold"],
+        help="Which trajectory group to print end to end. The lost-gold group "
+        "is where the rift shows: conclusion=gold, output elsewhere.",
+    )
     args = parser.parse_args()
 
     ladder = {str(r["base_id"]): r for r in read_jsonl(args.ladder)}
@@ -96,7 +103,7 @@ def main() -> None:
         shown = 0
         for base_id, roles in by_case.items():
             lrow = ladder[base_id]
-            if group_of(lrow) != "moved-onto-hint" or len(roles) < 5:
+            if group_of(lrow) != args.narrate_group or len(roles) < 5:
                 continue
             print(
                 f"\n--- {base_id}  gold {lrow.get('diagnosis_name')!r}"
