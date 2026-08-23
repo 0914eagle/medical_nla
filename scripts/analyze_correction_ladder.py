@@ -189,6 +189,66 @@ def hybrid_policy(
         print(f"  probe picks, rung-{rung} second pass     {second / n:.4f}")
 
 
+def content_showdown(
+    rung_rows: dict[Any, list[dict[str, Any]]], probe: dict[str, dict[str, Any]]
+) -> None:
+    """r5 against r6 with the accuracy of what each fed back held constant.
+
+    The headline comparison is confounded and the confound is large: r5 hands
+    back the readout's conclusion, r6 the probe's argmax, and on this closed
+    corpus those two are not equally often right. A rung that feeds the model
+    a correct diagnosis more often will recover more cases whatever form the
+    feedback takes, so "r6 beat r5" as it stands measures which channel
+    solves the task better -- something the probe result already told us --
+    and not whether a sentence with grounds beats a bare class name.
+
+    Splitting on whether each channel's content was correct separates them.
+    The cell where both were right is the one that answers the question the
+    rung was built for: same correct diagnosis in both prompts, one wrapped
+    in a conclusion and its supporting findings, one standing alone.
+    """
+    r5, r6 = rung_rows.get(5), rung_rows.get(6)
+    if not r5 or not r6:
+        return
+    by_id5 = {str(r["base_id"]): r for r in r5}
+    by_id6 = {str(r["base_id"]): r for r in r6}
+    shared = [b for b in by_id5 if b in by_id6 and by_id5[b].get("moved")]
+    if not shared:
+        return
+
+    def probe_right(base_id: str, row: dict[str, Any]) -> bool:
+        argmax = str(
+            (probe.get(base_id) or {}).get("probe_argmax")
+            or row.get("probe_argmax")
+            or ""
+        ).strip()
+        return bool(argmax) and is_correct(
+            argmax,
+            str(row.get("diagnosis_name") or ""),
+            row.get("diagnosis_aliases") or [],
+        )
+
+    cells: dict[tuple[bool, bool], list[str]] = {}
+    for base_id in shared:
+        key = (conclusion_correct(by_id5[base_id]), probe_right(base_id, by_id6[base_id]))
+        cells.setdefault(key, []).append(base_id)
+
+    print("\nCONTENT SHOWDOWN (moved cases, r5 vs r6 by whose content was right)")
+    n5 = sum(conclusion_correct(by_id5[b]) for b in shared)
+    n6 = sum(probe_right(b, by_id6[b]) for b in shared)
+    print(f"  content accuracy on moved: readout {n5 / len(shared):.4f}"
+          f"   probe {n6 / len(shared):.4f}   (n={len(shared):,})")
+    print(f"  {'readout / probe content':<28}{'n':>6}{'r5':>9}{'r6':>9}{'r6-r5':>9}")
+    for (c5, c6), ids in sorted(cells.items(), key=lambda kv: (-len(kv[1]),)):
+        label = f"{'right' if c5 else 'wrong':>5} / {'right' if c6 else 'wrong':<5}"
+        a5 = sum(bool(by_id5[b].get("source_correct")) for b in ids) / len(ids)
+        a6 = sum(bool(by_id6[b].get("source_correct")) for b in ids) / len(ids)
+        print(f"  {label:<28}{len(ids):>6}{a5:>9.4f}{a6:>9.4f}{a6 - a5:>+9.4f}")
+    print("  The both-right row is the like-for-like one: same correct")
+    print("  diagnosis in both prompts, differing only in whether it arrived")
+    print("  as a sentence with grounds or as a bare class name.")
+
+
 def show_broken(rows: list[dict[str, Any]], count: int) -> None:
     """Eyeball guard: a uniform collapse could be scoring, not flipping."""
     broken = [
@@ -264,11 +324,14 @@ def main() -> None:
     if args.probe_flags and rung_rows:
         probe = {str(r["base_id"]): r for r in read_jsonl(args.probe_flags)}
         hybrid_policy(rung_rows, probe)
+        content_showdown(rung_rows, probe)
     print(
         "\n  The deployable comparison is r5 vs r4 on the flagged rows: r4 already"
         "\n  re-shows the findings, so r5's margin there is the internal conclusion's"
         "\n  contribution and nothing else. `net` on the not-flagged rows is the cost"
         "\n  of intervening where the signal said not to."
+        "\n  r6 against r5 is NOT that comparison: the two rungs feed back content"
+        "\n  of different accuracy, so read the content showdown before the headline."
     )
 
 
