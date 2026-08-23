@@ -12,8 +12,9 @@
 As large language models enter clinical decision support, accuracy alone is
 not the bar they must clear. Beyond being correct, a deployed model must be
 inspectable: hallucination, biased outputs, opaque provenance, and
-performance drift are recognized safety concerns [surveys: Jiang et al.,
-2025; Wang et al., 2024], and both clinicians and regulators increasingly
+performance drift are recognized safety concerns [Nature-safety-review,
+2026; npj-hallucination-framework, 2025; ethics-systematic-review, 2025;
+Chen et al., 2023 (drift)], and both clinicians and regulators increasingly
 require an account of *why* a model answered as it did before its answers
 can be trusted [Cracking-the-Clinical-Code, 2025; Why-Clinical-Reasoning-
 Fails, 2026]. For diagnosis the requirement is concrete, because clinically
@@ -127,3 +128,18 @@ real case reports whose open label space admits no classifier head
   §4 상호참조 5개).
 - [Anonymous, 2025] = medRxiv "reasoning does not protect" (저자 확인 후
   교체). SycoEval-EM·Faithful-or-Plausible 등 임시 키는 bib 정리 시 교체.
+
+### 인용 키 매핑 (bib 정리용, 08-24 추가)
+
+- [Nature-safety-review, 2026] = "Safety and security of large language
+  models in healthcare", Nature, s41586-026-10687-1.
+- [npj-hallucination-framework, 2025] = "A framework to assess clinical
+  safety and hallucination rates of LLMs for medical text summarisation",
+  npj Digital Medicine, s41746-025-01670-7 (환각률 1.47%/누락 3.45%).
+- [ethics-systematic-review, 2025] = "A systematic review of ethical
+  considerations of large language models in healthcare and medicine",
+  PMC12460403 (편향·투명성·프라이버시 최다 논점).
+- [Chen et al., 2023 (drift)] = "How is ChatGPT's behavior changing over
+  time?", arXiv:2307.09009.
+- 보조 후보: "Beyond Multiple-Choice Accuracy" (arXiv:2410.18460),
+  "Trustworthy Medical QA survey" (arXiv:2506.03659).
