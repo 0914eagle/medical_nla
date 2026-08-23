@@ -19,10 +19,10 @@
 테제 한 줄: **앵커링은 내부의 소거가 아니라 출력의 사건이다 — 검증된
 판독은 그것을 보고, 서술하고, 되돌리는 재료를 준다.**
 
-구조: Intro / Related Work / Experimental Setup / Results / Conclusion.
-별도 Methods 절은 없다 — 방법론 신규 제안이 아니라 기존 도구(NLA)의 검증된
-적용이므로, 도구·설계는 Experimental Setup 안에서 서술한다. 각 절의 임무를
-한 문장으로 먼저 적고, 들어갈 내용과 자산(표·그림·수치)을 매핑한다.
+구조 (08-24 확정): Intro / Related Work / **Methodology** / **Experimental
+Results** / Conclusion. (초기 판단 "별도 Methods 없음"은 철회 — 도구는
+기존 것이나 감사 절차 전체는 이 논문의 방법론이다.) 각 절의 임무를 한
+문장으로 먼저 적고, 들어갈 내용과 자산(표·그림·수치)을 매핑한다.
 ▢ = 아직 숫자가 안 들어온 것.
 
 ---
@@ -57,11 +57,11 @@
 
 ## 2. Related Work (확정 2절 — related_work 문서 §3)
 
-- **2.1 Cognitive bias and unfaithful explanations in medical LLMs** (문제):
-  Turpin 한 줄 + Croskerry → BiasMedQA·추론도 못 막음·Mahajan(트레이스 감사
-  제안) → 의료 충실성 평가(Faithful or Just Plausible의 힌트 주입 — 폐쇄형,
-  내부 불가; Clinical Reasoning Graphs). 마감: 전부 행동만 본다 — 단일
-  실행에서 "이 케이스가 밀렸는가"는 알 수 없다.
+- **2.1 Explainability of Medical LLMs** (08-24 개제 — draft_related_work
+  참조): 판돈(정확도 너머 안전·규제·anchoring) → 의료 설명의 두 형태(입력
+  기여도 SHAP/LIME · CoT 자기 서술과 트레이스-감사 제안) → 자기 서술의
+  불충실(일반 + 의료 증거) → 턴: 두 형태 모두 "무엇이 답을 만들었나"에
+  실패 — 인과 재구축 + 내부로.
 - **2.2 Reading LLM internals: from probes to natural-language readouts**
   (도구): probe/lens/SAE(+SHAP/LIME 입력 기여도 한 줄) → Patchscopes/SelfIE/
   LatentQA → NLA → Li et al. 비판과 우리의 답 → 의료 내부 접근(ADR·정렬저항
