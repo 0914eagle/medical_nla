@@ -76,24 +76,33 @@ Results** / Conclusion. (초기 판단 "별도 Methods 없음"은 철회 — 도
 검증 배터리 + 단일 실행 채점 규약 + 궤적 + 사다리)는 재사용 가능한
 프레임워크다. 소절은 4장과 1:1 대응.
 
-**확정 소절명 (영문)**:
+**확정 소절명 (08-24 병합판: 4+4 — 사용자 지시로 통합)**:
+
+3장 Methodology:
 - 3.1 Datasets and the Direct-Answer Pool
 - 3.2 A Causally Controlled Anchoring Testbed
-- 3.3 The Verified Readout: Instrument and Validation Battery
-- 3.4 Single-Run Attribution: Channels and Scoring Protocol
-- 3.5 The Anchoring Trajectory: Landmark Probing and Verbalization
-- 3.6 From Detection to Correction: the Reconsideration Ladder
+  (구 3.2 + 채점 규약 흡수: moved 정답지·진단 내 AUROC·침묵 부분집합·
+  사전 등록 — 정답지를 정의한 자리에서 채점 규칙까지)
+- 3.3 The Verified Readout and Baseline Channels
+  (구 3.3 + 채널 목록 흡수: 판독·probe·lens·체인·출력 기반 = 전부
+  "읽는 것들")
+- 3.4 Experimental Designs: Trajectory and Correction Ladder
+  (구 3.5 + 3.6 통합 — 각각 한 문단)
 
-**4장 확정 소절명 (영문, 주장형)**:
-- 4.1 The Readout Is a Trustworthy Instrument (←3.3)
-- 4.2 One Sentence Moves Diagnoses — and Explanations Do Not Say So (←3.2)
-- 4.3 The Anatomy of Anchoring: the Answer Survives in the State (←3.5)
-- 4.4 What a Single Run Reveals: an Honest Map of Detection (←3.4)
-- 4.5 Correction: Content Is a Lever, Re-Asking Is an Amplifier (←3.6)
-- 4.6 Robustness and Breadth
+4장 Experimental Results:
+- 4.1 The Readout Is a Trustworthy Instrument (←3.3, T2·F2)
+- 4.2 One Sentence Moves Diagnoses — and Explanations Do Not Say So
+  (←3.2, T3·F3; 끝에 robustness 문단 = 문구 변형·corpus-300·MCR 복제 —
+  구 4.6 흡수)
+- 4.3 Inside the Model: the Answer Survives — and a Single Run Reveals It
+  (←3.4의 궤적 + 구 4.4 탐지 통합, F5·F4 + T1: "상태는 정답을 쥔다 →
+  그래서 단일 실행에서 읽힌다"의 한 흐름)
+- 4.4 Correction: Content Is a Lever, Re-Asking Is an Amplifier
+  (←3.4의 사다리, T5 + 하이브리드)
 
-(이하 상세 내용은 기존 3.1~3.5 서술과 동일 매핑 — 구 3.5의 (a)(b)(c)가
-신 3.5·3.6으로 분리)
+RQ 매핑: RQ1→4.1 · RQ2→4.2+4.3 · RQ3→4.4.
+(아래 구판 상세 서술의 3.4~3.6/4.3~4.6 번호는 이 병합표 기준으로 재배치해
+읽을 것)
 
 **임무**: 재현 가능한 사실 서술 — 데이터 → 개입 → 계기 → 신호와 채점 →
 실험 설계. 주장은 하지 않는다(주장은 Results). 서술 순서가 곧 연구의 사고
