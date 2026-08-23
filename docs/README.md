@@ -4,6 +4,7 @@
 - `experiment_summary_2026-08-25.md` — **한 장 현황**: 실험별 무엇을 보이는지·실측치·상태, 선행 연구 지도와 우리 몫, 논문이 성립하는 이유. 처음 보는 사람은 여기부터
 - `paper_outline_2026-08-24.md` — **논문 골격**: RQ 3개, 절별 문단 계획 (4+4 구조)
 - `paper_tables_final_2026-08-23.md` — **표·그림 설계 + 전체 실측치** (Table 1–5, Figure 1–5, MCR 확장 지도, 실행 목록)
+- `reading_catching_rationalization.md` — 탐지 축 쌍둥이(2603.17199) 정독 노트: 겹침과 결정적 차이
 - `reading_when_truth_is_overridden.md` — 최근접 선행(AAAI'26) 정독 노트: 충돌 문장과 그 해소
 - `related_work_2026-08-23.md` — 문헌 조사 전체 (필수 인용, 계열별 포지셔닝, 논문 일람, DDXPlus 선행, SHAP/LIME 방어)
 - `draft_related_work_2026-08-24.md` — Related Work 산문 초안 (영문)
