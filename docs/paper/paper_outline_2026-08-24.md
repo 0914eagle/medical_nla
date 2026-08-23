@@ -1,5 +1,19 @@
 # 논문 골격 — 절별 내용 배치 (2026-08-24)
 
+## 논문 주제 — 한 문장
+
+검증된 자연어 판독으로 의료 LLM의 내부를 읽어, 임상적으로 실재하는
+제안(의뢰 소견서)이 진단을 앵커링할 때 **내부 상태는 정답을 쥔 채 출력만
+이탈한다**는 것을 인과적으로 통제된 개입 위에서 보이고, 그 결렬을 배포
+가능한 단일 실행에서 **식별하고, 임상의가 읽을 문장으로 서술하고, 되먹여
+회복시킨다.**
+
+> *Using a verified natural-language readout of a medical LLM's internal
+> states on a causally controlled referring-note intervention, we show
+> that clinical suggestions anchor the model's answers while its internal
+> state still holds the correct diagnosis — a rift we detect, describe in
+> clinician-readable language, and repair, all from a single deployed run.*
+
 ## RQ 3개 (교수님 3축 = 설명/진단/교정과 1:1)
 
 - **RQ1 (설명)**: 의료 LLM의 내부 표상을 자연어로 판독할 수 있는가 — 그
