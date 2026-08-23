@@ -1,0 +1,159 @@
+% Related Work -- draft v1 (2026-08-24)
+% \cite keys are placeholders; fill in refs.bib. Key -> paper mapping at bottom.
+
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Explainability of Medical LLMs}
+\label{sec:related-explainability}
+
+As large language models enter clinical decision support, accuracy alone is
+not the bar they must clear. Beyond being correct, a deployed model must be
+inspectable: hallucination, biased outputs, opaque provenance, and
+performance drift are recognized safety concerns
+\cite{wang2024safety, asgari2025hallucination, ethics2025review, chen2023drift},
+and both clinicians and regulators increasingly require an account of
+\emph{why} a model answered as it did before its answers can be trusted
+\cite{clinicalcode2025, clinicalreasoningfails2026}. For diagnosis the
+requirement is concrete, because clinically real context routinely moves
+answers: a referring physician's suspicion, a colleague's remark, a
+patient's worry. In human diagnosticians this failure has a name ---
+anchoring, a recognized contributor to diagnostic error
+\cite{croskerry2003} --- and it enters LLM workflows through the same
+channels \cite{mahajan2025bias}.
+
+Explainability in medical AI has so far meant two families of methods. For
+predictive models, post-hoc input attribution dominates --- SHAP, LIME, and
+saliency maps assign importance to input features
+\cite{lundberg2017shap, ribeiro2016lime, xaihealthcare2026}, with concept
+bottlenecks providing clinician-vocabulary intermediates in imaging
+\cite{cbm2026}. These methods presuppose a scalar output and many perturbed
+reruns, and do not transfer cleanly to free-text diagnosis. For generative
+LLMs, the de facto explanation is instead the model's own chain of thought:
+a fluent, clinician-readable self-narration, prominent enough that auditing
+the reasoning trace has been proposed as the safety mechanism for clinical
+deployment \cite{mahajan2025bias}.
+
+Self-narration, however, is unfaithful precisely where an audit needs it.
+In the general domain, features that demonstrably move a model's answer go
+unmentioned in its reasoning \cite{turpin2023say, lanham2023measuring}, and
+disclosure remains rare in reasoning-tuned models \cite{chen2025reasoning}.
+The medical evidence is now direct: injected clinical cognitive biases
+degrade diagnostic accuracy while the accompanying explanations do not
+disclose them \cite{schmidgall2024biasmedqa, reasoningnoprotect2025}; under
+causal ablation and hint injection, chain-of-thought steps do not causally
+drive the predictions of closed-source medical assistants, and injected
+suggestions are absorbed without acknowledgment \cite{faithfulplausible2025};
+structured re-grading finds individual reasoning steps decorative ---
+removable without changing the answer \cite{clinicalgraphs2026}.
+
+Both available forms of explanation therefore fail at the question a
+diagnostic audit must answer --- \emph{what caused this answer} --- the
+attribution family by construction, the self-narration family empirically.
+We rebuild the clinically real intervention behind this evidence in a
+causally controlled form --- a placebo-controlled four-arm design whose
+evidence representations are bit-identical across arms, yielding a per-case
+ground truth for which answers the note actually moved --- confirm on it
+that the reasoning trace cannot support the proposed audit (attribution at
+chance; Section~\ref{sec:results-intervention}), and then go inside the
+model.
+
+\subsection{Reading LLM Internals: From Probes to Natural-Language Readouts}
+\label{sec:related-internals}
+
+Instruments for reading model internals are mature. Linear probes recover
+task variables from hidden states but answer only the question they were
+trained on \cite{belinkov2022probing}; logit- and tuned-lens methods decode
+token distributions from intermediate layers
+\cite{nostalgebraist2020logitlens, belrose2023tunedlens}; sparse
+autoencoders decompose activations into dictionaries of pre-learned
+features \cite{cunningham2023sae, bricken2023monosemanticity}. All deliver
+flags or fixed concepts. A younger line verbalizes instead: Patchscopes,
+SelfIE, and LatentQA prompt a model to describe hidden representations in
+open-ended language
+\cite{ghandeharioun2024patchscopes, chen2024selfie, pan2024latentqa}, and
+natural-language autoencoders (NLA) train an activation-to-text verbalizer
+with a reconstruction objective \cite{anthropic2026nla} --- the instrument
+we build on. Verbalization invites a sharp criticism: the description may
+reflect the verbalizer's own parametric knowledge rather than the target
+activation \cite{li2026privileged}. Our instrument battery ---
+counterfactual swap tracking, memorization and shuffle controls, cross-case
+specificity --- is designed as a direct answer
+(Section~\ref{sec:results-instrument}).
+
+In the general domain, these instruments have recently produced results
+that anticipate pieces of ours. Activation probes detect the influence of
+an injected hint that the chain-of-thought rationalizes away
+\cite{rationalization2026}; user opinions suppress a model's learned
+knowledge in late layers while the knowledge itself survives
+\cite{truthoverridden2026}; hidden states predict reasoning errors that
+verbalized confidence does not admit, though steering and self-correction
+interventions built on such signals fail \cite{yuan2026hidden}; and correct
+answers recoverable from hidden states coexist with wrong chains
+\cite{mehrafarin2026hidden}. These findings are non-medical, their signals
+are probes, patches, or graph distances rather than readable statements,
+and they end at detection --- the one attempted continuation into
+correction reports failure.
+
+Internal access has reached medicine only as localization: probes confirm
+that clinical knowledge is present in hidden states
+\cite{adrprobing2025, alignmentresistant2025}, and sparse autoencoders
+extract medical features from clinical models \cite{jmirsae2026, ehrsae2026}.
+What knowledge lives where is mapped; why a particular case failed is not
+asked.
+
+We chain these pieces, in medicine, on the causal testbed of
+Section~\ref{sec:related-explainability}: a verified natural-language
+readout attributes which cases the note moved from a single deployed run
+(Section~\ref{sec:results-attribution}, with the supervised-probe upper
+bound reported alongside); a positional trajectory shows that anchoring is
+a rift between a preserved internal state and the emitted answer, not an
+overwriting of the state (Section~\ref{sec:results-mechanism}); the readout
+renders that internal state as a statement a clinician can read
+(Section~\ref{sec:results-mechanism}); and feeding the statement back
+recovers the moved cases where re-showing the evidence does not,
+net-positive once paired with a precise selector
+(Section~\ref{sec:results-correction}) --- including on real case reports
+whose open label space admits no classifier head
+(Section~\ref{sec:results-breadth}).
+
+% ---------------------------------------------------------------------------
+% \cite key -> paper mapping (fill refs.bib from this list; delete when done)
+% ---------------------------------------------------------------------------
+% wang2024safety            Safety challenges of AI in medicine in the era of LLMs. arXiv:2409.18968
+% asgari2025hallucination   Framework to assess clinical safety and hallucination rates (med summarisation). npj Digit Med, s41746-025-01670-7
+% ethics2025review          Systematic review of ethical considerations of LLMs in healthcare. PMC12460403
+% chen2023drift             How is ChatGPT's behavior changing over time? arXiv:2307.09009  [optional]
+% clinicalcode2025          Cracking the clinical code: scoping review on mechanistic interpretability in medical report generation. ScienceDirect S2950363925000377
+% clinicalreasoningfails2026 Why LLMs' Clinical Reasoning Fails. medRxiv 2026.01.26.26344845
+% croskerry2003             The importance of cognitive errors in diagnosis... Acad Med 2003
+% mahajan2025bias           Cognitive bias in clinical LLMs. npj Digit Med 8:428 (2025)
+% lundberg2017shap          A unified approach to interpreting model predictions (SHAP). NeurIPS 2017, arXiv:1705.07874
+% ribeiro2016lime           "Why should I trust you?" (LIME). KDD 2016, arXiv:1602.04938
+% xaihealthcare2026         XAI in healthcare use-case review. Frontiers AI 2026 (frai.2026.1749527)
+% cbm2026                   Concept bottleneck models in medical imaging (e.g., arXiv:2410.15446 PMLR 2026; or radiologist-guided arXiv:2605.07785)
+% turpin2023say             Language models don't always say what they think. NeurIPS 2023, arXiv:2305.04388
+% lanham2023measuring       Measuring faithfulness in chain-of-thought reasoning. arXiv:2307.13702
+% chen2025reasoning         Reasoning models don't always say what they think. Anthropic 2025, arXiv:2505.05410
+% schmidgall2024biasmedqa   BiasMedQA: cognitive biases in medical LLMs. npj Digit Med 2024, arXiv:2402.08113
+% reasoningnoprotect2025    LLM reasoning does not protect against clinical cognitive biases. medRxiv 2025 (저자 확인)
+% faithfulplausible2025     Faithful or just plausible? Faithfulness of closed-source LLMs in medical reasoning. NeurIPS 2025, arXiv:2603.13988
+% clinicalgraphs2026        Clinical reasoning graphs. arXiv:2606.29876
+% belinkov2022probing       Probing classifiers: promises, shortcomings, advances. CL 2022
+% nostalgebraist2020logitlens  Interpreting GPT: the logit lens. LessWrong 2020
+% belrose2023tunedlens      Eliciting latent predictions with the tuned lens. arXiv:2303.08112
+% cunningham2023sae         Sparse autoencoders find highly interpretable features. arXiv:2309.08600
+% bricken2023monosemanticity Towards monosemanticity. Transformer Circuits 2023
+% ghandeharioun2024patchscopes Patchscopes. ICML 2024, arXiv:2401.06102
+% chen2024selfie            SelfIE. ICML 2024, arXiv:2403.10949
+% pan2024latentqa           LatentQA. arXiv:2412.08686
+% anthropic2026nla          Natural language autoencoders produce unsupervised explanations of LLM activations. Transformer Circuits 2026
+% li2026privileged          Do activation verbalization methods convey privileged information? ICML 2026, arXiv:2509.13316
+% rationalization2026       Catching rationalization in the act: activation probing. arXiv:2603.17199
+% truthoverridden2026       When truth is overridden: internal origins of sycophancy. AAAI 2026, arXiv:2508.02087
+% yuan2026hidden            Hidden error awareness in CoT: diagnostic, not causal. arXiv:2605.09502
+% mehrafarin2026hidden      When CoT fails, the solution hides in the hidden states. arXiv:2604.23351
+% adrprobing2025            Probing LLM hidden states for adverse drug reaction knowledge. PMC11844579
+% alignmentresistant2025    Probing hidden states for calibrated, alignment-resistant predictions. medRxiv 2025.09.17.25336018
+% jmirsae2026               SAEs for mechanistic interpretability of LLMs in medicine. JMIR AI 2026, e81134
+% ehrsae2026                SAE decomposition of clinical sequence model representations. arXiv:2605.04072
