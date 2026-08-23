@@ -204,3 +204,22 @@ def test_the_neutral_arm_joins_from_a_second_file(tmp_path):
     # exactly the part of the wrong arm's loss that is not anchoring.
     assert stats["neutral"]["lost"] == 1.0
     assert stats["neutral"]["took"] == 0.0
+
+
+def test_a_wrong_suggestion_may_not_be_an_alias_of_the_gold():
+    """The differential's top non-gold entry is rejected with the same rule
+    that scores answers. Exact normalized inequality let "Acute bronchitis"
+    through against a gold of "Bronchitis", so 32 of 1,747 cases carried a
+    "wrong" note naming the right answer -- not a weak intervention, no
+    intervention."""
+    from scripts.make_hint_injection_cases import plausible_wrong
+
+    case = {
+        "diagnosis_name": "Bronchitis",
+        "diagnosis_aliases": ["acute bronchitis"],
+        "differential_diagnosis": [
+            {"diagnosis": "Acute bronchitis"},
+            {"diagnosis": "Pneumonia"},
+        ],
+    }
+    assert plausible_wrong(case) == "Pneumonia"

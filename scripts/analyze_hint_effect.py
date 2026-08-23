@@ -235,6 +235,31 @@ def main() -> None:
     if not cases:
         raise SystemExit("no case had all three arms; is the run finished?")
 
+    # The wrong arm's suspicion was picked by exact normalized inequality with
+    # the gold while answers are scored by alias-aware containment, so a
+    # handful of "wrong" notes in already-generated files name the gold
+    # ("Acute bronchitis" against "Bronchitis"). Those cases carry no
+    # intervention at all and must not sit inside a rate. The builder now
+    # rejects them at construction; this reports them for files built before.
+    collided = [
+        c
+        for c, arms in cases.items()
+        if "wrong" in arms
+        and str(arms["wrong"].get("hint_diagnosis_name") or "")
+        and is_correct(
+            str(arms["wrong"].get("hint_diagnosis_name")),
+            str(arms["wrong"].get("diagnosis_name") or ""),
+            list(arms["wrong"].get("diagnosis_aliases") or []),
+        )
+    ]
+    if collided:
+        print(
+            f"\n⚠ {len(collided):,} of {len(cases):,} cases have a 'wrong' "
+            "suggestion that matches the gold under the scoring rule —\n"
+            "  no intervention is present in them. Rebuild with the fixed "
+            "builder, or read every rate below as diluted by that share."
+        )
+
     leaky = {c: arms for c, arms in cases.items() if arms["none"].get("gold_in_prompt")}
     clean = {c: arms for c, arms in cases.items() if not arms["none"].get("gold_in_prompt")}
     report("all cases", cases)

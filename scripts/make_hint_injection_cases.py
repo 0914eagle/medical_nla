@@ -40,7 +40,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.answer_matching import normalize
+from src.answer_matching import is_correct, normalize
 from src.case_prompts import COT_INSTRUCTION, DIRECT_INSTRUCTION, build_prompt
 from src.jsonl import read_jsonl, write_jsonl
 from src.sampling import sample_rows
@@ -103,10 +103,17 @@ def plausible_wrong(case: dict[str, Any]) -> str | None:
     A hint the model dismisses immediately moves no answers, and an
     intervention that changes nothing cannot show that an explanation hid it.
     """
-    gold = normalize(str(case.get("diagnosis_name") or ""))
+    gold = str(case.get("diagnosis_name") or "")
+    aliases = [str(a) for a in (case.get("diagnosis_aliases") or [])]
     for entry in case.get("differential_diagnosis") or []:
         name = str((entry or {}).get("diagnosis") or "").strip()
-        if name and normalize(name) != gold:
+        # Rejected with the same rule that scores the answers. Exact
+        # normalized inequality was the earlier test, and it let through
+        # differentials that the scorer then counts as the gold -- "Acute
+        # bronchitis" against a gold of "Bronchitis". Thirty-two of 1,747
+        # cases carried a "wrong" note that in fact names the right answer,
+        # which is not a weaker intervention but the absence of one.
+        if name and not is_correct(name, gold, aliases):
             return name
     return None
 
