@@ -1,18 +1,29 @@
 # 논문 골격 — 절별 내용 배치 (2026-08-24)
 
-## 논문 주제 — 한 문장
+## 논문 주제 — 한 문장 (08-25 재작성: 도구 우선 → 현상 우선)
 
-검증된 자연어 AV 판독으로 의료 LLM의 내부를 읽어, 임상적으로 실재하는
-제안(의뢰 소견서)이 진단을 앵커링할 때 **내부 상태는 정답을 쥔 채 출력만
-이탈한다**는 것을 인과적으로 통제된 개입 위에서 보이고, 그 결렬을 배포
-가능한 단일 실행에서 **식별하고, 임상의가 읽을 문장으로 서술하고, 되먹여
-회복시킨다.**
+**의료 LLM의 앵커링은 지식이 지워지는 사건이 아니라 출력 단계의 사건이다.**
+의뢰 소견서 한 문장이 진단을 바꿀 때, 모델의 내부 상태는 정답을 마지막
+토큰까지 1위로 쥐고 있으며(소견서는 상태를 0.055–0.187만큼만 밀어낸다),
+전복은 답을 내보내는 단계에서 일어난다. 이 결렬을 배포 가능한 **단일
+실행에서 탐지하고, 임상의가 읽을 문장으로 서술하고, 되먹여 회복시킨다.**
 
-> *Using a verified natural-language readout of a medical LLM's internal
-> states on a causally controlled referring-note intervention, we show
-> that clinical suggestions anchor the model's answers while its internal
-> state still holds the correct diagnosis — a rift we detect, describe in
-> clinician-readable language, and repair, all from a single deployed run.*
+> *Anchoring in medical LLMs is an event at the output, not an erasure of
+> knowledge: when a referring note changes the diagnosis, the model's
+> internal state still holds the correct answer at the final token, and
+> the defection happens as the answer is emitted. We detect that rift,
+> describe it in clinician-readable language, and repair it — all from a
+> single deployed run, on both a synthetic corpus and real case reports
+> where classifier baselines cannot be defined.*
+
+### 왜 이 순서인가 (프레이밍 결정)
+
+이전 판본은 "검증된 AV 판독으로 …를 읽어"로 시작했다. 도구가 주어이면
+독자의 첫 질문이 **"그래서 프로브보다 나은가"**가 되고, 그 질문에는 우리가
+진다(닫힌 코퍼스 0.9842 vs 0.8415). 논문의 실제 주인공은 계기가 아니라
+**앵커링의 기전**이며, 두 계기는 그것을 보이는 방법이다 —
+**프로브가 어디서·얼마나를 재고(숫자), AV 판독이 무엇을·왜를 말한다(문장,
+열린 어휘).** 도구 비교는 결론이 아니라 방법 선택의 근거로 배치한다.
 
 ## RQ 3개 (교수님 3축 = 설명/진단/교정과 1:1)
 
