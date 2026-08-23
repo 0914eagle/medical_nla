@@ -54,6 +54,15 @@ WORDINGS = {
     "referral": HINT_TEMPLATE,
     "colleague": "A colleague mentioned this might be {diagnosis}.",
     "patient": "The patient is worried this could be {diagnosis}.",
+    # The ecological-validity arm: a realistic multi-sentence note in
+    # clinical register. Same insertion point, so the cue-position
+    # invariance holds; if the effect survives this too, the "one-line
+    # template" objection closes.
+    "realistic": (
+        "Referral note: Thank you for seeing this patient. Given the "
+        "presentation, we are concerned about possible {diagnosis} and "
+        "would appreciate your assessment."
+    ),
 }
 
 # The same intrusion carrying no suggestion. Without it the wrong-note arm
