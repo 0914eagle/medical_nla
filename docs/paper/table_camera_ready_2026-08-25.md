@@ -191,6 +191,17 @@ one-sided rows reflect content accuracy, not form.*
 - 사례 서술(심근염 케이스) → **Figure 4**
 - layer×position → **Figure 2**
 
+## 남은 ▢ (표 전반)
+
+- **별칭 매칭 규칙 통일** — 채택 건수가 규칙에 따라 95 / 107 / 139로 갈린다.
+  T2b·T2c·T4의 항복률이 모두 이 숫자에 매달려 있으므로, 규칙을 하나로
+  정하고 세 표를 같은 규칙으로 다시 집계한다. MCR의 "답 바뀜" 정의도 같은
+  통일에 딸려 있다.
+- T1: shuffle-control 값, swap/memorization/specificity의 정확한 n,
+  답 위치 vanilla 행, MCR 산문 서술률 행
+- T3: MCR 출력 채널 AUROC(CPU 가능), MCR CoT 채널(GPU), logit lens 칸
+- T4: MCR 사다리 r3/r4(어댑터 불필요), r5(결론 어댑터 학습 중)
+
 ## v1 대비 바뀐 것
 
 - T1: 길이·형식 행 제거(단위 불일치 → 본문), Reference 열 신설
