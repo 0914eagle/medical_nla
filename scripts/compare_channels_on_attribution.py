@@ -142,11 +142,13 @@ def readout_features(case: Case, readouts: Readouts) -> dict[str, float] | None:
     base = str(case["none"].get("base_id") or "")
     hint_read = readouts.get((base, "wrong", "hint"))
     final_wrong = readouts.get((base, "wrong", "final"))
-    if hint_read is None or final_wrong is None:
+    # The conclusion readout is the one non-negotiable input; a run that only
+    # verbalized the final position (corpus-300) still gets every conclusion
+    # feature, and just loses the note-position row.
+    if final_wrong is None:
         return None
     hint = str(case["wrong"].get("hint_diagnosis_name") or "")
     features = {
-        "readout at the note names it": float(mentions_diagnosis(hint_read, hint)),
         "readout before the answer names the suspicion": float(
             mentions_diagnosis(final_wrong, hint)
         ),
@@ -180,6 +182,10 @@ def readout_features(case: Case, readouts: Readouts) -> dict[str, float] | None:
             )
         ),
     }
+    if hint_read is not None:
+        features["readout at the note names it"] = float(
+            mentions_diagnosis(hint_read, hint)
+        )
     final_none = readouts.get((base, "none", "final"))
     if final_none is not None:
         # Paired, so not deployable: an upper bound on what the position holds.
