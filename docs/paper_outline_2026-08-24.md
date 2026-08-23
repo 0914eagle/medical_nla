@@ -69,7 +69,31 @@
   Yuan, Mehrafarin — 비언어·정오판정·비의료). 마감: 의료 진단에서 개별
   사례의 원인을 자연어로 귀속한 적 없다.
 
-## 3. Experimental Setup (상세판, 08-24)
+## 3. Methodology (08-24 개명: Setup → Methodology)
+
+**개명 논리**: 도구(NLA)는 기존 것이지만 방법론은 이 논문의 것이다 —
+검증된 자연어 판독으로 답의 원인을 감사하는 절차(인과 테스트베드 + 계기
+검증 배터리 + 단일 실행 채점 규약 + 궤적 + 사다리)는 재사용 가능한
+프레임워크다. 소절은 4장과 1:1 대응.
+
+**확정 소절명 (영문)**:
+- 3.1 Datasets and the Direct-Answer Pool
+- 3.2 A Causally Controlled Anchoring Testbed
+- 3.3 The Verified Readout: Instrument and Validation Battery
+- 3.4 Single-Run Attribution: Channels and Scoring Protocol
+- 3.5 The Anchoring Trajectory: Landmark Probing and Verbalization
+- 3.6 From Detection to Correction: the Reconsideration Ladder
+
+**4장 확정 소절명 (영문, 주장형)**:
+- 4.1 The Readout Is a Trustworthy Instrument (←3.3)
+- 4.2 One Sentence Moves Diagnoses — and Explanations Do Not Say So (←3.2)
+- 4.3 The Anatomy of Anchoring: the Answer Survives in the State (←3.5)
+- 4.4 What a Single Run Reveals: an Honest Map of Detection (←3.4)
+- 4.5 Correction: Content Is a Lever, Re-Asking Is an Amplifier (←3.6)
+- 4.6 Robustness and Breadth
+
+(이하 상세 내용은 기존 3.1~3.5 서술과 동일 매핑 — 구 3.5의 (a)(b)(c)가
+신 3.5·3.6으로 분리)
 
 **임무**: 재현 가능한 사실 서술 — 데이터 → 개입 → 계기 → 신호와 채점 →
 실험 설계. 주장은 하지 않는다(주장은 Results). 서술 순서가 곧 연구의 사고
@@ -250,7 +274,7 @@ not-flagged / moved), **항복률**(broken 중 답이 의심 병명이 된 비�
 스테이션, 추출은 프롬프트당 forward 1회를 전 위치가 공유. 코드·시드·케이스
 빌더 공개.
 
-## 4. Results (소절마다 주장 한 문장이 제목 — 각 소절은 출발 질문에 답한다)
+## 4. Experimental Results (소절마다 주장 한 문장이 제목 — 각 소절은 출발 질문에 답한다)
 
 소절별 출발 질문: 4.1 "판독을 왜 믿는가" · 4.2 "교란은 실재하고 설명은
 그것을 말하는가" · 4.3 "상태의 어디서 왜 바뀌는가" · 4.4 "단일 실행에서
