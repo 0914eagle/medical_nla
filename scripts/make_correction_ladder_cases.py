@@ -120,7 +120,11 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cases", required=True, help="Hint case file (v2, four arms).")
     parser.add_argument("--answers", nargs="+", required=True, help="First-pass direct answers.")
-    parser.add_argument("--readouts", nargs="+", required=True, help="v2 conclusion readouts.")
+    # Optional, because r3/r4/r7 append nothing the instrument produced. On a
+    # corpus whose conclusion adapter does not exist yet -- MedCaseReasoning --
+    # those three rungs are runnable today and r5 is not, and requiring the
+    # readout would have blocked the runnable half on the unfinished one.
+    parser.add_argument("--readouts", nargs="+", default=[], help="v2 conclusion readouts; required for rung 5.")
     parser.add_argument("--readout-manifests", nargs="+", default=[])
     parser.add_argument("--rungs", nargs="+", type=int, default=[3, 4, 5])
     parser.add_argument(
@@ -165,8 +169,11 @@ def main() -> None:
     if 6 in args.rungs and not probe_argmax:
         raise SystemExit("rung 6 needs --probe-verdicts (its content is the probe argmax)")
 
+    if 5 in args.rungs and not args.readouts:
+        raise SystemExit("rung 5 needs --readouts (its content is the readout's conclusion)")
+
     cases = group_by_case(args.answers, args.cases)
-    readouts = load_readouts(args.readouts, args.readout_manifests)
+    readouts = load_readouts(args.readouts, args.readout_manifests) if args.readouts else {}
 
     outputs: dict[int, list[dict[str, Any]]] = {r: [] for r in args.rungs}
     skipped = 0
@@ -178,12 +185,23 @@ def main() -> None:
         presentation = presentation_of(str(wrong.get("prompt") or ""))
         first_answer = str(wrong.get("answer") or "").strip()
         final_read = readouts.get((base_id, "wrong", "final"))
-        if not presentation or not first_answer or final_read is None:
+        if not presentation or not first_answer:
             skipped += 1
             continue
-        conclusion = readout_answer(final_read).strip()
-        cues_read = readout_cues(final_read)
-        flag = not is_correct(first_answer, conclusion or "-", aliases_for(conclusion))
+        if readouts and final_read is None:
+            skipped += 1
+            continue
+        conclusion = readout_answer(final_read).strip() if final_read is not None else ""
+        cues_read = readout_cues(final_read) if final_read is not None else ""
+        # The deployable selection signal is readout-vs-answer disagreement, so
+        # with no readout there is no flag. None rather than False: "we did not
+        # measure it" and "it did not fire" select different case sets, and the
+        # analysis must not silently read the first as the second.
+        flag = (
+            not is_correct(first_answer, conclusion or "-", aliases_for(conclusion))
+            if final_read is not None
+            else None
+        )
         carry = {
             "base_id": base_id,
             "hint_variant": "wrong",
@@ -234,9 +252,11 @@ def main() -> None:
             raise SystemExit(f"rung {rung}: no rows built")
         path = Path(f"{args.output_prefix}_r{rung}.jsonl")
         write_jsonl(path, rows)
-        flagged = sum(r["correction_flag"] for r in rows)
+        flagged = sum(1 for r in rows if r["correction_flag"])
         moved = sum(r["moved"] for r in rows)
-        print(f"rung {rung}: {len(rows):,} rows -> {path}  (flagged {flagged:,}, moved {moved:,})")
+        unflagged = "" if rows[0]["correction_flag"] is not None else ", flag not measured"
+        print(f"rung {rung}: {len(rows):,} rows -> {path}"
+              f"  (flagged {flagged:,}, moved {moved:,}{unflagged})")
     if skipped:
         print(f"skipped {skipped:,} cases without a wrong-arm answer or readout")
     if no_probe:

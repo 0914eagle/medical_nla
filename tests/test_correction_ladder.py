@@ -113,3 +113,67 @@ def test_mcnemar_counts_only_the_pairs_that_disagree():
     assert mcnemar_exact(0, 6) < 0.05
     # Symmetric in its arguments: which rung won does not change the p-value.
     assert mcnemar_exact(2, 11) == mcnemar_exact(11, 2)
+
+
+def test_rungs_without_a_readout_build_and_leave_the_flag_unmeasured(tmp_path):
+    """MedCaseReasoning has no conclusion adapter yet, so r3/r4 have to build
+    without one. The flag must come out None, not False: "we did not measure
+    the disagreement signal" and "the signal did not fire" select different
+    case sets, and the second is a claim we would not have earned."""
+    import json
+    import subprocess
+    import sys
+
+    from src.case_prompts import DIRECT_INSTRUCTION
+
+    def row(variant, answer):
+        return {
+            "id": f"c1__{variant}",
+            "base_id": "c1",
+            "hint_variant": variant,
+            "prompt": f"Findings: cough.\n\n{DIRECT_INSTRUCTION}",
+            "answer": answer,
+            "diagnosis_name": "Tuberculosis",
+            "cue_targets": ["cough"],
+            "source_correct": answer == "Tuberculosis",
+            "hint_diagnosis_name": "Bronchitis",
+        }
+
+    answers = tmp_path / "answers.jsonl"
+    answers.write_text(
+        "\n".join(
+            json.dumps(row(v, a))
+            for v, a in (("none", "Tuberculosis"), ("wrong", "Bronchitis"),
+                         ("correct", "Tuberculosis"), ("neutral", "Tuberculosis"))
+        ),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [sys.executable, "scripts/make_correction_ladder_cases.py",
+         "--cases", str(answers), "--answers", str(answers),
+         "--rungs", "3", "4", "--output-prefix", str(tmp_path / "lad")],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    for rung in (3, 4):
+        built = [json.loads(l) for l in
+                 (tmp_path / f"lad_r{rung}.jsonl").read_text(encoding="utf-8").splitlines() if l]
+        assert built, f"rung {rung} built nothing"
+        assert built[0]["correction_flag"] is None
+        assert built[0]["readout_conclusion"] == ""
+    assert "flag not measured" in result.stdout
+
+
+def test_rung_five_refuses_to_build_without_a_readout():
+    """The rung whose whole content is the readout must not quietly emit a
+    prompt with an empty conclusion in it."""
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "scripts/make_correction_ladder_cases.py",
+         "--cases", "x", "--answers", "x", "--rungs", "5", "--output-prefix", "x"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode != 0
+    assert "rung 5 needs --readouts" in result.stderr

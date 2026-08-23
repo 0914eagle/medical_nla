@@ -144,10 +144,24 @@ landing on the suggested diagnosis (first-pass counterpart .293).
 
 *First-pass baseline: overall .814, moved .012. r5 − r4 = +22.8 pp on moved
 (+17.7 pp on the 3× replication); r5 has the lowest capitulation
-(z = 6.1/10.6). The ladder is DDXPlus-only so far: on MedCaseReasoning, r3
-and r4 need no adapter (▢ planned), r5 requires the conclusion adapter (in
-training), and r6 cannot exist — no class set to feed back. That asymmetry
-is the point §4.4 ends on.*
+(z = 6.1/10.6).*
+
+**Table 4d (예정) — 같은 사다리, MedCaseReasoning.** 어느 단이 존재하는지를
+코퍼스가 정한다. 이 표의 빈칸은 미실시가 아니라 **결과**다.
+
+| Rung | DDXPlus | MedCaseReasoning | 왜 |
+|---|:-:|:-:|---|
+| r3 reconsider only | .460 | ▢ 실행 가능 | 어댑터 불필요 |
+| r4 findings re-shown | .398 | ▢ 실행 가능 | 어댑터 불필요 |
+| r7 own chain | ▢ | ▢ (CoT 실행 필요) | GPU ~1–2h |
+| r5 readout conclusion | .627 | ▢ 어댑터 학습 중 | 결론 어댑터가 여는 칸 |
+| r6 probe class label | .830 | **✕ 존재 불가** | 진단 6,934종·대부분 1회 — 되먹일 클래스 집합이 없다 |
+
+*r6의 불가능이 §4.4의 마지막 문장이다. DDXPlus만 보면 probe가 교정 비교에서
+이기고, 독자는 자연어 채널이 잉여라고 결론지어도 좋다. **그 채널만이 존재하는
+코퍼스**가 그 결론의 답이며, 주장이 아니라 측정으로 보여야 한다.
+실행: `scripts/run_mcr_ladder.sh` (기본 rungs 3 4 7; 어댑터가 나오면
+`RUNGS="3 4 5 7" READOUTS=…`).*
 
 **이 표가 확립하는 명제는 "내부를 되먹여라"이지 "자연어로 되먹여라"가
 아니다 (08-25).** r5와 r6이 둘 다 r4(입력 재제시)를 이기고, 내용 정확도를
@@ -236,7 +250,10 @@ check against the chart, a conclusion with its grounds does.*
 - T1: shuffle-control 값, swap/memorization/specificity의 정확한 n,
   답 위치 vanilla 행, MCR 산문 서술률 행
 - T3: MCR 출력 채널 AUROC(CPU 가능), MCR CoT 채널(GPU), logit lens 칸
-- T4: MCR 사다리 r3/r4(어댑터 불필요), r5(결론 어댑터 학습 중)
+- T4: **MCR 사다리(Table 4d)** — r3/r4는 지금 실행 가능, r7은 MCR CoT
+  실행 필요, r5는 결론 어댑터 대기, r6은 존재 불가(결과). `run_mcr_ladder.sh`
+- T4: **r7(자기 설명 되먹임)** — DDXPlus·MCR 양쪽. 이 단이 없으면 4.4는
+  "내부를 되먹여라"가 아니라 "뭐라도 되먹여라"까지만 주장한다
 
 ## v1 대비 바뀐 것
 

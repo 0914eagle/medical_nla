@@ -395,17 +395,27 @@ def main() -> None:
         rung_rows[rung] = rows
         print(f"\nRUNG {rung}  ({path})")
         block("all cases", rows)
-        block("flagged (disagreement)", [r for r in rows if r.get("correction_flag")])
-        block("not flagged", [r for r in rows if not r.get("correction_flag")])
+        # On a corpus with no conclusion readout yet, the flag was never
+        # measured and every row carries None. Printing the flag blocks anyway
+        # would report "nothing flagged" -- which reads as a measurement, not
+        # as its absence.
+        if any(r.get("correction_flag") is not None for r in rows):
+            block("flagged (disagreement)", [r for r in rows if r.get("correction_flag")])
+            block("not flagged", [r for r in rows if not r.get("correction_flag")])
+        else:
+            print("  (no disagreement flag on these rows -- built without a readout)")
         block("moved (causal ceiling)", [r for r in rows if r.get("moved")])
         capitulation(rows)
         if args.examples:
             print(f"  broken samples (first {args.examples}):")
             show_broken(rows, args.examples)
 
-    if first_rows:
+    if first_rows and any(r.get("correction_flag") is not None for r in first_rows):
         replacement_policy(first_rows)
         false_alarm_anatomy(first_rows)
+    elif first_rows:
+        print("\n(skipping the flag-based policies: these rungs were built without"
+              "\n a readout, so the disagreement signal does not exist on them)")
     if args.probe_flags and rung_rows:
         probe = {str(r["base_id"]): r for r in read_jsonl(args.probe_flags)}
         hybrid_policy(rung_rows, probe)
