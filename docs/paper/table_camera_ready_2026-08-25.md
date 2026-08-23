@@ -113,8 +113,9 @@ is open (6,934 labels, most occurring once).
 condition. ᵇ No class set exists to train on.
 
 *CoT 값은 특징 3종(0.50–0.53) 중 최댓값 하나로 통일해 셀당 값 하나 규칙을
-지킨다; 특징별 값은 부록. **MCR의 CoT·출력 채널 AUROC는 개입이 끝났으므로
-지금 CPU로 계산 가능(▢ 최우선)** — 나오면 "AUROC, MCR (behavioural)" 열을
+지킨다; 특징별 값은 부록. **MCR의 출력 채널 AUROC는 완료된 개입 답에서 지금
+CPU로 계산 가능(▢ 최우선); CoT 채널은 MCR CoT 실행이 필요(GPU ~1–2h,
+prompt_cot는 케이스 파일에 이미 있음)** — 나오면 "AUROC, MCR (behavioural)" 열을
 추가한다: 두 행동 채널 + probe "n.a." + readout "ᵈ"로 열이 완성되고, 열린
 어휘에서 행동 채널도 우연 수준이면 "MCR에서는 아직 아무도 탐지 못 한다"가
 어댑터 동기의 마지막 조각이 된다.*
