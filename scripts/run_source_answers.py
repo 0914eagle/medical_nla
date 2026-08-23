@@ -86,6 +86,8 @@ CARRIED_FIELDS = (
     "probe_argmax",
     "channel_map",
     "group",
+    "readout_channel",
+    "label_moved",
     "hint_variant",
     "hint_diagnosis_name",
     "gold_in_prompt",
