@@ -12,9 +12,9 @@
 As large language models enter clinical decision support, accuracy alone is
 not the bar they must clear. Beyond being correct, a deployed model must be
 inspectable: hallucination, biased outputs, opaque provenance, and
-performance drift are recognized safety concerns [Nature-safety-review,
-2026; npj-hallucination-framework, 2025; ethics-systematic-review, 2025;
-Chen et al., 2023 (drift)], and both clinicians and regulators increasingly
+performance drift are recognized safety concerns [Wang et al., 2024;
+Nature-safety-review, 2026; npj-hallucination-framework, 2025; Chen et
+al., 2023 (drift)], and both clinicians and regulators increasingly
 require an account of *why* a model answered as it did before its answers
 can be trusted [Cracking-the-Clinical-Code, 2025; Why-Clinical-Reasoning-
 Fails, 2026]. For diagnosis the requirement is concrete, because clinically
@@ -131,6 +131,9 @@ real case reports whose open label space admits no classifier head
 
 ### 인용 키 매핑 (bib 정리용, 08-24 추가)
 
+- **[Wang et al., 2024] = "Safety challenges of AI in medicine in the era
+  of large language models", arXiv:2409.18968 (Yu·Bitterman·Zou 등) —
+  우산 인용 1순위 (사용자 확인, 08-24).**
 - [Nature-safety-review, 2026] = "Safety and security of large language
   models in healthcare", Nature, s41586-026-10687-1.
 - [npj-hallucination-framework, 2025] = "A framework to assess clinical
