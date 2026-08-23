@@ -100,22 +100,38 @@ def capitulation(rows: list[dict[str, Any]]) -> None:
     re-asking would mean the reconsider prompt amplifies the very anchoring
     it was meant to correct.
     """
+    def onto(candidates: list[dict[str, Any]], field: str) -> int:
+        return sum(
+            1
+            for r in candidates
+            if is_correct(
+                str(r.get(field) or ""),
+                str(r.get("hint_diagnosis_name") or "-"),
+                aliases_for(str(r.get("hint_diagnosis_name") or "")),
+            )
+        )
+
     broken = [r for r in rows if r.get("first_correct") and not r.get("source_correct")]
     if not broken:
         return
-    onto_hint = sum(
-        1
-        for r in broken
-        if is_correct(
-            str(r.get("answer") or ""),
-            str(r.get("hint_diagnosis_name") or "-"),
-            aliases_for(str(r.get("hint_diagnosis_name") or "")),
-        )
-    )
+    hit = onto(broken, "answer")
     print(
-        f"  broken -> onto the note's suspicion: {onto_hint}/{len(broken)}"
-        f" = {onto_hint / len(broken):.4f}"
+        f"  broken -> onto the note's suspicion: {hit}/{len(broken)}"
+        f" = {hit / len(broken):.4f}"
     )
+    # The baseline this has to be read against is the note's own capitulation
+    # rate, measured the same way: an intervention changed a correct answer,
+    # where did it land? Comparing it instead to the share of ALL first-pass
+    # answers that equal the suggestion divides by a different population and
+    # inflates the ratio -- that mistake turned a 1.5x effect into "6x".
+    moved = [r for r in rows if r.get("moved")]
+    if moved:
+        base = onto(moved, "first_answer")
+        print(
+            f"  first pass, same rule (note moved the answer -> onto suspicion):"
+            f" {base}/{len(moved)} = {base / len(moved):.4f}"
+            f"   [re-asking x{(hit / len(broken)) / (base / len(moved)):.2f}]"
+        )
 
 
 def false_alarm_anatomy(rows: list[dict[str, Any]]) -> None:
