@@ -345,12 +345,32 @@ def main() -> None:
         help="Per-case probe verdicts from evaluate_probe_disagreement --dump; "
         "adds the hybrid policy (probe selects, content corrects).",
     )
+    parser.add_argument(
+        "--exclude-from",
+        nargs="+",
+        default=[],
+        help="Drop every base_id appearing in these files. The larger corpus "
+        "is drawn per-diagnosis from the same pool as the smaller one and "
+        "turned out to contain 1,676 of its 1,747 cases, so a rerun on it is "
+        "not a replication -- it is the same cases plus new ones, and a "
+        "finding can survive the union while living entirely in the original "
+        "half. Excluding the first run's ids leaves the genuinely unseen "
+        "cases, which is what a second look is supposed to be.",
+    )
     args = parser.parse_args()
+
+    excluded: set[str] = set()
+    for path in args.exclude_from:
+        excluded |= {str(r.get("base_id") or "") for r in read_jsonl(path)}
+    if excluded:
+        print(f"excluding {len(excluded):,} base_ids seen in the earlier run")
 
     first_rows: list[dict[str, Any]] = []
     rung_rows: dict[Any, list[dict[str, Any]]] = {}
     for path in args.rungs:
         rows = list(read_jsonl(path))
+        if excluded:
+            rows = [r for r in rows if str(r.get("base_id") or "") not in excluded]
         if not rows:
             print(f"{path}: empty")
             continue
