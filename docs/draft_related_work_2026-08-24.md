@@ -7,46 +7,55 @@
 
 ## 2. Related Work
 
-### 2.1 Cognitive bias and unfaithful explanations in medical LLMs
+### 2.1 Explainability of medical LLMs
 
-Explanations that omit the true cause of an answer are a documented failure
-mode of chain-of-thought: when a biasing feature moves a model's answer, the
-generated reasoning rarely mentions it [Turpin et al., 2023; Lanham et al.,
-2023], and the disclosure rate remains low even in reasoning-tuned models
-[Chen et al., 2025]. In clinical practice the corresponding hazard has a
-name — anchoring, a recognized contributor to diagnostic error [Croskerry,
-2003] — and it enters real workflows daily through referral notes, handoffs,
-and patient framing [Mahajan et al., 2025].
+As large language models enter clinical decision support, accuracy alone is
+not the bar they must clear. Beyond being correct, a deployed model must be
+inspectable: hallucination, biased outputs, opaque provenance, and
+performance drift are recognized safety concerns [surveys: Jiang et al.,
+2025; Wang et al., 2024], and both clinicians and regulators increasingly
+require an account of *why* a model answered as it did before its answers
+can be trusted [Cracking-the-Clinical-Code, 2025; Why-Clinical-Reasoning-
+Fails, 2026]. For diagnosis the requirement is concrete, because clinically
+real context routinely moves answers: a referring physician's suspicion, a
+colleague's remark, a patient's worry. In human diagnosticians this failure
+has a name — anchoring, a recognized contributor to diagnostic error
+[Croskerry, 2003] — and it enters LLM workflows through the same channels
+[Mahajan et al., 2025].
 
-Medical language models inherit this vulnerability, and the literature has
-measured it behaviorally. Injecting clinical cognitive biases into
-USMLE-style questions degrades accuracy across model families [Schmidgall
-et al., 2024], the effect persists in models trained for explicit reasoning
-[Anonymous, 2025], and susceptibility extends to user-side factors such as
-emphasis and misinformation in patient queries [Kim et al., 2025] and to
-sycophancy in simulated clinical encounters [SycoEval-EM, 2026]. The remedy
-this literature proposes is to audit the model's reasoning trace [Mahajan
-et al., 2025]; whether the trace can support such an audit has, however,
-not been tested against ground truth.
+Explainability in medical AI has so far meant two families of methods. For
+predictive models, post-hoc input attribution dominates — SHAP, LIME, and
+saliency maps assign importance to input features [reviews: Frontiers,
+2026], with concept bottlenecks providing clinician-vocabulary
+intermediates in imaging [CBM refs]. These methods presuppose a scalar
+output and many perturbed reruns, and do not transfer cleanly to free-text
+diagnosis. For generative LLMs, the de facto explanation is instead the
+model's own chain of thought: a fluent, clinician-readable self-narration,
+prominent enough that auditing the reasoning trace has been proposed as
+the safety mechanism for clinical deployment [Mahajan et al., 2025].
 
-Faithfulness of medical explanations has also been probed directly. Under
-causal ablation and hint injection, chain-of-thought steps do not causally
-drive the predictions of closed-source medical assistants, and injected
+Self-narration, however, is unfaithful precisely where an audit needs it.
+In the general domain, features that demonstrably move a model's answer go
+unmentioned in its reasoning [Turpin et al., 2023; Lanham et al., 2023],
+and disclosure remains rare in reasoning-tuned models [Chen et al., 2025].
+The medical evidence is now direct: injected clinical cognitive biases
+degrade diagnostic accuracy while the accompanying explanations do not
+disclose them [Schmidgall et al., 2024; medRxiv, 2025]; under causal
+ablation and hint injection, chain-of-thought steps do not causally drive
+the predictions of closed-source medical assistants, and injected
 suggestions are absorbed without acknowledgment [Faithful-or-Plausible,
 2025]; structured re-grading finds individual reasoning steps decorative —
 removable without changing the answer [Clinical Reasoning Graphs, 2026].
-Because these studies target closed-source models, they are confined to
-behavior by construction.
 
-Across this literature, models are perturbed from the outside and measured
-from the outside, so what is known is that suggestions degrade aggregate
-accuracy. We instead rebuild the same clinically real intervention in a
-causally controlled form — a placebo-controlled four-arm design whose
-evidence representations are bit-identical across arms, yielding a per-case
-ground truth for which answers the note actually moved — and we do not stop
-at the behavioral result: we first confirm that the reasoning trace cannot
-support the proposed audit (attribution at chance; §4.2), and then go
-inside the model.
+Both available forms of explanation therefore fail at the question a
+diagnostic audit must answer — *what caused this answer* — the attribution
+family by construction, the self-narration family empirically. We rebuild
+the clinically real intervention behind this evidence in a causally
+controlled form — a placebo-controlled four-arm design whose evidence
+representations are bit-identical across arms, yielding a per-case ground
+truth for which answers the note actually moved — confirm on it that the
+reasoning trace cannot support the proposed audit (attribution at chance;
+§4.2), and then go inside the model.
 
 ### 2.2 Reading LLM internals: from probes to natural-language readouts
 
@@ -105,8 +114,14 @@ real case reports whose open label space admits no classifier head
 
 ### 구조 메모 (본문 아님)
 
-- 2.1: 4문단 — 일반→임상 훅 / 의료 편향 주입(행동) / 의료 충실성 프로브 /
-  **턴**(인과 재구축 + 내부로).
+- 2.1 (Explainability of medical LLMs, 08-24 개제): 4문단 — 판돈(정확도
+  너머의 안전·규제 + anchoring) / 의료 설명의 두 형태(입력 기여도 SHAP·LIME
+  · CoT 자기 서술과 트레이스-감사 제안) / 자기 서술의 불충실(faithfulness of
+  CoT — 일반 + 의료 증거, 편향 주입 문헌은 여기의 증거로) / **턴**(두 형태
+  모두 "무엇이 답을 만들었나"에 실패 — 귀속 계열은 구조적으로, 자기 서술은
+  실증적으로 → 인과 재구축 + 내부로).
+- 주의: 사용자가 가져온 "Beyond correctness…" 류 문구는 타 논문 문장 —
+  취지만 우리 문장으로 재작성했고 원문 표현은 쓰지 않음(표절 방지).
 - 2.2: 5문단 — 계기 계보 / 언어화와 Li 비판 / 일반 도메인의 조각들(신규
   이웃 2편 정면 배치) / 의료 내부 접근은 국소화까지 / **턴**(사슬로 잇기,
   §4 상호참조 5개).
