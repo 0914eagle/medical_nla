@@ -27,7 +27,10 @@ source scripts/env.sh >/dev/null
 LAYER="${LAYER:-32}"
 BATCH="${BATCH:-8}"
 TEMPLATE="${TEMPLATE:-prompt_templates/medical_nla_v2_readout.txt}"
-MANIFEST="${MANIFEST:-$ART/activations/trajectory_L${LAYER}/layer${LAYER}/last_token/manifest_readout.jsonl}"
+# The readout manifest is whatever make_trajectory_readout_manifest.py wrote
+# for the tuned run -- the same rows, so the two channels are compared on
+# identical vectors. Override MANIFEST= if it lives elsewhere.
+MANIFEST="${MANIFEST:-$DATA/ddxplus_trajectory_readout_manifest.jsonl}"
 
 LOGS="$ART/logs"; mkdir -p "$LOGS" "$ART/results"
 MAIN="$LOGS/vanilla_final_$(date +%Y%m%d_%H%M%S).log"
@@ -35,7 +38,8 @@ say() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$MAIN"; }
 
 if [ ! -s "$MANIFEST" ]; then
   say "no manifest at $MANIFEST"
-  say "  point MANIFEST= at the trajectory readout manifest (make_trajectory_readout_manifest.py output)"
+  say "  point MANIFEST= at the manifest the TUNED trajectory readout run used."
+  say "  find it with:  ls -t \$DATA/*trajectory*manifest*.jsonl \$ART/**/manifest*.jsonl 2>/dev/null | head"
   exit 1
 fi
 
