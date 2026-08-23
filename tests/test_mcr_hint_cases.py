@@ -2,7 +2,12 @@
 
 from collections import Counter
 
-from scripts.make_mcr_hint_cases import confusions, plausible_wrong
+from scripts.make_mcr_hint_cases import (
+    confusions,
+    cue_words,
+    neighbor_gold,
+    plausible_wrong,
+)
 
 
 def test_confusions_collect_only_wrong_answers():
@@ -23,3 +28,16 @@ def test_plausible_wrong_skips_alias_matches_of_the_gold():
     assert plausible_wrong("Anemia", ["acute anemia"], pool) == "Leukemia"
     assert plausible_wrong("Anemia", [], Counter()) is None
     assert plausible_wrong("Anemia", [], None) is None
+
+
+def test_neighbor_gold_picks_the_most_cue_similar_other_diagnosis():
+    case = {"cue_targets": ["persistent cough", "fever at night", "weight loss"]}
+    corpus = [
+        (cue_words({"cue_targets": ["persistent cough", "fever at night"]}), "Tuberculosis"),
+        (cue_words({"cue_targets": ["knee pain after running"]}), "Meniscus tear"),
+        # An alias of the gold must never be offered as its own "wrong".
+        (cue_words({"cue_targets": ["persistent cough", "weight loss", "fever at night"]}), "whooping cough"),
+    ]
+    got = neighbor_gold(case, "Whooping cough", [], corpus)
+    assert got == "Tuberculosis"
+    assert neighbor_gold({"cue_targets": []}, "X", [], corpus) is None

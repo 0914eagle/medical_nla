@@ -2,13 +2,21 @@
 
 DDXPlus hands us the plausible wrong suggestion for free -- the differential's
 top non-gold entry. MedCaseReasoning has no differential field, so the
-plausibility has to come from somewhere else, and the somewhere else is the
-model itself: across the corpus's direct answers, the diagnoses the model
-actually confused with a given gold are, by construction, suggestions it
-cannot dismiss out of hand. Each case's wrong note carries the most common
-wrong answer the model gave for its gold; a gold the model never missed
-yields no plausible wrong and the case is skipped loudly rather than handed
-a strawman.
+plausibility has to come from somewhere else. Two sources, in order:
+
+1. **The model's own confusions**: across the corpus's direct answers, the
+   diagnoses the model actually confused with a given gold are suggestions
+   it cannot dismiss out of hand. But MCR's label space is open -- most
+   golds appear once -- so a gold the model answered correctly usually has
+   no confusion record at all (81 of 113 on the test split).
+2. **The nearest neighbor's gold**: for those, the suggestion is the
+   diagnosis of the most cue-similar *other* case in the corpus. Same
+   plausibility logic -- a diagnosis whose presentation overlaps this one's
+   is clinically confusable -- sourced from case similarity instead of
+   observed error.
+
+A case with neither (no confusion, no overlapping neighbor) is skipped
+loudly rather than handed a strawman.
 
 Everything else mirrors the DDXPlus builder: same four arms, same sentence
 templates, same placement (after the presentation, before the instruction),
@@ -59,15 +67,45 @@ def plausible_wrong(gold: str, aliases: list[str], pool: Counter | None) -> str 
     return None
 
 
+def cue_words(case: dict[str, Any]) -> set[str]:
+    words: set[str] = set()
+    for cue in case.get("cue_targets") or []:
+        words.update(w for w in str(cue).lower().split() if len(w) > 3)
+    return words
+
+
+def neighbor_gold(
+    case: dict[str, Any], gold: str, aliases: list[str], corpus: list[tuple[set[str], str]]
+) -> str | None:
+    """The diagnosis of the most cue-similar other case -- Jaccard on cue words."""
+    own = cue_words(case)
+    if not own:
+        return None
+    best, best_score = None, 0.0
+    for words, other_gold in corpus:
+        if not words or is_correct(other_gold, gold, aliases):
+            continue
+        score = len(own & words) / len(own | words)
+        if score > best_score:
+            best, best_score = other_gold, score
+    return best
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cases", required=True, help="MCR case file.")
-    parser.add_argument("--answers", required=True, help="MCR direct source answers.")
+    parser.add_argument(
+        "--answers",
+        nargs="+",
+        required=True,
+        help="MCR direct source answers; extra files (e.g. the train split) "
+        "thicken the confusion dictionary.",
+    )
     parser.add_argument("--output", required=True)
     parser.add_argument("--arms", nargs="+", default=["none", "neutral", "wrong", "correct"])
     args = parser.parse_args()
 
-    answers = list(read_jsonl(args.answers))
+    answers = [row for path in args.answers for row in read_jsonl(path)]
     confused = confusions(answers)
     correct_ids = {
         str(r.get("base_id", r.get("id")))
@@ -76,10 +114,18 @@ def main() -> None:
     }
     print(f"direct-correct cases: {len(correct_ids):,}   golds with confusions: {len(confused):,}")
 
+    all_cases = list(read_jsonl(args.cases))
+    corpus = [
+        (cue_words(c), str(c.get("diagnosis_name") or "").strip())
+        for c in all_cases
+        if str(c.get("diagnosis_name") or "").strip()
+    ]
+
     rows: list[dict[str, Any]] = []
     skipped = Counter()
+    sourced = Counter()
     n_cases = 0
-    for case in read_jsonl(args.cases):
+    for case in all_cases:
         base_id = str(case.get("base_id") or case["id"])
         if base_id not in correct_ids:
             continue
@@ -90,9 +136,18 @@ def main() -> None:
             continue
         gold = str(case.get("diagnosis_name") or "").strip()
         aliases = [str(a) for a in (case.get("diagnosis_aliases") or [])]
+        if not gold:
+            skipped["no gold diagnosis"] += 1
+            continue
         wrong = plausible_wrong(gold, aliases, confused.get(gold))
-        if not gold or not wrong:
-            skipped["no confused diagnosis for this gold"] += 1
+        if wrong:
+            sourced["confusion"] += 1
+        else:
+            wrong = neighbor_gold(case, gold, aliases, corpus)
+            if wrong:
+                sourced["neighbor"] += 1
+        if not wrong:
+            skipped["no confused diagnosis and no overlapping neighbor"] += 1
             continue
 
         n_cases += 1
@@ -139,6 +194,10 @@ def main() -> None:
     write_jsonl(Path(args.output), rows)
     for reason, count in skipped.items():
         print(f"skipped {count:,}: {reason}")
+    print(
+        f"suggestion source: confusion {sourced['confusion']:,} / "
+        f"neighbor {sourced['neighbor']:,}"
+    )
     print(f"wrote {len(rows):,} rows over {n_cases:,} cases to {args.output}")
     example = next(r for r in rows if r["hint_variant"] == "wrong")
     print(f"\ngold {example['diagnosis_name']!r}  suggestion {example['hint_diagnosis_name']!r}")
