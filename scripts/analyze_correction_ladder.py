@@ -230,9 +230,22 @@ def content_showdown(
         return
     by_id5 = {str(r["base_id"]): r for r in r5}
     by_id6 = {str(r["base_id"]): r for r in r6}
-    shared = [b for b in by_id5 if b in by_id6 and by_id5[b].get("moved")]
-    if not shared:
-        return
+    for label, keep in (
+        ("moved", lambda r: bool(r.get("moved"))),
+        ("all cases", lambda r: True),
+    ):
+        shared = [b for b in by_id5 if b in by_id6 and keep(by_id5[b])]
+        if shared:
+            _showdown_table(label, shared, by_id5, by_id6, probe)
+
+
+def _showdown_table(
+    population: str,
+    shared: list[str],
+    by_id5: dict[str, dict[str, Any]],
+    by_id6: dict[str, dict[str, Any]],
+    probe: dict[str, dict[str, Any]],
+) -> None:
 
     def probe_right(base_id: str, row: dict[str, Any]) -> bool:
         argmax = str(
@@ -251,10 +264,10 @@ def content_showdown(
         key = (conclusion_correct(by_id5[base_id]), probe_right(base_id, by_id6[base_id]))
         cells.setdefault(key, []).append(base_id)
 
-    print("\nCONTENT SHOWDOWN (moved cases, r5 vs r6 by whose content was right)")
+    print(f"\nCONTENT SHOWDOWN — {population} (r5 vs r6 by whose content was right)")
     n5 = sum(conclusion_correct(by_id5[b]) for b in shared)
     n6 = sum(probe_right(b, by_id6[b]) for b in shared)
-    print(f"  content accuracy on moved: readout {n5 / len(shared):.4f}"
+    print(f"  content accuracy: readout {n5 / len(shared):.4f}"
           f"   probe {n6 / len(shared):.4f}   (n={len(shared):,})")
     print(f"  {'readout / probe content':<26}{'n':>5}{'r5':>8}{'r6':>8}{'r6-r5':>9}"
           f"{'r5only':>8}{'r6only':>8}{'p':>9}")
@@ -280,6 +293,9 @@ def content_showdown(
     print("  diagnosis in both prompts, differing only in whether it arrived")
     print("  as a sentence with grounds or as a bare class name. r5only/r6only")
     print("  are the discordant pairs and p is their exact McNemar test.")
+    print("  Four cells are tested at once: the both-right row was the")
+    print("  pre-registered comparison, so treat the others as exploratory and")
+    print(f"  read them against a Bonferroni threshold of {0.05 / max(len(cells), 1):.4f}.")
 
 
 def show_broken(rows: list[dict[str, Any]], count: int) -> None:
