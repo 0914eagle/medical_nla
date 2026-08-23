@@ -55,4 +55,13 @@ if [ -s "$OUT" ]; then say "skip (exists: $(wc -l < "$OUT") rows)"; else
     >>"$MAIN" 2>&1 || { say "FAILED"; exit 1; }
 fi
 say "ALL DONE (vanilla at final position)"
-say "score with: python scripts/analyze_trajectory_readouts.py --readouts $OUT ... --lenient"
+say ""
+say "Score BOTH channels through the judge, not the regex -- the layer sweep"
+say "already showed rule-based scoring of vanilla undercounts (0.04-0.14) and"
+say "overcounts (0.56-0.66) the same outputs:"
+say "  python scripts/make_readout_extraction_cases.py --readouts $OUT \\"
+say "     --channel vanilla --output \$DATA/extract_vanilla.jsonl"
+say "  python scripts/make_readout_extraction_cases.py --readouts <tuned> \\"
+say "     --channel tuned --output \$DATA/extract_tuned.jsonl"
+say "  (run both through run_source_answers --no-prefill --max-new-tokens 32)"
+say "  python scripts/analyze_readout_extraction.py --extractions <both> --ladder ..."
