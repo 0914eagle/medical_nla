@@ -172,7 +172,11 @@ def main() -> None:
         print("\n  nothing to score -- pass --hand and/or --judged.")
         return
 
-    print("\n  scorer   pairs   A     B     C     D     A+B (row-weighted)")
+    # Both weightings, because the choice between them moves the number more
+    # than the choice of scorer does. DDXPlus renders cues from a fixed
+    # questionnaire, so one pair can carry fifty rows: row-weighting reports
+    # what the questionnaire repeated as if it were what the readout can do.
+    print("\n  scorer   pairs   A     B     C     D    A+B pairs   A+B rows")
     for name, table in scorers:
         pair_counts: Counter[str] = Counter()
         row_counts: Counter[str] = Counter()
@@ -183,20 +187,29 @@ def main() -> None:
             pair_counts[grade] += 1
             row_counts[grade] += len(entry.get("ids") or [])
         rate, n_rows = weighted(row_counts)
+        n_pairs = sum(pair_counts.values())
+        pair_rate = (
+            (pair_counts["A"] + pair_counts["B"]) / n_pairs if n_pairs else float("nan")
+        )
         cells = "  ".join(f"{pair_counts[g]:>3}" for g in GRADES)
-        print(f"  {name:<7} {sum(pair_counts.values()):>5}   {cells}     "
-              f"{rate:.4f}  (n={n_rows:,})")
+        print(f"  {name:<7} {n_pairs:>5}   {cells}     "
+              f"{pair_rate:>7.4f}   {rate:>8.4f}  (n={n_rows:,})")
 
-    # D is "empty, refused, or no clinical content". A scorer that never uses
-    # it is not finding every readout substantive; it is declining to use the
-    # floor of the scale, which shifts everything above it.
-    for name, table in scorers:
-        used = {table[k] for k in by_key if k in table}
-        if used and "D" not in used:
-            print(f"\n  ⚠ '{name}' never assigned D on any pair. The grade "
-                  f"exists for empty or\n    contentless readouts; a scorer "
-                  f"that never reaches for it is rating the\n    scale, not "
-                  f"only the readouts.")
+    sizes = sorted((len(e.get("ids") or []) for e in index), reverse=True)
+    total_rows = sum(sizes)
+    if total_rows and sizes:
+        top5 = sum(sizes[:5])
+        print(f"\n  row weight is concentrated: top 5 pairs cover {top5:,} rows "
+              f"({top5 / total_rows:.1%}),\n  the largest single pair {sizes[0]:,} "
+              f"({sizes[0] / total_rows:.1%}). One pair changing grade moves the\n"
+              f"  row-weighted rate by up to that much, so read the two columns "
+              f"together.")
+
+    # D against C is not worth flagging. Both fall outside A+B, so the rate is
+    # identical either way, and the hand pass's D pairs turned out to be full
+    # clinical sentences -- "a cough that produces colored sputum" -- which the
+    # rubric puts at C, not at D. A scorer using no D is following the rubric,
+    # not declining to use the scale.
 
     if unparsed:
         print(f"\n  unparseable judge replies {unparsed:,} -- dropped, not "
