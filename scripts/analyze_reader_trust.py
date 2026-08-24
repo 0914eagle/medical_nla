@@ -92,9 +92,35 @@ def bootstrap(pairs: list[tuple[float, bool]], seed: int = 17, n: int = 1000) ->
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--judgements", required=True)
+    parser.add_argument(
+        "--cases",
+        help="The case file the judgements were built from. Required when the "
+        "judging went through run_judge.py, which carries only {id, response} "
+        "-- the channel and the label live here and there is nothing to "
+        "compare without them.",
+    )
     args = parser.parse_args()
 
     rows = list(read_jsonl(args.judgements))
+    if args.cases:
+        meta = {str(r["id"]): r for r in read_jsonl(args.cases)}
+        joined = 0
+        for row in rows:
+            extra = meta.get(str(row.get("id")))
+            if extra:
+                joined += 1
+                for key in ("readout_channel", "label_moved", "group",
+                            "base_id", "diagnosis_name"):
+                    row.setdefault(key, extra.get(key))
+        print(f"[join] {joined:,} of {len(rows):,} judgements matched a case")
+        if joined < len(rows):
+            print("  unmatched judgements carry no channel and fall into '?'")
+    elif not any(r.get("readout_channel") for r in rows):
+        raise SystemExit(
+            "no judgement carries readout_channel, so every row would be "
+            "pooled into one unlabelled bucket and the AUROC would be "
+            "undefined. Pass --cases to join the channel and the label back."
+        )
     by_channel: dict[str, list[tuple[float, bool]]] = defaultdict(list)
     doubt_rate: dict[tuple[str, bool], list[bool]] = defaultdict(list)
     unparsed = 0
