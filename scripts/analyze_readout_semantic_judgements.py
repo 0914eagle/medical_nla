@@ -59,6 +59,46 @@ def grade_of(response: Any) -> str:
     return next((c for c in str(response or "").strip().upper() if c in GRADES), "")
 
 
+# Words that name WHERE a finding is, rather than what it is. DDXPlus renders
+# these from the questionnaire, so a pair differing only in one of them is the
+# same question asked about a different part of the body.
+SITE_WORDS = {
+    # which side
+    "l", "r", "left", "right", "bilateral", "unilateral",
+    # which end
+    "upper", "lower", "top", "bottom", "middle",
+    "dorsal", "ventral", "lateral", "medial", "anterior", "posterior",
+    "proximal", "distal", "superior", "inferior", "front", "back",
+    # the locator nouns these attach to. 'dorsal aspect of the foot' against
+    # 'lateral side of the foot' is the same foot: only the face of it moved,
+    # and without these the pair reads as two different findings.
+    "aspect", "side", "region", "area", "part", "portion", "surface",
+}
+_WORD = re.compile(r"[a-z]+")
+
+
+def differs_only_by_site(gold: str, read: str) -> bool:
+    """True when the two texts agree except on words naming a location.
+
+    The rubric puts a wrong attribute at B and a different finding at C, and
+    tells the scorer to answer C when both are arguable. Laterality sits
+    exactly on that line, and it is the worst place to be generous in a
+    medical readout: 'swelling located thigh(L)' against 'thigh(R)' is one
+    token and the wrong leg. Counting these separately keeps a scorer's margin
+    from being read as agreement about content when it is agreement about
+    everything except which side.
+    """
+    g = _WORD.findall(gold.lower())
+    r = _WORD.findall(read.lower())
+    gc, rc = Counter(g), Counter(r)
+    only_g = gc - rc
+    only_r = rc - gc
+    if not only_g and not only_r:
+        return False  # identical wording; nothing to attribute
+    leftover = set(only_g) | set(only_r)
+    return bool(leftover) and leftover <= SITE_WORDS
+
+
 def weighted(counts: Counter[str]) -> tuple[float, int]:
     total = sum(counts.values())
     if not total:
@@ -147,6 +187,17 @@ def main() -> None:
         print(f"  {name:<7} {sum(pair_counts.values()):>5}   {cells}     "
               f"{rate:.4f}  (n={n_rows:,})")
 
+    # D is "empty, refused, or no clinical content". A scorer that never uses
+    # it is not finding every readout substantive; it is declining to use the
+    # floor of the scale, which shifts everything above it.
+    for name, table in scorers:
+        used = {table[k] for k in by_key if k in table}
+        if used and "D" not in used:
+            print(f"\n  ⚠ '{name}' never assigned D on any pair. The grade "
+                  f"exists for empty or\n    contentless readouts; a scorer "
+                  f"that never reaches for it is rating the\n    scale, not "
+                  f"only the readouts.")
+
     if unparsed:
         print(f"\n  unparseable judge replies {unparsed:,} -- dropped, not "
               f"defaulted. A judge that did not answer is missing data, and "
@@ -177,10 +228,39 @@ def main() -> None:
             for k in by_key
             if k in hand and k in judge and (hand[k] in "AB") != (judge[k] in "AB")
         ]
+
+        # Where the judge's extra credit lands, in rows rather than pairs.
+        # A margin made of laterality is a different claim from a margin made
+        # of paraphrase, and the two should not be summarised by one delta.
+        promoted = [
+            (k, h, j) for k, h, j in disagreeing if j in "AB" and h not in "AB"
+        ]
+        if promoted:
+            site = [k for k, _, _ in promoted if differs_only_by_site(*k)]
+            rows_promoted = sum(
+                len(by_key[k].get("ids") or []) for k, _, _ in promoted
+            )
+            rows_site = sum(len(by_key[k].get("ids") or []) for k in site)
+            total_rows = sum(len(e.get("ids") or []) for e in index)
+            print(f"\n  where the judge is more generous than the hand pass")
+            print(f"    pairs promoted into A+B        {len(promoted):,}"
+                  f"  ({rows_promoted:,} rows, {rows_promoted / total_rows:.4f})")
+            print(f"    of those, differing ONLY by a site/laterality word"
+                  f"   {len(site):,}"
+                  f"  ({rows_site:,} rows, {rows_site / total_rows:.4f})")
+            if rows_promoted and rows_site / rows_promoted >= 0.3:
+                print("    ⚠ a large share of the judge's margin is laterality "
+                      "and site.\n      The rubric puts a wrong attribute at B "
+                      "and says to answer C when B\n      and C are both "
+                      "arguable; 'thigh(L)' against 'thigh(R)' is one token "
+                      "and\n      the wrong leg. Report the margin with this "
+                      "split, not as one number.")
+
         if disagreeing and args.show:
             print(f"\n  pairs that cross the A+B boundary ({len(disagreeing):,}):")
             for (gold, read), h, j in disagreeing[: args.show]:
-                print(f"    hand {h} / judge {j}")
+                tag = "  [site/laterality only]" if differs_only_by_site(gold, read) else ""
+                print(f"    hand {h} / judge {j}{tag}")
                 print(f"      GOLD: {gold[:96]}")
                 print(f"      READ: {read[:96]}")
 

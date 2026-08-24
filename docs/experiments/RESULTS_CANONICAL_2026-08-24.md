@@ -106,6 +106,44 @@ L32 55.7%, 완전 오답 D가 13.9% / **0.9%** / 8.4%. ⚠️ 그 스윕은 L16/
   238쌍을 봤다는 사실이 어느 한쪽 값보다 강한 근거다. 표에는 판정자 행과
   모델 id·날짜가 들어가고, 손채점 행은 감사 기록에 남는다.
 
+**외부 판정 실행 완료 (08-24, codex).** 238쌍 전수, 파싱 실패 0.
+
+| 층 | 손채점 A+B | **판정자 A+B** | Δ | exact 4-way | collapsed | kappa |
+|---|---:|---:|---:|---:|---:|---:|
+| L16_v5 | .3402 | **.5525** | **+.2123** | .6944 | .8750 | .4976 |
+| L24_v5 | .7306 | **.7740** | +.0434 | .5270 | .9189 | .3531 |
+| v4 (L32) | .5571 | **.6393** | +.0822 | .6413 | .8696 | .4730 |
+
+**손채점은 낙관 편향이 아니라 보수 편향이었다.** 세 층 모두 외부 판정자가
+더 후하다. 지금까지 인용해온 `.340/.731/.557`은 상한이 아니라 **하한**이다 —
+"연구자가 자기 숫자를 높게 매겼다"는 반론과 반대 방향이다.
+
+⚠️ **다만 판정자의 여유분을 그대로 쓰면 안 된다. 두 가지가 걸린다.**
+
+1. **판정자는 D를 한 번도 주지 않았다** (손채점은 6/8/4). D는 "비었거나
+   임상 내용이 없음"이다. 척도의 바닥을 안 쓰면 그 위가 전부 밀려 올라간다.
+2. **여유분이 좌우·부위 오류에 몰려 있다.** 손채점 C → 판정자 B로 올라간
+   쌍의 예:
+
+   | GOLD | READ |
+   |---|---|
+   | swelling located **thigh(L)** | swelling located **thigh(R)** |
+   | swelling located **cheek(R)** | swelling located **cheek(L)** |
+   | affected region **bottom lip(R)** | **upper lip(R)** |
+   | **dorsal aspect** of the foot(R) | **lateral side** of the foot(R) |
+   | stools that were **black (like coal)** | **light red blood or blood clots** in their stool |
+
+   루브릭은 "B와 C가 둘 다 그럴듯하면 C, 측정 대상에 불리한 쪽으로"라고
+   지시했고 판정자는 반대로 갔다. 의료 판독에서 좌우는 사소한 속성이 아니다.
+   마지막 행은 흑색변 vs 혈변으로 아예 다른 소견이다.
+
+`analyze_readout_semantic_judgements.py`가 이 분해를 자동 출력한다
+(`differs_only_by_site`, 테스트 7개). **표에는 판정자 값과 이 분해를 함께
+싣고, 단일 숫자로 요약하지 않는다.**
+
+▢ `judge_model` 스탬프를 각 행에서 읽어 표 각주에 넣을 것:
+`python -c "import json;print(json.loads(open('$ART/results/judge_readout_semantic_L24_v5.jsonl').readline()).get('judge_model'))"`
+
 ▢ 답 위치는 스윕한 적이 없다. L32는 선택이 아니라 상속(AV 체크포인트가 L32).
 
 ---
