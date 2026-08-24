@@ -43,6 +43,7 @@ from scripts.evaluate_probe_disagreement import fold_of, train_probe
 from src.answer_matching import is_correct
 from src.ddxplus_aliases import aliases_for
 from src.jsonl import read_jsonl
+from src.paired_stats import group_difference_ci, paired_delta_ci, trend_ci
 
 LANDMARK_ORDER = ["last_cue", "note", "question", "constraint", "format", "final"]
 
@@ -68,6 +69,13 @@ def main() -> None:
     parser.add_argument("--cases", help="Hint case file, for runs predating carried arms.")
     parser.add_argument("--manifests", nargs="+", required=True)
     parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument(
+        "--bootstrap",
+        type=int,
+        default=2000,
+        help="Resampling draws for the note-cost intervals and the trend test. "
+        "0 skips them, leaving the point estimates alone.",
+    )
     parser.add_argument(
         "--dump",
         help="Write the per-landmark numbers as JSON, for make_figure_trajectory.py. "
@@ -139,6 +147,17 @@ def main() -> None:
             "moved-onto-hint": [],
             "moved-lost-gold": [],
         }
+        # The same readings again, but kept as one (wrong, none) pair per case.
+        # The two lists above are averaged separately, which is enough for the
+        # point estimate and destroys the pairing that makes it precise: a case
+        # whose gold mass is high in both arms tells us nothing about the note,
+        # and only the within-case difference removes it. The dose-response
+        # sentence needs an interval, and an interval needs the pairs.
+        paired: dict[str, list[tuple[float, float]]] = {
+            "kept": [],
+            "moved-onto-hint": [],
+            "moved-lost-gold": [],
+        }
         heldout_hits = heldout_n = 0
         for fold in (0, 1):
             train = [(b, c) for b, c in usable if fold_of(b) != fold]
@@ -193,6 +212,9 @@ def main() -> None:
                         counterfactual[group].append(
                             (float(pn[class_index[gold]]), n_hint, n_argmax == gold)
                         )
+                        paired[group].append(
+                            (float(p[class_index[gold]]), float(pn[class_index[gold]]))
+                        )
                     if moved(case):
                         verdicts[bid][role] = (
                             "gold"
@@ -236,6 +258,53 @@ def main() -> None:
                     f"   [note costs {cell['p_gold'] - b_gold:+.3f}]"
                 )
             dump["groups"].setdefault(group, {})[role] = cell
+
+        # The three note costs read as a dose-response -- kept barely moves,
+        # third-diagnosis moves more, adopting the suggestion moves most. Three
+        # point estimates cannot carry that sentence, so each gets a paired
+        # interval, the gaps between them get their own, and a rank correlation
+        # tests the ordering itself rather than the two ends of it.
+        ordered = [
+            ("kept", paired["kept"]),
+            ("moved-lost-gold", paired["moved-lost-gold"]),
+            ("moved-onto-hint", paired["moved-onto-hint"]),
+        ]
+        if args.bootstrap and any(rows for _, rows in ordered):
+            print(f"  note cost on p(gold), paired within case "
+                  f"({args.bootstrap:,} draws)")
+            cis = {}
+            for name, rows in ordered:
+                if not rows:
+                    continue
+                ci = paired_delta_ci(rows, draws=args.bootstrap, seed=args.seed)
+                cis[name] = ci
+                verdict = "excludes 0" if ci["excludes_zero"] else "INCLUDES 0"
+                print(f"    {name:<18} {ci['delta']:+.4f}  "
+                      f"[{ci['lo']:+.4f}, {ci['hi']:+.4f}]  n={ci['n']:,}  {verdict}")
+            for later, earlier in (
+                ("moved-onto-hint", "moved-lost-gold"),
+                ("moved-lost-gold", "kept"),
+                ("moved-onto-hint", "kept"),
+            ):
+                if paired[later] and paired[earlier]:
+                    gap = group_difference_ci(
+                        paired[later], paired[earlier],
+                        draws=args.bootstrap, seed=args.seed,
+                    )
+                    verdict = "excludes 0" if gap["excludes_zero"] else "INCLUDES 0"
+                    print(f"    {later} - {earlier}: {gap['diff']:+.4f}  "
+                          f"[{gap['lo']:+.4f}, {gap['hi']:+.4f}]  {verdict}")
+            trend = trend_ci(ordered, draws=args.bootstrap, seed=args.seed)
+            if trend["rho"] == trend["rho"]:
+                verdict = "monotone" if trend["excludes_zero"] and trend["hi"] < 0 \
+                    else "NOT established"
+                print(f"    trend across the three groups: rho {trend['rho']:+.4f}  "
+                      f"[{trend['lo']:+.4f}, {trend['hi']:+.4f}]  {verdict}")
+                print("    rho < 0 means later groups lose more gold mass, which "
+                      "is\n    the direction the dose-response claim asserts.")
+            dump.setdefault("note_cost_ci", {})[role] = {
+                "groups": cis, "trend": trend,
+            }
 
     flips = Counter()
     for bid, by_role in verdicts.items():
