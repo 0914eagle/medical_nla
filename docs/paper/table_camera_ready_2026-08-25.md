@@ -62,19 +62,19 @@ A+B는 .731(A/B/C/D 4등급, A+B를 성공으로)이다. Table의 .751은 별개
 유리하고 이름 하나당으로는 .524 vs .638로 뒤집힌다. **어댑터가 사는 값은
 적중률이 아니라 정밀도다** — 이 표의 나머지 행이 전부 그 이야기다.
 
-**T1은 현재 전 행이 DDXPlus다 — MCR 열 계획 (08-24 재검토판).**
-행별 가능성은 도구가 아니라 선행 조건이 가른다. 공통 선행:
-**MCR cue 위치 어댑터**(학습 여부 서버 확인 필요; `mcr_sweep_v1`은 추출만
-있고 판독이 없다 — "재집계 CPU"라던 이전 계획은 오기) + 판독 실행(GPU).
+**T1의 정본 행은 현재 전부 DDXPlus다.** MCR에서는 source-aligned
+answer-position 판독까지 완료됐지만, gold/source-answer agreement와 낮은
+grounding을 재는 별도 실험이므로 아래 DDXPlus 계기 검증 행에 섞지 않는다.
+cue-position 계기 검증은 여전히 MCR용 어댑터·판독 실행이 필요하다.
 
 | 행 | MCR | 경로 |
 |---|:-:|---|
 | 서술 정밀도 · 오염 · heldout 서술률 | ✔ | 판독 실행 후 기존 분석기 그대로 |
 | 스왑 추적 · 문맥 암기 | △ | `make_span_counterfactual_rows.py`(산문용 span 치환, 미실행) — cue 축자 등장 필요·탈락률 미측정·비문 캐비앳 |
 | unseen-cue 서술 | ✕→△ | MCR 분할은 케이스 분할이지 cue 문자열 heldout이 아님 — 분할 재구성 없이는 정의 안 됨 |
-| 답 위치 결론 | △ | source-aligned 결론 어댑터 재학습과 무학습 대조가 필요 |
+| 답 위치 결론 | △ | source-aligned 판독 완료; derangement 통제와 무학습 대조가 남음 |
 
-▢ 그 밖에 남은 것: shuffle-control 값, swap/memorization의 정확한 n.
+▢ 남은 핵심은 외부 판정자의 438행 의미 재채점과 MCR cue-position 검증이다.
 
 ### ⚠️ MCR 결론 판독 실행 완료 (08-24) — 비율을 내기 전에 눈으로 본 것
 
@@ -205,10 +205,10 @@ caveat 1을 이 숫자로 강화하려던 계획은 **철회**한다.
 모든 행에 `source_correct` 기록, 필터 없이 만든 split과 그것으로 학습한
 어댑터는 `.bak`으로 밀어내고 재구축·재학습.
 
-### 판독 재실행을 읽는 법 — 숫자가 나오기 전에 적는다 (08-24 18:42)
+### 판독 재실행의 사전 판정 기준 (08-24 18:42, 실행 전 기록)
 
 정당한 학습셋(1,298행, 100% 정합)으로 학습한 어댑터를 예산 768로 held-out
-821행에 돌리는 중이다. 결과를 보고 해석을 고르지 않도록 기준을 먼저 고정한다.
+821행에 돌리기 전에 기록한 기준이다. 실제 결과는 바로 아래 절에 보고한다.
 
 기준선 셋 — 상한은 **1.000**(타깃이 프롬프트 축자), 같은 위치·같은 스키마의
 DDXPlus는 **gap +.100 / 접지 .311**, 무효 실행이었던 옛 MCR은 **+.034 / .052**.
@@ -232,7 +232,7 @@ DDXPlus는 **gap +.100 / 접지 .311**, 무효 실행이었던 옛 MCR은 **+.03
 다시 읽어 근거가 프롬프트 문장으로 바뀌었는지 본다. 안 바뀌었는데 gap만
 올랐다면 지표가 무언가 다른 것을 재고 있는 것이다.
 
-**▢ 재학습 뒤 새로 생기는 질문**: 살아남는 학습 행이 **1,298개**이고 MCR
+**재학습 뒤 생긴 질문**: 살아남는 학습 행이 **1,298개**이고 MCR
 진단명은 6,934종, 대부분 1회 등장 — **진단명당 예시 한 개**다. 될지 안 될지는
 우리 자신의 결과가 가른다: 답 위치 **무학습 .603 대 v2 .651**, 즉 읽는 능력은
 AV 체크포인트에 있고 LoRA는 형식을 입힌다. 형식만 가르치는 것이면 1,298행으로
@@ -245,9 +245,20 @@ AV 체크포인트에 있고 LoRA는 형식을 입힌다. 형식만 가르치는
 n=1,543은 12,620건 중 모델이 맞힌 12.2%이고 — 파일럿 규칙이 거기서는 제대로
 적용됐다 — 그 사실이 MCR 결과 전체의 모집단을 규정한다.
 
-**어댑터 부족인지 상태의 성질인지는 아직 안 갈린다**: content loss 1.767,
-best_epoch 1/3, 학습 10,663행. 근거 접지가 통제와 갈리지 않으면 다음 질문은
-"더 학습하면 되는가"이고, 그건 별도 실행이다.
+source-aligned 실행에서 근거 접지 gap은 +.025에 머물렀다. 따라서 현재 결과는
+"더 학습하면 된다"는 결론이 아니라, 결론 일치와 근거 접지를 분리해 평가해야
+한다는 근거다. 과거 10,663행 실행은 source-wrong target을 포함한 무효 실행이므로
+학습 loss나 best epoch를 정본 결과로 인용하지 않는다.
+
+---
+
+### 08-24 source-aligned 재실행의 현재 결론
+
+held-out 821행에서 판독은 gold보다 모델의 실제 답과 더 자주 일치했다. 전체
+`.1389 vs .2643`, source-wrong 708행에서는 `.0692 vs .2133`이다. 이 3.1배
+비대칭은 source-aligned 결론 판독과 일관되지만, 무작위 다른 케이스의 모델 답과
+비교하는 derangement 통제가 남아 있어 최종 충실성 결과로 부르지 않는다.
+근거 접지 gap은 `+.025`로 낮아 `<supporting_cues>` 전이는 지지되지 않는다.
 
 ---
 
@@ -262,7 +273,7 @@ arms by construction. Canonical no-note accuracy can therefore be below 1.
 
 | Corpus | n | No note | Neutral | Wrong | Correct |
 |---|---:|---:|---:|---:|---:|
-| DDXPlus | 1,220 | **.9869** | .934ᶠ | **.7566** | ▢ᶜ |
+| DDXPlus | 1,220 | **.9869** | **.9377** | **.7566** | **.9246** |
 | DDXPlus, 3× larger run | 3,343 | **.9800** | **.9306** | **.7670** | **.9180** |
 | MedCaseReasoning | 1,543ᵉ | **.9410** | **.8879** | **.6721** | **.8179** |
 
@@ -273,22 +284,18 @@ arms by construction. Canonical no-note accuracy can therefore be below 1.
 전혀 다르며 — DDXPlus 49클래스 대 MCR 6,934개 진단, 대부분 1회 등장 —
 그 차이가 §4.1 판독 실험이 MCR에서 왜 다른 문제인지를 설명한다.
 
-ᶜ **08-24 감사에서 걸린 오류.** 이 칸에 적혀 있던 .932는 이 행의 값이 아니다.
-1,747건 실행의 답 파일 어디에도 `correct` 조건이 없고(조건 전수 스캔,
-08-24), .9313은 **corpus-300의 정답 조건을 4,995건 전체(누출 미필터)에서
-잰 값**이다 — 실행도 모집단 필터도 다르다. 새 matcher 정본은 no-note
-.9869, wrong .7566이며 neutral은 재집계 대기다. 정답 조건만 같은 케이스
-파일로 다시 실행한다: `scripts/run_ddxplus_correct_arm.sh`
-(한 조건 1,747답, GPU 1시간 내외). 그 전까지 이 칸은 비워 둔다.
-
-ᶠ Neutral-arm 값은 새 matcher로 다시 집계하기 전의 값이다. No-note와 wrong은
-전부 재채점한 정본이며, neutral은 재집계 뒤 교체한다.
+08-24 감사에서 이 칸에 있던 `.932`가 다른 실행·모집단의 값임을 확인했고,
+동일 fixed cohort에서 neutral/correct를 다시 실행·재채점해 `.9377/.9246`으로
+교체했다.
 
 *Under the canonical matcher, the wrong note costs 23.0 pp on the main
 DDXPlus run and 26.9 pp on MedCaseReasoning. In the 3× larger DDXPlus run it
 costs 21.30 pp against a 4.94 pp neutral cost: a 16.36 pp suggestion-specific
 effect and a 4.31× total-cost ratio. MCR's corresponding values are 21.58 pp
-and 5.06×. The canonical main-run neutral ratio awaits rescore.*
+and 5.06×. In the main DDXPlus run, the neutral cost is 4.92 pp and the
+suggestion-specific effect is 18.11 pp (4.68× total-cost ratio). A correct note
+still costs 6.23 pp, showing an intrusion cost independent of suggestion
+direction.*
 
 **두 번째 행은 손실이 아니라 소득이다 (08-24).** corpus-300은 네 조건을
 자기 안에 다 갖고 있어 **자급자족하는 재현 행**이고, 전체/위약 배수가
@@ -415,19 +422,19 @@ assumptions.
 | Channel | Input access | Task supervision | AUROC, all | AUROC, silent |
 |---|---|---|---:|---:|
 | Answer names suggestion | Output text | none | **.6610** | n.a.ᵃ |
-| Best rule-based CoT feature | CoT text | none | **.5464** | ▢ᶜ |
+| Best rule-based CoT feature | CoT text | none | **.5464** | not reportedᶜ |
 | LLM monitor | Vignette + note + CoT + answer | external LLM | **.7233** | **.6829** |
 | NL activation readout (ours) | Hidden state → text | readout adapter | **.7506** | **.8302** |
-| Linear diagnosis probe | Hidden state | fixed 49-class labels | **▢ᵇ** | **▢ᵇ** |
+| Linear diagnosis probe | Hidden state | fixed 49-class labels | **.9280** | **.9840** |
 
-ᵃ Undefined because this feature defines the silent subset. ᵇ Recompute on
-the canonical 1,641-row silent subset before citation; .9842 is the superseded
-1,608-row value. The same fixed 49-way probe does not directly transfer to an
+ᵃ Undefined because this feature defines the silent subset. ᵇ The same fixed
+49-way probe does not directly transfer to an
 open diagnosis vocabulary, although binary and retrieval baselines remain
 possible. Text channels require no fixed class list in principle; their MCR
 performance is not established by this table.
-ᶜ Recompute the silent rule-based value with the canonical matcher labels.
-The superseded silent value was approximately .53.
+ᶜ The canonical ledger retains the rule feature's all-case score and its
+paired gap against the readout, but not a standalone silent value; do not
+reconstruct it by subtraction from rounded numbers.
 
 **LLM 모니터 행 (08-24 실측, gpt-5.6-sol, 1,747/1,747 파싱, 실패 0).** 이
 행이 §4.2의 주장을 바꾼다. 규칙 기반 특징 .53 → 프런티어 모니터 .7233이면
@@ -459,12 +466,10 @@ calibration이나 유병률 추정을 결론내릴 수 없다;
 | 비교 | 부분집합 | 차이 | 95% CI |
 |---|---|---:|---|
 | 판독 − **LLM 모니터** | 침묵 (1,641, moved 218) | **+.147** | **[+.069, +.221]** |
-| 판독 − 체인 특징(최강) | 침묵 | ▢ | ▢ |
-| 판독 − 출력만 | 전체 (1,747, moved 321) | ▢ | ▢ |
+| 판독 − 체인 특징(최강) | 침묵 | **+.291** | **[+.230, +.354]** |
+| 판독 − 출력만 | 전체 (1,747, moved 321) | **+.090** | **[+.026, +.157]** |
 
-첫 줄은 canonical labels에서 0을 배제한다. 아래 두 줄은 이전 matcher의
-부트스트랩 결과였으므로 canonical labels로 다시 계산하기 전에는 인용하지
-않는다.
+세 비교 모두 canonical labels에서 0을 배제한다.
 
 **셋째 줄은 정직하게 적어야 한다** — 하한이 +2.6%p로 가장 아슬하다. 전체
 집합에서 판독이 "답이 제안을 말하는가"라는 공짜 특징보다 앞서는 폭은 실재하나
@@ -492,37 +497,50 @@ prompt_cot는 케이스 파일에 이미 있음)** — 나오면 "AUROC, MCR (be
 
 ## Table 4 — Correction ladder (§4.4)
 
-⚠️ r3–r6 수치는 generation-time matcher와 `moved=324` 기준이다. canonical
-`moved=321` 재집계 전에는 camera-ready가 아니다. 아래 표는 실험 구조와
-역사적 결과를 보존한다.
-
 **Table 4.** Second-pass accuracy with the wrong note still in place. Moved:
-the canonical 321 causally moved cases (the historical cells below still use
-324 and await rescoring). Capitulation: share of newly broken answers
-landing on the suggested diagnosis (first-pass counterpart .293).
+the canonical 321 causally moved cases. Capitulation: share of newly broken
+answers landing on the suggested diagnosis (first-pass counterpart .3209).
 
 | Rung | Appended | Overall | Moved | Capitulation |
 |---|---|---:|---:|---:|
-| r3 | reconsider request only | .424 | .460 | .450 |
-| r4 | + findings re-shown (control) | .417 | .398 | .644 |
-| r5 | + readout conclusion & grounds | .418 | .627 | .498 |
-| r6 | + probe class label | .467 | .830 | .527 |
-| r7 | + the model's own chain (▢ 실행 대기) | – | – | – |
+| r3 | reconsider request only | .4173 | .4548 | .4507 |
+| r4 | + findings re-shown (control) | .4139 | .4050 | .6410 |
+| r5 | + readout conclusion & grounds | .4098 | .6293 | .4940 |
+| r6 | + probe class label | .4568 | .8318 | .5212 |
 
-*First-pass baseline: overall .814, moved .012. r5 − r4 = +22.8 pp on moved
-(+17.7 pp on the 3× replication). r5 capitulation is 14.6 pp lower than r4
-(z = 6.1/10.6); r3, not r5, has the lowest absolute capitulation.*
+*First-pass baseline: overall .8117, moved .0031. r5 − r4 = +22.4 pp on moved;
+r5 capitulation is 14.7 pp lower than r4. r3, not r5, has the lowest absolute
+capitulation.*
+
+**Table 4a-r7.** Same 1,151 IDs for every rung; r7 is evaluated separately
+because it requires agreement between the direct and CoT first answers.
+
+| Rung | Overall second pass | Moved recovery | Newly broken |
+|---|---:|---:|---:|
+| r3 | .4639 | .5169 | 573 |
+| r4 | .4422 | .4494 | 592 |
+| r5 | .4049 | .5281 | 643 |
+| r6 | .4457 | **.7416** | 615 |
+| **r7: own CoT** | **.8810** | **.1236** | **58** |
+
+*The high r7 overall accuracy reflects answer preservation, not correction:
+its common-ID cohort is easier (first-pass .9201; moved prevalence 7.7%), and
+it recovers only 12.4% of moved cases. This is consistent with answer
+entrenchment but does not by itself establish a rationalization mechanism.*
 
 **Table 4d (예정) — 같은 사다리, MedCaseReasoning.** 어느 단이 존재하는지를
 코퍼스가 정한다. 이 표의 빈칸은 미실시가 아니라 **결과**다.
 
 | Rung | DDXPlus | MedCaseReasoning | 왜 |
 |---|:-:|:-:|---|
-| r3 reconsider only | .460 | ▢ 실행 가능 | 어댑터 불필요 |
-| r4 findings re-shown | .398 | ▢ 실행 가능 | 어댑터 불필요 |
-| r7 own chain | ▢ | ▢ (CoT 실행 필요) | GPU ~1–2h |
-| r5 readout conclusion | .627 | ▢ source-aligned 어댑터 필요 | 최초 MCR 실행은 target misalignment로 무효 |
-| r6 probe class label | .830 | **n.a. (현재 설계)** | DDXPlus의 고정 49-class probe를 직접 이전할 수 없음 |
+| r3 reconsider only | .4548 | ▢ 실행 가능 | 어댑터 불필요 |
+| r4 findings re-shown | .4050 | ▢ 실행 가능 | 어댑터 불필요 |
+| r7 own chain | .1236ᵈ | ▢ (CoT 실행 필요) | GPU ~1–2h |
+| r5 readout conclusion | .6293 | ▢ wrong-note activation 추출 필요 | source-aligned 어댑터 완료; 결론 판독은 예비 신호, 근거 접지는 실패 |
+| r6 probe class label | .8318 | **n.a. (현재 설계)** | DDXPlus의 고정 49-class probe를 직접 이전할 수 없음 |
+
+ᵈ DDXPlus r7 is the moved recovery on the 1,151-ID common cohort, not the
+full-run Table 4 population.
 
 *r6의 직접 이전 불가가 §4.4의 마지막 질문이다. DDXPlus만 보면 probe가 교정
 비교에서 이기고, 독자는 자연어 채널이 잉여라고 결론지어도 좋다. MCR에서는
@@ -537,19 +555,15 @@ landing on the suggested diagnosis (first-pass counterpart .293).
 자연어의 잠재적 자리는 열린 진단 어휘와 근거 제시 상황이지만, 전자는 MCR
 source-aligned 실험, 후자는 외부 판정 전에는 배포 권고가 아니다(Table 5).
 
-**r7이 이 명제를 완성한다 (▢ 실행 대기).** 지금까지 내부 되먹임의 비교
-대상은 "입력을 다시 보여주기"였고, 가장 명백한 경쟁자 — **모델 자신의 CoT를
-되먹이기** — 는 측정된 적이 없다. 그것 없이는 "내부를 되먹여라"가 서지
-않는다. 어댑터 불필요, DDXPlus CoT 산출물 재사용
-(`make_correction_ladder_cases.py --rungs 7 --cot-answers`). CoT 실행의 답이
-direct 첫 답과 다른 케이스는 제외되므로 r7의 모집단이 작다 — **같은 id로
-제한한 r3–r6과만 비교하고, 표에는 그 제한된 열을 따로 싣는다.**
+**r7은 가장 명백한 자기설명 경쟁자를 닫는다.** 모델 자신의 CoT를 되먹여도
+moved 회복은 12.4%에 그쳤다. 다만 CoT 실행의 답이 direct 첫 답과 다른 케이스를
+제외해 모집단이 쉬우므로, 반드시 같은 1,151 id로 제한한 r3–r6과만 비교한다.
 
 **r6은 제안하는 방법이 아니라 통제다 (08-25 명시).** 표를 처음 보는 독자는
 r6의 moved .830을 "probe가 이긴다"로 읽고, 곧바로 **"클래스명을 되먹이는
 건 정답을 쥐여 주는 것 아닌가"**라고 되묻는다. 그 되물음은 옳고, 수치가
-그대로 인정한다: probe argmax의 정답률은 moved에서 **.8642**(전체 .9599),
-AV 판독 결론은 **.5185**(전체 .6754)다. r6의 .830은 .8642를 거의 그대로
+그대로 인정한다: probe argmax의 정답률은 moved에서 **.8567**(전체 .9588),
+AV 판독 결론은 **.5047**다. r6의 .8318은 .8567을 거의 그대로
 따라간다. r6이 존재하는 이유가 바로 이것이다 — r5가 r4를 이긴 것이
 **문장이라서**인지 **내용이 맞아서**인지 가르려면 내용만 있고 문장이 없는
 단이 필요했고, Table 4b가 그 교란을 제거한다. 답은 내용이다.
@@ -563,31 +577,31 @@ AV 판독 결론은 **.5185**(전체 .6754)다. r6의 .830은 .8642를 거의 �
 없는 argmax 교체(.966)가 r6 재실행(.954)보다 낫다. r6은 사다리의 통제로서
 자기 일을 했고, 배포 권고에는 들어가지 않는다.
 
-**Table 4b.** r5 vs. r6 with fed-back content accuracy held fixed. Unseen
-replication set (n = 3,319), exact McNemar on discordant pairs.
+**Table 4b.** r5 vs. r6 with fed-back content accuracy held fixed in the
+canonical main run. Exact McNemar tests on discordant pairs.
 
 | Content (readout / probe) | n | r5 | r6 | r5-only : r6-only | p |
 |---|---:|---:|---:|:-:|---:|
-| correct / correct | 2,189 | .514 | .511 | 144 : 137 | .72 |
-| wrong / correct | 1,017 | .223 | .437 | 33 : 250 | <.001 |
-| wrong / wrong | 78 | .282 | .192 | 11 : 4 | .12 |
-| correct / wrong | 35 | .600 | .086 | 19 : 1 | <.001 |
+| correct / correct (moved) | 155 | .8774 | .9226 | 0 : 7 | .016 |
+| wrong / correct (moved) | 120 | .3500 | .9083 | 0 : 67 | <.001 |
+| wrong / wrong (moved) | 39 | .4872 | .3077 | 7 : 0 | .016 |
+| correct / wrong (moved) | 7 | .7143 | .4286 | 2 : 0 | .500 |
+| correct / correct (all) | 1,158 | .4914 | .4922 | 78 : 79 | 1.000 |
 
-*No additional form effect is detected once content accuracy is matched in
-row 1 (p=.72); this is not proof that the effect is exactly zero. The two
-one-sided rows reflect content accuracy, not form. Where form does show is
-row 3: when both channels hand over a wrong diagnosis, prose is the safer
-carrier (main run .400 vs .240, 8 : 0, p = .008) — a bare name has nothing to
-check against the chart, a conclusion with its grounds does.*
+*Across all correct/correct cases, no additional form effect is detected
+(p=1.000). Within moved cases, the bare probe label is ahead 7:0 when both
+contents are correct, but p=.016 does not pass the Bonferroni threshold .0125
+for four simultaneous cells. Do not claim either equivalence or a prose
+advantage from this table.*
 
 **Table 4c.** Deployment policies.
 
 | Policy | DDXPlus | 3× replication |
 |---|---:|---:|
-| Keep first answer | .814 | .824 |
-| Probe selects, argmax replaces | **.966** | **.973** |
-| Probe selects, re-ask r6 | .954 | .966 |
-| Probe selects, re-ask r5 | .915 | .927 |
+| Keep first answer | .8117 | .824 |
+| Probe selects, argmax replaces | **.9651** | **.973** |
+| Probe selects, re-ask r6 | .9531 | .966 |
+| Probe selects, re-ask r5 | .9141 | .927 |
 
 ---
 
@@ -598,8 +612,8 @@ check against the chart, a conclusion with its grounds does.*
 | Setting | Instrument | Basis (§) |
 |---|---|---|
 | Closed label set, training labels available | Supervised probe | 4.3, 4.4 |
-| Open diagnosis space | Source-aligned NL readout (candidate; validation pending) | 4.2, limitation |
-| Clinician-facing grounds required | NL readout plus external validation | 4.1, limitation |
+| Open diagnosis space | Source-aligned NL readout is a candidate; conclusion derangement and grounding remain open | 4.1, limitation |
+| Clinician-facing grounds required | Do not deploy the current readout; reader-trust is negative in the interim sample | 4.1, limitation |
 | Self-correction by re-asking | Neither — avoid | 4.4 |
 
 ---
@@ -618,19 +632,16 @@ check against the chart, a conclusion with its grounds does.*
 ## 남은 ▢ (표 전반)
 
 - **canonical matcher는 확정** — DDXPlus moved/adopted/third = 321/91/230,
-  MCR = 437/137/300. 남은 것은 wording·CoT·T4 downstream 표의 동일 matcher
-  재집계다.
-- T2: 주 실행 neutral rescore와 correct arm, corpus-300 non-overlap subset
+  MCR = 437/137/300. 남은 것은 wording·CoT 파생 표의 동일 matcher 재집계다.
+- T2: corpus-300 non-overlap subset
 - T3: final probability 셀 전사 완료; paired bootstrap CI/추세 검정 보강
-- T3b: rule-based silent, canonical probe all/silent, 나머지 두 paired CI
-- T1: shuffle-control 값, swap/memorization/specificity의 정확한 n,
-  답 위치 vanilla 행, MCR 산문 서술률 행
+- T3b: standalone rule-based silent 값은 원장에 없음; 필요하면 직접 재출력
+- T1: 외부 판정자의 438행 의미 재채점, MCR cue-position 계기 검증 및 산문
+  서술률 행
 - T3b: MCR 출력 채널 AUROC(CPU 가능), MCR CoT 채널(GPU), logit lens 칸
 - T4: **MCR 사다리(Table 4d)** — r3/r4는 지금 실행 가능, r7은 MCR CoT
-  실행 필요, r5는 source-aligned 결론 어댑터 대기, r6은 현재 고정-class
+  실행 필요, r5는 wrong-note activation 추출 필요, r6은 현재 고정-class
   설계에서 직접 이전 불가. `run_mcr_ladder.sh`
-- T4: **r7(자기 설명 되먹임)** — DDXPlus·MCR 양쪽. 이 단이 없으면 4.4는
-  "내부를 되먹여라"가 아니라 "뭐라도 되먹여라"까지만 주장한다
 
 ## v2 → v3에서 바뀐 것 (08-24)
 

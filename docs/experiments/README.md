@@ -25,18 +25,18 @@
 |---|---|---|---|
 | [01](01-readout-instrument-validation.md) | 판독 계기 검증 (Table 1) | 4.1 설명 | ✅ |
 | [02](02-layer-sweep.md) | 레이어 스윕 L16/24/32 | 4.1 | ✅ |
-| [03](03-note-intervention-ddxplus.md) | 의뢰 소견서 개입 — DDXPlus (Table 2) | 4.2 | 🔶 주 실행 neutral/correct 대기 |
+| [03](03-note-intervention-ddxplus.md) | 의뢰 소견서 개입 — DDXPlus (Table 2) | 4.2 | ✅ 주 실행 4조건 canonical |
 | [04](04-note-intervention-mcr.md) | 의뢰 소견서 개입 — MedCaseReasoning | 4.2 | ✅ |
 | [05](05-wording-variants.md) | 문구 4종 (화자 교체) | 4.2 | 🔶 canonical 재집계 |
 | [06](06-cot-duality.md) | CoT의 이중성 | 4.2 | 🔶 canonical 재집계 |
 | [07](07-chain-attribution-rule-based.md) | 체인 귀속 — 규칙 기반 3종 | 4.2 | 🔶 silent/CI 동기화 |
 | [08](08-cot-llm-monitor.md) | 체인 귀속 — LLM 모니터 | 4.2 | ✅ 08-24 |
 | [09](09-probe-detection-trajectory.md) | 프로브: 탐지·궤적·용량반응 (Table 3) | 4.3 | ✅ canonical 표·궤적 |
-| [10](10-readout-attribution.md) | 판독 귀속 (Table 3b) | 4.3 | 🔶 상세 특징 동기화 |
-| [11](11-channel-gap-bootstrap.md) | 채널 격차 신뢰구간 | 4.3 | 🔶 2개 CI 대기 |
-| [12](12-correction-ladder.md) | 교정 사다리 r3–r7 (Table 4) | 4.4 | 🔶 canonical 재집계 + r7 |
-| [13](13-mcr-conclusion-adapter.md) | MCR 결론 어댑터 (열린 어휘) | 4.1 | 🔄 08-24 재실행 |
-| [14](14-reader-trust.md) | 독자-신뢰 과제 | 4.1/4.3 | 🔄 진행 중 |
+| [10](10-readout-attribution.md) | 판독 귀속 (Table 3b) | 4.3 | ✅ canonical |
+| [11](11-channel-gap-bootstrap.md) | 채널 격차 신뢰구간 | 4.3 | ✅ canonical |
+| [12](12-correction-ladder.md) | 교정 사다리 r3–r7 (Table 4) | 4.4 | ✅ DDXPlus canonical; MCR 대기 |
+| [13](13-mcr-conclusion-adapter.md) | MCR 결론 어댑터 (열린 어휘) | 4.1 | 🔶 derangement 통제 대기 |
+| [14](14-reader-trust.md) | 독자-신뢰 과제 | 4.1/4.3 | 🔄 2,269/2,896 + shuffled 대기 |
 | [15](15-judge-infrastructure.md) | 외부 판정자 기반 | 공통 | ✅ |
 
 인용 전에는 [문서 감사 기록](AUDIT_2026-08-24.md)의 미해결 항목을 확인한다.

@@ -3,7 +3,7 @@
 **질문**: 의뢰 소견서 한 줄이 진단을 바꾸는가. 바꾼다면 그것이 **제안 때문**인가
 **문장이 늘어서**인가.
 
-**상태**: ✅ 완료. 정답 조건 칸만 ▢ 재실행 대기
+**상태**: ✅ 주 실행 four-arm canonical 완료.
 
 ---
 
@@ -64,14 +64,13 @@
 
 | 코퍼스 | n | 소견서 없음 | 위약 | **오답** | 정답 |
 |---|---:|---:|---:|---:|---:|
-| DDXPlus | 1,220 | **.9869** | .934ᵃ | **.7566** | ▢ᵇ |
+| DDXPlus | 1,220 | **.9869** | **.9377** | **.7566** | **.9246** |
 | DDXPlus 3× larger run | 3,343 | **.9800** | **.9306** | **.7670** | **.9180** |
 | MedCaseReasoning | 1,543 | **.9410** | **.8879** | **.6721** | **.8179** |
 
-ᵃ 주 실행 neutral은 canonical matcher 재집계 대기다. ᵇ 주 실행에는 같은
-모집단의 correct arm이 없어 재실행 대기다. 채워지지 않은 칸을 corpus-300의
-값으로 대체하지 않는다.
-
+- 주 실행의 오답 소견서 비용은 **23.03%p**, 위약 비용은 **4.92%p**, 제안
+  고유 효과는 **18.11%p**, 총 비용/위약 비용은 **4.68×**다.
+- 정답 소견서도 **6.23%p**를 깎는다.
 - 3× larger run의 오답 소견서 비용은 **21.30%p**, 위약 비용은 **4.94%p**,
   제안 고유 효과는 **16.36%p**, 총 비용/위약 비용은 **4.31×**다.
 - MCR도 canonical matcher에서 총 비용 **26.89%p**, 위약 비용 **5.31%p**,
@@ -96,14 +95,12 @@ canonical no-note 정확도가 1이 아니다. `cases answered correctly with no
 구간이 크기 때문에, 출력 복사 휴리스틱만으로는 원인을 찾을 수 없다.
 [10](10-readout-attribution.md)·[11](11-channel-gap-bootstrap.md)이 사는 곳이다.
 
-## ▢ 정답 조건 칸 — 08-24 감사에서 걸린 오류
+## 정답 조건 칸 — 08-24 감사와 재실행
 
 이 칸에 적혀 있던 .932는 **이 행의 값이 아니었다.** 1,747건 실행의 답 파일
 어디에도 `correct` 조건이 없고, .9313은 corpus-300의 정답 조건을 4,995행
-전체(누출 미필터)에서 잰 값이다 — 실행도 모집단도 다르다. 나머지 세 칸은
-canonical no-note/wrong은 .9869/.7566이다. 재실행:
-`scripts/run_ddxplus_correct_arm.sh`
-(GPU 1시간 내외).
+전체(누출 미필터)에서 잰 값이다 — 실행도 모집단도 다르다. 동일 fixed cohort로
+neutral/correct를 재실행하고 canonical matcher로 채점해 **.9377/.9246**을 얻었다.
 
 ## Table 2를 읽는 법
 
@@ -121,9 +118,9 @@ canonical no-note/wrong은 .9869/.7566이다. 재실행:
 
 ## 남은 것
 
-- ▢ 주 실행 neutral canonical rescore와 correct arm 실행
 - ▢ corpus-300에서 원 실행 base ID를 뺀 non-overlap 민감도 분석
-- ▢ wording/CoT/correction ladder를 canonical matcher로 재집계
+- ▢ wording/CoT 파생 표를 canonical matcher로 재집계. correction ladder의
+  주 표와 공통-ID r7은 재집계 완료됐다.
 - ▢ `analyze_hint_effect.py`의 “correct arm took≈0 by construction” 설명은
   canonical no-note 실패가 생긴 지금 성립하지 않으므로 수정
 
