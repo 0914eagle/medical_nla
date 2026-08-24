@@ -1,18 +1,15 @@
-"""Figure 4 -- the anchoring trajectory, drawn from analyze_trajectory --dump.
+"""Figure 4 -- decoded trajectory under the wrong referral note.
 
-Two panels. (a) p(gold) across the six prompt landmarks for the three
-behavioural groups, each with its own no-note counterfactual as a grey twin;
-the vertical gap between a line and its twin is the note's internal cost, and
-the figure's message is that the gap never brings any group's gold below the
-suggestion. (b) the flip-point histogram, dominated by the `never` bar
-(268 of 324 moved cases).
+Three panels separate three claims that the old two-panel figure conflated:
 
-The expected shape written into the first spec -- the suggestion's mass
-overtaking the gold somewhere mid-prompt -- is NOT what was measured, and the
-figure must not be drawn to suggest it. What was measured is sustain + rift:
-every curve stays gold-dominated to the final token while the emitted answer
-is wrong by construction of the population. The crossing the reader expects
-to find is the one thing the figure shows does not happen.
+* absolute decoded gold (and adopted-group suggestion) probability;
+* the paired note effect, wrong-note minus no-note, on the same cases;
+* the first landmark where the suggestion becomes probe top-1.
+
+The final `never suggestion top-1` bar does not imply that gold was top-1 at
+every landmark: a third diagnosis may have been top-1. The analyzer's next
+canonical rerun will update the bar counts after answer-matcher corrections;
+this script always reads them from the dump and never hard-codes 268/324.
 
 Drawn from the dump JSON rather than by re-running the probes, so the plotted
 values are the reported values by construction. Black-and-white safe: groups
@@ -68,18 +65,23 @@ def main() -> None:
     landmarks: list[str] = data["landmarks"]
     xs = list(range(len(landmarks)))
 
-    fig, (ax_curve, ax_flip) = plt.subplots(
-        1, 2, figsize=(8.0, 3.1), gridspec_kw={"width_ratios": [2.2, 1.0]}
+    fig, (ax_curve, ax_delta, ax_flip) = plt.subplots(
+        1, 3, figsize=(10.2, 3.0), gridspec_kw={"width_ratios": [1.8, 1.8, 1.15]}
     )
 
     for group, (label, ls, marker) in GROUP_STYLE.items():
         cells = data["groups"].get(group, {})
         ys = [cells[r]["p_gold"] if r in cells else None for r in landmarks]
         ax_curve.plot(xs, ys, ls, marker=marker, ms=4, lw=1.4, color="black", label=label)
-        # The counterfactual twin. The note landmark has no twin -- the note
-        # does not exist in the no-note arm -- so the grey line skips it.
-        cf = [cells[r].get("cf_p_gold") if r in cells else None for r in landmarks]
-        ax_curve.plot(xs, cf, ls, lw=0.9, color="0.65")
+        delta = [
+            cells[r]["p_gold"] - cells[r]["cf_p_gold"]
+            if r in cells and "cf_p_gold" in cells[r]
+            else None
+            for r in landmarks
+        ]
+        ax_delta.plot(
+            xs, delta, ls, marker=marker, ms=4, lw=1.4, color="black", label=label
+        )
     if args.suggestion_line:
         # A different marker from the adopted group's p(gold) line, or the two
         # lines that must be read against each other become indistinguishable
@@ -93,11 +95,19 @@ def main() -> None:
 
     ax_curve.set_xticks(xs, [LANDMARK_LABEL.get(r, r) for r in landmarks], fontsize=7)
     ax_curve.set_ylim(0, 1.0)
-    ax_curve.set_ylabel("probe mass on the gold diagnosis", fontsize=8)
+    ax_curve.set_ylabel("Mean probe probability", fontsize=8)
     ax_curve.tick_params(labelsize=7)
     ax_curve.legend(fontsize=6.5, frameon=False, loc="lower left")
     ax_curve.spines[["top", "right"]].set_visible(False)
-    ax_curve.set_title("(a) the state holds the gold; grey = same cases, no note", fontsize=8)
+    ax_curve.set_title("(a) Decoded signal under the wrong note", fontsize=8)
+
+    ax_delta.axhline(0, color="0.65", lw=0.8)
+    ax_delta.set_xticks(xs, [LANDMARK_LABEL.get(r, r) for r in landmarks], fontsize=7)
+    ax_delta.set_ylabel(r"Note effect on gold: $p_{wrong}-p_{none}$", fontsize=8)
+    ax_delta.tick_params(labelsize=7)
+    ax_delta.legend(fontsize=6.5, frameon=False, loc="lower left")
+    ax_delta.spines[["top", "right"]].set_visible(False)
+    ax_delta.set_title("(b) Paired internal cost of the note", fontsize=8)
 
     flips = data["flips"]
     order = [*landmarks, "never"]
@@ -114,7 +124,12 @@ def main() -> None:
             )
     # Single-line labels rotated, not the two-line labels of panel (a): seven
     # narrow bars cannot host them side by side without collisions.
-    flat = {"last_cue": "last finding", "note": "note", "final": "final token"}
+    flat = {
+        "last_cue": "last finding",
+        "note": "note",
+        "final": "final token",
+        "never": "suggestion never top-1",
+    }
     ax_flip.set_xticks(range(len(order)))
     ax_flip.set_xticklabels(
         [flat.get(r, LANDMARK_LABEL.get(r, r).replace("\n", " ")) for r in order],
@@ -123,7 +138,7 @@ def main() -> None:
     ax_flip.set_ylabel("moved cases", fontsize=8)
     ax_flip.tick_params(labelsize=7)
     ax_flip.spines[["top", "right"]].set_visible(False)
-    ax_flip.set_title("(b) first landmark reading the suggestion", fontsize=8)
+    ax_flip.set_title("(c) First suggestion top-1 landmark", fontsize=8)
 
     fig.tight_layout()
     fig.savefig(args.output, dpi=300, bbox_inches="tight")

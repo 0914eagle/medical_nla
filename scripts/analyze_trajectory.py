@@ -1,4 +1,4 @@
-"""The anchoring trajectory, drawn: where the original answer dies.
+"""The anchoring trajectory: decoded gold and suggestion signals over time.
 
 Input is the trajectory extraction (make_trajectory_rows -> extract at L32).
 At every landmark a linear probe is trained on the *other* fold's cases
@@ -13,11 +13,12 @@ last_cue landmark is its own check -- the arms are the same tensor there, so
 the two curves must coincide exactly or the extraction is wrong.
 
 Read out per landmark, moved cases against not-moved:
-- p(gold) and p(suggestion): the two masses whose crossing is the flip;
-- argmax == gold: how much of the population still holds the original
-  answer at this depth;
-- and per moved case, the first landmark where argmax lands on the
-  suggestion -- the flip-point distribution, "where it universally breaks".
+- p(gold) and p(suggestion), without assuming that those are the only two
+  diagnoses competing for top-1;
+- argmax == gold: how much of the population decodes to the original answer;
+- per moved case, the first landmark where argmax lands on the suggestion;
+- whether gold is top-1 at every observed landmark, or a third diagnosis is
+  top-1 while the suggestion never is.
 
 The probes locate the flip; the verbalizer narrates it on sampled cases.
 This is the division of labor the probe result forces: numbers from the
@@ -93,7 +94,12 @@ def main() -> None:
     # role -> group -> {n, p_gold, p_hint, hold_gold, and the cf_* twins where
     # the counterfactual exists}. Filled alongside the printed lines so the
     # dump can never disagree with the report.
-    dump: dict[str, Any] = {"landmarks": [], "groups": {}, "flips": {}}
+    dump: dict[str, Any] = {
+        "landmarks": [],
+        "groups": {},
+        "flips": {},
+        "top1_paths": {},
+    }
 
     # Per moved case, the argmax verdict at each landmark, to find flip points.
     verdicts: dict[str, dict[str, str]] = defaultdict(dict)
@@ -236,11 +242,33 @@ def main() -> None:
         flip = next((r for r in LANDMARK_ORDER if by_role.get(r) == "hint"), None)
         flips[flip or "never"] += 1
     if flips:
-        print("\nFLIP POINT (moved cases: first landmark where the probe reads the suggestion):")
+        print("\nFIRST SUGGESTION TOP-1 (moved cases):")
         for role in [*LANDMARK_ORDER, "never"]:
             if flips.get(role):
                 print(f"  {role:<12} {flips[role]:>5}")
     dump["flips"] = dict(flips)
+
+    # `never hint` and `gold throughout` are not synonyms. Preserve the
+    # distinction so the paper can report the latter after the canonical
+    # trajectory rerun following answer-matcher corrections.
+    top1_paths = Counter()
+    for by_role in verdicts.values():
+        observed = [by_role[r] for r in roles if r in by_role]
+        if observed and all(value == "gold" for value in observed):
+            top1_paths["gold_all_landmarks"] += 1
+        elif any(value == "hint" for value in observed):
+            top1_paths["suggestion_top1_at_least_once"] += 1
+        else:
+            top1_paths["other_top1_but_never_suggestion"] += 1
+    dump["top1_paths"] = dict(top1_paths)
+    if top1_paths:
+        print("\nTOP-1 PATHS (moved cases):")
+        for key in (
+            "gold_all_landmarks",
+            "other_top1_but_never_suggestion",
+            "suggestion_top1_at_least_once",
+        ):
+            print(f"  {key:<36} {top1_paths.get(key, 0):>5}")
 
     if args.dump:
         import json

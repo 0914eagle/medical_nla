@@ -260,9 +260,9 @@ Finding-position activations are bit-identical across arms by construction.
 
 | Corpus | n | No note | Neutral | Wrong | Correct |
 |---|---:|---:|---:|---:|---:|
-| DDXPlus | 1,220 | .991 | .934 | **.760** | ▢ᶜ |
+| DDXPlus | 1,220 | **.9869** | .934ᶠ | **.7566** | ▢ᶜ |
 | DDXPlus, 3× replication | 3,343 | .985 | .932 | **.771** | .920 |
-| MedCaseReasoning | 1,543ᵉ | .981 | .926 | **.703** | .839 |
+| MedCaseReasoning | 1,543ᵉ | **.9410** | **.8879** | **.6721** | **.8179** |
 
 ᵉ **모집단을 본문에 밝힌다 (08-24).** 1,543은 MCR 12,620건 중 소스 모델이
 소견서 없이 맞힌 전부다 — **정확도 0.122**. 이 행은 "MCR의 12%"가 아니라
@@ -274,16 +274,20 @@ Finding-position activations are bit-identical across arms by construction.
 ᶜ **08-24 감사에서 걸린 오류.** 이 칸에 적혀 있던 .932는 이 행의 값이 아니다.
 1,747건 실행의 답 파일 어디에도 `correct` 조건이 없고(조건 전수 스캔,
 08-24), .9313은 **corpus-300의 정답 조건을 4,995건 전체(누출 미필터)에서
-잰 값**이다 — 실행도 모집단 필터도 다르다. 나머지 세 칸은 모두 1,747건
-실행의 clean n=1,220이 맞다(.9910 / .9344 / .7598로 재확인). 정답 조건만
-같은 케이스 파일로 다시 실행한다: `scripts/run_ddxplus_correct_arm.sh`
+잰 값**이다 — 실행도 모집단 필터도 다르다. 새 matcher 정본은 no-note
+.9869, wrong .7566이며 neutral은 재집계 대기다. 정답 조건만 같은 케이스
+파일로 다시 실행한다: `scripts/run_ddxplus_correct_arm.sh`
 (한 조건 1,747답, GPU 1시간 내외). 그 전까지 이 칸은 비워 둔다.
 
-*The wrong note costs 23.1 pp on DDXPlus and 27.8 pp on MedCaseReasoning;
-the neutral note costs 5.7 and 5.5 pp, so the suggestion-specific effect is
-17.4 and 22.3 pp — 4.1× and 5.1× the cost of insertion alone. The 3×
-replication row reproduces the ratio on an independent draw from the same
-corpus: 21.5 pp against 5.3 pp, 4.1×.*
+ᶠ Neutral-arm 값은 새 matcher로 다시 집계하기 전의 값이다. No-note와 wrong은
+전부 재채점한 정본이며, neutral은 재집계 뒤 교체한다.
+
+*Under the canonical matcher, the wrong note costs 23.0 pp on DDXPlus and
+26.9 pp on MedCaseReasoning. MCR's neutral-note cost is 5.3 pp, giving a
+5.06× total-cost ratio and a 21.6 pp suggestion-specific effect. The canonical
+DDXPlus neutral-arm ratio awaits the neutral rescore. The 3× replication row
+retains its previously reported within-run 4.1× ratio until that run is also
+rescored.*
 
 **두 번째 행은 손실이 아니라 소득이다 (08-24).** corpus-300은 네 조건을
 자기 안에 다 갖고 있어 **자급자족하는 재현 행**이고, 전체/위약 배수가
@@ -303,8 +307,8 @@ MCR에서 14.2pp(.981→.839)를 깎는다.
 
 | Corpus | Moved | To the suggestion | To a third diagnosis |
 |---|---:|---:|---:|
-| DDXPlus | 324 | 95 | 229 |
-| MedCaseReasoning | 441 | 138 | 303 |
+| DDXPlus | **321** | **91** | **230** |
+| MedCaseReasoning | **437** | **137** | **300** |
 
 **Table 2c** (지면 되면; 아니면 부록). Speaker/wording variants, DDXPlus,
 n = 1,747 each.
@@ -377,31 +381,38 @@ baseline의 가능성까지 부정하지 않는다.
 **적용 가능 여부 열**로 — 값이 아니라 정의의 문제라서.
 
 **Table 3b.** Within-diagnosis AUROC for identifying moved cases from the
-wrong-note run alone. Silent: cases whose answer differs from the suggestion
-(70% of moved), where output-only signals are blind by construction. The
-last column states whether the channel is definable when the diagnosis space
-is open (6,934 labels, most occurring once).
+wrong-note run alone. All: n=1,747. Silent: n=1,641 (218 moved), restricted to
+cases whose answer does not name the suggestion, where the output-copying
+heuristic is blind by construction. `Task supervision` makes explicit that
+the fixed-class probe and the text channels do not operate under identical
+assumptions.
 
-| Channel | Internals | AUROC, all | AUROC, silent | Open vocab. |
-|---|:-:|---:|---:|:-:|
-| Chain-of-thought features | – | .53 | .53 | yes |
-| Answer equals suggestion | – | .664 | –ᵃ | yes |
-| LLM monitor over the chain | – | .721 | .687 | yes |
-| Verified NL readout (ours) | ✓ | .755 | .842 | yes |
-| Linear probe, final token | ✓ | **.924** | **.984** | noᵇ |
+| Channel | Input access | Task supervision | AUROC, all | AUROC, silent |
+|---|---|---|---:|---:|
+| Answer equals suggestion | Output text | none | ▢ᶜ | n.a.ᵃ |
+| Best rule-based CoT feature | CoT text | none | ▢ᶜ | ▢ᶜ |
+| LLM monitor | Vignette + note + CoT + answer | external LLM | **.7233** | **.6829** |
+| NL activation readout (ours) | Hidden state → text | readout adapter | **.7506** | **.8302** |
+| Linear diagnosis probe | Hidden state | fixed 49-class labels | **▢ᵇ** | **▢ᵇ** |
 
-ᵃ Undefined on the silent subset: the feature is the subset's defining
-condition. ᵇ The same fixed 49-way diagnosis probe does not directly transfer;
-other binary or open-vocabulary representation baselines remain possible.
+ᵃ Undefined because this feature defines the silent subset. ᵇ Recompute on
+the canonical 1,641-row silent subset before citation; .9842 is the superseded
+1,608-row value. The same fixed 49-way probe does not directly transfer to an
+open diagnosis vocabulary, although binary and retrieval baselines remain
+possible. Text channels require no fixed class list in principle; their MCR
+performance is not established by this table.
+ᶜ Recompute with the canonical matcher labels. The superseded values were
+.664 and .53; they remain useful historical checks but are not camera-ready.
 
 **LLM 모니터 행 (08-24 실측, gpt-5.6-sol, 1,747/1,747 파싱, 실패 0).** 이
-행이 §4.2의 주장을 바꾼다. 규칙 기반 특징 .53 → 프런티어 모니터 .721이면
+행이 §4.2의 주장을 바꾼다. 규칙 기반 특징 .53 → 프런티어 모니터 .7233이면
 차이가 크므로 **"체인은 귀속 신호를 담지 않는다"는 더 이상 못 쓴다** — 우리
 채점기가 약한 부분이었고, 같은 체인에서 강한 독자는 실제로 신호를 끌어낸다.
-주장은 이진에서 정량으로 바뀐다. 같은 정본 침묵 구역(n=1,608)에서 모니터
-.687 대 판독 .842(+15.5%p) 대 프로브 .984(+29.7%p)다. 모니터 자체의 다른
-침묵 정의(n=1,652)에서는 .695다. 그리고 체인이 **출력 위에 더해주는
-몫**은 +5.7%p뿐이다 (.664 → .721, 전체 체인을 다 보여주고).
+주장은 이진에서 정량으로 바뀐다. 같은 정본 침묵 구역(n=1,641)에서 모니터
+.6829 대 판독 .8302(+14.7%p)다. 모니터 자체의 다른 침묵 정의(n=1,656)에서는
+.6930이다. `.664 → .7233`은 강한 텍스트 모니터 전체와 단순 출력 휴리스틱의
+차이지, **CoT만의 순수 증분이 아니다** — 그것은 동일 판정자의 no-CoT arm이
+필요하다.
 모니터는 소견서를 보므로 "답 == 제안"을 스스로 계산할 수 있고, all 열의
 일부는 그것이다 — 그걸 뺀 값이 silent 열이다. 루브릭은 판정자에게 유리하게
 짰다: "답이 제안과 달라도 움직인 것일 수 있다"를 명시적으로 알려주므로,
@@ -422,7 +433,7 @@ other binary or open-vocabulary representation baselines remain possible.
 
 | 비교 | 부분집합 | 차이 | 95% CI |
 |---|---|---:|---|
-| 판독 − **LLM 모니터** | 침묵 (1,608, moved 217) | **+.155** | **[+.080, +.229]** |
+| 판독 − **LLM 모니터** | 침묵 (1,641, moved 218) | **+.147** | **[+.069, +.221]** |
 | 판독 − 체인 특징(최강) | 침묵 | +.291 | [+.230, +.354] |
 | 판독 − 출력만 | 전체 (1,747, moved 324) | +.090 | [+.026, +.157] |
 
@@ -433,11 +444,11 @@ other binary or open-vocabulary representation baselines remain possible.
 크지 않다. **판독의 자리는 침묵 구역**이고, 거기서 그 공짜 특징은 정의상
 AUROC 0.5다.
 
-*침묵 구역 정의가 두 가지다.* 이 덤프는 `answer_names(wrong, hint)`로
-자르고(1,608건), 모니터 라벨 파일은 `took_the_hint`로 자른다(1,652건) —
-후자에는 "무소견서 답이 이미 제안을 부르지 않았다"가 추가된다. 44건 차이이며
-모니터 AUROC가 .6870 대 .6951로 갈린다. **비교 자체는 두 채널이 같은 케이스를
-보므로 유효**하고, 본문 각주에 어느 정의인지 밝힌다.
+*침묵 구역 정의가 두 가지다.* 정본 채널 덤프는
+`answer_names(wrong, hint)`로 자르고(1,641건), 모니터 라벨 파일은
+`took_the_hint`로 자른다(1,656건). 15건 차이는 무소견서 arm이 이미 제안을
+부른 진짜 사례이며, 모니터 AUROC는 .6829 대 .6930이다. 채널 간 비교는 모든
+채널이 같은 1,641건을 볼 때만 인용한다.
 
 *행 순서는 '내부를 안 보는 것 → 보는 것'으로, 프로브를 맨 아래로 옮겼다.
 표가 주장하는 것이 순위가 아니라 **경계**이기 때문이다.*
@@ -563,11 +574,14 @@ check against the chart, a conclusion with its grounds does.*
 
 ## 그림이 나르는 것 (표에 안 넣는 수치)
 
-- 위치별 비용 곡선(랜드마크 6지점, 그룹 3종) → **Figure 4**. 최종 토큰의
-  세 값과 never-flip 268/324는 **Table 3으로 옮겼다** — 그림은 모양을,
-  표는 인용 가능한 값을 나른다.
+- 절대 decoded signal + no-note 대비 paired cost + suggestion-top1 최초 지점
+  → **Figure 4**. `never suggestion top-1`은 `gold top-1 throughout`와 다르므로
+  analyzer가 두 범주를 별도로 출력한다. 321건 정본 재실행 전에는 268/324를
+  본문이나 캡션에 인용하지 않는다.
 - 사례 서술(심근염 케이스) → **Figure 5**
-- layer×position → **Figure 2**
+- 서로 다른 실험을 한 heatmap에 세로 비교하지 않는다 → **Figure 2**는
+  (a) cue-token/held-out cue strings와 (b) final-prompt-token/diagnosis-heldout
+  sweep을 독립 패널로 표시한다.
 
 ## 남은 ▢ (표 전반)
 
