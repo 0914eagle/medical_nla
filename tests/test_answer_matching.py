@@ -150,3 +150,22 @@ def test_legitimate_containment_survives_the_boundary_rule():
     assert is_correct("Acute bronchitis", "Bronchitis", [])
     assert is_correct("Otitis media", "Acute otitis media", [])
     assert is_correct("Iron Deficiency Anemia", "Anemia", [])
+
+
+def test_a_plural_suffix_is_not_a_different_disease():
+    """Boundaries alone re-scored 64 answers wrong over a trailing s."""
+    assert is_correct("Cluster headaches", "Cluster headache", [])
+    assert is_correct("Anxiety disorder with panic attacks", "Panic attack", [])
+    # And the plural does not reopen the collision it was added beside.
+    from src.ddxplus_aliases import aliases_for
+
+    assert not is_correct("Pericarditis", "Pulmonary embolism",
+                          aliases_for("Pulmonary embolism"))
+
+
+def test_a_prefix_does_not_make_two_free_text_labels_the_same():
+    """MedCaseReasoning's 6,934 labels are where prefixes collide most."""
+    assert not is_correct("Dermoid cyst", "Epidermoid cyst", [])
+    assert not is_correct("Lipoma", "Osteolipoma", [])
+    assert not is_correct("Myocarditis", "Perimyocarditis", [])
+    assert not is_correct("Brucellosis", "Neurobrucellosis", [])

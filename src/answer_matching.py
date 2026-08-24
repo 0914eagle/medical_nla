@@ -113,23 +113,28 @@ def content_tokens(text: str) -> set[str]:
 def _contains_at_word_boundary(haystack: str, needle: str) -> bool:
     """`needle` occurs in `haystack` as whole words, not inside a longer one.
 
-    Plain containment scored three different wrong answers as correct, all of
-    them clinically opposite to the gold:
+    Plain containment scored wrong answers as correct whenever one name sat
+    inside another, and the three it hit were clinically opposite to the gold:
+    "pe" (an alias of pulmonary embolism) inside "pericarditis"; "stable
+    angina" inside "unstable angina", the chronic disease matching the acute
+    coronary syndrome; "bronchitis" inside "laryngotracheobronchitis", croup
+    read as bronchitis. On MedCaseReasoning's free-text labels the same rule
+    matched "dermoid cyst" inside "epidermoid cyst", "lipoma" inside
+    "osteolipoma" and "neoplastic" inside "paraneoplastic".
 
-        "pe" (an alias of pulmonary embolism) inside "**pe**ricarditis" -- 26
-        cases of the adoption count, and every pulmonary-embolism case answered
-        "pericarditis" was scored correct
-        "stable angina" inside "un**stable angina**" -- the acute coronary
-        syndrome read as the chronic one
-        "bronchitis" inside "laryngotracheo**bronchitis**" -- croup read as
-        bronchitis
+    The identical collision was already fixed once in `gold_is_written_in`,
+    where "PE" matched inside "the posterior as-pe-ct of the ankle". It was not
+    fixed here, in the function that scores every answer in the paper.
 
-    The same collision was already fixed once in `gold_is_written_in`, where
-    "PE" matched inside "the posterior as-**pe**-ct of the ankle". It was not
-    fixed here, and this is the function that scores every answer.
+    A trailing plural is allowed on the needle. Boundaries alone were too
+    strict in that one direction -- "cluster headache" stopped matching
+    "cluster headaches" and "panic attack" stopped matching "panic attacks",
+    re-scoring sixty-four answers wrong over a suffix. It reopens nothing:
+    "pe" pluralised is "pes", which still needs a boundary and still does not
+    occur in "pericarditis".
     """
     return re.search(
-        rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", haystack
+        rf"(?<![a-z0-9]){re.escape(needle)}(?:es|s)?(?![a-z0-9])", haystack
     ) is not None
 
 

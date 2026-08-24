@@ -67,6 +67,21 @@ _ALIASES: dict[str, tuple[str, ...]] = {
         "esophageal rupture",
         "spontaneous esophageal perforation",
     ),
+    # "Sinusitis" and "rhinosinusitis" are one entity; rhinosinusitis is the
+    # term the guidelines settled on. 105 answers of a bare "Sinusitis" were
+    # scored wrong once word boundaries went in, because the "rhino-" prefix
+    # sits between the words -- a morphological accident, not a different
+    # disease.
+    #
+    # Only the modifier-carrying forms are listed, and that is enough: bare
+    # "Sinusitis" reaches the gold through "acute sinusitis" by the
+    # less-specific-answer half of bidirectional containment, the same route
+    # that accepts "Otitis media" for "Acute otitis media". Listing bare
+    # "sinusitis" as well would go further than intended -- "Chronic
+    # sinusitis" would then contain it and match an acute gold, collapsing the
+    # distinction the label exists to carry.
+    "acute rhinosinusitis": ("acute sinusitis",),
+    "chronic rhinosinusitis": ("chronic sinusitis",),
     "whooping cough": ("pertussis", "bordetella pertussis infection"),
     "chagas": ("chagas disease", "american trypanosomiasis"),
     "scombroid food poisoning": ("scombroid poisoning", "histamine fish poisoning"),

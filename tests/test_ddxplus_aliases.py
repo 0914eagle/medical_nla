@@ -53,3 +53,22 @@ def _all_keys():
 
 def test_labels_without_aliases_are_listed_for_review():
     assert diagnoses_without_aliases(["Croup", "URTI"]) == ["Croup"]
+
+
+def test_sinusitis_reaches_rhinosinusitis_without_collapsing_the_modifier():
+    """The alias restores 105 answers without accepting the wrong modifier.
+
+    Word boundaries stopped bare "Sinusitis" matching "Acute rhinosinusitis",
+    since the "rhino-" prefix sits between the words. Listing "acute
+    sinusitis" is enough: the bare answer reaches it as a less specific name,
+    the route that already accepts "Otitis media" for "Acute otitis media".
+    Listing bare "sinusitis" too would let "Chronic sinusitis" contain it and
+    match an acute gold, which is the one distinction the label carries.
+    """
+    acute = aliases_for("Acute rhinosinusitis")
+    chronic = aliases_for("Chronic rhinosinusitis")
+    assert is_correct("Sinusitis", "Acute rhinosinusitis", acute)
+    assert is_correct("Acute sinusitis", "Acute rhinosinusitis", acute)
+    assert is_correct("Chronic sinusitis", "Chronic rhinosinusitis", chronic)
+    assert not is_correct("Chronic sinusitis", "Acute rhinosinusitis", acute)
+    assert not is_correct("Acute sinusitis", "Chronic rhinosinusitis", chronic)
