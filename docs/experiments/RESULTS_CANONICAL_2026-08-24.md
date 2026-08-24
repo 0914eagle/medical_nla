@@ -51,7 +51,8 @@
 
 - 형식 준수 0.05 → 1.00, 출력 길이 1,557자 → 52자 (본문 문장)
 - 진단명 수: vanilla 1.15개/판독, v2 1.02개 → 이름 하나당 .524 대 .638
-- ▢ 438행 의미 채점 L24 A+B = **.731** — 채점 주체 표기 보류
+- ▢ 438행 의미 채점 L24 A+B = **.731** — 채점 주체는 **손채점**(아래 참조),
+  외부 판정자 대체 대기
 - 셔플 대조 출처: `docs/results/readout_first_results_2026-08-21.md:170`
 
 **어댑터: `ddxplus_L24_s17`, 1에폭** (공통 레시피의 3에폭이 아니다).
@@ -85,6 +86,25 @@ n=727/800으로 분할·타깃·어댑터가 다르다.
 **438행 전수 의미 채점 (2026-08-17)**: A+B가 L16 34.0% / **L24 73.1%** /
 L32 55.7%, 완전 오답 D가 13.9% / **0.9%** / 8.4%. ⚠️ 그 스윕은 L16/24가
 2에폭, L32가 3에폭이라 레이어 효과에 에폭 효과가 섞여 있다.
+
+**채점 계기 복원 (08-24).** 비어 있던 채점 주체 칸의 정체가 확인됐다.
+
+| 층 | 파일 | 쌍 | A / B / C / D | 행 가중 A+B |
+|---|---|---:|---|---:|
+| L16_v5 | `results_snapshot/L16_v5_heldout_pairs_hand_labeled.jsonl` | 72 | 8 / 17 / 39 / 8 | **.3402** |
+| L24_v5 | `results_snapshot/L24_v5_heldout_pairs_hand_labeled.jsonl` | 74 | 9 / 37 / 24 / 4 | **.7306** |
+| v4 (L32) | `results_snapshot/v4_heldout_pairs_hand_labeled.jsonl` | 92 | 11 / 38 / 37 / 6 | **.5571** |
+
+계기: `scripts/analyze_readout_semantic_judgements.py --index .. --hand ..`.
+`.340 / .731 / .557`을 넷째 자리까지 재현한다 — **쌍 단위 손라벨을 행 수로
+가중해 A+B를 센 값**이다. 칸이 비어 있던 것은 누락이 아니라 손채점이라서다.
+
+- 438행은 고유 (gold, readout) 쌍 **92 / 72 / 74**로 접힌다. DDXPlus가 고정
+  문진표에서 소견을 렌더링하므로 같은 쌍이 반복된다. 판정자 #3의 실제 규모는
+  `judge_jobs`의 n=1,314가 아니라 **238쌍**이고, dry-run 견적 **~$0.09**다.
+- 외부 판정 결과는 손라벨을 덮어쓰지 않고 나란히 싣는다. 두 채점자가 같은
+  238쌍을 봤다는 사실이 어느 한쪽 값보다 강한 근거다. 표에는 판정자 행과
+  모델 id·날짜가 들어가고, 손채점 행은 감사 기록에 남는다.
 
 ▢ 답 위치는 스윕한 적이 없다. L32는 선택이 아니라 상속(AV 체크포인트가 L32).
 
@@ -521,15 +541,33 @@ Pericarditis).
 
 ## 11. 남은 ▢
 
+실행 순서와 의존 관계는 `RUNBOOK_REMAINING_WORK.md`에 있다. 먼저
+`scripts/preflight_remaining_work.sh`가 각 항목의 입력이 실제로 있는지
+디스크에 물어본다 — 아래 표는 문서를 보고 적은 것이고, 파일만이 확정할 수
+있는 칸이 둘 있다(corpus-300 provenance, reader-trust 진행률).
+
 | 항목 | 자원 | 상태 |
 |---|---|---|
-| no-CoT arm 판정 (CoT 순수 기여 분리) | codex ~4h | 빌더 필요 |
+| no-CoT arm 판정 (CoT 순수 기여 분리) | codex ~4h | **빌더 완성** (`--no-cot`) |
 | reader-trust 완주 | codex | 2,269/2,896 |
 | reader-trust `shuffled` 통제 | codex | 케이스 빌더 완성 |
-| MCR readout derangement 통제 | CPU | 미착수 |
+| MCR readout derangement 통제 | CPU | 미착수 — **GPU 항목의 게이트** |
 | wording 4종 canonical 재채점 | CPU | 미착수 |
 | CoT 이중성 canonical 재채점 | CPU | 미착수 |
+| Figure 5 `64.1%` canonical 재집계 | CPU | 미착수 (분석기는 이미 canonical) |
+| Table 3 페어드 CI·추세 검정 | CPU | **계기 완성** (`src/paired_stats.py`) |
+| MCR 사다리 r3/r4 | GPU 짧음 | derangement를 기다리지 않는다 |
 | MCR 내부 판독·교정 (Table 3b MCR 칸, MCR r5) | GPU 며칠 | 별도 추출 필요 |
 | Figure 2 position 통제 (같은 split·타깃·어댑터) | GPU ~1일 | 미착수 |
-| 438행 의미 채점 재채점 (판정자 #3) | codex | 빌더 완성 |
-| corpus-300 canonical 재채점 | CPU | 확인 필요 |
+| 438행 의미 채점 재채점 (판정자 #3) | codex ~$0.09 | **빌더 완성, 238쌍** |
+| corpus-300 canonical 재채점 | CPU | preflight가 판정 |
+| corpus-300 non-overlap 3,319 | CPU | 아카이브에 구 매처 실행 있음 — 재실행 |
+| Related Work 서지·인용 재확인 | 사람 | 스크립트 불가 |
+
+**corpus-300 non-overlap이 선택 항목이 아닌 이유.**
+`docs/archive/paper_tables_worklog_2026-08-23.md`에 이미 `--exclude-from`
+실행이 있고(미관측 3,319 = 4,995 − 1,676), 그 실행이 "둘 다 오답" 칸을
+11:4, p=0.118로 **재현 실패** 판정해 탐색적으로 강등했다. `docs/paper/
+README.md`의 "형식 우위 주장 금지"가 거기서 나왔다. 그 칸은 정의상
+`is_correct` 결과이므로 매처 수정이 행을 칸 사이로 옮길 수 있고, 8:0(p=.008)
+같은 작은 칸은 몇 행으로 뒤집힌다. **강등을 상속하지 말고 다시 얻어야 한다.**
