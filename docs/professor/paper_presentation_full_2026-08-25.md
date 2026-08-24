@@ -160,7 +160,62 @@ NLA는 텍스트를 만들지만 verbalizer의 parametric knowledge가 activatio
 통제, 내부 계기 검증, 단일 실행 탐지, 위치 궤적, 조건부 교정, 실제 case-report
 행동 복제**를 한 실험 체계에 묶었다는 점이다.
 
-## Slide 9. DDXPlus 원본은 어떻게 생겼는가
+## Slide 9. 실제 임상에서 소견서를 전제로 해도 되는가
+
+결론부터 말하면 **타당하지만 적용 범위를 제한해서 말해야 한다.** 모든 의료
+LLM이 referral note를 받는 것은 아니지만, 일차진료에서 전문의·응급실·검사
+부서로 환자를 의뢰할 때 referral letter나 clinical note가 함께 전달되는 것은
+실제 임상 workflow다. 이 문서에는 의뢰 목적, 증상과 경과, 신체검사, 검사 결과,
+과거력뿐 아니라 `provisional diagnosis`, `clinical impression`, `differential
+diagnosis`가 포함될 수 있다. NHS 계열 referral guidance도 의뢰자가 고려·배제한
+감별진단과 현재 의심하는 문제를 이상적인 내용으로 제시한다
+([TRAQS referral contents](https://www.shropshiretelfordandwrekin.nhs.uk/wp-content/uploads/ideal-referral-document.pdf)).
+반면 암 진료 의뢰 합의 연구처럼 의뢰 이유·증상·검사 결과는 요구하되 잠정
+진단을 필수로 합의하지 않은 경우도 있다
+([Delphi consensus study](https://pmc.ncbi.nlm.nih.gov/articles/PMC6803614/)).
+따라서 “모든 소견서에 진단 제안이 있다”는 전제는 과장이다.
+
+우리 개입과 가장 가까운 사람 대상 연구는 Staal et al.의 무작위 within-subject
+실험이다. 44명의 medical intern이 GP referral letter 형식의 6개 사례를 보고,
+진단 제안 없음·정답 제안·오답 제안 조건을 진단했다. 제안은 정확도를 유의하게
+바꾸지 않았지만(`p=.486`), 평균 감별진단 수는 제안 없음 `1.85`에서 정답 제안
+`1.52`, 오답 제안 `1.42`로 감소했다(`p=.022`). 즉 이전 임상의의 diagnostic
+suggestion이 후속 진단 탐색을 좁힐 수 있다는 construct는 사람 대상 연구에도
+존재한다
+([Staal et al., BMC Medical Education, 2022](https://doi.org/10.1186/s12909-022-03325-7)).
+
+LLM이 referral 또는 clinician-authored note를 실제로 읽는 사례도 있다. Samsung
+Medical Center 연구는 Qwen-2.5-32B가 실제 전자 의뢰서 6,624건을 읽어 세부
+전문과를 배정했다. Holdout 680건에서 coordinator 기준 정확도 `75.4%`, 전문가가
+불일치를 재판정한 뒤 `84.7%`였다. 이는 진단이 아니라 triage 과제지만 referral
+letter가 LLM의 직접 입력이 되는 실제 사례다
+([npj Digital Medicine, 2026](https://www.nature.com/articles/s41746-026-03067-6)).
+Penda Health의 실사용 GPT-4o CDSS는 EMR clinical note의 증상, 활력징후, 병력,
+검사와 기존 진단을 읽고 감별진단·검사·치료를 제안했다. 평가 기간 16개 시설의
+78,366회 진료 중 36,670회에서 이 도구가 사용됐다
+([Nature Health, 2026](https://www.nature.com/articles/s44360-026-00082-5)).
+PreA 다기관 RCT에서는 2,069명의 환자와 24개 분야 전문의 111명이 참여했고,
+LLM이 preliminary diagnoses가 포함된 referral report를 만들어 전문의가 대면
+진료 전에 검토했다
+([Nature Medicine, 2025](https://www.nature.com/articles/s41591-025-04176-7)).
+이 사례들은 기존 임상의나 상류 LLM의 진단적 인상이 downstream 판단 앞에 놓이는
+경로가 가상 설정만은 아님을 보여준다.
+
+따라서 논문에서는 다음처럼 범위를 고정한다.
+
+> We model a clinically plausible referral-mediated anchoring scenario in
+> which a downstream diagnostic model receives a referring clinician's
+> provisional diagnostic impression alongside the patient presentation.
+
+우리의 `The referring note suspects {diagnosis}.`는 실제 소견서 전체를 복제한
+문장이 아니라 **잠정 진단 변수만 분리한 controlled intervention**이다. Referral,
+colleague, patient, realistic multi-sentence wording에서 효과가 재현돼 한 문장
+template만의 현상은 아니지만, realistic arm은 길이와 clinical register도 함께
+바뀌었다. 그러므로 “실제 모든 진단 LLM이 이 정도로 취약하다”가 아니라
+“referral- or note-conditioned diagnostic workflow에서 발생 가능한 anchoring
+mechanism을 통제된 조건에서 측정했다”가 정확한 주장이다.
+
+## Slide 10. DDXPlus 원본은 어떻게 생겼는가
 
 DDXPlus 환자 CSV 한 행은 `PATHOLOGY`, `EVIDENCES`, `AGE`, `SEX`,
 `DIFFERENTIAL_DIAGNOSIS`를 가진다. `EVIDENCES`는 자연어가 아니라
@@ -184,7 +239,7 @@ prompt와 source answer를 생성한 prompt가 달랐다. 이 세 문제는 초�
 발표에서 숨길 실패가 아니라, 왜 현재 파이프라인을 믿을 수 있는지 설명하는
 방법론적 강점이다.
 
-## Slide 10. DDXPlus 환자 prompt를 실제로 어떻게 만들었는가
+## Slide 11. DDXPlus 환자 prompt를 실제로 어떻게 만들었는가
 
 현재 논문용 DDXPlus prompt는 3-cue 파일럿이 아니라 cleaning 후 남은
 positive/meaningful cue 전체를 bullet로 넣는다. Exact skeleton은 다음과 같다.
@@ -216,7 +271,7 @@ wrong note가 원래 정답을 실제로 움직였는지 정의하려면 먼저 
 때문이다. 이 조건을 통과한 사례는 1,747개였고, gold diagnosis가 presentation에
 문자 그대로 등장한 사례를 제외한 main clean cohort는 1,220개다.
 
-## Slide 11. 네 개의 referral-note arm을 어떻게 만들었는가
+## Slide 12. 네 개의 referral-note arm을 어떻게 만들었는가
 
 동일한 presentation에 note 한 줄만 바꾸어 네 조건을 만든다.
 
@@ -242,7 +297,7 @@ Neutral arm은 문장 삽입과 referral framing 자체의 비용을 측정한�
 모델이 어떤 suggestion이든 따르는지, 아니면 wrong content가 특별히 해로운지를
 본다. Wrong arm 하나만 있으면 이 세 효과를 분리할 수 없다.
 
-## Slide 12. 소견서 표현 robustness와 MCR의 wrong note
+## Slide 13. 소견서 표현 robustness와 MCR의 wrong note
 
 DDXPlus에서는 같은 diagnosis를 네 voice로 표현했다.
 
@@ -264,7 +319,7 @@ confusion을 사용한다. 그런 기록이 없으면 cue-word Jaccard similarit
 문장 template을 쓰지만 plausibility provenance가 같지는 않으며, 이 차이를
 limitations에 밝힌다.
 
-## Slide 13. Direct answer와 CoT answer를 어떻게 생성했는가
+## Slide 14. Direct answer와 CoT answer를 어떻게 생성했는가
 
 Source model은 `google/gemma-3-12b-it`, BF16, deterministic greedy decoding
 (`do_sample=false`)이다. Prompt는 Hugging Face chat template으로 감싸되 별도
@@ -284,7 +339,7 @@ CoT 조건은 prefill 없이 최대 2,048 token을 허용한다. Budget 안에 c
 안에서 완성하며 `answer_forced=true`로 기록한다. Direct와 CoT는 presentation
 prefix가 byte-identical하고 instruction suffix만 다르다.
 
-## Slide 14. 정답 채점과 moved label을 어떻게 정의했는가
+## Slide 15. 정답 채점과 moved label을 어떻게 정의했는가
 
 정답 채점은 parsed diagnosis와 gold name/alias를 word-boundary-aware matcher로
 비교한다. 과거 substring matcher에서는 `PE`가 `superior`나 `pericarditis` 안에서
@@ -303,7 +358,7 @@ unchanged라는 뜻이 아니다. Canonical silent 1,641개 안에는 moved 218�
 대부분 제3 진단으로 이동한 사례다. 이 subset은 output-copy heuristic을 제거한
 상태에서 내부 채널의 추가 정보를 시험한다.
 
-## Slide 15. Activation을 어디서 어떻게 추출했는가
+## Slide 16. Activation을 어디서 어떻게 추출했는가
 
 Gemma-3-12B-it는 48 transformer block을 가지며 hidden dimension은 3,840이다.
 주요 실험은 block 32 output을 사용한다. Chat template까지 적용한 실제 source
@@ -323,7 +378,7 @@ test case의 activation은 probe training에 들어가지 않지만, 같은 diag
 case label은 지도학습에 사용된다. 따라서 probe는 oracle은 아니지만 강한
 supervised closed-vocabulary baseline이다.
 
-## Slide 16. 자연어 activation readout은 정확히 무엇을 학습했는가
+## Slide 17. 자연어 activation readout은 정확히 무엇을 학습했는가
 
 기반은 `kitft/nla-gemma3-12b-L32-av`다. Activation vector를 NLA의 special
 injection token 위치에 주입하고, 자연어 target에 next-token cross-entropy를
@@ -359,7 +414,7 @@ Training target은 DDXPlus에서 알고 있는 gold diagnosis와 rendered cue로
 그러므로 이 모델이 자동으로 faithful해지는 것은 아니다. Gold label을 decode하도록
 지도한 모델이며, 별도의 swap·heldout·derangement 검증이 반드시 필요하다.
 
-## Slide 17. RQ1 결과 - readout을 계기로 믿을 수 있는가
+## Slide 18. RQ1 결과 - readout을 계기로 믿을 수 있는가
 
 Table 1에는 서로 다른 질문을 하나의 공통 reference처럼 섞지 않고 각 test와
 baseline을 나란히 둔다. 438-row counterfactual cohort에서 activation swap을 하면
@@ -382,7 +437,7 @@ Cohen's kappa는 약 `.35-.50`이다. 외부 판정자가 더 후했으므로 �
 불완전했고, 행 가중은 반복 빈도가 높은 몇 쌍에 민감했다. 따라서 쌍 단위와 행
 가중을 함께 보고하고 이를 임상적 유용성 평가로 해석하지 않는다.
 
-## Slide 18. Figure 2 - layer와 position은 무엇을 보여주는가
+## Slide 19. Figure 2 - layer와 position은 무엇을 보여주는가
 
 Cue-token reader의 heldout cue lexical recall은 L16 `.510`, L24 `.658`, L32
 `.589`이다. Final-prompt-token reader의 diagnosis-heldout recall은 seen diagnosis에서
@@ -394,7 +449,7 @@ epoch, L32는 3 epoch이어서 layer와 training exposure가 섞여 있다. 안�
 현재 recipe에서 L24가 가장 높은 경향을 보이고, heldout diagnosis transfer가 크게
 떨어진다는 것이다. “L24가 의학 정보의 최적 layer”라는 인과 주장은 하지 않는다.
 
-## Slide 19. RQ2 행동 결과 - referral note가 실제로 답을 바꾸는가
+## Slide 20. RQ2 행동 결과 - referral note가 실제로 답을 바꾸는가
 
 Main DDXPlus clean 1,220건의 정확도는 none `.9869`, neutral `.9377`, wrong
 `.7566`, correct `.9246`이다. Wrong note의 총 비용은 `23.03pp`, neutral insertion
@@ -411,7 +466,7 @@ MCR의 1,543은 평가 가능한 12,620건 중 source model이 no-note에서 맞
 즉 accuracy `.122`인 선택된 모집단이다. “MCR 전체에서 67.2% 정확도”라고 말하면
 안 된다.
 
-## Slide 20. 이동은 suggestion 복사가 아니라 주로 제3 진단 이동이다
+## Slide 21. 이동은 suggestion 복사가 아니라 주로 제3 진단 이동이다
 
 DDXPlus 1,747건 중 canonical moved는 321건이다. Suggestion을 인과적으로 채택한
 경우는 91건(28.3%), suggestion이 아닌 제3 진단으로 이동한 경우는 230건(71.7%)이다.
@@ -422,7 +477,7 @@ MCR moved 437건에서도 suggestion 채택 137건(31.4%), 제3 진단 이동 30
 선택지로 들어가는 것이 아니라 전체 differential geometry를 흔들어 다른 진단으로
 보낼 수 있다.
 
-## Slide 21. 문구 변화와 CoT의 이중성
+## Slide 22. 문구 변화와 CoT의 이중성
 
 Referral/colleague/patient/realistic wording에서 wrong-note accuracy는 각각
 `.8117/.8168/.8672/.7481`, moved는 321/308/220/436, suggestion adoption은
@@ -438,7 +493,7 @@ none `.7464`, wrong `.7018`로 note cost가 `4.46pp`로 줄어든다. 그러나 
 43.0%로 높아지지만 분모가 다른 조건부 비율이므로 “CoT가 suggestion을 더 원인으로
 사용했다”고 단정하지 않는다.
 
-## Slide 22. Figure 4 - 내부 궤적과 용량-반응
+## Slide 23. Figure 4 - 내부 궤적과 용량-반응
 
 Final token에서 probe가 gold에 주는 평균 확률은 answer unchanged 집단이 note
 있음/없음 `.980/.987`, 차이 `-.007`이다. 제3 진단으로 이동한 집단은
@@ -456,7 +511,7 @@ constraint `-.439/-.304`, format `-.183/-.188`, final `-.195/-.055`다. Constrai
 관측된 위치 효과이며 “constraint token이 모든 모델의 보편적 취약점”이라고
 일반화하지 않는다.
 
-## Slide 23. Suggestion은 언제 내부 top-1이 되는가
+## Slide 24. Suggestion은 언제 내부 top-1이 되는가
 
 Moved 321건 중 suggestion이 처음 probe top-1이 된 지점은 last finding 7,
 note 0, question 30, constraint 6, format 5, final 7이다. 한 번이라도 top-1인
@@ -467,7 +522,7 @@ note 0, question 30, constraint 6, format 5, final 7이다. 한 번이라도 top
 진단이 top-1인 경로다. 따라서 “82.9%에서 모델은 속으로 정답을 알고 있었다”가
 아니라 “82.9%에서 suggestion dominance 없이 출력이 이동했다”가 정확한 결론이다.
 
-## Slide 24. 한 번의 wrong-note 실행에서 moved를 탐지한다
+## Slide 25. 한 번의 wrong-note 실행에서 moved를 탐지한다
 
 Detector는 wrong-note 실행 하나만 본다. None arm은 ground-truth moved label을
 만들 때만 사용하고 detector에게 보여주지 않는다. 비교 채널은 output heuristic,
@@ -490,7 +545,7 @@ calibration되지 않았다. Brier `.1649`, constant baseline `.1500`, ECE `.142
 과신이 있다. Calibration은 고칠 수 있지만 monotonic transform이면 AUROC 순위는
 바뀌지 않는다.
 
-## Slide 25. RQ3 - 교정 사다리의 exact intervention
+## Slide 26. RQ3 - 교정 사다리의 exact intervention
 
 Wrong note와 first answer를 prompt에 그대로 남기고 다음 block만 추가해 다시
 답하게 한다. R3의 exact core는 다음과 같다.
@@ -514,7 +569,7 @@ R6는 자연어 근거 없이 `An independent classifier probe ... predicts:
 answer was:` 뒤에 그대로 붙인다. 모든 rung은 마지막에 동일한 direct instruction과
 answer prefill을 사용한다.
 
-## Slide 26. 교정 결과와 정확한 해석
+## Slide 27. 교정 결과와 정확한 해석
 
 First wrong-note answer는 전체 `.8117`, moved `.0031`이다. R3 전체/moved는
 `.4173/.4548`, R4 `.4139/.4050`, R5 `.4098/.6293`, R6 `.4568/.8318`이다.
@@ -532,7 +587,7 @@ Probe selector와 argmax 직접 교체 정책은 전체 `.9651`, selector+r6 재
 교체가 낫다. 이 결과는 natural-language method의 우승이 아니라, 내부 신호를
 선택적으로 사용할 수 있다는 proof of concept다.
 
-## Slide 27. 자기 CoT를 다시 주면 왜 안 고쳐지는가
+## Slide 28. 자기 CoT를 다시 주면 왜 안 고쳐지는가
 
 R7은 CoT answer와 direct first answer가 일치하는 공통 1,151개로 제한한다.
 이 집합은 first accuracy `.9201`, moved 7.7%인 쉬운 cohort다. 여기서 R7 전체
@@ -544,7 +599,7 @@ R7의 높은 전체값은 잘 고친 것이 아니라 대부분 답을 바꾸지
 패턴은 고착 또는 합리화와 양립하지만, 이 실험만으로 그 인과 기전을 확정하지
 않는다.
 
-## Slide 28. MCR에서 자연어 readout은 무엇까지 읽었는가
+## Slide 29. MCR에서 자연어 readout은 무엇까지 읽었는가
 
 MCR source-aligned conclusion adapter는 source-correct train row만 사용하고
 source-wrong row는 test에 남겼다. Train 1,298, val 132, test 821이며 best epoch는
@@ -559,7 +614,7 @@ source diagnosis signal을 일부 읽는다. 그러나 절대 일치율 `.21-.26
 아니라 **answer field에는 예비 source-aligned signal이 있으나 grounds는 접지되지
 않는다**다.
 
-## Slide 29. 사람이 읽으면 실제로 도움이 되는가
+## Slide 30. 사람이 읽으면 실제로 도움이 되는가
 
 Reader-trust task에서는 판정자에게 vignette와 source answer를 주고, 조건에 따라
 아무 account도 주지 않거나 CoT, probe label, readout을 하나만 준다. 판정자는
@@ -578,7 +633,7 @@ no-account 대비 paired delta다.
 유용하다”가 완전히 다른 명제임을 보여준다. 현재 readout을 clinician-facing
 explanation으로 제안하지 않는다.
 
-## Slide 30. 세 RQ에 대한 현재 답
+## Slide 31. 세 RQ에 대한 현재 답
 
 RQ1에 대한 답은 조건부 yes다. DDXPlus cue 위치에서 readout은 swap과 correct
 pairing을 따라가고 heldout cue를 일정 수준 읽는다. 하지만 외부 의미 판정은
@@ -594,7 +649,7 @@ RQ3에 대한 답도 조건부 yes다. 정확한 internal content는 moved case�
 무선별 재질문은 전체 성능을 파괴하고 잘못된 readout은 해롭다. Natural-language
 format의 독립적 이점은 아직 확립되지 않았다.
 
-## Slide 31. 논문의 기여를 다섯 문장으로 정리한다
+## Slide 32. 논문의 기여를 다섯 문장으로 정리한다
 
 첫째, neutral/correct control을 포함한 referral-note anchoring testbed를 만들고
 합성 문진과 실제 case-report에서 행동 효과를 재현했다. 둘째, 출력 이동이
@@ -604,7 +659,7 @@ LLM monitor, natural-language readout, linear probe를 동일한 single-run task
 재고 요청은 해롭다는 것을 보였다. 다섯째, 자연어 readout을 결과 생성기가 아니라
 검증이 필요한 측정 도구로 다루고 positive result와 failure를 함께 보고했다.
 
-## Slide 32. 아직 남은 실험과 문서 작업
+## Slide 33. 아직 남은 실험과 문서 작업
 
 첫째, reader-trust 2,896행 전수와 same-channel shuffled account control이 남아
 있다. 둘째, LLM monitor에서 CoT를 제거한 동일 판정자 arm이 필요하다. 현재 monitor는
@@ -621,7 +676,7 @@ ladder가 남아 있다. 현재 MCR은 행동 복제와 source-aligned answer re
 외부 semantic judge 238쌍 전수는 완료됐으며 파싱 실패는 0건이다. 따라서 이
 항목은 더 이상 미결 과제가 아니고, 손채점과 외부 판정을 보조 감사로 함께 보고한다.
 
-## Slide 33. 한계
+## Slide 34. 한계
 
 Backbone은 Gemma-3-12B-it 하나이고 내부 기전은 주로 L32다. 각 landmark probe가
 별도이므로 하나의 동일 decoder가 시간에 따라 변한 것으로 해석할 수 없다. Probe
@@ -643,7 +698,7 @@ MCR은 model confusion 또는 cue-nearest-neighbor를 쓴다. Wording, note 길�
 source-correct selection, forced answer format이 absolute performance에 영향을 줄
 수 있다. 결론은 paired difference와 정해진 모집단 안에서만 해석한다.
 
-## Slide 34. 최종 결론과 다음 연구
+## Slide 35. 최종 결론과 다음 연구
 
 최종적으로 다음처럼 말한다.
 
