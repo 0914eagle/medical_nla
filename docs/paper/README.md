@@ -42,14 +42,16 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 
 | 주장 | 현재 근거 | 주장 가능한 범위 |
 |---|---|---|
-| 오답 소견서가 진단을 움직인다 | DDXPlus main −23.03 pp; 3× larger run −21.30 pp; MCR −26.89 pp | 행동 효과는 두 코퍼스; c300은 독립 표본 아님 |
+| 오답 소견서가 진단을 움직인다 | DDXPlus main −23.03 pp; 3× larger run −21.30 pp; MCR −26.89 pp | 행동 효과는 두 코퍼스 |
+| corpus-300은 이제 독립 재현이다 | 주 실행 id를 뺀 **미관측 3,319**(clean 2,192)에서 오답 조건 **.7682** vs 초집합 .7670 — 0.12 pp 차 | 행동 효과에 한정; 사다리도 r5−r4 +15.94 pp로 재현 |
 | suggestion이 내부 top-1을 대개 차지하지 못한다 | moved 321건 중 266건(82.9%)에서 suggestion이 어느 landmark에서도 top-1이 아님 | 그중 gold throughout 151, third-diagnosis path 115 |
 | 소견서는 내부 gold signal을 행동별로 다르게 낮춘다 | final Δ: 유지 **−.007**, 제3 진단 **−.055**, 제안 채택 **−.195** | DDXPlus, 49-class cross-fit probe |
 | CoT보다 내부 채널이 강하다 | 정본 silent subset(n=1,641) AUROC: LLM CoT monitor .6829, NL readout .8302, probe .9840; readout−monitor gap +.1473 CI [.0691,.2209] | DDXPlus, 진단 내 층화 |
 | 자연어 판독은 벡터에 종속된다 | swap .993, memorization .000, contamination .007; heldout cue content .751 (n=770, 기계 채점) | DDXPlus 검증 배터리 |
 | 내부 내용을 되먹이면 회복한다 | canonical moved=321: 첫 답 .0031 → r5 .6293 / r6 .8318 | 내용 정확도가 지배; 무선별 재실행은 해로움 |
 | 자기 CoT 되먹임은 교정하지 못한다 | 공통 1,151 id에서 r7 moved 회복 .1236, r5 .5281, r6 .7416 | 쉬운 공통 집합; 기전은 고착과 일관되나 미확정 |
-| 현재 판독은 독자 인터페이스로 부적합하다 | 중간 reader-trust: no-account 대비 ΔAUROC −.0839 [−.135,−.025] | 2,269/2,896; shuffled 통제 대기 |
+| 현재 판독은 독자 인터페이스로 부적합하다 | reader-trust: no-account 대비 ΔAUROC **−.0921 [−.135,−.046]**; probe **+.0708 [+.039,+.106]**, CoT −.0151 (0 포함) | 2,546/2,896; shuffled 통제 대기 |
+| MCR 판독의 답 필드는 사례를 읽는다 | 821행 vs model **.2643** vs derangement **.0049** (gap +.2594); source-wrong 710행 .2127 vs .0042 | 근거 필드는 통과 못 함(gap +.025, 반복 70%) |
 | 자연어 형식 자체가 교정의 원인이다 | **확립되지 않음**: canonical 전체 correct/correct에서 p=1.000; moved에서는 맨 라벨 점추정 우위 p=.016이나 Bonferroni .0125 미달 | 형식 우위 주장 금지 |
 
 ## 반드시 지킬 주장 경계
@@ -62,9 +64,16 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 - MCR처럼 진단명이 대부분 한 번씩 등장하는 자료에서는 표준적인 고정
   클래스 지도 프로브를 그대로 정의하기 어렵다. 이것을 "어떤 프로브도
   불가능하다"고 쓰지는 않는다.
-- 현재 reader-trust 중간 결과가 no-account보다 나쁘므로 "clinician-readable"을
-  효용 주장처럼 쓰지 않는다. 형식상 읽을 수 있다는 것과 독자에게 도움이 된다는
-  것은 다르다.
+- reader-trust에서 판독은 아무것도 안 보여주는 것보다 **나쁘다**
+  (−.0921 [−.135,−.046]). "clinician-readable"을 효용 주장처럼 쓰지 않는다.
+  형식상 읽을 수 있다는 것과 독자에게 도움이 된다는 것은 다르다. 기전도
+  적어둔다: 판독을 본 독자는 moved를 .929로 의심하지만 kept도 **.591**로
+  의심한다(무판독 .085). 판별을 주는 것이 아니라 **무차별 의심**을 준다.
+- MCR 판독은 **답 필드만** 열렸다. derangement 통제에서 답 필드는
+  .2643 vs .0049로 사례 특이적이지만, 근거 필드는 gap +.025에 cue 문장의
+  70%가 반복 정형문구다. "MCR에서 판독이 통한다"고 뭉뜽그려 쓰지 않는다.
+  그리고 gap이 크다는 것은 **사례를 읽는다**는 뜻이지 **정확하다**는 뜻이
+  아니다 — 절대값은 .2127이다.
 - r5가 r4보다 좋은 것은 판독 **내용**이 유용하다는 증거다. 자연어라는 형식의
   독립 효과는 확인되지 않았다.
 - 무선별 재고 요청은 전체 성능을 크게 해친다. 교정은 정밀한 selector와
@@ -99,16 +108,24 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 
 초안 작성은 가능하다. 다만 아래 항목 전에는 "submission-ready"가 아니다.
 
-1. wording과 CoT 파생 실행을 canonical matcher로 재집계한다.
-2. Table 3의 행동군 Δ 차이에 paired CI 또는 추세 검정을 추가한다.
-3. reader-trust 2,896행을 완주하고 shuffled account 통제를 실행한다.
-4. MCR 결론 판독에 derangement baseline을 붙이고, MCR 교정 사다리를
-   완성하거나 본문 주장을 행동 복제까지만 제한한다.
+1. ~~wording과 CoT 파생 실행을 canonical matcher로 재집계한다.~~ **완료
+   (08-24)** — `.8117 / .8168 / .8672 / .7481`, CoT 이중성 −17.80 → −4.46 pp.
+2. ~~Table 3의 행동군 Δ 차이에 paired CI 또는 추세 검정을 추가한다.~~
+   **계기 완료** (`src/paired_stats.py`) — 궤적 재실행에서 값이 나온다.
+3. reader-trust: 2,896행 완주(현재 2,546)와 **shuffled account 통제**.
+   증분 자체는 이미 확정적이다(readout −.0921 [−.135,−.046]).
+4. ~~MCR 결론 판독에 derangement baseline을 붙인다.~~ **완료 — 통과
+   (08-24)**: 답 필드 .2643 vs .0049. 남은 것은 **MCR 교정 사다리**이고,
+   게이트가 열렸으므로 wrong-note 추출을 진행한다. (r3/r4는 추출 없이 가능.)
 5. 외부 판정자 또는 임상의 평가로 판독의 임상적 타당성을 보조 검증한다.
+   → 판정자 #3(238쌍, ~$0.10)이 Table 1의 채점 주체 칸을 채운다.
 6. 같은 judge의 no-CoT arm을 추가해 LLM monitor 향상이 CoT 때문인지,
-   vignette/note/answer 접근 때문인지 분리한다.
+   vignette/note/answer 접근 때문인지 분리한다. (`--no-cot` 빌더 완료)
 7. Related Work의 최신 논문 서지·게재 상태와 정확한 인용 문장을 원문으로
    재확인한다.
+8. Figure 5의 `64.1%`를 **`.591`**로 교체한다 (canonical 재집계 완료).
+9. corpus-300을 "독립 재현 아님"에서 **독립 재현**으로 승격한 서술로
+   본문·표·outline을 맞춘다 (미관측 3,319에서 재현 확인).
 
 ## 갱신 규칙
 
