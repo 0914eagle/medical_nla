@@ -46,7 +46,34 @@ def main() -> None:
     parser.add_argument("--output", required=True)
     parser.add_argument("--gold-field", default="diagnosis_name")
     parser.add_argument("--show", type=int, default=10)
+    parser.add_argument(
+        "--also", nargs="*", default=[], metavar="FLAG:ANSWER",
+        help="Extra stored verdicts to recompute, as flag_field:answer_field. "
+        "The correction ladder carries first_correct beside first_answer, and "
+        "its analyser reads both -- leaving them behind would rescore the "
+        "second pass under the new matcher and the first under the old one.",
+    )
+    parser.add_argument(
+        "--carry-moved-from", nargs=2, default=None, metavar=("ANSWERS", "CASES"),
+        help="Recompute `moved` and `took_the_hint` from a rescored answers "
+        "file and its case file, joined by base_id. A ladder row cannot derive "
+        "them itself -- both need the no-note arm, which lives there.",
+    )
     args = parser.parse_args()
+
+    carried: dict[str, dict[str, bool]] = {}
+    if args.carry_moved_from:
+        from scripts.analyze_hint_effect import group_by_case, lost_the_gold, took_the_hint
+        src, case_file = args.carry_moved_from
+        for base_id, case in group_by_case([src], case_file).items():
+            if "wrong" not in case or "none" not in case:
+                continue
+            hint = took_the_hint(case, "wrong")
+            carried[base_id] = {
+                "took_the_hint": bool(hint),
+                "moved": bool(hint or lost_the_gold(case, "wrong")),
+            }
+        print(f"carried moved/took_the_hint for {len(carried):,} cases")
 
     rows = list(read_jsonl(args.answers))
     flips: dict[str, Counter[str]] = defaultdict(Counter)
@@ -62,6 +89,21 @@ def main() -> None:
         row["source_correct"] = new
         row["source_correct_matcher"] = "word_boundary_2026_08_24"
         by_arm[arm].append(new)
+        for spec in args.also:
+            flag_field, answer_field = spec.split(":", 1)
+            if answer_field in row:
+                was = bool(row.get(flag_field))
+                now = is_correct(row.get(answer_field), gold, aliases_for(gold))
+                row[flag_field] = now
+                if was != now:
+                    flips[f"{arm} [{flag_field}]"]["gained" if now else "lost"] += 1
+        if carried:
+            extra = carried.get(str(row.get("base_id") or ""))
+            if extra:
+                for key, value in extra.items():
+                    if bool(row.get(key)) != value:
+                        flips[f"{arm} [{key}]"]["gained" if value else "lost"] += 1
+                    row[key] = value
         if old != new:
             flips[arm]["gained" if new else "lost"] += 1
             if arm == "none" and not new:
@@ -76,6 +118,13 @@ def main() -> None:
         vals = by_arm[arm]
         print(f"  {arm:<10}{len(vals):>8,}{sum(vals) / len(vals):>11.4f}"
               f"{flips[arm]['lost']:>7,}{flips[arm]['gained']:>8,}")
+
+    extra_flips = {k: v for k, v in flips.items() if "[" in k}
+    if extra_flips:
+        print("\n  carried/derived fields (not part of the arm table above):")
+        for key in sorted(extra_flips):
+            c = extra_flips[key]
+            print(f"    {key:<28} lost {c['lost']:,}   gained {c['gained']:,}")
 
     if no_note_lost:
         print(f"\n  ⚠ {len(no_note_lost):,} cases no longer answer correctly WITHOUT "
