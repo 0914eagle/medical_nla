@@ -73,6 +73,27 @@ Answer with strict JSON only:
 주 지표는 절대 AUROC가 아니라 (2)−(1)의 증분과 그 paired interval이다. 이
 대조 전에는 "account가 독자를 도왔다"고 주장하지 않는다.
 
+**구현 완료 (08-24).** `make_reader_trust_cases.py --controls none shuffled`:
+
+- `none` — account 블록을 통째로 뺀 프롬프트(`NO_ACCOUNT_TEMPLATE`). 질문도
+  "does this **output** give you reason to doubt"로 바꿨다. account가 없는데
+  account를 묻는 프롬프트는 다른 것을 재게 된다.
+- `shuffled` — **다음 케이스의 같은 채널 account**를 고정 derangement로 건넨다.
+  길이와 레지스터를 맞추면서 이 환자에 대해서는 아무것도 나르지 않는다.
+  자기 자신을 받는 케이스는 없다.
+
+`analyze_reader_trust.py`가 채널별 절대 AUROC 아래에 **`no_account` 대비 증분**을
+케이스 쌍 부트스트랩(1,000회)으로 낸다. **CI가 0을 배제하는 델타만이 "설명이
+독자를 도왔다"를 말한다.** `no_account` 행이 없으면 절대값이 귀속 불가임을
+경고한다.
+
+합성 데이터로 확인: baseline과 동일한 채널은 CI가 0을 포함하고, 진짜 증분이
+있는 채널만 배제한다.
+
+**진행 중인 판정과의 관계**: 채널 3종의 id와 프롬프트는 바뀌지 않았으므로
+현재 2,172건 실행은 유효하다. 통제 팔은 상위집합 케이스 파일을 만들어
+같은 출력에 이어 붙인다(`run_judge.py`가 이미 판정된 id를 건너뛴다).
+
 ## 판정자
 
 **codex 경유 외부 판정자**(`run_reader_trust_judge.sh`), GPU 불필요.

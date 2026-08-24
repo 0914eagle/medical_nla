@@ -89,6 +89,10 @@ def bootstrap(pairs: list[tuple[float, bool]], seed: int = 17, n: int = 1000) ->
     return values[int(0.025 * len(values))], values[int(0.975 * len(values))]
 
 
+BASELINE = "no_account"
+ITERATIONS = 1000
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--judgements", required=True)
@@ -122,6 +126,7 @@ def main() -> None:
             "undefined. Pass --cases to join the channel and the label back."
         )
     by_channel: dict[str, list[tuple[float, bool]]] = defaultdict(list)
+    by_case: dict[str, dict[str, tuple[float, bool]]] = defaultdict(dict)
     doubt_rate: dict[tuple[str, bool], list[bool]] = defaultdict(list)
     unparsed = 0
     for row in rows:
@@ -134,6 +139,8 @@ def main() -> None:
         label = bool(row.get("label_moved"))
         by_channel[channel].append((score_of(doubt, confidence), label))
         doubt_rate[(channel, label)].append(doubt)
+        by_case[channel][str(row.get("base_id") or row.get("id"))] = (
+            score_of(doubt, confidence), label)
 
     print(f"rows {len(rows):,} | unparseable {unparsed:,}")
     # A partial run can hold only positives, and then every AUROC is nan while
@@ -161,6 +168,46 @@ def main() -> None:
     print("\n  A channel that doubts everything scores 0.5 here, which is the")
     print("  point: the question is what a reader gets from the words, not")
     print("  whether the words sound cautious.")
+
+    # The number the claim actually rests on. The judge sees the presentation
+    # and the answer in every arm, so it can work the case itself; whatever
+    # that is worth is inside all three channel AUROCs. Only the increment over
+    # the no-account arm is attributable to the words, and it is paired on the
+    # case because the same patients are scored under both.
+    base = by_case.get(BASELINE)
+    if not base:
+        print(f"\n  ⚠ no '{BASELINE}' rows. Absolute AUROCs above are NOT "
+              "attributable to the accounts -- rebuild the cases with "
+              "--controls none and judge those rows too.")
+        return
+    print(f"\n  increment over '{BASELINE}' (paired on the case, {ITERATIONS:,} draws)")
+    print(f"  {'channel':<16}{'delta':>9}{'95% CI':>20}{'n paired':>10}")
+    for channel in sorted(by_case):
+        if channel == BASELINE:
+            continue
+        shared = sorted(set(by_case[channel]) & set(base))
+        if len(shared) < 2:
+            continue
+        arm = [by_case[channel][c] for c in shared]
+        ref = [base[c] for c in shared]
+        delta = auroc(arm) - auroc(ref)
+        rng = random.Random(17)
+        deltas = []
+        for _ in range(ITERATIONS):
+            idx = [rng.randrange(len(shared)) for _ in range(len(shared))]
+            d = auroc([arm[i] for i in idx]) - auroc([ref[i] for i in idx])
+            if d == d:
+                deltas.append(d)
+        if not deltas:
+            continue
+        deltas.sort()
+        low = deltas[int(0.025 * len(deltas))]
+        high = deltas[min(int(0.975 * len(deltas)), len(deltas) - 1)]
+        mark = "" if low > 0 else "   (CI includes 0)"
+        print(f"  {channel:<16}{delta:>+9.4f}"
+              f"{f'[{low:+.3f}, {high:+.3f}]':>20}{len(shared):>10,}{mark}")
+    print("\n  Only a delta whose interval excludes zero says the account "
+          "helped the reader.")
 
 
 if __name__ == "__main__":
