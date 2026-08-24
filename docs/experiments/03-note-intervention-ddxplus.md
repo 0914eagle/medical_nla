@@ -64,25 +64,36 @@
 
 | 코퍼스 | n | 소견서 없음 | 위약 | **오답** | 정답 |
 |---|---:|---:|---:|---:|---:|
-| DDXPlus | 1,220 | .991 | .934 | **.760** | ▢ |
-| DDXPlus 3× 재현 | 3,343 | .985 | .932 | **.771** | .920 |
-| MedCaseReasoning | 1,543 | .981 | .926 | **.703** | .839 |
+| DDXPlus | 1,220 | **.9869** | .934ᵃ | **.7566** | ▢ᵇ |
+| DDXPlus 3× larger run | 3,343 | **.9800** | **.9306** | **.7670** | **.9180** |
+| MedCaseReasoning | 1,543 | **.9410** | **.8879** | **.6721** | **.8179** |
 
-- 오답 소견서 비용 **23.1%p**, 위약 비용 5.7%p → **제안 고유 효과 17.4%p**,
-  삽입만의 비용 대비 **4.1배**
-- 3× 재현행은 자급자족한다(네 조건을 다 갖춤): 21.5%p 대 5.3%p, 4.1배
-- **정답을 부르는 소견서조차** 정확도를 깎는다 — DDXPlus 6.6%p(.985→.920),
-  MCR 14.2%p(.981→.839). 침입 비용은 제안 방향과 무관하다.
+ᵃ 주 실행 neutral은 canonical matcher 재집계 대기다. ᵇ 주 실행에는 같은
+모집단의 correct arm이 없어 재실행 대기다. 채워지지 않은 칸을 corpus-300의
+값으로 대체하지 않는다.
 
-## 행동 분해 (moved = 324)
+- 3× larger run의 오답 소견서 비용은 **21.30%p**, 위약 비용은 **4.94%p**,
+  제안 고유 효과는 **16.36%p**, 총 비용/위약 비용은 **4.31×**다.
+- MCR도 canonical matcher에서 총 비용 **26.89%p**, 위약 비용 **5.31%p**,
+  제안 고유 효과 **21.58%p**, 총 비용/위약 비용 **5.06×**다.
+- **정답을 부르는 소견서조차** 정확도를 깎는다 — 3× larger run 6.20%p,
+  MCR 12.31%p. 삽입 자체의 비용과 제안 방향의 비용을 분리해야 한다.
+
+**선정 코호트 주의**: 사례는 generation-time matcher에서 no-note 정답으로
+선정됐고, 표는 그 고정 코호트를 canonical matcher로 다시 채점한다. 따라서
+canonical no-note 정확도가 1이 아니다. `cases answered correctly with no note`
+대신 `originally selected as source-correct, canonically rescored`라고 쓴다.
+
+## 행동 분해 (canonical moved = 321)
 
 | | n |
 |---|---:|
-| 답 유지 | 1,423 |
-| **제안 채택** (`took_the_hint`) | **95** |
-| **정답 상실, 제3 진단으로** (`lost_the_gold`) | **229** |
+| 답 유지 | **1,426** |
+| **제안 채택** (`took_the_hint`) | **91** |
+| **정답 상실, 제3 진단으로** | **230** |
 
-229/324 = **71%가 침묵 구역**이다. 출력만 보는 신호가 정의상 무력한 구간이고,
+230/321 = **71.7%가 제3 진단으로 이동**한다. 출력이 제안명을 직접 말하지 않는
+구간이 크기 때문에, 출력 복사 휴리스틱만으로는 원인을 찾을 수 없다.
 [10](10-readout-attribution.md)·[11](11-channel-gap-bootstrap.md)이 사는 곳이다.
 
 ## ▢ 정답 조건 칸 — 08-24 감사에서 걸린 오류
@@ -90,8 +101,31 @@
 이 칸에 적혀 있던 .932는 **이 행의 값이 아니었다.** 1,747건 실행의 답 파일
 어디에도 `correct` 조건이 없고, .9313은 corpus-300의 정답 조건을 4,995행
 전체(누출 미필터)에서 잰 값이다 — 실행도 모집단도 다르다. 나머지 세 칸은
-재확인됨(.9910 / .9344 / .7598). 재실행: `scripts/run_ddxplus_correct_arm.sh`
+canonical no-note/wrong은 .9869/.7566이다. 재실행:
+`scripts/run_ddxplus_correct_arm.sh`
 (GPU 1시간 내외).
+
+## Table 2를 읽는 법
+
+1. `none → neutral`은 **문장 삽입 자체의 비용**이다.
+2. `neutral → wrong`은 삽입 비용을 뺀 **오답 제안 고유 효과**다.
+3. `none → correct`도 하락하므로, 소견서는 정답 방향이어도 무조건 도움이 되는
+   장치가 아니다.
+4. Table 2b의 `91/230` 분해는 설득과 불안정화를 구분한다. 오답 출력 대부분은
+   제안 복사가 아니라 제3 진단으로의 붕괴다.
+
+**말하면 안 되는 것**: corpus-300은 원 실행의 초집합이며 base ID가 겹친다.
+`independent replication`이라고 쓰지 않고 **3× larger run**이라고 부른다.
+독립 재현을 주장하려면 원 실행 ID를 제외한 non-overlap subset을 별도로
+재집계해야 한다.
+
+## 남은 것
+
+- ▢ 주 실행 neutral canonical rescore와 correct arm 실행
+- ▢ corpus-300에서 원 실행 base ID를 뺀 non-overlap 민감도 분석
+- ▢ wording/CoT/correction ladder를 canonical matcher로 재집계
+- ▢ `analyze_hint_effect.py`의 “correct arm took≈0 by construction” 설명은
+  canonical no-note 실패가 생긴 지금 성립하지 않으므로 수정
 
 ## 보수적 하한이라는 점
 

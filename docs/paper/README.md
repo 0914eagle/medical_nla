@@ -1,8 +1,8 @@
 # 논문 문서 안내 — 현재 정본
 
 이 폴더의 논문 서사는 **현상 우선**이다. 주인공은 NLA 자체가 아니라,
-의뢰 소견서의 의심 진단이 의료 LLM의 출력은 바꾸지만 내부 정답 표상을
-대부분 지우지 않는다는 **internal-output dissociation**이다. 프로브는 이를
+의뢰 소견서의 의심 진단이 의료 LLM의 출력은 바꾸지만 내부 정답 신호를
+완전히 대체하지 못한다는 **internal-output dissociation**이다. 프로브는 이를
 정밀하게 측정하고, 자연어 판독은 내부 내용을 열린 어휘의 문장으로 서술한다.
 
 ## 처음 읽는 순서
@@ -20,15 +20,16 @@
 ## 현재 논문의 한 문장
 
 의료 LLM이 의뢰 소견서에 앵커링되어 답을 바꿀 때도, 인과 통제된 DDXPlus
-실험에서 내부 표상은 대다수 사례에서 정답을 유지한다. 이 내부-출력 결렬은
+실험에서 내부 gold signal은 평균적으로 남고 suggestion은 대다수 사례에서
+probe top-1이 되지 않는다. 이 내부-출력 결렬은
 한 번의 실행에서 탐지할 수 있고 자연어로 판독할 수 있으며, 정확한 내부
 내용을 되먹이면 일부 오류를 회복할 수 있다.
 
 영문으로는 다음 범위가 안전하다.
 
 > In a causally controlled diagnostic setting, referral-note anchoring often
-> changes what a medical LLM emits without erasing the correct diagnosis from
-> its probed internal state. The resulting internal-output rift can be detected
+> changes what a medical LLM emits without fully replacing the gold-diagnosis
+> signal in its probed internal state. The resulting internal-output rift can be detected
 > from a single run, rendered as a natural-language readout, and used as
 > corrective evidence when the readout is accurate.
 
@@ -36,19 +37,20 @@
 
 | 주장 | 현재 근거 | 주장 가능한 범위 |
 |---|---|---|
-| 오답 소견서가 진단을 움직인다 | DDXPlus −23.1 pp, MCR −27.8 pp; 제안 고유 효과 −17.4/−22.3 pp | 행동 효과는 두 코퍼스 |
-| 내부 정답 표상은 대부분 유지된다 | moved 324건 중 268건(82.7%)에서 제안이 어느 랜드마크에서도 probe top-1이 아님 | DDXPlus, 49-class cross-fit probe |
-| 소견서는 내부를 밀지만 대개 뒤집지 못한다 | final-token gold-probability cost .007/.055/.187 (kept/lost/adopted) | DDXPlus |
-| CoT보다 내부 채널이 강하다 | 정본 silent subset(n=1,608) AUROC: LLM CoT monitor .687, NL readout .842, probe .984 | DDXPlus, 동일 모집단; .695는 별도 n=1,652 정의 |
+| 오답 소견서가 진단을 움직인다 | DDXPlus main −23.03 pp; 3× larger run −21.30 pp; MCR −26.89 pp | 행동 효과는 두 코퍼스; c300은 독립 표본 아님 |
+| suggestion이 내부 top-1을 대개 차지하지 못한다 | moved 321건 중 266건(82.9%)에서 suggestion이 어느 landmark에서도 top-1이 아님 | 그중 gold throughout 151, third-diagnosis path 115 |
+| 소견서는 내부 gold signal을 행동별로 다르게 낮춘다 | canonical paired trajectory 확인, exact Table 3 probability 전사 대기 | DDXPlus, 49-class cross-fit probe |
+| CoT보다 내부 채널이 강하다 | 정본 silent subset(n=1,641) AUROC: LLM CoT monitor .6829, NL readout .8302; gap +.1473 CI [.0691,.2209] | probe canonical silent 값은 대기 |
 | 자연어 판독은 벡터에 종속된다 | swap .993, memorization .000, contamination .007; heldout cue content .751 (n=770, 기계 채점) | DDXPlus 검증 배터리 |
-| 내부 내용을 되먹이면 회복한다 | moved accuracy .012 → r5 .627 / r6 .830; r5−r4 +22.8 pp | DDXPlus, 선별 개입 필요 |
+| 내부 내용을 되먹이면 회복한다 | 구 matcher에서 moved accuracy .012 → r5 .627 / r6 .830 | canonical moved=321 재집계와 r7 대기 |
 | 자연어 형식 자체가 교정의 원인이다 | **지지되지 않음**: 내용 정확도 일치 시 r5 vs r6 p=.720 | 주장 금지 |
 
 ## 반드시 지킬 주장 경계
 
-- 행동 효과는 DDXPlus와 MCR에서 재현됐지만, **82.7% 기전 해부는 DDXPlus만**이다.
-- 닫힌 49-class 탐지는 자연어 판독보다 지도 프로브가 강하다(.984 vs .842,
-  silent subset). 자연어 판독의 몫은 최고 정확도가 아니라 서술, 근거, 열린
+- 행동 효과는 DDXPlus와 MCR에서 재현됐지만, **82.9% 기전 해부는 DDXPlus만**이다.
+  그리고 82.9%는 gold-throughout이 아니라 suggestion-never-top1이다.
+- 닫힌 49-class 탐지는 기존 실행에서 자연어 판독보다 지도 프로브가 강했다.
+  canonical silent probe 값은 재집계 대기다. 자연어 판독의 몫은 최고 정확도가 아니라 서술, 근거, 열린
   진단 어휘다.
 - MCR처럼 진단명이 대부분 한 번씩 등장하는 자료에서는 표준적인 고정
   클래스 지도 프로브를 그대로 정의하기 어렵다. 이것을 "어떤 프로브도
@@ -89,15 +91,18 @@
 
 초안 작성은 가능하다. 다만 아래 항목 전에는 "submission-ready"가 아니다.
 
-1. r7 자기 CoT 되먹임 대조를 닫아, 내부 되먹임이 단순한 "무언가 재제시"보다
-   낫다는 주장을 검증한다.
-2. DDXPlus alias/matching 규칙을 하나로 고정하고 Table 2b/2c/4를 재집계한다.
-3. DDXPlus correct-note 누락 셀을 동일 모집단에서 다시 실행한다.
+1. canonical matcher로 wording, CoT, r3–r7 교정 사다리를 모두 재집계한다.
+   r7 자기 CoT 되먹임 대조도 이때 함께 닫는다.
+2. Table 3의 canonical 1,426/230/91 그룹별 확률과 canonical probe all/silent
+   값을 채운다.
+3. DDXPlus main neutral/correct 누락 셀을 같은 fixed cohort에서 채운다.
 4. 외부 판정자 또는 임상의 평가로 자연어 판독의 유용성과 임상적 타당성을
    보조 검증한다.
 5. MCR에서는 source-aligned 자연어 판독과 교정 사다리를 완성하거나, 본문
    주장을 행동 복제까지만 명확히 제한한다.
-6. Related Work의 최신 논문 서지·게재 상태와 정확한 인용 문장을 원문으로
+6. 같은 judge의 no-CoT arm을 추가해 LLM monitor 향상이 CoT 때문인지,
+   vignette/note/answer 접근 때문인지 분리한다.
+7. Related Work의 최신 논문 서지·게재 상태와 정확한 인용 문장을 원문으로
    재확인한다.
 
 ## 갱신 규칙

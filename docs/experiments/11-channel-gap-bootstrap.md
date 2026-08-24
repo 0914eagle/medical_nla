@@ -45,6 +45,17 @@ AUROC가 정의되지 않는다. 전부 퇴화하면 구간을 만들지 않고 
 첫 줄은 정본 재집계에서 0을 배제한다. 나머지 두 줄은 새 matcher 라벨로
 재부트스트랩하기 전까지 이전 수치를 인용하지 않는다.
 
+## Table 3b의 CI를 읽는 법
+
+- `+.1473`은 두 독립 AUROC의 단순 뺄셈이 아니라 **같은 환자를 쌍으로
+  재표집한 차이**다. `[+.0691,+.2209]`가 0을 배제하므로 표본 잡음만으로
+  설명되지 않는다.
+- 이 결과는 readout이 임상적으로 옳거나 원인을 완전하게 설명한다는 뜻이
+  아니다. 같은 one-run moved ranking에서 LLM monitor보다 높은 정보량을
+  보였다는 뜻이다.
+- silent 정의를 바꾸면 모집단과 AUROC가 함께 바뀐다. `1,641/.6829`와
+  `1,656/.6930`을 같은 표의 반복 측정처럼 평균내지 않는다.
+
 ## 정직하게 적어야 할 것
 
 정본으로 확정된 것은 첫 줄이다. 전체 집합의 출력 휴리스틱 격차와 규칙 기반
@@ -79,3 +90,9 @@ python scripts/bootstrap_channel_gap.py \
   --b "answer omits the internal conclusion (containment)"
 # 채널 이름 목록: --list-channels
 ```
+
+## 남은 것
+
+- ▢ 판독 − 규칙 기반 CoT 특징, 판독 − 출력 특징의 canonical CI를 채운다.
+- ▢ 실행 전 `channel_scores.jsonl`이 `n=1,747, moved=321`, silent
+  `n=1,641, moved=218`인지 확인한다. 파일명이 같아도 구 matcher 덤프일 수 있다.

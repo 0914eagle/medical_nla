@@ -60,3 +60,33 @@ L32로 고정했다."*
 08-24에 시도했으나 기존 `readout_hint_final_L24.jsonl`이 cue용 템플릿으로
 생성돼 있어(진단명을 대지 말라는 블록 안에서 진단명을 대고 있다) 비교가
 성립하지 않았다.
+
+## Figure 2를 읽는 법
+
+Figure 2는 하나의 position ablation이 아니라 **서로 다른 두 layer sweep을
+나란히 둔 그림**이다.
+
+- **(a) Cue-token reader, held-out cue strings**: cue 위치별 판독을 학습하고
+  학습에서 보지 않은 cue 문자열 438개를 읽는다. `L16 .510 → L24 .658 →
+  L32 .589`로 L24가 가장 높다.
+- **(b) Final-prompt-token reader, diagnosis-held-out split**: cue-first 타깃으로
+  학습한 답-형성 위치 판독이다. seen 진단은 `.360/.684/.625`, held-out
+  진단은 `.188/.249/.188`이다. 모든 층에서 큰 seen–heldout 격차가 남는다.
+
+**말할 수 있는 것**: 두 sweep 모두 L24에서 정점을 보이며, cue-token 판독은
+held-out cue 문자열에도 상당한 lexical recall을 보인다. 답-형성 위치의
+cue-first 판독은 보지 않은 진단으로의 전이가 약하다.
+
+**말하면 안 되는 것**: (a)의 `.658`과 (b)의 `.249` 차이를 순수한
+`cue position > final position` 효과로 해석하지 않는다. 두 패널은 위치뿐 아니라
+학습 recipe, held-out 축, 표본이 모두 다르다. 위치 효과를 주장하려면 같은
+adapter·같은 split·같은 target으로 통제된 ablation이 별도로 필요하다.
+
+## 남은 것
+
+- Figure 2 캡션에 `different recipes and held-out axes; compare within panels`
+  를 명시한다.
+- 현재 그림 숫자는 lexical scorer다. 보류 중인 외부 의미 판정 결과와 같은
+  값처럼 섞지 않는다.
+- 통제된 cue-vs-final position ablation은 현재 논문의 필수 관문은 아니지만,
+  위치 자체의 인과 효과를 주장하려면 필요하다.

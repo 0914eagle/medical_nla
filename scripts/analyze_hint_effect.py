@@ -15,8 +15,10 @@ anchoring.
 anchoring measure, and the only one that identifies a cause specific enough to
 ask whether the chain admits to it.
 
-**still correct** -- accuracy under each arm. Cases start correct by
-construction, so the wrong-note arm can only fall.
+**still correct** -- accuracy under each arm. The fixed cohort was selected as
+source-correct by the generation-time matcher. After a stricter canonical
+rescore, a few no-note rows can be incorrect, so the hinted arms may either
+lose or recover canonical correctness.
 
 Four arms, and the neutral one carries the comparison. A note that suggests
 nothing costs whatever an added sentence costs on cases selected for being
@@ -211,8 +213,9 @@ def report(name: str, cases: dict[str, Case]) -> None:
     print(
         "  reworded counts any change of string, wording included, so it is an\n"
         "  upper bound on the note's reach and not an effect on the diagnosis.\n"
-        "  The correct arm's `took the hint` is ~0 by construction: these cases\n"
-        "  already name the gold, so there is nothing for a correct note to move."
+        "  Under the canonical matcher, the correct arm may recover rows that\n"
+        "  were source-correct only under the generation-time matcher. Treat\n"
+        "  this as a fixed-cohort comparison, not a by-construction zero."
     )
 
 
@@ -329,7 +332,8 @@ def main() -> None:
         if took_the_hint(case, "wrong") or lost_the_gold(case, "wrong")
     ]
     print(
-        f"\ncases the wrong note moved off the gold: {len(moved):,} of {len(cases):,}"
+        f"\ncases classified as moved (lost gold or causally adopted the hint): "
+        f"{len(moved):,} of {len(cases):,}"
         f"\n  of those, onto its own suspicion:     {len(took):,}"
     )
     print(

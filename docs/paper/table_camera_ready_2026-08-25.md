@@ -255,13 +255,15 @@ best_epoch 1/3, 학습 10,663행. 근거 접지가 통제와 갈리지 않으면
 
 행 = 코퍼스, 열 = 조건. 지표는 정확도 하나. 케이스 수·낙폭은 본문.
 
-**Table 2.** Accuracy by arm, on cases answered correctly with no note.
-Finding-position activations are bit-identical across arms by construction.
+**Table 2.** Accuracy by arm on a cohort originally selected as source-correct
+under the generation-time matcher and then rescored with the canonical
+word-boundary matcher. Finding-position activations are bit-identical across
+arms by construction. Canonical no-note accuracy can therefore be below 1.
 
 | Corpus | n | No note | Neutral | Wrong | Correct |
 |---|---:|---:|---:|---:|---:|
 | DDXPlus | 1,220 | **.9869** | .934ᶠ | **.7566** | ▢ᶜ |
-| DDXPlus, 3× replication | 3,343 | .985 | .932 | **.771** | .920 |
+| DDXPlus, 3× larger run | 3,343 | **.9800** | **.9306** | **.7670** | **.9180** |
 | MedCaseReasoning | 1,543ᵉ | **.9410** | **.8879** | **.6721** | **.8179** |
 
 ᵉ **모집단을 본문에 밝힌다 (08-24).** 1,543은 MCR 12,620건 중 소스 모델이
@@ -282,19 +284,20 @@ Finding-position activations are bit-identical across arms by construction.
 ᶠ Neutral-arm 값은 새 matcher로 다시 집계하기 전의 값이다. No-note와 wrong은
 전부 재채점한 정본이며, neutral은 재집계 뒤 교체한다.
 
-*Under the canonical matcher, the wrong note costs 23.0 pp on DDXPlus and
-26.9 pp on MedCaseReasoning. MCR's neutral-note cost is 5.3 pp, giving a
-5.06× total-cost ratio and a 21.6 pp suggestion-specific effect. The canonical
-DDXPlus neutral-arm ratio awaits the neutral rescore. The 3× replication row
-retains its previously reported within-run 4.1× ratio until that run is also
-rescored.*
+*Under the canonical matcher, the wrong note costs 23.0 pp on the main
+DDXPlus run and 26.9 pp on MedCaseReasoning. In the 3× larger DDXPlus run it
+costs 21.30 pp against a 4.94 pp neutral cost: a 16.36 pp suggestion-specific
+effect and a 4.31× total-cost ratio. MCR's corresponding values are 21.58 pp
+and 5.06×. The canonical main-run neutral ratio awaits rescore.*
 
 **두 번째 행은 손실이 아니라 소득이다 (08-24).** corpus-300은 네 조건을
 자기 안에 다 갖고 있어 **자급자족하는 재현 행**이고, 전체/위약 배수가
-4.06×로 주 실행의 4.05×를 사실상 그대로 낸다. 정답 조건 칸이 비어 있는
+4.31×로 같은 구조를 낸다. 정답 조건 칸이 비어 있는
 동안에도 "침입 비용은 제안 방향과 무관하다"는 논증은 이 행과 MCR 행에서
-이미 선다 — 정답을 부르는 소견서조차 DDXPlus에서 6.6pp(.985→.920),
-MCR에서 14.2pp(.981→.839)를 깎는다.
+이미 선다 — 정답을 부르는 소견서조차 DDXPlus에서 6.20pp(.9800→.9180),
+MCR에서 12.31pp(.9410→.8179)를 깎는다. 단, corpus-300은 원 실행의
+초집합이므로 **independent replication**이 아니라 3× larger run이다;
+non-overlap-only 민감도 분석이 남아 있다.
 
 **모든 DDXPlus 비율은 보수적 하한이다.** 답 파일이 `plausible_wrong`
 수정(d29b754) 이전에 생성되어, 오답 소견서가 정답을 부르는 케이스가
@@ -312,6 +315,9 @@ MCR에서 14.2pp(.981→.839)를 깎는다.
 
 **Table 2c** (지면 되면; 아니면 부록). Speaker/wording variants, DDXPlus,
 n = 1,747 each.
+
+⚠️ 아래 행은 generation-time matcher 값이다. canonical 재집계 전에는
+camera-ready 표에 싣지 않는다.
 
 | Wording | Accuracy | Moved | Adopted |
 |---|---:|---:|---:|
@@ -351,19 +357,19 @@ across the two by construction, so Δ is the note's internal cost.
 
 | Behaviour under the wrong note | n | With the note | No note | Δ |
 |---|---:|---:|---:|---:|
-| Answer unchanged | 1,423 | .980 | .987 | −.007 |
-| Lost the gold, answered elsewhere | 229 | .879 | .934 | −.055 |
-| Adopted the suggestion | 95 | .736 | .923 | **−.187** |
+| Answer unchanged | **1,426** | ▢ | ▢ | ▢ |
+| Lost the gold, answered elsewhere | **230** | ▢ | ▢ | ▢ |
+| Adopted the suggestion | **91** | ▢ | ▢ | ▢ |
 
-*The cost grows with the behavioural outcome, so the state is not merely
-carrying an earlier answer forward: it reads the note and moves as much as it
-reads. It does not move enough to be overturned. In the bottom row the probe
-still puts 3.5× more mass on the gold than on the suggestion, while by
-definition every one of those cases emitted the suggestion. Across all six
-landmarks, 268 of the 324 moved cases (82.7%) never once read the suggestion
-as top-1, against an emitted accuracy of .012 on the same cases. At the
-finding positions the cost is ±.000 to three decimals, which is what causal
-masking guarantees and therefore what the design must reproduce.*
+*The canonical trajectory contains 321 moved cases. The suggestion is probe
+top-1 at least once in 55 (17.1%); seven of those already decode to it before
+the note. In 266 (82.9%) it is never top-1. That last group must not be called
+"gold throughout": 151 cases keep gold top-1 at every observed landmark,
+while 115 pass through another diagnosis without ever making the suggestion
+top-1. Exact final-token probabilities for the 1,426/230/91 groups remain to
+be transcribed from the canonical dump. At the last finding the paired cost
+is zero by causal masking; the note token itself has no no-note counterpart
+and its paired cost is undefined.*
 
 **계기 표기**: 이 표는 **프로브**다. 자연어 판독은 같은 방향을 독립적으로
 말하지만 값이 다르다 — 상실형 최종 토큰에서 "상태가 정답을 쥠"이 프로브
@@ -389,8 +395,8 @@ assumptions.
 
 | Channel | Input access | Task supervision | AUROC, all | AUROC, silent |
 |---|---|---|---:|---:|
-| Answer equals suggestion | Output text | none | ▢ᶜ | n.a.ᵃ |
-| Best rule-based CoT feature | CoT text | none | ▢ᶜ | ▢ᶜ |
+| Answer names suggestion | Output text | none | **.6610** | n.a.ᵃ |
+| Best rule-based CoT feature | CoT text | none | **.5464** | ▢ᶜ |
 | LLM monitor | Vignette + note + CoT + answer | external LLM | **.7233** | **.6829** |
 | NL activation readout (ours) | Hidden state → text | readout adapter | **.7506** | **.8302** |
 | Linear diagnosis probe | Hidden state | fixed 49-class labels | **▢ᵇ** | **▢ᵇ** |
@@ -401,8 +407,8 @@ the canonical 1,641-row silent subset before citation; .9842 is the superseded
 open diagnosis vocabulary, although binary and retrieval baselines remain
 possible. Text channels require no fixed class list in principle; their MCR
 performance is not established by this table.
-ᶜ Recompute with the canonical matcher labels. The superseded values were
-.664 and .53; they remain useful historical checks but are not camera-ready.
+ᶜ Recompute the silent rule-based value with the canonical matcher labels.
+The superseded silent value was approximately .53.
 
 **LLM 모니터 행 (08-24 실측, gpt-5.6-sol, 1,747/1,747 파싱, 실패 0).** 이
 행이 §4.2의 주장을 바꾼다. 규칙 기반 특징 .53 → 프런티어 모니터 .7233이면
@@ -420,9 +426,9 @@ performance is not established by this table.
 
 **판정자가 실제로 확률을 썼다 (08-24).** 서로 다른 값 61개, 0.00–1.00 전
 구간, 평균 0.149(실제 답 바뀜 비율 0.185). 형식만 확률이고 실질은 3단계인
-경우가 아니므로 **동점으로 AUROC가 깎이지 않았고 .695는 하한이 아니라
-실측**이다. 다만 분포가 두 번째 사실을 말한다: P>0.5가 222건뿐(실제 moved
-324건)이다. 이 두 수치만으로 calibration이나 유병률 추정을 결론내릴 수 없다;
+경우가 아니므로 **동점으로 AUROC가 깎인 것은 아니다**. 다만 분포가 두 번째
+사실을 말한다: P>0.5가 222건이고 canonical moved는 321건이다. 이 두 수치만으로
+calibration이나 유병률 추정을 결론내릴 수 없다;
 그 주장은 Brier/ECE 또는 calibration curve가 있어야 한다.
 
 ### ✅ 부트스트랩 CI 완료 (08-24, `bootstrap_channel_gap.py`)
@@ -434,10 +440,12 @@ performance is not established by this table.
 | 비교 | 부분집합 | 차이 | 95% CI |
 |---|---|---:|---|
 | 판독 − **LLM 모니터** | 침묵 (1,641, moved 218) | **+.147** | **[+.069, +.221]** |
-| 판독 − 체인 특징(최강) | 침묵 | +.291 | [+.230, +.354] |
-| 판독 − 출력만 | 전체 (1,747, moved 324) | +.090 | [+.026, +.157] |
+| 판독 − 체인 특징(최강) | 침묵 | ▢ | ▢ |
+| 판독 − 출력만 | 전체 (1,747, moved 321) | ▢ | ▢ |
 
-**셋 다 0을 배제한다.** 첫 줄이 §4.3의 문장을 지킨다.
+첫 줄은 canonical labels에서 0을 배제한다. 아래 두 줄은 이전 matcher의
+부트스트랩 결과였으므로 canonical labels로 다시 계산하기 전에는 인용하지
+않는다.
 
 **셋째 줄은 정직하게 적어야 한다** — 하한이 +2.6%p로 가장 아슬하다. 전체
 집합에서 판독이 "답이 제안을 말하는가"라는 공짜 특징보다 앞서는 폭은 실재하나
@@ -465,8 +473,13 @@ prompt_cot는 케이스 파일에 이미 있음)** — 나오면 "AUROC, MCR (be
 
 ## Table 4 — Correction ladder (§4.4)
 
+⚠️ r3–r6 수치는 generation-time matcher와 `moved=324` 기준이다. canonical
+`moved=321` 재집계 전에는 camera-ready가 아니다. 아래 표는 실험 구조와
+역사적 결과를 보존한다.
+
 **Table 4.** Second-pass accuracy with the wrong note still in place. Moved:
-the 324 causally moved cases. Capitulation: share of newly broken answers
+the canonical 321 causally moved cases (the historical cells below still use
+324 and await rescoring). Capitulation: share of newly broken answers
 landing on the suggested diagnosis (first-pass counterpart .293).
 
 | Rung | Appended | Overall | Moved | Capitulation |
@@ -575,9 +588,9 @@ check against the chart, a conclusion with its grounds does.*
 ## 그림이 나르는 것 (표에 안 넣는 수치)
 
 - 절대 decoded signal + no-note 대비 paired cost + suggestion-top1 최초 지점
-  → **Figure 4**. `never suggestion top-1`은 `gold top-1 throughout`와 다르므로
-  analyzer가 두 범주를 별도로 출력한다. 321건 정본 재실행 전에는 268/324를
-  본문이나 캡션에 인용하지 않는다.
+  → **Figure 4**. canonical 321건 중 suggestion top-1 경험 55, never 266.
+  never는 gold-throughout 151과 third-diagnosis path 115로 나뉜다. note 이전
+  last-finding 7건은 개입 효과가 아니라 baseline differential signal이다.
 - 사례 서술(심근염 케이스) → **Figure 5**
 - 서로 다른 실험을 한 heatmap에 세로 비교하지 않는다 → **Figure 2**는
   (a) cue-token/held-out cue strings와 (b) final-prompt-token/diagnosis-heldout
@@ -585,10 +598,12 @@ check against the chart, a conclusion with its grounds does.*
 
 ## 남은 ▢ (표 전반)
 
-- **별칭 매칭 규칙 통일** — 채택 건수가 규칙에 따라 95 / 107 / 139로 갈린다.
-  T2b·T2c·T4의 항복률이 모두 이 숫자에 매달려 있으므로, 규칙을 하나로
-  정하고 세 표를 같은 규칙으로 다시 집계한다. MCR의 "답 바뀜" 정의도 같은
-  통일에 딸려 있다.
+- **canonical matcher는 확정** — DDXPlus moved/adopted/third = 321/91/230,
+  MCR = 437/137/300. 남은 것은 wording·CoT·T4 downstream 표의 동일 matcher
+  재집계다.
+- T2: 주 실행 neutral rescore와 correct arm, corpus-300 non-overlap subset
+- T3: canonical dump의 final probability 셀과 dose-response/CI 전사
+- T3b: rule-based silent, canonical probe all/silent, 나머지 두 paired CI
 - T1: shuffle-control 값, swap/memorization/specificity의 정확한 n,
   답 위치 vanilla 행, MCR 산문 서술률 행
 - T3b: MCR 출력 채널 AUROC(CPU 가능), MCR CoT 채널(GPU), logit lens 칸

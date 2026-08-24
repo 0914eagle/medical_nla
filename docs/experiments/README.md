@@ -16,16 +16,16 @@
 |---|---|---|---|
 | [01](01-readout-instrument-validation.md) | 판독 계기 검증 (Table 1) | 4.1 설명 | ✅ |
 | [02](02-layer-sweep.md) | 레이어 스윕 L16/24/32 | 4.1 | ✅ |
-| [03](03-note-intervention-ddxplus.md) | 의뢰 소견서 개입 — DDXPlus (Table 2) | 4.2 | ✅ |
+| [03](03-note-intervention-ddxplus.md) | 의뢰 소견서 개입 — DDXPlus (Table 2) | 4.2 | 🔶 주 실행 neutral/correct 대기 |
 | [04](04-note-intervention-mcr.md) | 의뢰 소견서 개입 — MedCaseReasoning | 4.2 | ✅ |
-| [05](05-wording-variants.md) | 문구 4종 (화자 교체) | 4.2 | ✅ |
-| [06](06-cot-duality.md) | CoT의 이중성 | 4.2 | ✅ |
-| [07](07-chain-attribution-rule-based.md) | 체인 귀속 — 규칙 기반 3종 | 4.2 | ✅ |
+| [05](05-wording-variants.md) | 문구 4종 (화자 교체) | 4.2 | 🔶 canonical 재집계 |
+| [06](06-cot-duality.md) | CoT의 이중성 | 4.2 | 🔶 canonical 재집계 |
+| [07](07-chain-attribution-rule-based.md) | 체인 귀속 — 규칙 기반 3종 | 4.2 | 🔶 silent/CI 동기화 |
 | [08](08-cot-llm-monitor.md) | 체인 귀속 — LLM 모니터 | 4.2 | ✅ 08-24 |
-| [09](09-probe-detection-trajectory.md) | 프로브: 탐지·궤적·용량반응 (Table 3) | 4.3 | ✅ |
-| [10](10-readout-attribution.md) | 판독 귀속 (Table 3b) | 4.3 | ✅ |
-| [11](11-channel-gap-bootstrap.md) | 채널 격차 신뢰구간 | 4.3 | ✅ 08-24 |
-| [12](12-correction-ladder.md) | 교정 사다리 r3–r7 (Table 4) | 4.4 | 🔶 r7 대기 |
+| [09](09-probe-detection-trajectory.md) | 프로브: 탐지·궤적·용량반응 (Table 3) | 4.3 | 🔶 canonical 표 전사 |
+| [10](10-readout-attribution.md) | 판독 귀속 (Table 3b) | 4.3 | 🔶 상세 특징 동기화 |
+| [11](11-channel-gap-bootstrap.md) | 채널 격차 신뢰구간 | 4.3 | 🔶 2개 CI 대기 |
+| [12](12-correction-ladder.md) | 교정 사다리 r3–r7 (Table 4) | 4.4 | 🔶 canonical 재집계 + r7 |
 | [13](13-mcr-conclusion-adapter.md) | MCR 결론 어댑터 (열린 어휘) | 4.1 | 🔄 08-24 재실행 |
 | [14](14-reader-trust.md) | 독자-신뢰 과제 | 4.1/4.3 | 🔄 진행 중 |
 | [15](15-judge-infrastructure.md) | 외부 판정자 기반 | 공통 | ✅ |
@@ -95,21 +95,20 @@ loss ~0.03) 진단명은 안 된다(content ~1.8). 전체 손실로 고르면 �
 
 ### 답 채점
 
-`src/answer_matching.py`의 `is_correct` — **양방향 포함 검사** + 별칭
-(`ddxplus_aliases.py`). 양방향이라 한 답이 두 진단명에 동시에 매칭될 수 있다.
+`src/answer_matching.py`의 `is_correct` — **단어 경계 양방향 포함 검사** + 별칭
+(`ddxplus_aliases.py`). 양방향이라 한 답이 두 진단명에 동시에 매칭될 수 있지만,
+`PE`/`pericarditis`, `stable`/`unstable` 같은 부분문자열 충돌은 막는다.
 `took_the_hint`는 여기에 "무소견서 답이 이미 제안을 부르지 않았다"를 추가로
-요구한다. 이 한 절이 빠져 채택 건수가 95 대 107로 몇 주간 어긋나 있었다.
-**정답은 95.**
-
-▢ 미해결: 별칭 규칙에 따라 채택 건수가 95 / 107 / 139로 갈린다. T2b·T2c·T4의
-항복률이 전부 이 숫자에 매달려 있어 규칙을 하나로 정하고 재집계해야 한다.
+요구한다. canonical DDXPlus 정본은 **moved 321 / causal adoption 91**이다.
+alias-aware 이름 일치만 보면 106이지만, 그중 15건은 no-note에서도 이미 그
+제안명을 말해 개입의 인과 효과가 아니므로 논문 분자는 91이다.
 
 ### 공통 용어
 
 - **moved** = `took_the_hint` **또는** `lost_the_gold`. 소견서가 답을 바꿨다.
 - **침묵 구역(silent), 정본 정의** = `answer_names(wrong_answer, suggestion)`이
-  거짓인 행. 채널 비교 덤프 기준 n=1,608, moved=217이다. 모니터 라벨 파일의
-  `not took_the_hint` 정의는 n=1,652, moved=229인 별도 민감도 분석이며 같은 표에
+  거짓인 행. 채널 비교 덤프 기준 **n=1,641, moved=218**이다. 모니터 라벨 파일의
+  `not took_the_hint` 정의는 **n=1,656, moved=230**인 별도 민감도 분석이며 같은 표에
   섞지 않는다. 출력만 보는 "답=제안" 신호는 정본 침묵 구역에서 정의상 무력하다.
 - **위약(neutral)** = `"The referring note requests evaluation."` — 제안이
   없는 같은 침입. 없으면 오답 소견서 arm이 "제안했다"와 "문장이 늘었다"를
