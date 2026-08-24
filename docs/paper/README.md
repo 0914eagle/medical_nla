@@ -110,7 +110,7 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 
 1. ~~wording과 CoT 파생 실행을 canonical matcher로 재집계한다.~~ **완료
    (08-24)** — `.8117 / .8168 / .8672 / .7481`, CoT 이중성 −17.80 → −4.46 pp.
-2. ~~Table 3의 행동군 Δ 차이에 paired CI 또는 추세 검정을 추가한다.~~
+2. ~~Table 3a의 행동군 Δ 차이에 paired CI 또는 추세 검정을 추가한다.~~
    **계기 완료** (`src/paired_stats.py`) — 궤적 재실행에서 값이 나온다.
 3. reader-trust: 2,896행 완주(현재 2,546)와 **shuffled account 통제**.
    증분 자체는 이미 확정적이다(readout −.0921 [−.135,−.046]).
