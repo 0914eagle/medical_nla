@@ -37,8 +37,12 @@ not that it is faithful. Swap tracking / memorization are the core: editing
 one finding moves the description 99.3% of the time and never leaves the
 original wording behind.*
 
-**채점자 표기 (08-25 결정)**: unseen-cue 서술률 0.75는 1기의 438행 수동
-채점(A/B/C/D 4등급, A+B를 성공으로) 결과다. **채점자 신원·인원 표기는
+**채점자 표기 (08-25 결정, 08-24 적용 확대)**: unseen-cue 서술률 0.75는
+1기의 438행 의미 채점(A/B/C/D 4등급, A+B를 성공으로) 결과다.
+**같은 보류가 Figure 2에도 걸린다** — 층별 A+B(.340/.731/.557)는 같은
+438행의 같은 채점이므로, 그림 각주에 "hand-labeled"이라고 쓰면 보류하기로
+한 귀속을 단언하게 된다. 그래서 그 줄은 그림에서 뺐고, 히트맵은 기계 채점
+한 자로만 그린다. **채점자 신원·인원 표기는
 비워 두고, 외부 API 판정자를 확보하면 그 판정으로 대체한다** — 사람
 2차 채점이나 자기 일치율로 메우지 않는다. 그때까지 본문에는 수치만 싣고
 채점 주체는 서술하지 않으며, 최종 원고에서 판정자 절차로 채운다.

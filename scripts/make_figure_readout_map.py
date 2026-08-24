@@ -8,10 +8,20 @@ answer position it has folded into a conclusion that only a different
 instrument (the class probe, or the conclusion readout) can read.
 
 One scorer for all six cells -- the v2 lexical scorer's mean token recall on
-heldout cues -- because the hand-labeled A+B rate exists only for the cue
-row (438 rows x 3 layers) and a heatmap must not mix rubrics. The hand
-labels go in the annotation under the top row; they tell the same story
-(34.0 / 73.1 / 55.7) with a sharper peak.
+heldout cues -- for two reasons, and the second is the binding one.
+
+The weaker reason: the manually scored A+B rate exists only for the cue row
+(438 rows x 3 layers), and a heatmap whose two rows were measured with
+different rubrics is not a heatmap.
+
+The binding reason: the 438-row semantic scoring is held open. Its numbers
+(.340 / .731 / .557, same shape with a sharper peak) stand, but the paper
+does not state who produced them -- that slot waits for an external judge to
+re-score the same rows, and no second human pass or self-agreement rate fills
+it in the meantime. A figure annotation has no room for that caveat, and an
+annotation reading "hand-labeled" would assert exactly the attribution the
+decision defers. So the figure carries one scorer and says so; the deferred
+numbers live in the text, where the placeholder can be stated.
 
 Values are transcribed constants, not a dump: both sweeps are period-1
 results whose analyzers no longer run end to end, and their numbers are
@@ -36,7 +46,6 @@ DEFAULT = {
     "cue token": [0.510, 0.658, 0.589],
     "answer-forming token": [0.188, 0.249, 0.188],
 }
-HAND_LABELED_CUE = [0.340, 0.731, 0.557]  # A+B semantic read, 438 rows/layer
 
 
 def main() -> None:
@@ -67,12 +76,7 @@ def main() -> None:
     ax.set_yticks(range(len(rows)), rows, fontsize=8)
     ax.set_title("unseen-cue readability (held-out cue strings)", fontsize=8.5)
     fig.colorbar(im, ax=ax, shrink=0.85).ax.tick_params(labelsize=7)
-    if rows and rows[0] == "cue token":
-        ax.set_xlabel(
-            "hand-labeled semantic read, cue row: "
-            + " / ".join(f"{v:.3f}".lstrip("0") for v in HAND_LABELED_CUE),
-            fontsize=6.8,
-        )
+    ax.set_xlabel("layer, mean token recall (one scorer, all cells)", fontsize=7)
     fig.tight_layout()
     fig.savefig(args.output, dpi=300, bbox_inches="tight")
     print(f"[figure] {args.output}")
