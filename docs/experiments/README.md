@@ -1,0 +1,113 @@
+# docs/experiments — 실험 하나당 문서 하나
+
+각 문서는 **그 실험만 보고 재현할 수 있도록** 적는다: 어떤 모델, 어떤 데이터,
+표본이 몇이고 어떻게 골랐는지, 튜닝을 했다면 하이퍼파라미터가 무엇인지,
+무엇을 통제했는지, 실측값이 얼마고 그것이 무엇을 의미하는지, 그리고 **무엇을
+의미하지 않는지**.
+
+`docs/paper/`는 논문 조판을 위한 문서다(표 원고·현황·선행연구). 여기는
+**실험 기록**이다. 값이 어긋나면 `docs/paper/table_camera_ready_2026-08-25.md`가
+정본이고, 이 문서들은 그 값이 어떻게 나왔는지를 설명한다.
+
+## 목록
+
+| # | 실험 | 축 | 상태 |
+|---|---|---|---|
+| [01](01-readout-instrument-validation.md) | 판독 계기 검증 (Table 1) | 4.1 설명 | ✅ |
+| [02](02-layer-sweep.md) | 레이어 스윕 L16/24/32 | 4.1 | ✅ |
+| [03](03-note-intervention-ddxplus.md) | 의뢰 소견서 개입 — DDXPlus (Table 2) | 4.2 | ✅ |
+| [04](04-note-intervention-mcr.md) | 의뢰 소견서 개입 — MedCaseReasoning | 4.2 | ✅ |
+| [05](05-wording-variants.md) | 문구 4종 (화자 교체) | 4.2 | ✅ |
+| [06](06-cot-duality.md) | CoT의 이중성 | 4.2 | ✅ |
+| [07](07-chain-attribution-rule-based.md) | 체인 귀속 — 규칙 기반 3종 | 4.2 | ✅ |
+| [08](08-cot-llm-monitor.md) | 체인 귀속 — LLM 모니터 | 4.2 | ✅ 08-24 |
+| [09](09-probe-detection-trajectory.md) | 프로브: 탐지·궤적·용량반응 (Table 3) | 4.3 | ✅ |
+| [10](10-readout-attribution.md) | 판독 귀속 (Table 3b) | 4.3 | ✅ |
+| [11](11-channel-gap-bootstrap.md) | 채널 격차 신뢰구간 | 4.3 | ✅ 08-24 |
+| [12](12-correction-ladder.md) | 교정 사다리 r3–r7 (Table 4) | 4.4 | 🔶 r7 대기 |
+| [13](13-mcr-conclusion-adapter.md) | MCR 결론 어댑터 (열린 어휘) | 4.1 | 🔄 08-24 재실행 |
+| [14](14-reader-trust.md) | 독자-신뢰 과제 | 4.1/4.3 | 🔄 진행 중 |
+| [15](15-judge-infrastructure.md) | 외부 판정자 기반 | 공통 | ✅ |
+
+---
+
+## 모든 실험이 공유하는 설정
+
+### 모델
+
+| 역할 | 체크포인트 | 용도 |
+|---|---|---|
+| **소스 모델** (연구 대상) | `google/gemma-3-12b-it` | 진단을 답하고, 그 활성값을 뽑는다 |
+| **AV 판독기** | `kitft/nla-gemma3-12b-L32-av` | 활성 벡터 하나를 받아 자연어로 서술 |
+| (미사용) AR 판독기 | `kitft/nla-gemma3-12b-L32-ar` | 설정에만 존재 |
+
+- dtype **bfloat16**, `device_map: auto`, 카드당 `max_memory: 22GiB`.
+  12B가 bfloat16으로 24.4GB라 24GB 카드 하나에 안 들어간다. `auto`에 맡기면
+  일부를 meta로 보내고 몇 분 뒤 cuBLAS 안에서 죽으므로 카드를 명시한다.
+- 사이드카 `nla_meta.yaml` 검증: `d_model=3840`, `injection_token_id=246566`.
+- 생성 기본값: `do_sample: false` (**전부 그리디**, 온도·top_p 없음),
+  `max_new_tokens: 256`. MCR 결론 판독만 768 — 타깃이 평균 764자라 256으로는
+  54%가 잘렸다(→ [13](13-mcr-conclusion-adapter.md)).
+
+### 하드웨어
+
+24GB 카드 4장. `CUDA_VISIBLE_DEVICES=0,1`에 이 프로젝트가, 2,3은 다른 작업에
+비워둔다. 학습·판독 전에 `check_gpu_setup.py --require-free-gb 20`이 카드를
+확인하고, 모자라면 **거부한다** — 없으면 18개 실행이 전부 9초 만에 죽고
+요약표가 "(did not finish)" 18줄이 된다.
+
+### 활성값 추출 지점
+
+`outputs.hidden_states[32]` = **트랜스포머 블록 32의 출력**(= 블록 33에
+들어가기 직전). 튜플은 48+1개이며 index 0은 임베딩 출력, 1–47은 각 블록
+출력(최종 norm 이전), 48은 **post-final-RMSNorm**이다. 48번은 norm이 ~158로
+47번의 ~213,000과 자릿수가 달라 같은 궤적에 그리면 안 된다.
+저장은 float32, 순전파는 bfloat16.
+
+### LoRA 학습 하이퍼파라미터 (`train_medical_nla_lora.py`)
+
+판독 어댑터를 학습하는 모든 실험이 이 값을 쓴다.
+
+| 항목 | 값 |
+|---|---|
+| rank `r` | **16** |
+| `alpha` | **32** |
+| dropout | **0.05** |
+| target modules | `q_proj k_proj v_proj o_proj gate_proj up_proj down_proj` (7개 전부) |
+| optimizer | **AdamW**, lr **2e-4**, weight_decay **0.0**, **스케줄러 없음** |
+| epochs | 3 (레이어마다 동일 — 파일럿이 L32만 3, L16/24는 2로 돌려 레이어 효과와 에폭 효과가 섞였다) |
+| effective batch | **8** = `batch × grad_accum`. DDXPlus 4×2, MCR 결론 1×8 |
+| gradient checkpointing | 켬 (`use_reentrant=False`) |
+| seeds | 17 / 18 / 19 (MCR 결론만 17 하나) |
+| max train rows | **10,195** — 두 코퍼스에 같은 예산. MCR은 32,724행이라 안 자르면 "산문 때문인지 데이터가 많아서인지"가 섞인다 |
+| max eval rows | 512 (에폭 간 동일 표본 재사용) |
+| **모델 선택** | `--select-on content` — 검증 손실을 **내용 토큰**과 **XML 뼈대 토큰**으로 나눠 내용 손실로 고른다 |
+
+**`--select-on content`가 왜 필요했나.** XML 뼈대는 즉시 학습되고(scaffold
+loss ~0.03) 진단명은 안 된다(content ~1.8). 전체 손실로 고르면 대부분 상수인
+뼈대가 지표를 지배한다. 그리고 내용 스팬이 0개면 내용 손실이 NaN이 되어
+`NaN < best`가 매 에폭 False가 되고, **3시간 학습이 아무것도 저장하지 않고
+끝난다**(실제로 발생). 지금은 스팬 0개면 즉시 실패하고, NaN이면 전체 손실로
+폴백한다.
+
+### 답 채점
+
+`src/answer_matching.py`의 `is_correct` — **양방향 포함 검사** + 별칭
+(`ddxplus_aliases.py`). 양방향이라 한 답이 두 진단명에 동시에 매칭될 수 있다.
+`took_the_hint`는 여기에 "무소견서 답이 이미 제안을 부르지 않았다"를 추가로
+요구한다. 이 한 절이 빠져 채택 건수가 95 대 107로 몇 주간 어긋나 있었다.
+**정답은 95.**
+
+▢ 미해결: 별칭 규칙에 따라 채택 건수가 95 / 107 / 139로 갈린다. T2b·T2c·T4의
+항복률이 전부 이 숫자에 매달려 있어 규칙을 하나로 정하고 재집계해야 한다.
+
+### 공통 용어
+
+- **moved** = `took_the_hint` **또는** `lost_the_gold`. 소견서가 답을 바꿨다.
+- **침묵 구역(silent)** = moved 중 답이 제안과 **다른** 경우. 출력만 보는
+  신호가 정의상 무력한 구간이고, moved의 71%가 여기 산다.
+- **위약(neutral)** = `"The referring note requests evaluation."` — 제안이
+  없는 같은 침입. 없으면 오답 소견서 arm이 "제안했다"와 "문장이 늘었다"를
+  동시에 잰다.
+- 모든 AUROC는 **진단 내 층화**. 이 코퍼스는 진단명만 알아도 pooled AUROC
+  0.93이 나와서, pooled 값은 "진단 맞히기"를 일부 재고 있다.
