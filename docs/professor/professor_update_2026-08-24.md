@@ -79,14 +79,16 @@ CoT는 답 바뀜 총량을 줄이지만(281 vs 324) **제안의 명시적 채�
 
 ## 3. 논문 구조 (확정)
 
-Intro / Related Work(2.1 Explainability of Medical LLMs · 2.2 Reading LLM
-Internals) / **Methodology**(3.1 Datasets · 3.2 Causal Testbed · 3.3
+Intro / Related Work(2.1 Clinical anchoring and misleading context · 2.2 CoT
+faithfulness and internal-output dissociation · 2.3 Reading and acting on
+activations) / **Methodology**(3.1 Datasets · 3.2 Causal Testbed · 3.3
 Verified Readout & Channels · 3.4 Experimental Designs) / **Experimental
 Results**(4.1 계기 신뢰 · 4.2 개입+무예고 · 4.3 기전+탐지 · 4.4 교정) /
 Conclusion. RQ 3개 = 설명/진단/교정 축과 1:1. Related work 초안(영문,
-LaTeX 포함)과 인용 지도는 repo에 완료. 테제: **앵커링은 내부의 소거가
-아니라 출력의 사건이다 — 검증된 AV 판독은 그것을 보고, 서술하고, 되돌리는
-재료를 준다.**
+LaTeX 포함)과 인용 지도는 repo에 완료. 테제: **오답 임상 제안에 따른 출력
+이동과 내부 suggestion dominance는 같은 사건이 아니다. 지도 probe를 주 정량
+계기로 그 해리와 단일 실행 귀속을 측정하고, 검증된 AV를 보조 자연어 채널로
+사용해 정확한 content의 조건부 교정 가능성을 시험한다.**
 
 ## 4. 남은 항목
 

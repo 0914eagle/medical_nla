@@ -333,24 +333,135 @@ precision .3615), 허위 경보의 68.4%가 어댑터 오독이다. 자기 CoT r
 
 ## 1. Introduction
 
-**임무**: "잘못된 임상 제안은 내부 진단 신호를 완전히 지우지 않고도 출력을
-바꿀 수 있다 — 이 결렬을 내부 채널로 측정·탐지하고 조건부로 교정한다"까지
-5문단으로 도달한다. 자연어 AV는 이 현상을 발견하는 유일한 수단이 아니며
-논문의 주인공도 아니다. Probe를 보완하는 측정 채널로만 위치시킨다.
+**임무**: 임상적으로 실재하는 잠정 진단이 downstream 판단을 좁힐 수 있다는
+문제에서 출발해, `행동적 출력 이동 != 내부 suggestion dominance`라는 대전제를
+세우고, 이를 측정·단일 실행 탐지·조건부 교정하는 세 RQ로 도달한다. 자연어 AV는
+이 현상의 유일한 증거도 주인공도 아니다. 닫힌 진단 공간에서는 cross-fitted
+probe가 주 정량 계기이고, AV는 activation-dependent 자연어 후보를 제공하는 보조
+계기다.
 
-- 문단 1 — 임상 훅: 진단 오류와 인지 편향 (미국 연 4–8만 예방가능 사망,
-  40–80%에 인지 편향 관여 [npj 2025]; anchoring [Croskerry]). LLM이 임상
-  워크플로에 들어오는 중.
-- 문단 2 — 문제: 설명은 원인을 말하지 않는다 [Turpin]. 우리 실물 훅 한 줄:
-  소견서 한 문장이 정답률을 **23%p** 떨어뜨리는데(누출 제외 1,220건에서
-  1,209 → 927), 규칙 기반 CoT 특징은 이를 거의 예고하지 못한다(0.50–0.53).
-  강한 LLM 모니터는 더 높은 신호(.7233/.6829)를 읽지만 내부 채널보다 약하다.
-- 문단 3 — 질문과 접근: 환자 소견을 고정한 4-arm 인과 테스트베드에서 행동,
-  출력, CoT, LLM monitor와 내부 activation을 분리한다. 닫힌 label space의 주
-  정량 계기는 cross-fitted probe이고, AV는 자연어·열린 어휘 후보를 제공하는
-  보조 계기다. AV는 사용 전에 activation-specificity 측정 관문을 통과시킨다.
-  배포 상황에서는 반사실 짝 없이 wrong-note 단일 실행만 관측함을 명시한다.
-- 문단 4 — 기여 5개 (불릿; 08-25 실측으로 갱신):
+### 1.1 먼저 제시할 대전제·가설·RQ
+
+인트로 초반에 독자가 논문의 논리 구조를 잃지 않도록 다음 순서로 명시한다.
+
+> **대전제.** 의료 LLM의 최종 출력과 생성 CoT는 내부에서 decode 가능한 진단
+> 상태를 완전히 대표하지 않을 수 있다. 잘못된 임상 제안은 제안 진단을 내부
+> top-1으로 만들지 않고도 최종 답을 바꿀 수 있으므로, 행동·자기서술·activation을
+> 분리해 측정해야 한다.
+
+이 대전제는 “모델이 속으로 항상 정답을 안다”는 주장이 아니다. `probe top-1`은
+해당 activation에서 label이 선형 decode 가능하다는 뜻일 뿐, 생성에 실제로
+사용됐다는 인과적 증거나 인간과 같은 belief가 아니다.
+
+- **H1 — dissociation**: wrong note가 답을 바꿔도 suggestion이 관측한 activation의
+  top-1 diagnosis가 되지 않을 수 있다. Gold가 유지되는 경로와 제3 진단으로
+  이동하는 경로를 모두 허용한다.
+- **H2 — single-run attribution**: 반사실 none arm을 detector에게 주지 않아도,
+  wrong-note 실행의 내부 채널은 output/CoT 채널보다 `moved` 사례를 더 잘
+  식별할 수 있다.
+- **H3 — conditional correction**: 정확한 내부 content는 moved answer 교정에
+  유용하지만, 무선별 재실행과 부정확한 판독은 kept answer를 파괴한다. 이득은
+  자연어 형식 자체보다 content 정확도와 selector에 의해 결정된다.
+
+세 가설은 다음 질문과 일대일로 연결한다.
+
+- **RQ1 (현상·궤적)**: wrong referral note는 진단 행동을 얼마나 움직이며,
+  moved case에서 gold·suggestion·other diagnosis의 decodable signal은 prompt
+  landmark를 따라 어떻게 변하는가?
+- **RQ2 (단일 실행 탐지)**: wrong-note 실행 한 번의 output, CoT, LLM monitor,
+  probe, AV 중 무엇이 causally moved case를 가장 잘 식별하는가? 답이 suggestion을
+  말하지 않는 canonical silent subset에서도 가능한가?
+- **RQ3 (교정)**: decode한 내부 content를 source model에 되먹이면 답을 회복하는가?
+  효과를 재실행, evidence 재제시, label, 자연어 readout으로 분해하면 실제
+  지렛대는 무엇인가?
+
+AV의 pairing 검증은 별도 연구 질문이 아니라 **M0 measurement gate**다. AV가
+paired activation을 따라가는지, verbalizer의 의료 지식과 template prior를
+말하는지를 swap·shuffle·heldout·contamination으로 검사한 뒤 제한적으로 쓴다.
+
+### 1.2 실제 Introduction의 7문단 전개
+
+**문단 1 — 임상 workflow와 anchoring.** 환자는 빈 종이로 downstream
+clinician이나 model에 도착하지 않는다. Referral letter에는 증상·검사뿐 아니라
+잠정 진단이 포함될 수 있고, 사람 대상 실험에서도 진단 제안이 감별진단의 폭을
+줄였다. Staal et al.의 무작위 within-subject 연구에서는 제안 없음 대비 정답·오답
+제안 모두 고려한 감별진단 수를 줄였다(`1.85 → 1.52/1.42`, `p=.022`).
+Spaanjaars et al.도 referral letter의 diagnostic anchor가 일부 경험군의 진단에
+영향을 줌을 보고했다. 따라서 본 설정은 “모든 소견서가 진단명을 포함한다”가
+아니라 **referral-mediated diagnostic workflow에서 가능한 잠정 진단 변수**를
+통제한 것이다.
+
+- [Staal et al., BMC Medical Education, 2022](https://pmc.ncbi.nlm.nih.gov/articles/PMC8991944/)
+- [Spaanjaars et al., European Journal of Psychological Assessment, 2015](https://doi.org/10.1027/1015-5759/a000235)
+- [AHRQ PSNet: Anchoring Bias With Critical Implications](https://psnet.ahrq.gov/web-mm/anchoring-bias-critical-implications)
+
+**문단 2 — 의료 LLM의 행동 취약성은 이미 알려져 있다.** BiasMedQA는 1,273개
+USMLE 문항에 일곱 종류의 임상 인지 편향 문장을 주입해 모델별 정확도 저하를
+보였다. MED-STRESS는 다중 턴 임상 압박에서 초기 정답을 포기하는 현상을,
+MedMisBench는 오도 맥락에서 평균 정확도가 `71.1%→38.0%`로 떨어지는 현상을
+보고했다. Narrative Anchoring은 임상 사실을 보존하고 문체만 바꿔도 진단이
+달라짐을 보였다. 따라서 “의료 LLM은 외부 맥락에 흔들린다” 자체는 우리의 최초
+기여가 아니다. 남은 질문은 **답이 흔들릴 때 내부 진단 표현이 실제로 어떻게
+변했는가**다.
+
+- [Schmidgall et al., BiasMedQA, npj Digital Medicine 2024](https://www.nature.com/articles/s41746-024-01283-6)
+- [Xiao et al., MED-STRESS, ACL 2026](https://arxiv.org/abs/2605.23932)
+- [Zhou et al., MedMisBench, 2026](https://arxiv.org/abs/2606.12291)
+- [Singh et al., Narrative Anchoring, 2026](https://arxiv.org/abs/2607.27384)
+
+**문단 3 — 출력과 CoT는 원인의 완전한 관측치가 아니다.** Turpin et al.은
+답을 움직이는 편향 특징이 CoT에 언급되지 않고 사후 합리화될 수 있음을 보였고,
+Lanham et al.은 CoT 개입에 대한 의존도가 모델·과제별로 크게 다름을 보였다.
+의료에서도 Afolabi et al.은 causal ablation과 hint injection으로 외부 제안이
+인정 없이 흡수될 수 있음을 보고했다. 다만 이것이 “CoT에 신호가 없다”는 뜻은
+아니다. 우리 강한 LLM monitor는 유의한 신호를 읽는다. 정확한 문제는
+**self-report만으로 원인을 완전히 귀속할 수 없고, 추가 내부 채널의 증분을 직접
+비교해야 한다**는 것이다.
+
+- [Turpin et al., NeurIPS 2023](https://arxiv.org/abs/2305.04388)
+- [Lanham et al., 2023](https://arxiv.org/abs/2307.13702)
+- [Afolabi et al., PMLR 2026](https://arxiv.org/abs/2603.13988)
+
+**문단 4 — 내부-출력 해리도 이미 인접 선행이 있다.** Catching Rationalization은
+일반 객관식에서 pre/post-generation probe가 CoT monitor와 같거나 더 강하게
+motivated reasoning을 탐지함을 보였다. 의료에서는 Fraile Navarro et al.이 동일
+Gemma-3-12B NLA와 L32 activation으로 triage format failure에서 임상 내용이
+보존됨을, Tayebi Arasteh가 임상 근거 등급이 activation에서 복원되지만 stated
+grade에는 나타나지 않음을, Basu et al.이 위험 신호 probe AUROC `.982`와 낮은
+출력 sensitivity 사이의 knowledge-action gap을 보였다. 따라서 우리의 신규성은
+“의료 내부-출력 불일치 최초”가 아니라 **진단 제안이라는 인과 개입에서 출력
+이동과 suggestion dominance를 위치별로 분해하고, 그 원인을 사례 단위로 탐지한
+뒤 교정까지 같은 프로토콜로 연결한 것**이다.
+
+- [Mirtaheri and Belkin, Catching Rationalization, 2026](https://arxiv.org/abs/2603.17199)
+- [Fraile Navarro et al., 2026](https://arxiv.org/abs/2605.29889)
+- [Tayebi Arasteh, 2026](https://arxiv.org/abs/2606.29034)
+- [Basu et al., 2026](https://arxiv.org/abs/2603.18353)
+
+**문단 5 — 왜 probe와 자연어 readout을 함께 쓰는가.** Probe는 질문을 미리
+정한 닫힌 label space에서 강한 정량 계기다. Patchscopes, SelfIE, LatentQA,
+NLA는 activation을 자연어로 풀어 고정 vocabulary 밖의 후보를 만들 수 있다.
+하지만 Li et al.은 verbalization benchmark를 target activation 없이도 풀 수 있고,
+출력이 target model보다 verbalizer의 parametric knowledge를 반영할 수 있음을
+보였다. 따라서 본 논문은 probe를 upper bound가 아니라 **주 정량 계기**로
+보고하고, AV는 M0를 통과한 범위의 보조 계기로만 쓴다.
+
+- [Patchscopes, ICML 2024](https://arxiv.org/abs/2401.06102)
+- [SelfIE, ICML 2024](https://arxiv.org/abs/2403.10949)
+- [LatentQA, 2024](https://arxiv.org/abs/2412.08686)
+- [Natural Language Autoencoders, Anthropic 2026](https://transformer-circuits.pub/2026/nla/index.html)
+- [Li et al., ICML 2026](https://arxiv.org/abs/2509.13316)
+
+**문단 6 — 접근과 결과 훅.** 환자 findings를 고정하고 referral note만
+`none/neutral/wrong/correct`로 바꾸는 four-arm 실험을 만든다. Note가 findings
+뒤에 오므로 cue-position activation은 causal masking 아래 조건 간 동일하다.
+행동 효과는 DDXPlus와 MCR에서 재현하고, 내부 궤적은 DDXPlus에서
+cross-fitted probe와 검증된 AV로 측정한다. 배포형 탐지에서는 detector가 none
+반사실을 보지 않고 wrong run 하나만 받는다. 이 설계에서 wrong note는 DDXPlus
+정확도를 `23.03%p`, MCR을 `26.89%p` 낮추지만, DDXPlus moved 321건 중 266건에서
+suggestion은 관측한 어느 landmark에서도 probe top-1이 아니다.
+
+**문단 7 — 기여 5개 (08-25 실측으로 갱신):**
   1. **인과 테스트베드**: 소견서 4조건 개입 — 임상적으로 실재하는 교란,
      위약 대조, **cue 위치 활성값 불변이 가정이 아니라 설계로 보장**.
      합성(DDXPlus 1,747)과 실제 증례(MCR 1,543) 양쪽에서 재현되며,
@@ -373,21 +484,30 @@ precision .3615), 허위 경보의 68.4%가 어댑터 오독이다. 자기 CoT r
      activation pairing을 추적한다. 그러나 probe보다 약하고, MCR 근거 접지와
      reader utility는 실패했다. 즉 AV를 우월한 detector가 아니라 검증이 필요한
      자연어·가설 생성 채널로 위치시킨다.
-- 문단 5 — 로드맵 한 줄.
+- 마지막에 로드맵 한 줄: §2는 위 네 선행 흐름과 남은 교차점을 정리하고, §3은
+  인과 테스트베드와 계기를 정의하며, §4는 행동→궤적→단일 실행 탐지→교정
+  순으로 답한다.
 
-## 2. Related Work (확정 2절 — related_work 문서 §3)
+## 2. Related Work (확정 3절)
 
-- **2.1 Explainability of Medical LLMs** (08-24 개제 — draft_related_work
-  참조): 판돈(정확도 너머 안전·규제·anchoring) → 의료 설명의 두 형태(입력
-  기여도 SHAP/LIME · CoT 자기 서술과 트레이스-감사 제안) → 자기 서술의
-  불충실(일반 + 의료 증거) → 턴: 두 형태 모두 "무엇이 답을 만들었나"에
-  실패 — 인과 재구축 + 내부로.
-- **2.2 Reading LLM internals: from probes to natural-language readouts**
-  (도구): probe/lens/SAE(+SHAP/LIME 입력 기여도 한 줄) → Patchscopes/SelfIE/
-  LatentQA → NLA → Li et al. 비판과 우리의 답 → 의료 내부 접근(ADR·정렬저항
-  프로브, 의료 SAE — 지식 소재까지만) → 비의료 내부-외부 불일치(CIE-SCORER,
-  Yuan, Mehrafarin — 비언어·정오판정·비의료). 마감: 의료 진단에서 개별
-  사례의 원인을 자연어로 귀속한 적 없다.
+최신 선행을 두 절로 압축하면 의료 행동 연구와 내부 해석 연구 사이의 직접
+경쟁자가 가려진다. 세 절로 분리한다.
+
+- **2.1 Clinical anchoring and misleading context**: 사람의 referral-letter
+  anchor(Staal; Spaanjaars) → BiasMedQA·MED-STRESS·MedMisBench·Narrative
+  Anchoring. 결론은 “행동 취약성은 알려져 있다; 우리 행동 낙폭은 신규성보다
+  실험대 검증이다.” 우리의 차이는 placebo, same-case counterfactual, evidence
+  invariance, 제3 진단 행방 분해다.
+- **2.2 CoT faithfulness and internal-output dissociation**: Turpin·Lanham·Afolabi
+  → Catching Rationalization → Fraile Navarro·Tayebi Arasteh·Basu. 결론은
+  “CoT가 완전한 원인 기록이 아니며 내부가 출력을 초과할 수 있다는 것도
+  알려져 있다.” 우리의 차이는 **진단 제안의 인과 귀속**, 위치 궤적, silent
+  subset, single-run moved label이다.
+- **2.3 Reading and acting on activations**: probe·lens·SAE → Patchscopes·SelfIE·
+  LatentQA·NLA → Li et al.의 privileged-information 비판 → Sun et al.의 selective
+  reprompting과 Basu/Vankadaru/Liu의 decodability-control gap. 결론은 probe와
+  AV의 역할을 분업하고, 검증된 content를 되먹이는 조건부 교정을 시험한다.
+  자연어 형식의 우월성이나 임상의용 효용은 주장하지 않는다.
 
 ## 3. Methodology
 

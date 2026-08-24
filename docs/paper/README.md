@@ -11,10 +11,11 @@
 
 1. `experiment_summary_2026-08-25.md` — 실험별 질문, 실측, 상태를 한 번에 본다.
 2. `paper_outline_2026-08-24.md` — 논문 테제와 절별 서사를 본다.
-3. `table_camera_ready_2026-08-25.md` — 현재 표의 수치와 캡션을 확인한다.
-4. `figure_order_and_generation_2026-08-25.md` — 그림 순서·생성 명령·해석 경계를 확인한다.
-5. `prior_work_2026-08-24.md` — 신규성의 범위와 가장 가까운 선행을 확인한다.
-6. `draft_related_work_2026-08-24.md` / `related_work.tex` — 실제 Related Work 원고.
+3. `draft_introduction_2026-08-25.md` — 영어 Introduction 초안, H/RQ, 원문 출처 지도를 본다.
+4. `table_camera_ready_2026-08-25.md` — 현재 표의 수치와 캡션을 확인한다.
+5. `figure_order_and_generation_2026-08-25.md` — 그림 순서·생성 명령·해석 경계를 확인한다.
+6. `prior_work_2026-08-24.md` — 신규성의 범위와 가장 가까운 선행을 확인한다.
+7. `draft_related_work_2026-08-24.md` / `related_work.tex` — 실제 Related Work 원고.
 
 `related_work_2026-08-23.md`는 문헌 조사 원장이고, `reading_*.md`는 최근접
 논문의 정독 노트다. `judge_jobs_2026-08-24.md`는 외부 판정자 실험의 실행

@@ -147,6 +147,10 @@ MCR supporting-ground 판독과 reader-trust에서 실패했고, 닫힌 공간�
 
 ## Slide 5. 현재 논문의 대전제
 
+이 슬라이드부터가 논문의 **formal introduction**이다. Slide 1–4가 사례와 도구의
+역할을 설명했다면, Slide 5–7은 대전제→가설→RQ를 고정하고 Slide 8에서 그 질문이
+선행연구의 어디에 놓이는지 설명한다.
+
 현재 대전제는 다음과 같다.
 
 > 의료 LLM의 최종 출력과 생성된 CoT는 모델 내부의 진단 상태를 완전히
@@ -158,6 +162,12 @@ MCR supporting-ground 판독과 reader-trust에서 실패했고, 닫힌 공간�
 gold가 여섯 landmark에서 계속 top-1인 경우는 151건뿐이다. 나머지는 제안 또는
 제3 진단으로 내부 top-1 경로가 달라진다. 논문의 관심은 단순 정답 보존이 아니라
 **출력 이동과 내부 top-1 이동이 동일한 사건이 아니라는 것**이다.
+
+발표에서는 `model belief`, `the model knows`라고 말하지 않는다. Probe top-1은
+진단 label이 activation에서 선형 decode 가능하다는 뜻이지, 그 label이 생성에
+인과적으로 사용됐다는 뜻이 아니다. 그래서 논문의 영어 표현도 `decodable
+diagnostic signal`, `internal-output dissociation`, `suggestion dominance`로
+통일한다.
 
 ## Slide 6. 현상에 관한 세 가설
 
@@ -177,6 +187,13 @@ rule-based CoT, LLM monitor, AV, probe를 같은 모집단에서 비교한다.
 
 AV의 activation-specificity는 위 세 가설과 별개다. AV 산문을 H1–H3의 보조
 측정치로 쓰기 전에 반드시 통과해야 하는 **측정 관문 M0**로 둔다.
+
+**각 가설의 반증 조건도 같이 말한다.** H1은 moved case 대부분에서 suggestion이
+landmark top-1이면 반증된다. H2는 같은 wrong run에서 내부 채널이 강한 LLM
+monitor보다 낫지 않거나 diagnosis-heldout에서만 성능이 나온다면 약화된다. H3는
+정확한 content feedback이 generic retry/evidence-only보다 낫지 않거나 kept
+answer 파괴를 감수해도 순효과가 없으면 실용 주장으로 이어지지 않는다. 이 기준은
+결과를 본 뒤 만든 해석이 아니라 실험 결과를 읽는 경계다.
 
 ## Slide 7. 세 연구 질문과 측정 관문 M0
 
@@ -203,24 +220,71 @@ RQ2가 오류 진단·조기 경보, RQ3가 해결이다. RQ1은 이 세 응용�
 기초 현상을 먼저 확립한다. 현재 AV 산문은 임상의에게 제공할 설명이 아니라
 연구자가 내부 후보 내용을 측정하기 위한 제한적 계기다.
 
+화면 하단에는 다음 대응표를 작게 둔다.
+
+| 교수님이 제시한 축 | 논문 안의 질문 | 현재 답의 범위 |
+|---|---|---|
+| 설명 | M0 + RQ1의 위치별 내부 측정 | activation-dependent 후보는 읽지만 임상 설명 효용은 미확립 |
+| 진단/경보 | RQ2 single-run moved attribution | DDXPlus에서 가능; probe가 최강 |
+| 해결 | RQ3 conditional correction | 정확한 content는 유용; selector 없이는 순손해 |
+
 ## Slide 8. 선행연구와 정확한 차이
 
-첫 흐름은 BiasMedQA 같은 의료 LLM의 framing, anchoring, cognitive-bias 연구다.
-이들은 suggestive context가 평균 정확도를 낮춘다는 행동 효과를 보였지만,
-개별 사례의 내부 진단 representation이 어떻게 달라지는지 직접 측정하지 않았다.
+이 슬라이드는 “관련 연구가 없다”가 아니라 **각 흐름이 어디까지 왔고, 어느
+연결고리가 비어 있는가**를 보여준다. 화면에는 아래 표를 그대로 둔다.
 
-둘째는 Turpin et al., Catching Rationalization 등 CoT faithfulness와 hidden-error
-detection 연구다. 편향 요인이 답을 바꿔도 CoT가 원인을 말하지 않을 수 있고,
-probe가 CoT monitor보다 강할 수 있음을 보였다. 하지만 주로 일반 도메인
-객관식이며 hint가 곧 선택지다. 우리 데이터에서는 moved의 68--72%가 suggestion이
-아닌 제3 진단으로 이동하므로 단순 hint-copy 구조와 다르다.
+| 선행 흐름 | 이미 된 것 | 아직 비어 있던 것 | 우리 위치 |
+|---|---|---|---|
+| 의료 anchoring·오도 맥락 | BiasMedQA, MED-STRESS, MedMisBench가 정확도 하락과 방어를 측정 | 답이 바뀐 개별 사례의 내부 진단 궤적 | four-arm 행동 효과는 testbed 검증으로 쓰고 내부 행방을 분해 |
+| CoT faithfulness | Turpin/Lanham/Afolabi가 self-report 불충실 가능성을 개입으로 측정 | 임상 referral suggestion의 사례별 인과 귀속 | output·CoT·LLM monitor를 내부 채널과 동일 single-run task에서 비교 |
+| 내부-출력 해리 | Catching Rationalization, Fraile Navarro, Tayebi Arasteh, Basu가 내부 신호가 출력을 초과함을 보임 | 진단 제안 아래 위치별 suggestion/gold/other 궤적과 조건부 교정 | H1 trajectory + H2 attribution + H3 correction을 한 protocol로 연결 |
+| activation 해석 | probe/lens/SAE와 Patchscopes/SelfIE/LatentQA/NLA가 내부를 decode·언어화 | verbalizer prior와 activation 정보의 분리 | probe를 주 계기로 두고 AV는 swap/shuffle/heldout 관문 후 보조 사용 |
 
-셋째는 probe, tuned lens, SAE, Patchscopes, SelfIE, LatentQA, NLA 같은 내부
-해석법이다. Probe는 decodability를 정밀하게 재지만 설명을 만들지 않는다.
-NLA는 텍스트를 만들지만 verbalizer의 parametric knowledge가 activation 정보처럼
-보일 위험이 있다. 우리 차별점은 “최초” 주장보다 **임상적 인과 개입, 네 arm
-통제, 내부 계기 검증, 단일 실행 탐지, 위치 궤적, 조건부 교정, 실제 case-report
-행동 복제**를 한 실험 체계에 묶었다는 점이다.
+**첫 흐름: 의료 행동 강건성.** BiasMedQA는 1,273개 USMLE 문항에 일곱 종류의
+인지 편향 문장을 주입했고 모델별 10–26% 수준의 정확도 저하를 보고했다.
+MED-STRESS는 아홉 frontier LLM의 다중 턴 임상 압박에서 초기 정답 포기를,
+MedMisBench는 11개 설정에서 평균 정확도 `71.1%→38.0%`를 보고했다. Narrative
+Anchoring은 임상 사실을 보존하고 register만 바꿔도 진단이 달라짐을 보였다.
+따라서 **“외부 임상 맥락이 답을 흔든다”는 행동 발견은 우리 최초 기여가 아니다.**
+
+**둘째 흐름: CoT 충실성과 내부 탐지.** Turpin et al.은 답을 움직인 bias가
+CoT에서 누락되고 합리화될 수 있음을, Lanham et al.은 CoT 의존성이 과제와
+모델에 따라 달라짐을 보였다. Afolabi et al.은 같은 문제를 의료 폐쇄형 모델의
+causal ablation과 hint injection으로 확인했다. Catching Rationalization은
+pre-generation probe가 전체 CoT를 본 LLM monitor와 비슷하고 post-generation
+probe는 더 강할 수 있음을 보였다. 우리의 차이는 일반 객관식 hint-copy가 아니라
+open diagnosis에서 moved 321건 중 **230건(71.7%)이 suggestion이 아닌 제3
+진단으로 이동**하는 setting의 원인 귀속이다.
+
+**셋째 흐름: 의료 내부-출력 해리.** Fraile Navarro et al.은 **우리와 같은
+Gemma-3-12B NLA checkpoint와 L32 activation**을 triage format failure에 이미
+사용했다. Tayebi Arasteh는 evidence grade가 activation에서는 회복되지만 stated
+grade는 chance에 가까움을, Basu et al.은 임상 위험 probe AUROC `.982`와 낮은
+출력 sensitivity의 gap을 보였다. 그러므로 “의료 NLA 최초”, “의료 내부-출력
+불일치 최초”는 금지한다. 우리의 좁은 차이는 **최종 진단 과제, referral-note
+인과 개입, same-case placebo, six-landmark trajectory, single-run moved attribution,
+conditional correction**의 결합이다.
+
+**넷째 흐름: 자연어 activation readout.** Patchscopes, SelfIE, LatentQA, NLA는
+activation을 고정 class가 아닌 문장으로 읽는 길을 열었다. 그러나 Li et al.
+(ICML 2026)은 target activation 없이도 기존 verbalization benchmark를 풀 수 있고,
+verbalizer의 parametric knowledge가 target-model state처럼 보일 수 있음을 보였다.
+그래서 우리의 M0는 부록 장식이 아니라 AV를 관측치로 쓸 최소 자격 검사다.
+
+발표자용 원문 링크:
+
+- [BiasMedQA, npj Digital Medicine 2024](https://www.nature.com/articles/s41746-024-01283-6)
+- [MED-STRESS, ACL 2026](https://arxiv.org/abs/2605.23932)
+- [MedMisBench, 2026](https://arxiv.org/abs/2606.12291)
+- [Turpin et al., NeurIPS 2023](https://arxiv.org/abs/2305.04388)
+- [Lanham et al., 2023](https://arxiv.org/abs/2307.13702)
+- [Faithful or Just Plausible?, PMLR 2026](https://arxiv.org/abs/2603.13988)
+- [Catching Rationalization, 2026](https://arxiv.org/abs/2603.17199)
+- [Fraile Navarro et al., 2026](https://arxiv.org/abs/2605.29889)
+- [Tayebi Arasteh, 2026](https://arxiv.org/abs/2606.29034)
+- [Basu et al., 2026](https://arxiv.org/abs/2603.18353)
+- [Natural Language Autoencoders, 2026](https://transformer-circuits.pub/2026/nla/index.html)
+- [Li et al., ICML 2026](https://arxiv.org/abs/2509.13316)
 
 ## Slide 9. 실제 임상에서 소견서를 전제로 해도 되는가
 
@@ -245,6 +309,12 @@ diagnosis`가 포함될 수 있다. NHS 계열 referral guidance도 의뢰자가
 suggestion이 후속 진단 탐색을 좁힐 수 있다는 construct는 사람 대상 연구에도
 존재한다
 ([Staal et al., BMC Medical Education, 2022](https://doi.org/10.1186/s12909-022-03325-7)).
+
+보조 근거로 Spaanjaars et al.은 임상심리사 224명을 referral letter의 depression
+제안, anxiety 제안, 무소견서 조건에 무작위 배정했고, 중간 경험군의 분류가 제안
+진단에 의해 움직였다고 보고했다. 전문과와 경험 수준에 따라 효과가 달랐다는
+점까지 함께 말해야 한다
+([Spaanjaars et al., 2015](https://doi.org/10.1027/1015-5759/a000235)).
 
 LLM이 referral 또는 clinician-authored note를 실제로 읽는 사례도 있다. Samsung
 Medical Center 연구는 Qwen-2.5-32B가 실제 전자 의뢰서 6,624건을 읽어 세부
