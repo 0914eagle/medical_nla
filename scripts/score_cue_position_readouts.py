@@ -32,16 +32,23 @@ THRESHOLDS = (0.3, 0.5, 0.67, 0.8, 1.0)
 
 
 def gold_cue(row: dict[str, Any]) -> str:
-    cues = row.get("cue_targets")
-    if isinstance(cues, list) and cues:
-        return str(cues[0])
-    if isinstance(cues, str) and cues:
-        return cues
+    for key in ("cue_targets", "gold_cue_targets"):
+        cues = row.get(key)
+        if isinstance(cues, list) and cues:
+            return str(cues[0])
+        if isinstance(cues, str) and cues:
+            return cues
     return str(row.get("cue_text") or row.get("target_text") or "")
 
 
 def readout_body(row: dict[str, Any]) -> str:
     """The text between <observed> tags, or the whole output if untagged."""
+    # The compact snapshots carry the already-extracted body under its own
+    # key and no raw output at all. Without this they read as empty rows and
+    # a caller iterating them skips every one of them silently.
+    compact = row.get("observed_readout")
+    if isinstance(compact, str) and compact.strip():
+        return compact
     raw = str(row.get("nla_output") or row.get("raw_nla_output") or "")
     for tag in ("observed", "readout"):
         opened, closed = f"<{tag}>", f"</{tag}>"
