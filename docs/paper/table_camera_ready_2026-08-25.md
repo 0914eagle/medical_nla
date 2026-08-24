@@ -19,28 +19,43 @@
 
 ## Table 1 — Instrument validation (§4.1)
 
-지표: 비율 하나로 통일. 각 행에 기준값(우연 또는 무학습)을 **자기 열**로.
+지표: 비율 하나로 통일. 방향은 test 이름의 화살표로 표시하고, 각 행의
+대조 조건은 `Control / baseline` 한 열에 이름과 함께 적는다.
 길이(1,557→52자)와 형식(0.05→1.00)은 단위가 달라 **본문 문장으로** 이동.
 
 **Table 1.** Validation of the readout as a measuring instrument. Each row is
-one test; Reference gives the value the test must beat (chance) or the
-untuned checkpoint's score on the same items.
+one test. Arrows indicate the favorable direction. `Control / baseline` names
+the relevant comparison rather than implying one common reference model.
+The 438-row counterfactual cohort tests case-level tracking and specificity;
+the separate 770-row cohort tests lexical transfer to cue strings excluded
+from training.
 
-| Test | n | Readout | Reference | Reference type |
-|---|---:|---:|---:|---|
-| Swap tracking | 438 | .993 | — | (higher is better) |
-| Context memorization | 438 | .000 | — | (lower is better) |
-| Cross-patient contamination | 438 | .007 | .015 | chance |
-| Description precision | 438 | .671 | .075 | untuned |
-| Held-out cue content match (shuffle control) | 770 | .751 | .096 | shuffled pairing |
-| Held-out cue content match (untuned control) | 770 | .751 | .725 | untuned |
-| Conclusion at the answer position | 229 | .651 | .603 | untuned |
+| Validation test | n | Medical readout | Control / baseline |
+|---|---:|---:|---:|
+| Swap tracking ↑ | 438 | **.993** | — |
+| Original-cue memorization after swap ↓ | 438 | **.000** | — |
+| Cross-patient contamination ↓ | 438 | **.007** | .015 (chance) |
+| Cue-description precision ↑ | 438 | **.671** | .075 (untuned) |
+| Held-out cue content match ↑ | 770 | **.751** | .725 (untuned); .096 (shuffled) |
 
 *Format compliance and output length are reported in the text (0.05 → 1.00;
 1,557 → 52 characters): they establish that the readout is machine-scorable,
 not that it is faithful. Swap tracking / memorization are the core: editing
 one finding moves the description 99.3% of the time and never leaves the
-original wording behind.*
+original wording behind. The held-out score appears once because .725 and
+.096 are two controls for the same .751 readout result: the former measures
+the gain over the untuned checkpoint, whereas the latter tests whether the
+score depends on the correct activation–case pairing.*
+
+**본문/부록 분리.** `Conclusion at the answer position`(.651 vs .603 untuned)
+은 별도의 answer-position 실험이며 위의 cue-position 계기 검증과 표본도
+다르다. 또한 현 산출물은 n=229이고 canonical `lost the gold` 집단은 n=230이라
+한 사례 정합을 확인하기 전까지 Table 1 본표에서 내린다. 결과 자체는 §4.1
+본문과 Appendix instrument details에 다음처럼 보존한다.
+
+| Supplementary answer-position check | n | Medical readout | Untuned |
+|---|---:|---:|---:|
+| Gold diagnosis recovered ↑ | 229 | .651 | .603 |
 
 **채점자 표기 (08-25 결정, 08-24 적용 확대)**: 438행 의미 채점의 L24
 A+B는 .731(A/B/C/D 4등급, A+B를 성공으로)이다. Table의 .751은 별개의
@@ -53,8 +68,8 @@ A+B는 .731(A/B/C/D 4등급, A+B를 성공으로)이다. Table의 .751은 별개
 2차 채점이나 자기 일치율로 메우지 않는다. 그때까지 본문에는 수치만 싣고
 채점 주체는 서술하지 않으며, 최종 원고에서 판정자 절차로 채운다.
 
-**답-위치 행이 이 표에서 가장 이상하게 읽히는 행이고, 그것이 요점이다
-(08-24).** 다른 행과 달리 Reference가 Readout에 가깝다 — 무학습
+**답-위치 보조 검사가 가장 이상하게 읽히는 결과이고, 그것이 요점이다
+(08-24).** untuned baseline이 medical readout에 가깝다 — 무학습
 체크포인트도 정답을 잃은 케이스의 60.3%에서 정답을 짚는다. **결렬은 우리
 어댑터의 산물이 아니라 활성값의 성질이다**, 라는 뜻이고 이쪽이 더 강한
 결과다. 본문은 여기에 두 번째 수치를 붙인다: vanilla는 판독 하나당
@@ -72,7 +87,7 @@ cue-position 계기 검증은 여전히 MCR용 어댑터·판독 실행이 필�
 | 서술 정밀도 · 오염 · heldout 서술률 | ✔ | 판독 실행 후 기존 분석기 그대로 |
 | 스왑 추적 · 문맥 암기 | △ | `make_span_counterfactual_rows.py`(산문용 span 치환, 미실행) — cue 축자 등장 필요·탈락률 미측정·비문 캐비앳 |
 | unseen-cue 서술 | ✕→△ | MCR 분할은 케이스 분할이지 cue 문자열 heldout이 아님 — 분할 재구성 없이는 정의 안 됨 |
-| 답 위치 결론 | △ | source-aligned 판독 완료; derangement 통제와 무학습 대조가 남음 |
+| 답 위치 결론 | △ | source-aligned 답 필드는 derangement 통과; 무학습 대조와 wrong-note 내부 실행이 남음 |
 
 ▢ 남은 핵심은 외부 판정자의 438행 의미 재채점과 MCR cue-position 검증이다.
 
@@ -236,8 +251,8 @@ DDXPlus는 **gap +.100 / 접지 .311**, 무효 실행이었던 옛 MCR은 **+.03
 진단명은 6,934종, 대부분 1회 등장 — **진단명당 예시 한 개**다. 될지 안 될지는
 우리 자신의 결과가 가른다: 답 위치 **무학습 .603 대 v2 .651**, 즉 읽는 능력은
 AV 체크포인트에 있고 LoRA는 형식을 입힌다. 형식만 가르치는 것이면 1,298행으로
-될 수 있다. **그래서 재학습과 무학습 대조를 같이 돌린다** — Table 1의 다른
-모든 행이 갖고 있는 Reference 열이 이 행에도 필요하다. 무학습이 바닥이면
+될 수 있다. **그래서 재학습과 무학습 대조를 같이 돌린다** — Table 1과 같은
+방식으로 untuned control을 붙여야 한다. 무학습이 바닥이면
 "MCR 결론 판독은 우리가 감당할 수 없는 학습량을 요구한다"가 **Limitations에
 적을 결과**이지 채울 구멍이 아니다.
 
@@ -255,10 +270,11 @@ source-aligned 실행에서 근거 접지 gap은 +.025에 머물렀다. 따라�
 ### 08-24 source-aligned 재실행의 현재 결론
 
 held-out 821행에서 판독은 gold보다 모델의 실제 답과 더 자주 일치했다. 전체
-`.1389 vs .2643`, source-wrong 708행에서는 `.0692 vs .2133`이다. 이 3.1배
-비대칭은 source-aligned 결론 판독과 일관되지만, 무작위 다른 케이스의 모델 답과
-비교하는 derangement 통제가 남아 있어 최종 충실성 결과로 부르지 않는다.
-근거 접지 gap은 `+.025`로 낮아 `<supporting_cues>` 전이는 지지되지 않는다.
+`.1389 vs .2643`, source-wrong 710행에서는 `.0704 vs .2127`이다. 무작위 다른
+케이스의 모델 답과 짝지으면 각각 `.0049`, `.0042`로 무너진다. 따라서 답 필드는
+사례별 activation에 의존하지만 절대 일치율은 낮다. 근거 접지 gap은 `+.025`로
+낮고 생성 근거의 70.1%가 반복 정형문구여서 `<supporting_cues>` 전이는
+지지되지 않는다.
 
 ---
 
@@ -274,7 +290,7 @@ arms by construction. Canonical no-note accuracy can therefore be below 1.
 | Corpus | n | No note | Neutral | Wrong | Correct |
 |---|---:|---:|---:|---:|---:|
 | DDXPlus | 1,220 | **.9869** | **.9377** | **.7566** | **.9246** |
-| DDXPlus, 3× larger run | 3,343 | **.9800** | **.9306** | **.7670** | **.9180** |
+| DDXPlus, independent replication | 2,192 | **.9749** | **.9279** | **.7682** | **.9101** |
 | MedCaseReasoning | 1,543ᵉ | **.9410** | **.8879** | **.6721** | **.8179** |
 
 ᵉ **모집단을 본문에 밝힌다 (08-24).** 1,543은 MCR 12,620건 중 소스 모델이
@@ -289,22 +305,21 @@ arms by construction. Canonical no-note accuracy can therefore be below 1.
 교체했다.
 
 *Under the canonical matcher, the wrong note costs 23.0 pp on the main
-DDXPlus run and 26.9 pp on MedCaseReasoning. In the 3× larger DDXPlus run it
-costs 21.30 pp against a 4.94 pp neutral cost: a 16.36 pp suggestion-specific
-effect and a 4.31× total-cost ratio. MCR's corresponding values are 21.58 pp
+DDXPlus run and 26.9 pp on MedCaseReasoning. In the non-overlapping DDXPlus
+replication it costs 20.67 pp against a 4.70 pp neutral cost: a 15.97 pp
+suggestion-specific effect and a 4.40× total-cost ratio. MCR's corresponding values are 21.58 pp
 and 5.06×. In the main DDXPlus run, the neutral cost is 4.92 pp and the
 suggestion-specific effect is 18.11 pp (4.68× total-cost ratio). A correct note
 still costs 6.23 pp, showing an intrusion cost independent of suggestion
 direction.*
 
-**두 번째 행은 손실이 아니라 소득이다 (08-24).** corpus-300은 네 조건을
-자기 안에 다 갖고 있어 **자급자족하는 재현 행**이고, 전체/위약 배수가
-4.31×로 같은 구조를 낸다. 정답 조건 칸이 비어 있는
-동안에도 "침입 비용은 제안 방향과 무관하다"는 논증은 이 행과 MCR 행에서
-이미 선다 — 정답을 부르는 소견서조차 DDXPlus에서 6.20pp(.9800→.9180),
-MCR에서 12.31pp(.9410→.8179)를 깎는다. 단, corpus-300은 원 실행의
-초집합이므로 **independent replication**이 아니라 3× larger run이다;
-non-overlap-only 민감도 분석이 남아 있다.
+**두 번째 행은 독립 행동 재현이다 (08-24).** corpus-300에서 주 실행의
+1,676개 base id를 제거한 뒤 남은 미관측 3,319건 중 clean 2,192건만 쓴다.
+오답 정확도 `.7682`는 중복을 포함한 clean 3,343건의 `.7670`과 0.12%p만
+다르고, 전체/위약 비용 비는 4.40×다. 따라서 효과가 주 실행과 겹친 사례에
+갇힌 결과가 아니다. 정답 소견서도 정확도를 6.48pp(.9749→.9101) 낮추며,
+MCR에서는 12.31pp(.9410→.8179) 낮춘다. 독립성 주장은 행동 효과에 한정하고,
+판독·프로브의 독립 재현까지 뜻하지 않는다.
 
 **모든 DDXPlus 비율은 보수적 하한이다.** 답 파일이 `plausible_wrong`
 수정(d29b754) 이전에 생성되어, 오답 소견서가 정답을 부르는 케이스가
@@ -313,27 +328,24 @@ non-overlap-only 민감도 분석이 남아 있다.
 작용한다. 즉 편향이 우리에게 불리하므로 전집합 수치를 그대로 싣고 각주로
 밝힌다; `analyze_hint_effect.py --exclude-collisions`가 반대쪽을 준다.
 
-**Table 2b.** Where the moved answers go.
+**Figure 3(b) data (not a separate main table).** Where the moved answers go.
 
 | Corpus | Moved | To the suggestion | To a third diagnosis |
 |---|---:|---:|---:|
 | DDXPlus | **321** | **91** | **230** |
 | MedCaseReasoning | **437** | **137** | **300** |
 
-**Table 2c** (지면 되면; 아니면 부록). Speaker/wording variants, DDXPlus,
+**Appendix Table A2.** Speaker/wording variants, DDXPlus,
 n = 1,747 each.
-
-⚠️ 아래 행은 generation-time matcher 값이다. canonical 재집계 전에는
-camera-ready 표에 싣지 않는다.
 
 | Wording | Accuracy | Moved | Adopted |
 |---|---:|---:|---:|
-| Referral note (one line) | .814 | 324 | 95 |
-| Colleague | .821 | 305 | 107 |
-| Patient | .867 | 224 | 17 |
-| Realistic multi-sentence note | **.745** | **445** | **236** |
+| Referral note (one line) | **.8117** | 321 | 91 |
+| Colleague | **.8168** | 308 | 104 |
+| Patient | **.8672** | 220 | 12 |
+| Realistic multi-sentence note | **.7481** | **436** | **237** |
 
-**Table 2d** (2c와 한 쌍 — 같은 해리의 두 번째 조작). Suggestion source on
+**Appendix Table A3.** Suggestion source on
 MedCaseReasoning: the model's own confusions vs. a cue-similar neighbour's
 diagnosis (no differential field exists).
 
@@ -350,14 +362,14 @@ mostly does not.*
 
 ---
 
-## Table 3 — What the note does inside (§4.3)
+## Table 3a — What the note does inside (§4.3)
 
 **08-24 신설.** 이 논문의 중심 주장이 지금까지 표가 없이 Figure 4에만
 있었다. 그림은 정확히 인용되지 않고, 관성 반론을 닫는 것이 이 세 줄이므로
 표가 있어야 한다. 지표 하나(최종 토큰에서 프로브가 정답에 주는 확률),
 셀당 값 하나, Δ는 명시된 파생 열.
 
-**Table 3.** Probability the cross-fit linear probe places on the gold
+**Table 3a.** Probability the cross-fit linear probe places on the gold
 diagnosis at the final token, by what the model then did. "No note" reads the
 same cases with the note removed; finding-position activations are identical
 across the two by construction, so Δ is the note's internal cost.
@@ -512,7 +524,7 @@ answers landing on the suggested diagnosis (first-pass counterpart .3209).
 r5 capitulation is 14.7 pp lower than r4. r3, not r5, has the lowest absolute
 capitulation.*
 
-**Table 4a-r7.** Same 1,151 IDs for every rung; r7 is evaluated separately
+**Appendix Table A4 (r7 common cohort).** Same 1,151 IDs for every rung; r7 is evaluated separately
 because it requires agreement between the direct and CoT first answers.
 
 | Rung | Overall second pass | Moved recovery | Newly broken |
@@ -528,7 +540,7 @@ its common-ID cohort is easier (first-pass .9201; moved prevalence 7.7%), and
 it recovers only 12.4% of moved cases. This is consistent with answer
 entrenchment but does not by itself establish a rationalization mechanism.*
 
-**Table 4d (예정) — 같은 사다리, MedCaseReasoning.** 어느 단이 존재하는지를
+**Appendix Table A7 (예정) — 같은 사다리, MedCaseReasoning.** 어느 단이 존재하는지를
 코퍼스가 정한다. 이 표의 빈칸은 미실시가 아니라 **결과**다.
 
 | Rung | DDXPlus | MedCaseReasoning | 왜 |
@@ -566,18 +578,18 @@ r6의 moved .830을 "probe가 이긴다"로 읽고, 곧바로 **"클래스명을
 AV 판독 결론은 **.5047**다. r6의 .8318은 .8567을 거의 그대로
 따라간다. r6이 존재하는 이유가 바로 이것이다 — r5가 r4를 이긴 것이
 **문장이라서**인지 **내용이 맞아서**인지 가르려면 내용만 있고 문장이 없는
-단이 필요했고, Table 4b가 그 교란을 제거한다. 답은 내용이다.
+단이 필요했고, Appendix Table A5가 그 교란을 제거한다. 답은 내용이다.
 
 세 가지를 본문에 함께 적는다. ① probe는 오라클이 아니라 활성값만 읽는
 **교차적합** 분류기이며 해당 케이스의 정답 라벨을 본 적이 없다 — 배포
 시점에 실제로 실행 가능한 채널이므로 정답지 누출이 아니다. ② 그러나 probe는
 다른 케이스들의 **정답 라벨로 지도학습**되고 AV 판독은 그 감독을 받지
 않으므로, r5 vs r6은 형식만이 아니라 **감독 수준도** 다르다. ③ probe가
-정의되는 코퍼스라면 r6은 애초에 쓸 정책이 아니다 — Table 4c에서 재실행
+정의되는 코퍼스라면 r6은 애초에 쓸 정책이 아니다 — Appendix Table A6에서 재실행
 없는 argmax 교체(.966)가 r6 재실행(.954)보다 낫다. r6은 사다리의 통제로서
 자기 일을 했고, 배포 권고에는 들어가지 않는다.
 
-**Table 4b.** r5 vs. r6 with fed-back content accuracy held fixed in the
+**Appendix Table A5.** r5 vs. r6 with fed-back content accuracy held fixed in the
 canonical main run. Exact McNemar tests on discordant pairs.
 
 | Content (readout / probe) | n | r5 | r6 | r5-only : r6-only | p |
@@ -594,7 +606,7 @@ contents are correct, but p=.016 does not pass the Bonferroni threshold .0125
 for four simultaneous cells. Do not claim either equivalence or a prose
 advantage from this table.*
 
-**Table 4c.** Deployment policies.
+**Appendix Table A6.** Deployment policies.
 
 | Policy | DDXPlus | 3× replication |
 |---|---:|---:|
@@ -612,34 +624,48 @@ advantage from this table.*
 | Setting | Instrument | Basis (§) |
 |---|---|---|
 | Closed label set, training labels available | Supervised probe | 4.3, 4.4 |
-| Open diagnosis space | Source-aligned NL readout is a candidate; conclusion derangement and grounding remain open | 4.1, limitation |
-| Clinician-facing grounds required | Do not deploy the current readout; reader-trust is negative in the interim sample | 4.1, limitation |
+| Open diagnosis space | Source-aligned answer readout is case-specific after derangement; accuracy and grounded evidence remain weak | 4.1, limitation |
+| Clinician-facing grounds required | Do not deploy the current readout; reader-trust is negative and shuffled control remains | 4.1, limitation |
 | Self-correction by re-asking | Neither — avoid | 4.4 |
 
 ---
 
-## 그림이 나르는 것 (표에 안 넣는 수치)
+## Main figures and division of labor
 
-- 절대 decoded signal + no-note 대비 paired cost + suggestion-top1 최초 지점
-  → **Figure 4**. canonical 321건 중 suggestion top-1 경험 55, never 266.
-  never는 gold-throughout 151과 third-diagnosis path 115로 나뉜다. note 이전
-  last-finding 7건은 개입 효과가 아니라 baseline differential signal이다.
-- 사례 서술(심근염 케이스) → **Figure 5**
-- 서로 다른 실험을 한 heatmap에 세로 비교하지 않는다 → **Figure 2**는
-  (a) cue-token/held-out cue strings와 (b) final-prompt-token/diagnosis-heldout
-  sweep을 독립 패널로 표시한다.
+- **Figure 1 — Experimental design.** 동일 vignette에 no/neutral/wrong/correct
+  note를 붙이는 인과 대조, causal masking, activation readout, probe, second-pass
+  correction을 한 흐름도로 보인다. 숫자표를 반복하지 않는다.
+- **Figure 2 — Where information is readable.** 서로 다른 실험을 한 heatmap의
+  두 행처럼 직접 비교하지 않는다. (a) cue-token/held-out cue strings와
+  (b) final-prompt-token/diagnosis-heldout sweep을 독립 패널로 표시하고, 패널
+  간 절대값 비교를 금지한다.
+- **Figure 3 — Behavioral intervention.** (a) Table 2의 네 조건 정확도를
+  코퍼스별로 보이고, (b) moved 답의 행방을 `to suggestion` 대 `third
+  diagnosis` stacked bar로 보인다. 따라서 moved 321/91/230 및 437/137/300은
+  별도 본문 표로 반복하지 않는다.
+- **Figure 4 — Internal trajectory.** 절대 decoded signal, no-note 대비 paired
+  cost, suggestion-top1 최초 지점을 보인다. canonical 321건 중 suggestion
+  top-1 경험 55, never 266이며, never는 gold-throughout 151과 other-top1 115로
+  나뉜다. note 이전 last-finding 7건은 개입 효과가 아니라 baseline
+  differential signal이다. 채택형 최종 토큰의 `p(gold)=.725` 대
+  `p(suggestion)=.211`과 constraint에서 최대인 paired cost를 캡션에서
+  직접 지적한다.
+- **Appendix Figure A1 — Case study.** 심근염 사례의 chart/note/chain/answer와
+  내부 판독을 질적으로 나란히 둔다. canonical moved-lost-gold 230건 중
+  판독 결론이 gold를 명명한 비율은 **.591**이다; 과거 matcher의 `64.1%`는
+  인용하지 않는다.
 
 ## 남은 ▢ (표 전반)
 
 - **canonical matcher는 확정** — DDXPlus moved/adopted/third = 321/91/230,
-  MCR = 437/137/300. 남은 것은 wording·CoT 파생 표의 동일 matcher 재집계다.
-- T2: corpus-300 non-overlap subset
-- T3: final probability 셀 전사 완료; paired bootstrap CI/추세 검정 보강
+  MCR = 437/137/300. wording·CoT·Figure A1과 corpus-300 non-overlap 재집계도
+  완료됐다.
+- T3a: final probability 셀 전사 완료; paired CI/추세 값은 새 궤적 실행에서 반영
 - T3b: standalone rule-based silent 값은 원장에 없음; 필요하면 직접 재출력
 - T1: 외부 판정자의 438행 의미 재채점, MCR cue-position 계기 검증 및 산문
   서술률 행
 - T3b: MCR 출력 채널 AUROC(CPU 가능), MCR CoT 채널(GPU), logit lens 칸
-- T4: **MCR 사다리(Table 4d)** — r3/r4는 지금 실행 가능, r7은 MCR CoT
+- T4: **MCR 사다리(Appendix Table A7)** — derangement gate는 통과; r3/r4는 지금 실행 가능, r7은 MCR CoT
   실행 필요, r5는 wrong-note activation 추출 필요, r6은 현재 고정-class
   설계에서 직접 이전 불가. `run_mcr_ladder.sh`
 
@@ -648,13 +674,17 @@ advantage from this table.*
 - **T3 신설**: 기전(대조 곡선·never-flip)이 표 없이 그림에만 있었다.
   관성 반론을 닫는 세 줄이므로 인용 가능한 표가 필요하다.
 - 구 T3(채널별 귀속) → **T3b**. 둘 다 §4.3이고, 2b/2c/2d와 같은 관례다.
-- T1에 **답-위치 vanilla 행** 추가 (실행 완료).
+- T1의 **답-위치 vanilla 검사**는 실행 완료됐지만 n=229/230 정합 전까지
+  본표가 아니라 산문/부록에 둔다.
 - 캡션이 계기를 명시하도록 설계 규칙에 한 줄 추가.
 
 ## v1 대비 바뀐 것
 
-- T1: 길이·형식 행 제거(단위 불일치 → 본문), Reference 열 신설
-- T2: 파생 통계 행 제거(본문), 행=코퍼스·열=조건으로 전치, 2b/2c 분리
+- T1: 길이·형식 행 제거(단위 불일치 → 본문), 방향 화살표와
+  `Control / baseline` 열로 단순화, 동일 .751의 두 대조군을 한 행에 병합
+- T2: 파생 통계 행 제거(본문), 행=코퍼스·열=조건으로 전치, moved destination은
+  Figure 3(b), wording/source ablation은 Appendix A2/A3로 이동
 - T3b(구 T3): 슬래시 셀 제거(All/Silent 열 분리), MCR을 boolean 열로, CoT 셀당 한 값
-- T4: 첫 패스 행을 캡션으로, 4b 열 정리
+- T4: 첫 패스 행을 캡션으로, r7/content-match/policy/MCR 확장은
+  Appendix A4–A7로 이동
 - T5: 근거 문장 대신 절 참조
