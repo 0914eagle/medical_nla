@@ -39,8 +39,21 @@ EPOCHS="${EPOCHS:-3}"
 # attention, so the split changes memory and speed, not the objective. Four per
 # forward rather than eight because activations for the backward pass are what
 # ran a 24GB card out of memory even with the weights split across two.
-BATCH="${BATCH:-4}"
-GRAD_ACCUM="${GRAD_ACCUM:-2}"
+#
+# The default splits differ by corpus, because the corpus is what decides how
+# much a forward pass holds. On MCR conclusion rows 4x2 ran out of memory in
+# the third epoch (08-24: 3.13GiB wanted against 3.11GiB free) -- a DDXPlus
+# prompt averages 148 tokens and a published case report is several times
+# that, so four of them carry several times the activations the cue-position
+# runs did. 1x8 is the same optimizer step at a quarter of the peak, and
+# gradient checkpointing is already on by default in the trainer.
+if [ "$CORPUS" = "mcr_conclusion" ]; then
+  BATCH="${BATCH:-1}"
+  GRAD_ACCUM="${GRAD_ACCUM:-8}"
+else
+  BATCH="${BATCH:-4}"
+  GRAD_ACCUM="${GRAD_ACCUM:-2}"
+fi
 # Validation is now a random sample reused across epochs, so a larger number
 # buys precision rather than a longer look at the same corner of the corpus.
 MAX_EVAL_ROWS="${MAX_EVAL_ROWS:-512}"
