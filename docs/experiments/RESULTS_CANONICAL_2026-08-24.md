@@ -141,8 +141,8 @@ L32 55.7%, 완전 오답 D가 13.9% / **0.9%** / 8.4%. ⚠️ 그 스윕은 L16/
 (`differs_only_by_site`, 테스트 7개). **표에는 판정자 값과 이 분해를 함께
 싣고, 단일 숫자로 요약하지 않는다.**
 
-▢ `judge_model` 스탬프를 각 행에서 읽어 표 각주에 넣을 것:
-`python -c "import json;print(json.loads(open('$ART/results/judge_readout_semantic_L24_v5.jsonl').readline()).get('judge_model'))"`
+**판정자: `gpt-5.6-sol`, 2026-08-24.** 표 각주에 모델 id와 날짜를 함께 싣는다.
+CoT 모니터(#1)와 같은 판정자이므로 두 결과는 같은 채점자 아래 있다.
 
 ▢ 답 위치는 스윕한 적이 없다. L32는 선택이 아니라 상속(AV 체크포인트가 L32).
 
