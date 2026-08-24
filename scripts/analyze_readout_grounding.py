@@ -44,13 +44,22 @@ if str(REPO_ROOT) not in sys.path:
 
 from src.jsonl import read_jsonl
 
-CUES = re.compile(r"<supporting_cues>(.*?)</supporting_cues>", re.DOTALL)
-# A readout that opened the block and never closed it ran past the token budget
-# writing cues, which is a different failure from never emitting the tag at all
-# -- and on MCR it is the common one, so the two are counted apart.
-CUES_OPEN = re.compile(r"<supporting_cues>(.*)", re.DOTALL)
+# Two readout schemas are in play and both have to be scorable, because the
+# comparison between them is the point. The conclusion adapter answers with
+# medical_nla_v2_readout.txt -- a semicolon-separated <supporting_cues> block
+# describing a whole conclusion. The cue-position adapter answers with
+# cue_position_readout.txt -- a bulleted <observed> block naming one finding.
+# Reading only the first silently dropped 770 DDXPlus rows as "no cues", which
+# looked like a corpus difference and was a parser difference.
+BLOCKS = (
+    ("supporting_cues", re.compile(r"<supporting_cues>(.*?)</supporting_cues>", re.DOTALL),
+     re.compile(r"<supporting_cues>(.*)", re.DOTALL), ";"),
+    ("observed", re.compile(r"<observed>(.*?)</observed>", re.DOTALL),
+     re.compile(r"<observed>(.*)", re.DOTALL), "\n"),
+)
 ANSWER = re.compile(r"<answer>(.*?)</answer>", re.DOTALL)
 WORD = re.compile(r"[a-z0-9]+")
+BULLET = re.compile(r"^\s*[-*•]\s*")
 
 # Grounded at half its trigrams: a cue that shares most of its phrasing with
 # the chart is a read, one that shares a fragment is a coincidence of register.
@@ -77,29 +86,27 @@ def containment(cue: str, haystack_trigrams: set[tuple[str, ...]]) -> float | No
     return len(grams & haystack_trigrams) / len(grams)
 
 
-def split_cues(text: str) -> tuple[list[str], str]:
-    """Cues plus how the block ended: closed, truncated, or absent.
+def split_cues(text: str) -> tuple[list[str], str, str]:
+    """Cues, how the block ended (closed / truncated / absent), and its schema.
 
     A truncated block's cues are still real output and are scored -- dropping
     them would bias the grounding rate towards the readouts short enough to
     finish, and on MCR those are the minority.
     """
-    text = text or ""
-    match = CUES.search(text)
-    status = "closed"
-    if not match:
-        match = CUES_OPEN.search(text)
+    text = (text or "").replace("<pad>", " ").replace("<eos>", " ")
+    for schema, closed, opened, sep in BLOCKS:
+        match, status = closed.search(text), "closed"
         if not match:
-            return [], "absent"
-        status = "truncated"
-    body = match.group(1)
-    # The tail of a truncated block is a half-written sentence; the pad/eos
-    # scaffold is not clinical text either.
-    body = body.replace("<pad>", " ").replace("<eos>", " ")
-    parts = [part.strip() for part in body.split(";") if part.strip()]
-    if status == "truncated" and parts:
-        parts = parts[:-1]
-    return parts, status
+            match, status = opened.search(text), "truncated"
+        if not match:
+            continue
+        parts = [BULLET.sub("", part).strip() for part in match.group(1).split(sep)]
+        parts = [p for p in parts if p and not p.startswith("<")]
+        # The tail of a truncated block is a half-written sentence.
+        if status == "truncated" and parts:
+            parts = parts[:-1]
+        return parts, status, schema
+    return [], "absent", "-"
 
 
 def answer_of(text: str) -> str:
@@ -120,11 +127,13 @@ def report(name: str, rows: list[dict]) -> None:
     grounded = other_grounded = 0
     seen: Counter[str] = Counter()
     status_counts: Counter[str] = Counter()
+    schemas: Counter[str] = Counter()
     n_cues: list[int] = []
 
     for i, row in enumerate(rows):
-        cues, status = split_cues(str(row.get("nla_output") or ""))
+        cues, status, schema = split_cues(str(row.get("nla_output") or ""))
         status_counts[status] += 1
+        schemas[schema] += 1
         if not cues:
             continue
         n_cues.append(len(cues))
@@ -147,7 +156,9 @@ def report(name: str, rows: list[dict]) -> None:
     m_alt = sum(other_scores) / len(other_scores)
     total = len(own_scores)
     repeated = sum(c for cue, c in seen.items() if c > 1)
+    schema = ", ".join(f"{k} {v:,}" for k, v in schemas.most_common() if k != "-")
     print(f"\n=== {name} ===")
+    print(f"schema: {schema or 'none recognised'}")
     print(f"rows {n:,}   cue block closed {status_counts['closed']:,}   "
           f"truncated {status_counts['truncated']:,}   "
           f"absent {status_counts['absent']:,}")
