@@ -24,6 +24,15 @@ RUN_NAME="${RUN_NAME:-mcr_answerpos_L${LAYER}}"
 # script's opinion -- defines the output schema.
 TEMPLATE="${TEMPLATE:-$ART/train/ddxplus_cuepos_L${LAYER}/sft_train.jsonl}"
 SPLIT_DIR="$ART/train/mcr_conclusion_conclusion_L${LAYER}"
+# The gold is only a legitimate readout target where the model reached it.
+# The first build omitted these and trained on states that had concluded
+# something else; see make_mcr_conclusion_split.py's docstring.
+if [ -n "${ANSWERS:-}" ]; then
+  read -r -a ANSWER_FILES <<< "$ANSWERS"
+else
+  ANSWER_FILES=("$ART/results/mcr_source_answers_train.jsonl"
+                "$ART/results/mcr_source_answers_test.jsonl")
+fi
 
 LOGS="$ART/logs"; mkdir -p "$LOGS"
 MAIN="$LOGS/mcr_conclusion_adapter_$(date +%Y%m%d_%H%M%S).log"
@@ -47,6 +56,21 @@ if [ ! -s "$TEMPLATE" ]; then
   exit 1
 fi
 
+for f in "${ANSWER_FILES[@]}"; do
+  [ -s "$f" ] || { say "no source answers at $f"; exit 1; }
+done
+say "answers: ${ANSWER_FILES[*]}"
+
+# A split built before the source-correct filter existed carries no
+# source_correct key, and reusing it on existence alone is what would keep the
+# wrong training set in place -- the adapter trained from it looked finished.
+if [ -s "$SPLIT_DIR/sft_train.jsonl" ] && \
+   ! head -1 "$SPLIT_DIR/sft_train.jsonl" | grep -q '"source_correct"'; then
+  say "REBUILD: $SPLIT_DIR was built without the source-correct filter"
+  mv "$SPLIT_DIR" "$SPLIT_DIR.unfiltered.bak"
+  say "     moved aside -> $SPLIT_DIR.unfiltered.bak"
+fi
+
 if [ -s "$SPLIT_DIR/sft_train.jsonl" ]; then
   say "skip split build (exists: $(wc -l < "$SPLIT_DIR/sft_train.jsonl") train rows)"
 else
@@ -56,9 +80,18 @@ else
     --split-name train test \
     --manifest "${MANIFESTS[@]}" \
     --template "$TEMPLATE" \
+    --answers "${ANSWER_FILES[@]}" \
     --output-dir "$SPLIT_DIR" \
     >>"$MAIN" 2>&1 || { say "FAILED (split build)"; exit 1; }
   say "built: $(wc -l < "$SPLIT_DIR/sft_train.jsonl") train rows"
+fi
+
+# The adapter trained from the unfiltered split is not a checkpoint to resume
+# from; it learned a different target.
+OLD_ADAPTER="$ART/train/adapters/mcr_conclusion_L${LAYER}_s17"
+if [ -d "$OLD_ADAPTER" ] && [ -d "$SPLIT_DIR.unfiltered.bak" ]; then
+  mv "$OLD_ADAPTER" "$OLD_ADAPTER.unfiltered.bak"
+  say "moved the unfiltered adapter aside -> $OLD_ADAPTER.unfiltered.bak"
 fi
 
 # One seed, not the usual three: this adapter exists to fill a column, and the
