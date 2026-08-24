@@ -98,7 +98,39 @@ note "number is evidence of anything case-specific -- and the MCR internal"
 note "branch, including the GPU extraction, rests on it."
 MCR_READ="$RES/readout_mcr_conclusion_L32.jsonl"
 if have "$MCR_READ"; then
+  note "(a) cue block -- does the supporting_cues text describe THIS case?"
   run python scripts/analyze_readout_grounding.py --readouts "$MCR_READ"
+
+  # The cue control does not touch the answer field, and the answer field is
+  # what the .2643 was. Its answers must come from the CONCLUSION task the
+  # readout was trained on -- mcr_source_answers_* -- not from the hint
+  # intervention, whose base_ids belong to a different experiment and join
+  # almost nothing.
+  note "(b) answer field -- the gate. Scored against the model, with a"
+  note "    deranged pairing as the control."
+  MCR_SRC=""
+  for F in "$RES/mcr_source_answers_test_rescored.jsonl" \
+           "$RES/mcr_source_answers_train_rescored.jsonl" \
+           "$RES/mcr_source_answers_test.jsonl" \
+           "$RES/mcr_source_answers_train.jsonl"; do
+    [ -s "$F" ] && MCR_SRC="$MCR_SRC $F"
+  done
+  if [ -z "$MCR_SRC" ]; then
+    note "missing: \$ART/results/mcr_source_answers_{train,test}.jsonl"
+    note "NOT mcr_hint_answers_full -- that is the intervention run, and its"
+    note "base_ids do not address the conclusion readout's rows."
+  else
+    for F in "$RES/mcr_source_answers_train.jsonl" "$RES/mcr_source_answers_test.jsonl"; do
+      [ -s "$F" ] && rescore "$F" "${F%.jsonl}_rescored.jsonl"
+    done
+    MCR_SRC=""
+    for F in "$RES/mcr_source_answers_train_rescored.jsonl" \
+             "$RES/mcr_source_answers_test_rescored.jsonl"; do
+      [ -s "$F" ] && MCR_SRC="$MCR_SRC $F"
+    done
+    run python scripts/score_readout_against_model.py \
+        --readouts "$MCR_READ" --answers $MCR_SRC
+  fi
 fi
 fi
 
@@ -161,8 +193,42 @@ fi
 if wants 5; then
 say "5. reader-trust -- dedupe, score, and build the shuffled control"
 RT="$RES/judge_reader_trust.jsonl"
-RT_CASES="$DATA/ddxplus_reader_trust_cases.jsonl"
-if have "$RT" "$RT_CASES"; then
+# Whichever case file the judgements actually came from. Pointing the analyzer
+# at the wrong generation is silent: the rows that fail to join land in a '?'
+# channel and the no_account arm disappears, which reads as "this run has no
+# baseline" when in fact it has one under a different filename.
+RT_CASES=""
+RT_BEST=0
+for F in "$DATA/ddxplus_reader_trust_cases_controlled.jsonl" \
+         "$DATA/ddxplus_reader_trust_cases_v2.jsonl" \
+         "$DATA/ddxplus_reader_trust_cases.jsonl"; do
+  if [ -s "$F" ] && [ -s "$RT" ]; then
+    hits=$(python - "$RT" "$F" <<'PY'
+import json, sys
+judged = set()
+for line in open(sys.argv[1]):
+    line = line.strip()
+    if line:
+        try: judged.add(str(json.loads(line).get("id")))
+        except Exception: pass
+n = 0
+for line in open(sys.argv[2]):
+    line = line.strip()
+    if line:
+        try:
+            if str(json.loads(line).get("id")) in judged: n += 1
+        except Exception: pass
+print(n)
+PY
+)
+    note "candidate $(basename "$F"): $hits judged ids join"
+    if [ "$hits" -gt "$RT_BEST" ]; then
+      RT_CASES="$F"; RT_BEST="$hits"
+    fi
+  fi
+done
+[ -n "$RT_CASES" ] && note "using $(basename "$RT_CASES") ($RT_BEST joins)"
+if [ -n "$RT_CASES" ] && have "$RT" "$RT_CASES"; then
   run python scripts/dedupe_judgements.py --judgements "$RT" \
       --output "$RES/judge_reader_trust_deduped.jsonl"
   run python scripts/analyze_reader_trust.py \
