@@ -33,9 +33,9 @@ cue 위치 활성값 불변이 그대로 유지된다. `referral` 외의 문구�
 
 ## 두 가지가 나온다
 
-**① 한 줄 템플릿은 보수적 하한이다.** 실제 의뢰서 문체가 **가장 세게**
-무너뜨린다 — 템플릿보다 6.7%p 더. "문장이 인위적이라 효과가 과장됐다"는
-반론은 부호가 반대라서 닫힌다.
+**① 실제형 문구에서도 효과는 유지되고 더 크게 관측됐다.** 다만 실제형은 한 줄
+템플릿보다 길고 레지스터도 다르다. 따라서 추가 6.7%p를 "생태적 문체"의 독립
+효과로 귀속하거나, 한 줄 템플릿이 보수적 하한이라고 확정할 수는 없다.
 
 **② 앵커링과 아부가 갈린다.**
 
@@ -52,5 +52,6 @@ moved 자체는 z=1.75로 유의하지 않음) → [04](04-note-intervention-mcr
 python scripts/make_hint_injection_cases.py --cases … --answers … --correct-only \
   --wording realistic --arms none wrong --output $DATA/ddxplus_hint_realistic.jsonl
 ```
-문구 변형에는 위약이 따로 필요 없다(`--arms none wrong`) — 위약은 삽입
-비용을 재는 것이고 그 값은 문구와 무관하다.
+현재 실행은 `--arms none wrong`이며 realistic 문구와 길이·레지스터를 맞춘
+neutral placebo가 없다. **문구별 삽입 비용이 같다는 가정은 미검증**이다. 실제형의
+추가 낙폭을 해석하려면 길이와 문체를 맞춘 중립 의뢰서 arm이 필요하다.

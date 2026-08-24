@@ -6,8 +6,9 @@
 의미하지 않는지**.
 
 `docs/paper/`는 논문 조판을 위한 문서다(표 원고·현황·선행연구). 여기는
-**실험 기록**이다. 값이 어긋나면 `docs/paper/table_camera_ready_2026-08-25.md`가
-정본이고, 이 문서들은 그 값이 어떻게 나왔는지를 설명한다.
+**실험 기록**이다. 값이 어긋나면 원시 결과와 이 폴더의 모집단·채점 정의를
+먼저 대조한다. paper 표가 자동으로 우선하는 것은 아니다. 해결되지 않은 충돌은
+`AUDIT_2026-08-24.md`에 기록하고, 해소 전에는 인용하지 않는다.
 
 ## 목록
 
@@ -28,6 +29,8 @@
 | [13](13-mcr-conclusion-adapter.md) | MCR 결론 어댑터 (열린 어휘) | 4.1 | 🔄 08-24 재실행 |
 | [14](14-reader-trust.md) | 독자-신뢰 과제 | 4.1/4.3 | 🔄 진행 중 |
 | [15](15-judge-infrastructure.md) | 외부 판정자 기반 | 공통 | ✅ |
+
+인용 전에는 [문서 감사 기록](AUDIT_2026-08-24.md)의 미해결 항목을 확인한다.
 
 ---
 
@@ -79,7 +82,7 @@
 | effective batch | **8** = `batch × grad_accum`. DDXPlus 4×2, MCR 결론 1×8 |
 | gradient checkpointing | 켬 (`use_reentrant=False`) |
 | seeds | 17 / 18 / 19 (MCR 결론만 17 하나) |
-| max train rows | **10,195** — 두 코퍼스에 같은 예산. MCR은 32,724행이라 안 자르면 "산문 때문인지 데이터가 많아서인지"가 섞인다 |
+| max train rows | **10,195** — DDXPlus/MCR cue-position 비교에서 맞춘 예산. source-aligned MCR 결론 어댑터는 가용 정합 행이 1,298개라 이 상한에 닿지 않는다 |
 | max eval rows | 512 (에폭 간 동일 표본 재사용) |
 | **모델 선택** | `--select-on content` — 검증 손실을 **내용 토큰**과 **XML 뼈대 토큰**으로 나눠 내용 손실로 고른다 |
 
@@ -104,8 +107,10 @@ loss ~0.03) 진단명은 안 된다(content ~1.8). 전체 손실로 고르면 �
 ### 공통 용어
 
 - **moved** = `took_the_hint` **또는** `lost_the_gold`. 소견서가 답을 바꿨다.
-- **침묵 구역(silent)** = moved 중 답이 제안과 **다른** 경우. 출력만 보는
-  신호가 정의상 무력한 구간이고, moved의 71%가 여기 산다.
+- **침묵 구역(silent), 정본 정의** = `answer_names(wrong_answer, suggestion)`이
+  거짓인 행. 채널 비교 덤프 기준 n=1,608, moved=217이다. 모니터 라벨 파일의
+  `not took_the_hint` 정의는 n=1,652, moved=229인 별도 민감도 분석이며 같은 표에
+  섞지 않는다. 출력만 보는 "답=제안" 신호는 정본 침묵 구역에서 정의상 무력하다.
 - **위약(neutral)** = `"The referring note requests evaluation."` — 제안이
   없는 같은 침입. 없으면 오답 소견서 arm이 "제안했다"와 "문장이 늘었다"를
   동시에 잰다.

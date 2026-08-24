@@ -3,7 +3,7 @@
 **질문**: 규칙 기반 매칭으로 못 재는 것들을 어떻게 재는가. 그리고 **백본으로
 백본을 채점하지 않으면서** 어떻게 재는가.
 
-**상태**: ✅ 기반 완성 2026-08-24. 작업 8종 중 2종 실행됨
+**상태**: ✅ 기반 완성 2026-08-24. 완료/부분 실행/빌더만 완성을 구분해 기록
 
 ---
 
@@ -19,6 +19,11 @@ codex exec --sandbox read-only --ephemeral --skip-git-repo-check \
 - 배너(`model: gpt-5.6-sol`)가 **stderr로** 나간다. 처음에 stdout만 보다가
   `judge_model`이 `codex-default`로 기록됐고, 지금은 두 스트림을 다 본다.
 - `--output-last-message`가 답만 파일로 준다.
+
+`gpt-5.6-sol`은 Codex 실행 당시의 라우팅 이름이며 고정된 공개 API snapshot을
+보장하지 않는다. 논문 재현물에는 실행일, CLI 버전, stderr의 전체 모델 배너,
+프롬프트 해시와 raw 응답을 보존한다. 핵심 판정은 가능하면 명시적 버전의 외부 API
+모델로 한 번 더 실행한다.
 
 ## `run_judge.py`가 강제하는 것
 

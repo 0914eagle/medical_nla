@@ -39,8 +39,8 @@
 | 오답 소견서가 진단을 움직인다 | DDXPlus −23.1 pp, MCR −27.8 pp; 제안 고유 효과 −17.4/−22.3 pp | 행동 효과는 두 코퍼스 |
 | 내부 정답 표상은 대부분 유지된다 | moved 324건 중 268건(82.7%)에서 제안이 어느 랜드마크에서도 probe top-1이 아님 | DDXPlus, 49-class cross-fit probe |
 | 소견서는 내부를 밀지만 대개 뒤집지 못한다 | final-token gold-probability cost .007/.055/.187 (kept/lost/adopted) | DDXPlus |
-| CoT보다 내부 채널이 강하다 | silent subset AUROC: LLM CoT monitor .695, NL readout .842, probe .984 | DDXPlus, 동일 모집단 |
-| 자연어 판독은 벡터에 종속된다 | swap .993, memorization .000, contamination .007; unseen-cue .750 | DDXPlus 검증 배터리 |
+| CoT보다 내부 채널이 강하다 | 정본 silent subset(n=1,608) AUROC: LLM CoT monitor .687, NL readout .842, probe .984 | DDXPlus, 동일 모집단; .695는 별도 n=1,652 정의 |
+| 자연어 판독은 벡터에 종속된다 | swap .993, memorization .000, contamination .007; heldout cue content .751 (n=770, 기계 채점) | DDXPlus 검증 배터리 |
 | 내부 내용을 되먹이면 회복한다 | moved accuracy .012 → r5 .627 / r6 .830; r5−r4 +22.8 pp | DDXPlus, 선별 개입 필요 |
 | 자연어 형식 자체가 교정의 원인이다 | **지지되지 않음**: 내용 정확도 일치 시 r5 vs r6 p=.720 | 주장 금지 |
 

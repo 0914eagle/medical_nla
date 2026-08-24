@@ -32,8 +32,8 @@ untuned checkpoint's score on the same items.
 | Context memorization | 438 | .000 | — | (lower is better) |
 | Cross-patient contamination | 438 | .007 | .015 | chance |
 | Description precision | 438 | .671 | .075 | untuned |
-| Held-out description rate | 2,122 | .751 | .088 | chance |
-| Unseen-cue description | 438 | .750 | .720 | untuned |
+| Held-out cue content match (shuffle control) | 770 | .751 | .096 | shuffled pairing |
+| Held-out cue content match (untuned control) | 770 | .751 | .725 | untuned |
 | Conclusion at the answer position | 229 | .651 | .603 | untuned |
 
 *Format compliance and output length are reported in the text (0.05 → 1.00;
@@ -42,8 +42,9 @@ not that it is faithful. Swap tracking / memorization are the core: editing
 one finding moves the description 99.3% of the time and never leaves the
 original wording behind.*
 
-**채점자 표기 (08-25 결정, 08-24 적용 확대)**: unseen-cue 서술률 0.75는
-1기의 438행 의미 채점(A/B/C/D 4등급, A+B를 성공으로) 결과다.
+**채점자 표기 (08-25 결정, 08-24 적용 확대)**: 438행 의미 채점의 L24
+A+B는 .731(A/B/C/D 4등급, A+B를 성공으로)이다. Table의 .751은 별개의
+770행 기계 채점이므로 둘을 섞지 않는다.
 **같은 보류가 Figure 2에도 걸린다** — 층별 A+B(.340/.731/.557)는 같은
 438행의 같은 채점이므로, 그림 각주에 "hand-labeled"이라고 쓰면 보류하기로
 한 귀속을 단언하게 된다. 그래서 그 줄은 그림에서 뺐고, 히트맵은 기계 채점
@@ -385,19 +386,21 @@ is open (6,934 labels, most occurring once).
 |---|:-:|---:|---:|:-:|
 | Chain-of-thought features | – | .53 | .53 | yes |
 | Answer equals suggestion | – | .664 | –ᵃ | yes |
-| LLM monitor over the chain | – | .721 | .695 | yes |
+| LLM monitor over the chain | – | .721 | .687 | yes |
 | Verified NL readout (ours) | ✓ | .755 | .842 | yes |
 | Linear probe, final token | ✓ | **.924** | **.984** | noᵇ |
 
 ᵃ Undefined on the silent subset: the feature is the subset's defining
-condition. ᵇ No class set exists to train on.
+condition. ᵇ The same fixed 49-way diagnosis probe does not directly transfer;
+other binary or open-vocabulary representation baselines remain possible.
 
 **LLM 모니터 행 (08-24 실측, gpt-5.6-sol, 1,747/1,747 파싱, 실패 0).** 이
 행이 §4.2의 주장을 바꾼다. 규칙 기반 특징 .53 → 프런티어 모니터 .721이면
 차이가 크므로 **"체인은 귀속 신호를 담지 않는다"는 더 이상 못 쓴다** — 우리
 채점기가 약한 부분이었고, 같은 체인에서 강한 독자는 실제로 신호를 끌어낸다.
-주장은 이진에서 정량으로 바뀐다: 침묵 구역에서 모니터 .695 대 판독 .842
-(+14.7%p) 대 프로브 .984 (+28.9%p). 그리고 체인이 **출력 위에 더해주는
+주장은 이진에서 정량으로 바뀐다. 같은 정본 침묵 구역(n=1,608)에서 모니터
+.687 대 판독 .842(+15.5%p) 대 프로브 .984(+29.7%p)다. 모니터 자체의 다른
+침묵 정의(n=1,652)에서는 .695다. 그리고 체인이 **출력 위에 더해주는
 몫**은 +5.7%p뿐이다 (.664 → .721, 전체 체인을 다 보여주고).
 모니터는 소견서를 보므로 "답 == 제안"을 스스로 계산할 수 있고, all 열의
 일부는 그것이다 — 그걸 뺀 값이 silent 열이다. 루브릭은 판정자에게 유리하게
@@ -408,8 +411,8 @@ condition. ᵇ No class set exists to train on.
 구간, 평균 0.149(실제 답 바뀜 비율 0.185). 형식만 확률이고 실질은 3단계인
 경우가 아니므로 **동점으로 AUROC가 깎이지 않았고 .695는 하한이 아니라
 실측**이다. 다만 분포가 두 번째 사실을 말한다: P>0.5가 222건뿐(실제 moved
-324건)이고 총량은 거의 맞힌다 — **이 실패가 얼마나 자주 일어나는지는 알지만
-이 환자에게 일어났는지는 못 짚는다.** 배치에서 필요한 것은 후자다.
+324건)이다. 이 두 수치만으로 calibration이나 유병률 추정을 결론내릴 수 없다;
+그 주장은 Brier/ECE 또는 calibration curve가 있어야 한다.
 
 ### ✅ 부트스트랩 CI 완료 (08-24, `bootstrap_channel_gap.py`)
 
@@ -464,8 +467,8 @@ landing on the suggested diagnosis (first-pass counterpart .293).
 | r7 | + the model's own chain (▢ 실행 대기) | – | – | – |
 
 *First-pass baseline: overall .814, moved .012. r5 − r4 = +22.8 pp on moved
-(+17.7 pp on the 3× replication); r5 has the lowest capitulation
-(z = 6.1/10.6).*
+(+17.7 pp on the 3× replication). r5 capitulation is 14.6 pp lower than r4
+(z = 6.1/10.6); r3, not r5, has the lowest absolute capitulation.*
 
 **Table 4d (예정) — 같은 사다리, MedCaseReasoning.** 어느 단이 존재하는지를
 코퍼스가 정한다. 이 표의 빈칸은 미실시가 아니라 **결과**다.
@@ -527,7 +530,8 @@ replication set (n = 3,319), exact McNemar on discordant pairs.
 | wrong / wrong | 78 | .282 | .192 | 11 : 4 | .12 |
 | correct / wrong | 35 | .600 | .086 | 19 : 1 | <.001 |
 
-*Form contributes nothing once content accuracy is matched (row 1); the two
+*No additional form effect is detected once content accuracy is matched in
+row 1 (p=.72); this is not proof that the effect is exactly zero. The two
 one-sided rows reflect content accuracy, not form. Where form does show is
 row 3: when both channels hand over a wrong diagnosis, prose is the safer
 carrier (main run .400 vs .240, 8 : 0, p = .008) — a bare name has nothing to
