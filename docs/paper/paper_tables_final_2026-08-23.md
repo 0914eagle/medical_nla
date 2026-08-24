@@ -1041,11 +1041,36 @@ grounding·coherence·utility를 1–5로 매기게 한 설계. **로컬 판정�
 attention 화살표. 소견 위치 활성값이 4조건에서 비트 동일함을 시각화 —
 "증거는 그대로인데 답이 바뀐다"가 가정이 아니라 설계임을 그림 하나로.
 
-**Figure 2 — AV 판독 지도.** layer(16/24/32) × position(cue/final) heldout
-서술률 히트맵. cue-L24 정점, final은 결론 전용(다른 계측기 필요).
+**Figure 2 — AV 판독 지도.** layer(16/24/32) × position(cue/답 위치) heldout
+서술률 히트맵. cue-L24 정점, 답 위치는 전 layer 평탄·저조(결론 전용 — 다른
+계측기 필요). **스크립트 완성** (08-24, `make_figure_readout_map.py`;
+인자 없이 실행). 셀 6개는 **한 채점기**(v2 lexical, heldout 평균 토큰
+재현율)로 통일 — cue행 .510/.658/.589, 답행 .188/.249/.188. 사람 채점
+A+B(.340/.731/.557)는 cue행에만 존재하므로 히트맵에 섞지 않고 각주 줄로
+단다. 값은 1기 스윕 문서에서 옮긴 상수이며 스크립트 주석에 출처를 박았다;
+스윕을 다시 돌리면 `--values`로 교체.
 
-**Figure 3 — 개입 효과 막대.** 4조건 × 직답/CoT, 진단명 유무 층화. Table 3의
-시각화.
+**Figure 3 — 개입 효과 막대.** 코퍼스별 4조건 묶음 막대(오답 의심 = 검정
+막대가 그림의 메시지, 옆의 위약 막대가 그것을 제안 고유 효과로 읽게 하는
+면허). **스크립트 완성** (08-24, `make_figure_intervention.py`;
+`analyze_hint_effect.py --dump`의 JSON을 그리므로 그림의 값 = 보고된 값).
+기본 모집단은 clean(차트가 진단명을 안 적은 케이스 = Table 2의 모집단).
+CoT나 문구 변형은 dump 하나 추가 = 묶음 하나 추가로 같은 그림에 들어간다.
+GPU 서버에서 (전부 CPU):
+
+    python scripts/analyze_hint_effect.py \
+      --answers $ART/results/ddxplus_hint_answers_v2.jsonl \
+      --dump $ART/results/fig3_ddx.json
+    python scripts/analyze_hint_effect.py \
+      --answers $ART/results/mcr_hint_answers_full.jsonl \
+      --dump $ART/results/fig3_mcr.json
+    python scripts/make_figure_intervention.py \
+      --dumps $ART/results/fig3_ddx.json $ART/results/fig3_mcr.json \
+      --labels DDXPlus MedCaseReasoning \
+      --output $ART/results/figure3_intervention.pdf
+
+주의: MCR 쪽 clean 모집단 n이 1,543과 다르면 그 n이 맞는 값이다 — 표와
+그림은 같은 dump에서 나와야 하고, Table 2의 n도 그때 함께 재확인한다.
 
 **Figure 4 — 앵커링 궤적 (메인 그림).** 두 패널. **스크립트 완성**
 (08-24, `make_figure_trajectory.py`; `analyze_trajectory.py --dump`의 JSON을

@@ -229,6 +229,12 @@ def main() -> None:
         help="The hint case file, for runs whose answers do not carry the arm.",
     )
     parser.add_argument("--show", type=int, default=5, help="Flipped cases to print.")
+    parser.add_argument(
+        "--dump",
+        help="Write the per-population arm accuracies as JSON, for "
+        "make_figure_intervention.py. The figure is drawn from this file, so "
+        "the plotted values are the reported values by construction.",
+    )
     args = parser.parse_args()
 
     cases = group_by_case(args.answers, args.cases)
@@ -265,6 +271,17 @@ def main() -> None:
     report("all cases", cases)
     report("chart does NOT name the gold", clean)
     report("chart names the gold", leaky)
+
+    if args.dump:
+        import json
+
+        dump = {
+            name: {"n": len(pop), "arms": summarize(pop)}
+            for name, pop in (("all", cases), ("clean", clean), ("leaky", leaky))
+            if pop
+        }
+        Path(args.dump).write_text(json.dumps(dump, indent=2), encoding="utf-8")
+        print(f"\n[dump] {args.dump}")
 
     # MCR has no differential to draw a plausible wrong from, so some
     # suggestions come from the model's own confusions and the rest from a
