@@ -45,6 +45,10 @@ if str(REPO_ROOT) not in sys.path:
 from src.jsonl import read_jsonl
 
 CUES = re.compile(r"<supporting_cues>(.*?)</supporting_cues>", re.DOTALL)
+# A readout that opened the block and never closed it ran past the token budget
+# writing cues, which is a different failure from never emitting the tag at all
+# -- and on MCR it is the common one, so the two are counted apart.
+CUES_OPEN = re.compile(r"<supporting_cues>(.*)", re.DOTALL)
 ANSWER = re.compile(r"<answer>(.*?)</answer>", re.DOTALL)
 WORD = re.compile(r"[a-z0-9]+")
 
@@ -73,11 +77,29 @@ def containment(cue: str, haystack_trigrams: set[tuple[str, ...]]) -> float | No
     return len(grams & haystack_trigrams) / len(grams)
 
 
-def split_cues(text: str) -> list[str]:
-    match = CUES.search(text or "")
+def split_cues(text: str) -> tuple[list[str], str]:
+    """Cues plus how the block ended: closed, truncated, or absent.
+
+    A truncated block's cues are still real output and are scored -- dropping
+    them would bias the grounding rate towards the readouts short enough to
+    finish, and on MCR those are the minority.
+    """
+    text = text or ""
+    match = CUES.search(text)
+    status = "closed"
     if not match:
-        return []
-    return [part.strip() for part in match.group(1).split(";") if part.strip()]
+        match = CUES_OPEN.search(text)
+        if not match:
+            return [], "absent"
+        status = "truncated"
+    body = match.group(1)
+    # The tail of a truncated block is a half-written sentence; the pad/eos
+    # scaffold is not clinical text either.
+    body = body.replace("<pad>", " ").replace("<eos>", " ")
+    parts = [part.strip() for part in body.split(";") if part.strip()]
+    if status == "truncated" and parts:
+        parts = parts[:-1]
+    return parts, status
 
 
 def answer_of(text: str) -> str:
@@ -97,13 +119,15 @@ def report(name: str, rows: list[dict]) -> None:
     other_scores: list[float] = []
     grounded = other_grounded = 0
     seen: Counter[str] = Counter()
-    empty = 0
+    status_counts: Counter[str] = Counter()
+    n_cues: list[int] = []
 
     for i, row in enumerate(rows):
-        cues = split_cues(str(row.get("nla_output") or ""))
+        cues, status = split_cues(str(row.get("nla_output") or ""))
+        status_counts[status] += 1
         if not cues:
-            empty += 1
             continue
+        n_cues.append(len(cues))
         for cue in cues:
             seen[" ".join(words(cue))] += 1
             own = containment(cue, grams[i])
@@ -124,7 +148,14 @@ def report(name: str, rows: list[dict]) -> None:
     total = len(own_scores)
     repeated = sum(c for cue, c in seen.items() if c > 1)
     print(f"\n=== {name} ===")
-    print(f"rows {n:,}   rows with no cue block {empty:,}   cues scored {total:,}")
+    print(f"rows {n:,}   cue block closed {status_counts['closed']:,}   "
+          f"truncated {status_counts['truncated']:,}   "
+          f"absent {status_counts['absent']:,}")
+    print(f"cues scored {total:,}   per scored row "
+          f"{sum(n_cues) / max(len(n_cues), 1):.1f}")
+    if status_counts["truncated"] > n * 0.1:
+        print("  ⚠ a tenth or more ran past the token budget mid-cue -- the "
+              "readout is writing a workup, not naming what it read")
     print(f"  trigram containment, own prompt        {m_own:.3f}")
     print(f"  trigram containment, another prompt    {m_alt:.3f}   (control)")
     print(f"  case-specific gap                      {m_own - m_alt:+.3f}")
