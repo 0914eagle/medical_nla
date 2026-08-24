@@ -1,4 +1,4 @@
-"""Figure 4 -- decoded trajectory under the wrong referral note.
+"""Figure 3 -- decoded trajectory under the wrong referral note.
 
 Three panels separate three claims that the old two-panel figure conflated:
 

@@ -158,7 +158,7 @@ DDXPlus 770행을 조용히 "근거 없음"으로 버렸고, 그것이 코퍼스
 - ✅ 판독 결과의 접지 재측정은 완료됐다. 결과는 source-answer agreement
   .2643, gold agreement .1389, grounding .022이며, 결론 판독을 임상적으로
   접지된 설명으로 해석할 수 없음을 확인했다.
-- ▢ Table 3b의 MCR 칸과 MCR r5는 **wrong-note arm 활성값의 별도 추출**이
+- ▢ Table 2b의 MCR 칸과 MCR r5는 **wrong-note arm 활성값의 별도 추출**이
   필요하다. 현재
   매니페스트는 소견서 없는 프롬프트다(`filter_manifest_to_split.py`가
   `prompts naming a referring note: 0`으로 보고한다).

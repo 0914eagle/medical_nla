@@ -1,21 +1,21 @@
-"""Figure 3 -- the four-arm intervention, drawn from analyze_hint_effect --dump.
+"""Figure 2 -- behavioral effect of the referral-note intervention.
 
-Grouped bars: one cluster per corpus (or per run -- a CoT run is just another
-dump), four bars per cluster in the arm order none / neutral / wrong /
-correct. The wrong bar is the black one; the figure's message is that one
-bar, and the neutral bar beside it is what licenses reading the drop as
-suggestion-specific rather than as the cost of inserting a sentence.
+Panel (a) draws four-arm accuracy for the clean population whose chart does
+not name the gold diagnosis. Panel (b) decomposes all causally moved answers
+into moves to the note's suggestion and moves to a third diagnosis. The two
+panels intentionally use different populations: the accuracy comparison
+excludes label-leaky prompts, whereas the canonical moved counts are defined
+on the full source-correct cohort. Both denominators are printed in the plot.
 
 Drawn from dump JSON rather than by re-scoring answers, so the plotted values
-are the reported values by construction. Population defaults to `clean`
-(charts that do not name the gold -- Table 2's population); pass
---population all to draw the full set instead.
+are the reported values by construction. Older dumps must be regenerated so
+they include the `moved` block added to analyze_hint_effect.py.
 
     python scripts/analyze_hint_effect.py --answers ... --dump ddx.json
     python scripts/analyze_hint_effect.py --answers ... --dump mcr.json
     python scripts/make_figure_intervention.py \
         --dumps ddx.json mcr.json --labels DDXPlus MedCaseReasoning \
-        --output figure3_intervention.pdf
+        --output figure2_behavior.pdf
 """
 
 from __future__ import annotations
@@ -42,7 +42,18 @@ def main() -> None:
                         help="JSON files from analyze_hint_effect --dump, one per cluster.")
     parser.add_argument("--labels", nargs="+", required=True,
                         help="Cluster label per dump, e.g. DDXPlus MedCaseReasoning.")
-    parser.add_argument("--population", default="clean", choices=["clean", "all", "leaky"])
+    parser.add_argument(
+        "--accuracy-population", default="clean", choices=["clean", "all", "leaky"],
+        help="Population for panel (a); clean is the paper's primary accuracy cohort.",
+    )
+    parser.add_argument(
+        "--destination-population", default="all", choices=["clean", "all", "leaky"],
+        help="Population for panel (b); all gives the canonical moved counts.",
+    )
+    parser.add_argument(
+        "--population", choices=["clean", "all", "leaky"],
+        help="Legacy shortcut: use one population for both panels.",
+    )
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     if len(args.dumps) != len(args.labels):
@@ -53,28 +64,41 @@ def main() -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    accuracy_population = args.population or args.accuracy_population
+    destination_population = args.population or args.destination_population
     clusters = []
     for path, label in zip(args.dumps, args.labels):
         data = json.loads(Path(path).read_text(encoding="utf-8"))
-        pop = data.get(args.population)
-        if pop is None:
-            raise SystemExit(f"{path} has no '{args.population}' population "
+        accuracy_pop = data.get(accuracy_population)
+        destination_pop = data.get(destination_population)
+        if accuracy_pop is None:
+            raise SystemExit(f"{path} has no '{accuracy_population}' population "
                              f"(has: {sorted(data)})")
+        if destination_pop is None:
+            raise SystemExit(f"{path} has no '{destination_population}' population "
+                             f"(has: {sorted(data)})")
+        if "moved" not in destination_pop:
+            raise SystemExit(
+                f"{path} has no moved decomposition; regenerate it with the current "
+                "analyze_hint_effect.py --dump"
+            )
         # A dump missing an arm draws a cluster with fewer bars, which reads as
         # a finished figure rather than a missing run. Say so: the arms of one
         # run are often in separate answer files, and analyze_hint_effect
         # merges them only if all of them were passed to it.
-        missing = [a for a in ARM_ORDER if a not in pop["arms"]]
+        missing = [a for a in ARM_ORDER if a not in accuracy_pop["arms"]]
         if missing:
             print(f"[warn] {label}: no {', '.join(missing)} arm in {path} -- "
                   f"that cluster will be drawn with {4 - len(missing)} bars.\n"
                   f"       Re-dump with every answer file for this run: "
                   f"analyze_hint_effect.py --answers a.jsonl b.jsonl --dump ...")
-        clusters.append((label, pop))
+        clusters.append((label, accuracy_pop, destination_pop))
 
-    fig, ax = plt.subplots(figsize=(0.6 + 2.4 * len(clusters), 2.9))
+    fig, (ax, ax_dest) = plt.subplots(
+        1, 2, figsize=(7.2, 3.0), gridspec_kw={"width_ratios": [1.45, 1.0]}
+    )
     width = 0.19
-    for ci, (label, pop) in enumerate(clusters):
+    for ci, (label, pop, _) in enumerate(clusters):
         for ai, arm in enumerate(ARM_ORDER):
             stats = pop["arms"].get(arm)
             if not stats:
@@ -91,7 +115,7 @@ def main() -> None:
 
     ax.set_xticks(range(len(clusters)))
     ax.set_xticklabels(
-        [f"{label}\n(n = {pop['n']:,})" for label, pop in clusters], fontsize=8
+        [f"{label}\n(n = {pop['n']:,})" for label, pop, _ in clusters], fontsize=8
     )
     ax.set_ylim(0.6, 1.02)
     ax.set_ylabel("accuracy", fontsize=8)
@@ -99,8 +123,38 @@ def main() -> None:
     ax.spines[["top", "right"]].set_visible(False)
     # Above the axes, one row: inside the plot it lands on the tallest bars.
     ax.legend(fontsize=6.5, frameon=False, ncols=4,
-              loc="lower center", bbox_to_anchor=(0.5, 1.01))
-    fig.tight_layout()
+              loc="lower center", bbox_to_anchor=(0.5, 1.20))
+    ax.set_title("(a) Accuracy by referral-note arm", fontsize=8)
+
+    xs = list(range(len(clusters)))
+    suggestion = [dest["moved"]["to_suggestion"] for _, _, dest in clusters]
+    third = [dest["moved"]["to_third_diagnosis"] for _, _, dest in clusters]
+    totals = [dest["moved"]["n"] for _, _, dest in clusters]
+    ax_dest.bar(xs, suggestion, color="black", width=0.62, label="to suggestion")
+    ax_dest.bar(
+        xs, third, bottom=suggestion, color="0.72", edgecolor="black",
+        linewidth=0.6, hatch="///", width=0.62, label="to third diagnosis",
+    )
+    for x, to_hint, to_third, total in zip(xs, suggestion, third, totals):
+        if to_hint:
+            ax_dest.text(x, to_hint / 2, str(to_hint), color="white", ha="center",
+                         va="center", fontsize=6.5)
+        if to_third:
+            ax_dest.text(x, to_hint + to_third / 2, str(to_third), ha="center",
+                         va="center", fontsize=6.5)
+        ax_dest.text(x, total, f"total {total}", ha="center", va="bottom", fontsize=6.5)
+    ax_dest.set_xticks(
+        xs,
+        [f"{label}\n(n = {dest['n']:,})" for label, _, dest in clusters],
+        fontsize=8,
+    )
+    ax_dest.set_ylabel("causally moved answers", fontsize=8)
+    ax_dest.tick_params(labelsize=7)
+    ax_dest.spines[["top", "right"]].set_visible(False)
+    ax_dest.legend(fontsize=6.2, frameon=False, loc="upper left")
+    ax_dest.set_title("(b) Where moved answers go", fontsize=8)
+
+    fig.subplots_adjust(left=0.08, right=0.99, top=0.74, bottom=0.20, wspace=0.32)
     fig.savefig(args.output, dpi=300, bbox_inches="tight")
     print(f"[figure] {args.output}")
 

@@ -48,7 +48,7 @@ representation`, `internal-output dissociation`이다.
 
 발표는 논문의 §3 순서를 그대로 따른다. Slide 9–11은 §3.1 데이터와 direct-answer
 모집단, Slide 12–15는 §3.2 four-arm 인과 개입과 moved 정의, Slide 16–19는
-§3.3 내부 측정 채널과 AV 측정 관문 M0, Slide 20–30은 §3.4의 행동·궤적·단일
+§3.3 내부 측정 채널과 AV 측정 관문 M0, Slide 18–28은 §3.4의 행동·궤적·단일
 실행 탐지·교정 평가다. 따라서 AV가 먼저 나오고 현상을 나중에 찾는 구조가
 아니다. Slide 1–7에서 현상과 RQ를 먼저 세우고, Methodology에서 probe와 AV를
 그 질문에 답하기 위한 서로 다른 측정 채널로 소개한다.
@@ -571,9 +571,12 @@ content 후보를 만들 수 있다. 반대로 AV에는 parametric prior와 temp
 hallucination이 섞일 수 있다. 따라서 **probe는 정량 결론을 담당하고, AV는 M0를
 통과한 범위에서 자연어 후보와 후속 intervention을 담당한다.**
 
-## Slide 18. Measurement Gate M0 - AV를 보조 계기로 쓸 수 있는가
+> **Deck assembly note:** 아래 E1/E2는 문서상 Method 설명 직후 참고하도록
+> 기록했지만, 실제 슬라이드 파일에서는 Slide 33 뒤 backup으로 이동한다.
 
-**화면에는 Table 1을 그대로 넣는다.**
+## Backup E1. Measurement Gate M0 - AV를 보조 계기로 쓸 수 있는가
+
+**화면에는 Appendix Table A1을 그대로 넣는다. 본 발표에서는 질문이 있을 때만 연다.**
 
 | Validation test | n | Medical readout | Control / baseline |
 |---|---:|---:|---:|
@@ -598,7 +601,7 @@ activation-conditioned observation으로 인용하기 위한 선행 calibration�
 `evidence-before-use` 순서다. 시간 부족 시 이 슬라이드는 아래 핵심 세 줄만
 말하고 semantic audit 상세는 Appendix로 넘긴다.
 
-Table 1에는 서로 다른 질문을 하나의 공통 reference처럼 섞지 않고 각 test와
+Appendix Table A1에는 서로 다른 질문을 하나의 공통 reference처럼 섞지 않고 각 test와
 baseline을 나란히 둔다. 438-row counterfactual cohort에서 activation swap을 하면
 readout이 새 cue를 따라간 비율은 `.993`, swap 뒤 원래 cue를 계속 말한 비율은
 `.000`이다. 다른 환자의 cue가 섞이는 cross-patient contamination은 `.007`, chance
@@ -619,7 +622,7 @@ Cohen's kappa는 약 `.35-.50`이다. 외부 판정자가 더 후했으므로 �
 불완전했고, 행 가중은 반복 빈도가 높은 몇 쌍에 민감했다. 따라서 쌍 단위와 행
 가중을 함께 보고하고 이를 임상적 유용성 평가로 해석하지 않는다.
 
-## Slide 19. Figure 2 - layer와 position은 무엇을 보여주는가
+## Backup E2. Appendix Figure A1 - AV layer와 position은 무엇을 보여주는가
 
 **그림 옆에 넣을 수치표**
 
@@ -643,9 +646,9 @@ epoch, L32는 3 epoch이어서 layer와 training exposure가 섞여 있다. 안�
 현재 recipe에서 L24가 가장 높은 경향을 보이고, heldout diagnosis transfer가 크게
 떨어진다는 것이다. “L24가 의학 정보의 최적 layer”라는 인과 주장은 하지 않는다.
 
-## Slide 20. RQ1 행동 결과 - referral note가 실제로 답을 바꾸는가
+## Slide 18. RQ1 행동 결과 - referral note가 실제로 답을 바꾸는가
 
-**화면에는 Table 2를 그대로 넣는다.**
+**화면에는 Table 1과 Figure 2(a)를 그대로 넣는다.**
 
 | Corpus | n | No note | Neutral | Wrong | Correct |
 |---|---:|---:|---:|---:|---:|
@@ -671,7 +674,7 @@ MCR의 1,543은 평가 가능한 12,620건 중 source model이 no-note에서 맞
 즉 accuracy `.122`인 선택된 모집단이다. “MCR 전체에서 67.2% 정확도”라고 말하면
 안 된다.
 
-## Slide 21. 이동은 suggestion 복사가 아니라 주로 제3 진단 이동이다
+## Slide 19. 이동은 suggestion 복사가 아니라 주로 제3 진단 이동이다
 
 **화면에 넣을 moved destination 표**
 
@@ -692,7 +695,7 @@ MCR moved 437건에서도 suggestion 채택 137건(31.4%), 제3 진단 이동 30
 선택지로 들어가는 것이 아니라 전체 differential geometry를 흔들어 다른 진단으로
 보낼 수 있다.
 
-## Slide 22. 문구 변화와 CoT의 이중성
+## Slide 20. 문구 변화와 CoT의 이중성
 
 **화면 왼쪽: wording robustness**
 
@@ -727,9 +730,9 @@ none `.7464`, wrong `.7018`로 note cost가 `4.46pp`로 줄어든다. 그러나 
 43.0%로 높아지지만 분모가 다른 조건부 비율이므로 “CoT가 suggestion을 더 원인으로
 사용했다”고 단정하지 않는다.
 
-## Slide 23. Figure 4 - 내부 궤적과 용량-반응
+## Slide 21. Figure 3 - 내부 궤적과 용량-반응
 
-**그림 아래에 Table 3a를 축약 없이 둔다.**
+**그림 아래에 Table 2a를 축약 없이 둔다.**
 
 | Behaviour under wrong note | n | With note `p(gold)` | No note `p(gold)` | Δ |
 |---|---:|---:|---:|---:|
@@ -757,7 +760,7 @@ constraint `-.439/-.304`, format `-.183/-.188`, final `-.195/-.055`다. Constrai
 관측된 위치 효과이며 “constraint token이 모든 모델의 보편적 취약점”이라고
 일반화하지 않는다.
 
-## Slide 24. Suggestion은 언제 내부 top-1이 되는가
+## Slide 22. Suggestion은 언제 내부 top-1이 되는가
 
 **화면에 넣을 landmark count 표**
 
@@ -783,9 +786,9 @@ note 0, question 30, constraint 6, format 5, final 7이다. 한 번이라도 top
 진단이 top-1인 경로다. 따라서 “82.9%에서 모델은 속으로 정답을 알고 있었다”가
 아니라 “82.9%에서 suggestion dominance 없이 출력이 이동했다”가 정확한 결론이다.
 
-## Slide 25. RQ2 - 한 번의 wrong-note 실행에서 moved를 탐지한다
+## Slide 23. RQ2 - 한 번의 wrong-note 실행에서 moved를 탐지한다
 
-**화면에는 Table 3b를 그대로 넣는다.**
+**화면에는 Table 2b와 Figure 4(a)를 그대로 넣는다.**
 
 | Channel | 무엇을 봄 | Task supervision | AUROC all | AUROC silent |
 |---|---|---|---:|---:|
@@ -821,7 +824,7 @@ calibration되지 않았다. Brier `.1649`, constant baseline `.1500`, ECE `.142
 과신이 있다. Calibration은 고칠 수 있지만 monotonic transform이면 AUROC 순위는
 바뀌지 않는다.
 
-## Slide 26. RQ3 - 교정 사다리의 exact intervention
+## Slide 24. RQ3 - 교정 사다리의 exact intervention
 
 **화면에 넣을 intervention 설계표**
 
@@ -855,9 +858,9 @@ R6는 자연어 근거 없이 `An independent classifier probe ... predicts:
 answer was:` 뒤에 그대로 붙인다. 모든 rung은 마지막에 동일한 direct instruction과
 answer prefill을 사용한다.
 
-## Slide 27. 교정 결과와 정확한 해석
+## Slide 25. 교정 결과와 정확한 해석
 
-**화면에는 Table 4를 그대로 넣는다.**
+**화면에는 Table 3과 Figure 4(b)를 그대로 넣는다.**
 
 | Rung | Overall | Moved recovery | Capitulation |
 |---|---:|---:|---:|
@@ -887,7 +890,7 @@ Probe selector와 argmax 직접 교체 정책은 전체 `.9651`, selector+r6 재
 교체가 낫다. 이 결과는 natural-language method의 우승이 아니라, 내부 신호를
 선택적으로 사용할 수 있다는 proof of concept다.
 
-## Slide 28. 자기 CoT를 다시 주면 왜 안 고쳐지는가
+## Slide 26. 자기 CoT를 다시 주면 왜 안 고쳐지는가
 
 **화면에는 동일 1,151-ID 공통 cohort만 놓는다.**
 
@@ -900,7 +903,7 @@ Probe selector와 argmax 직접 교체 정책은 전체 `.9651`, selector+r6 재
 | r7 own CoT | **.8810** | **.1236** | **58** |
 
 R7은 답을 거의 유지해서 overall이 높지만, 이미 움직인 답은 거의 고치지 못한다.
-서로 다른 분모의 Table 4 수치와 직접 비교하지 않고 이 공통 cohort 안에서만 읽는다.
+서로 다른 분모의 Table 3 수치와 직접 비교하지 않고 이 공통 cohort 안에서만 읽는다.
 
 R7은 CoT answer와 direct first answer가 일치하는 공통 1,151개로 제한한다.
 이 집합은 first accuracy `.9201`, moved 7.7%인 쉬운 cohort다. 여기서 R7 전체
@@ -912,7 +915,7 @@ R7의 높은 전체값은 잘 고친 것이 아니라 대부분 답을 바꾸지
 패턴은 고착 또는 합리화와 양립하지만, 이 실험만으로 그 인과 기전을 확정하지
 않는다.
 
-## Slide 29. MCR에서 자연어 readout은 무엇까지 읽었는가
+## Slide 27. MCR에서 자연어 readout은 무엇까지 읽었는가
 
 **화면에 넣을 source-aligned readout 표**
 
@@ -942,7 +945,7 @@ source diagnosis signal을 일부 읽는다. 그러나 절대 일치율 `.21-.26
 아니라 **answer field에는 예비 source-aligned signal이 있으나 grounds는 접지되지
 않는다**다.
 
-## Slide 30. 사람이 읽으면 실제로 도움이 되는가
+## Slide 28. 사람이 읽으면 실제로 도움이 되는가
 
 **화면에 넣을 reader-trust 중간 결과**
 
@@ -974,7 +977,7 @@ no-account 대비 paired delta다.
 유용하다”가 완전히 다른 명제임을 보여준다. 현재 readout을 clinician-facing
 explanation으로 제안하지 않는다.
 
-## Slide 31. 세 RQ에 대한 현재 답
+## Slide 29. 세 RQ에 대한 현재 답
 
 **화면에는 결론과 경계를 한 표로 묶는다.**
 
@@ -1003,7 +1006,7 @@ RQ3에 대한 답은 조건부 yes다. 정확한 internal content는 moved case�
 무선별 재질문은 전체 성능을 파괴하고 잘못된 readout은 해롭다. Natural-language
 format의 독립적 이점은 아직 확립되지 않았다.
 
-## Slide 32. 논문의 기여를 다섯 문장으로 정리한다
+## Slide 30. 논문의 기여를 다섯 문장으로 정리한다
 
 첫째, neutral/correct control을 포함한 referral-note anchoring testbed를 만들고
 합성 문진과 실제 case-report에서 행동 효과를 재현했다. 둘째, 출력 이동이
@@ -1013,7 +1016,7 @@ LLM monitor, natural-language readout, linear probe를 동일한 single-run task
 재고 요청은 해롭다는 것을 보였다. 다섯째, 자연어 readout을 결과 생성기가 아니라
 검증이 필요한 측정 도구로 다루고 positive result와 failure를 함께 보고했다.
 
-## Slide 33. 아직 남은 실험과 문서 작업
+## Slide 31. 아직 남은 실험과 문서 작업
 
 **화면에는 우선순위와 논문 영향만 표시한다.**
 
@@ -1024,7 +1027,7 @@ LLM monitor, natural-language readout, linear probe를 동일한 single-run task
 | 3 | MCR wrong-note activation·detection | DDXPlus 내부 기전의 열린 어휘 확장 |
 | 4 | MCR correction ladder | probe가 직접 이전되지 않는 조건의 교정 |
 | 5 | matched realistic placebo | 길이·문체와 clinical suggestion 분리 |
-| 6 | Figure 2 matched recipe/layer | layer 효과와 학습량 분리 |
+| 6 | Appendix Figure A1 matched recipe/layer | layer 효과와 학습량 분리 |
 
 첫째, reader-trust 2,896행 전수와 same-channel shuffled account control이 남아
 있다. 둘째, LLM monitor에서 CoT를 제거한 동일 판정자 arm이 필요하다. 현재 monitor는
@@ -1033,7 +1036,7 @@ vignette, note, CoT, answer를 모두 보므로 CoT만의 증분을 분리하지
 셋째, MCR wrong-note activation 추출, MCR single-run detection, MCR correction
 ladder가 남아 있다. 현재 MCR은 행동 복제와 source-aligned answer readout까지만
 완료됐다. 넷째, MCR cue-position readout과 counterfactual span swap이 필요하다.
-다섯째, Figure 2 layer 비교에서 epoch와 reader recipe를 맞춘 position/layer control이
+다섯째, Appendix Figure A1 layer 비교에서 epoch와 reader recipe를 맞춘 position/layer control이
 필요하다. 여섯째, realistic note 효과를 길이와 문체에서 분리할 matched placebo가
 필요하다. 마지막으로 최근접 선행연구의 서지와 claim을 투고 전에 다시 확인해야
 한다.
@@ -1041,7 +1044,7 @@ ladder가 남아 있다. 현재 MCR은 행동 복제와 source-aligned answer re
 외부 semantic judge 238쌍 전수는 완료됐으며 파싱 실패는 0건이다. 따라서 이
 항목은 더 이상 미결 과제가 아니고, 손채점과 외부 판정을 보조 감사로 함께 보고한다.
 
-## Slide 34. 한계
+## Slide 32. 한계
 
 **화면에는 주장과 제한을 짝지어 놓는다.**
 
@@ -1074,7 +1077,7 @@ MCR은 model confusion 또는 cue-nearest-neighbor를 쓴다. Wording, note 길�
 source-correct selection, forced answer format이 absolute performance에 영향을 줄
 수 있다. 결론은 paired difference와 정해진 모집단 안에서만 해석한다.
 
-## Slide 35. 최종 결론과 다음 연구
+## Slide 33. 최종 결론과 다음 연구
 
 최종적으로 다음처럼 말한다.
 
@@ -1127,12 +1130,13 @@ prompt를 일부러 잘못 짝지어 correct pairing의 추가 정보를 측정�
 
 Figure 1은 데이터에서 four-arm prompt를 만들고 source output, activation probe,
 natural-language readout, correction으로 이어지는 전체 파이프라인을 그린다.
-Table 1은 readout instrument validation만 둔다. Figure 2는 layer-position map을
-두 panel로 분리한다. Table 2와 Figure 3은 네 arm의 행동 효과와 moved의
-suggestion/third-diagnosis 분해를 보여준다. Figure 4와 Table 3a는 trajectory,
-Table 3b는 single-run channel AUROC를 보여준다. Table 4는 correction ladder의
-main comparison만 두고 content-matched, deployment policy, r7 common cohort는
-appendix로 보낸다. MCR answer derangement와 reader-trust는 main discussion의
+Table 1과 Figure 2는 네 arm의 행동 효과와 moved의 suggestion/third-diagnosis
+분해를 보여준다. Figure 3와 Table 2a는 trajectory, Table 2b와 Figure 4(a)는
+single-run channel AUROC를 보여준다. Table 3와 Figure 4(b)는 correction ladder의
+main comparison만 둔다. AV instrument validation과 layer-position map은
+Appendix Table A1/Figure A1로 이동하고, myocarditis case study는 Appendix
+Figure A2로 둔다. Content-matched, deployment policy, r7 common cohort는
+나머지 appendix 표로 보낸다. MCR answer derangement와 reader-trust는 main discussion의
 경계 결과로 요약하고 상세 표는 appendix에 둔다.
 
 ## Appendix D. 현재 프레이밍을 만든 초기 파일럿

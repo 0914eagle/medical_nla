@@ -6,6 +6,11 @@
 
 해석과 설계는 실험별 문서(`01`–`15`)에, 표 조판은 `docs/paper/`에 있다.
 
+**Camera-ready numbering (08-25):** 이 원장의 절 순서는 실험이 수행된 역사적
+순서를 보존한다. 원고에서는 AV 검증/레이어 스윕을 Appendix A1로 옮기고,
+Table 1/Figure 2 행동 → Table 2a/Figure 3 궤적 → Table 2b/Figure 4(a) 탐지 →
+Table 3/Figure 4(b) 교정 순서를 쓴다.
+
 ---
 
 ## 0. 무엇이 정본인가 — 파이프라인의 두 갈래
@@ -34,7 +39,7 @@
 
 ---
 
-## 1. Table 1 — 계기 검증 (§4.1, DDXPlus)
+## 1. Appendix Table A1 — AV 계기 검증 (DDXPlus)
 
 `scripts/score_cue_position_readouts.py` 계열. **08-24 재채점의 영향 없음**
 (cue 위치 판독은 `source_correct`를 쓰지 않는다).
@@ -59,7 +64,7 @@
 
 ---
 
-## 2. Figure 2 — 레이어 스윕
+## 2. Appendix Figure A1 — AV 레이어 스윕
 
 **패널 간 비교 금지.** (a)는 per-cue 레시피 n=438/층, (b)는 cue-first 레시피
 n=727/800으로 분할·타깃·어댑터가 다르다.
@@ -174,7 +179,7 @@ CoT 모니터(#1)와 같은 판정자이므로 두 결과는 같은 채점자 �
 
 ---
 
-## 3. Table 2 — 개입 정확도 (§4.2)
+## 3. Table 1 · Figure 2 — 개입 정확도와 moved destination (§4.1)
 
 `analyze_hint_effect.py`, 재채점 파일.
 
@@ -296,7 +301,7 @@ direct의 무소견서 정확도는 **.9897로 천장이 설계상 보장**되�
 > **25.1%**(877/3,494)에서 다른 답을 내고, 그중 **747건이 오답**이 된다
 > (구제 130). 정확도 중립은 흔들림이 없다는 뜻이 아니다.
 
-### Figure 5 — `64.1%`의 canonical 재집계 (08-24)
+### Appendix Figure A2 — 옛 `64.1%`의 canonical 재집계 (08-24)
 
 `analyze_trajectory_readouts.py --ladder ddxplus_ladder_r5_rescored.jsonl`,
 final 랜드마크, n=1,747.
@@ -354,7 +359,7 @@ source-correct가 71%인 편향 표본이 된다 — 그 조합의 수치는 인
   낮다. 게이트가 묻는 것은 "이 채널이 사례를 읽는가"이고, 그 답이 예다.
 
 **결론: MCR 내부 분기는 살아 있다.** wrong-note activation 추출(GPU)과
-Table 3b MCR 칸, MCR r5를 진행할 근거가 선다. 반면 **근거 필드(cue)는
+Table 2b MCR 칸, MCR r5를 진행할 근거가 선다. 반면 **근거 필드(cue)는
 gap +.025 · 반복 70%로 통과하지 못했으므로 표에 넣지 않는다.** 열린 것은
 답 필드 하나다.
 
@@ -397,7 +402,7 @@ gap +.025 · 반복 70%로 통과하지 못했으므로 표에 넣지 않는다.
 
 ---
 
-## 4. Figure 4 · Table 3 — 궤적과 용량-반응 (§4.3, 프로브)
+## 4. Figure 3 · Table 2a — 궤적과 용량-반응 (§4.2, 프로브)
 
 `analyze_trajectory.py`, 재채점 답 + `trajectory_L32` 매니페스트.
 교차적합 선형 프로브, 43클래스. fold 무소견서 디코드 정확도 .9755 / .9776.
@@ -452,7 +457,7 @@ gap +.025 · 반복 70%로 통과하지 못했으므로 표에 넣지 않는다.
 
 ---
 
-## 5. Table 3b — 단일 실행 귀속 (§4.3)
+## 5. Table 2b · Figure 4(a) — 단일 실행 귀속 (§4.2)
 
 `compare_channels_on_attribution.py` + `evaluate_probe_disagreement.py` +
 `analyze_cot_monitor.py`, 전부 재채점 파일.
@@ -557,7 +562,7 @@ gap +.025 · 반복 70%로 통과하지 못했으므로 표에 넣지 않는다.
 
 ---
 
-## 7. Table 4 — 교정 사다리 (§4.4)
+## 7. Table 3 · Figure 4(b) — 교정 사다리 (§4.3)
 
 `analyze_correction_ladder.py`, 재채점 사다리 파일 + `probe_verdicts_canonical`.
 첫 답: 전체 **.8117**, moved **.0031**.
@@ -593,7 +598,7 @@ gap +.025 · 반복 70%로 통과하지 못했으므로 표에 넣지 않는다.
 다시 읽고 자기 답을 재확인한다 — **되먹임이 아니라 고착**이다. 깨진 소수마저
 제안 쪽으로 덜 간다(항복률 .2069 대 첫 패스 .5281, ×0.39).
 
-### Table 4b — 내용을 맞춘 r5 대 r6
+### Appendix Table A5 — 내용을 맞춘 r5 대 r6
 
 되먹인 내용 정확도: 판독 **.5047**, 프로브 **.8567** (moved n=321).
 
@@ -611,7 +616,7 @@ gap +.025 · 반복 70%로 통과하지 못했으므로 표에 넣지 않는다.
 추가 효과가 검출되지 않고(p=1.000), moved에서는 맨 이름 쪽 점추정이 앞서나
 보정 후 유의하지 않다(p=.016).*
 
-### Table 4c — 배포 정책
+### Appendix Table A6 — 배포 정책
 
 | 정책 | 정확도 |
 |---|---:|
@@ -633,7 +638,7 @@ gap +.025 · 반복 70%로 통과하지 못했으므로 표에 넣지 않는다.
 
 ---
 
-## 8. MCR 결론 판독 — 열린 어휘 (§4.1)
+## 8. MCR 결론 판독 — 열린 어휘 (Appendix/limitation)
 
 `run_mcr_conclusion_readout.sh` → `score_readout_against_model.py` /
 `analyze_readout_grounding.py`.
@@ -701,7 +706,7 @@ derangement에서는 모델 답 일치가 **.0042**로 무너진다. 따라서 �
 
 ---
 
-## 9. 독자-신뢰 (§4.1/4.3, 중간 결과)
+## 9. 독자-신뢰 (§4.2/limitation, 중간 결과)
 
 `make_reader_trust_cases.py --controls none` → `run_judge.py --backend codex`
 → `dedupe_judgements.py` → `analyze_reader_trust.py`.
@@ -794,11 +799,11 @@ Pericarditis).
 | MCR readout derangement 통제 | CPU | **완료 — 답 필드 통과, 근거 필드 실패** |
 | wording 4종 canonical 재채점 | CPU | **완료** |
 | CoT 이중성 canonical 재채점 | CPU | **완료** |
-| Figure 5 `64.1%` canonical 재집계 | CPU | **완료 — `.591`로 교체** |
-| Table 3 페어드 CI·추세 검정 | CPU | **계기 완성** (`src/paired_stats.py`) |
+| Appendix Figure A2 옛 `64.1%` canonical 재집계 | CPU | **완료 — `.591`로 교체** |
+| Table 2a 페어드 CI·추세 검정 | CPU | **계기 완성** (`src/paired_stats.py`) |
 | MCR 사다리 r3/r4 | GPU 짧음 | derangement를 기다리지 않는다 |
-| MCR 내부 판독·교정 (Table 3b MCR 칸, MCR r5) | GPU 며칠 | 별도 추출 필요 |
-| Figure 2 position 통제 (같은 split·타깃·어댑터) | GPU ~1일 | 미착수 |
+| MCR 내부 판독·교정 (Table 2b MCR 칸, MCR r5) | GPU 며칠 | 별도 추출 필요 |
+| Appendix Figure A1 position 통제 (같은 split·타깃·어댑터) | GPU ~1일 | 미착수 |
 | 438행 의미 채점 재채점 (판정자 #3) | codex ~$0.10 | **완료, 238쌍·파싱 실패 0** |
 | corpus-300 canonical 재채점 | CPU | preflight가 판정 |
 | corpus-300 non-overlap 3,319 | CPU | 아카이브에 구 매처 실행 있음 — 재실행 |

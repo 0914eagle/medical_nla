@@ -12,18 +12,33 @@
 - 셀 하나에 값 하나. 슬래시로 두 값을 넣지 않는다.
 - 숫자 열에 텍스트 금지. 정의되지 않는 칸은 – 와 표 각주.
 - 소수 자리 통일 (비율 .xxx, pp는 정수 또는 x.x).
-- **캡션이 계기를 명시한다.** T1은 자연어 판독, T3은 프로브, T3b는 채널별.
+- **캡션이 계기를 명시한다.** A1은 자연어 판독, T2a는 프로브, T2b는 채널별.
   같은 절 안에서도 어느 계기가 잰 값인지 독자가 표만 보고 알아야 한다.
+
+## Camera-ready order (08-25)
+
+| First appearance | Asset | 역할 |
+|---|---|---|
+| §4.1 | **Table 1 · Figure 2** | four-arm 행동 효과와 moved destination |
+| §4.2 | **Table 2a · Figure 3** | wrong note 아래 내부 진단 궤적 |
+| §4.2 | **Table 2b · Figure 4(a)** | 단일 실행 moved 탐지와 채널 비교 |
+| §4.3 | **Table 3 · Figure 4(b)** | 조건부 교정과 전체-집단 trade-off |
+| Appendix | **Table A1 · Figure A1** | AV 측정 계기 검증과 레이어 지도 |
+| Appendix | **Figure A2** | myocarditis chart/note/CoT/answer/internal case study |
+
+아래 문서는 감사 원장 역할도 하므로 Appendix A1 상세를 먼저 보존하지만, 실제
+원고에서는 위 순서대로 배치한다. Discussion의 도구 선택 표는 번호를 주지 않고
+본문 산문으로 축약한다.
 
 ---
 
-## Table 1 — Instrument validation (§4.1)
+## Appendix Table A1 — AV instrument validation (Method §3.3; Appendix)
 
 지표: 비율 하나로 통일. 방향은 test 이름의 화살표로 표시하고, 각 행의
 대조 조건은 `Control / baseline` 한 열에 이름과 함께 적는다.
 길이(1,557→52자)와 형식(0.05→1.00)은 단위가 달라 **본문 문장으로** 이동.
 
-**Table 1.** Validation of the readout as a measuring instrument. Each row is
+**Appendix Table A1.** Validation of the AV readout as a measuring instrument. Each row is
 one test. Arrows indicate the favorable direction. `Control / baseline` names
 the relevant comparison rather than implying one common reference model.
 The 438-row counterfactual cohort tests case-level tracking and specificity;
@@ -50,8 +65,8 @@ score depends on the correct activation–case pairing.*
 **본문/부록 분리.** `Conclusion at the answer position`(.651 vs .603 untuned)
 은 별도의 answer-position 실험이며 위의 cue-position 계기 검증과 표본도
 다르다. 또한 현 산출물은 n=229이고 canonical `lost the gold` 집단은 n=230이라
-한 사례 정합을 확인하기 전까지 Table 1 본표에서 내린다. 결과 자체는 §4.1
-본문과 Appendix instrument details에 다음처럼 보존한다.
+한 사례 정합을 확인하기 전까지 Appendix Table A1 본표에서 내린다. 결과 자체는
+Appendix instrument details에 다음처럼 보존한다.
 
 | Supplementary answer-position check | n | Medical readout | Untuned |
 |---|---:|---:|---:|
@@ -62,7 +77,7 @@ score depends on the correct activation–case pairing.*
 `gpt-5.6-sol` 판정 `.5525/.7740/.6393`이다(L16/L24/L32). Table의 `.751`은
 별개의 770행 기계 채점이므로 섞지 않는다. 의미 채점은 보조 감사로 두 채점자를
 나란히 보고하고, exact 4-way·collapsed agreement·kappa와 좌우/부위 오류 분해를
-Appendix에 싣는다. Figure 2 본패널은 기계 채점만 사용한다.
+Appendix에 싣는다. Appendix Figure A1 본패널은 기계 채점만 사용한다.
 
 **답-위치 보조 검사가 가장 이상하게 읽히는 결과이고, 그것이 요점이다
 (08-24).** untuned baseline이 medical readout에 가깝다 — 무학습
@@ -73,7 +88,7 @@ Appendix에 싣는다. Figure 2 본패널은 기계 채점만 사용한다.
 유리하고 이름 하나당으로는 .524 vs .638로 뒤집힌다. **어댑터가 사는 값은
 적중률이 아니라 정밀도다** — 이 표의 나머지 행이 전부 그 이야기다.
 
-**T1의 정본 행은 현재 전부 DDXPlus다.** MCR에서는 source-aligned
+**Appendix A1의 정본 행은 현재 전부 DDXPlus다.** MCR에서는 source-aligned
 answer-position 판독까지 완료됐지만, gold/source-answer agreement와 낮은
 grounding을 재는 별도 실험이므로 아래 DDXPlus 계기 검증 행에 섞지 않는다.
 cue-position 계기 검증은 여전히 MCR용 어댑터·판독 실행이 필요하다.
@@ -227,7 +242,7 @@ DDXPlus는 **gap +.100 / 접지 .311**, 무효 실행이었던 옛 MCR은 **+.03
 
 | 나오는 값 | 결론 | 논문에서 하는 일 |
 |---|---|---|
-| gap ≥ **+.08** | 열린 어휘에서 판독이 **된다** | Table 1에 MCR 행 추가, caveat 1을 "프로브만 정의 안 됨"으로 축소, 대전제 그대로 |
+| gap ≥ **+.08** | 열린 어휘에서 판독이 **된다** | Appendix Table A1에 MCR 행 추가, caveat 1을 "프로브만 정의 안 됨"으로 축소, 대전제 그대로 |
 | gap **+.04–.08** | 되지만 약하다 | MCR 행을 싣되 DDXPlus 대비 열세를 본문에 명시 |
 | gap ≤ **+.04** (옛 값과 같음) | **학습셋 결함이 원인이 아니었다** | Limitations 결과로 전환: "이 코퍼스가 줄 수 있는 지도 신호(1,543건, 진단명당 1회)로는 학습되지 않는다". §4.1의 야심을 DDXPlus로 한정 |
 
@@ -248,12 +263,12 @@ DDXPlus는 **gap +.100 / 접지 .311**, 무효 실행이었던 옛 MCR은 **+.03
 진단명은 6,934종, 대부분 1회 등장 — **진단명당 예시 한 개**다. 될지 안 될지는
 우리 자신의 결과가 가른다: 답 위치 **무학습 .603 대 v2 .651**, 즉 읽는 능력은
 AV 체크포인트에 있고 LoRA는 형식을 입힌다. 형식만 가르치는 것이면 1,298행으로
-될 수 있다. **그래서 재학습과 무학습 대조를 같이 돌린다** — Table 1과 같은
+될 수 있다. **그래서 재학습과 무학습 대조를 같이 돌린다** — Appendix A1과 같은
 방식으로 untuned control을 붙여야 한다. 무학습이 바닥이면
 "MCR 결론 판독은 우리가 감당할 수 없는 학습량을 요구한다"가 **Limitations에
 적을 결과**이지 채울 구멍이 아니다.
 
-**MCR 정확도 0.122는 그 자체로 본문에 적어야 한다.** Table 2의 MCR 행
+**MCR 정확도 0.122는 그 자체로 본문에 적어야 한다.** Table 1의 MCR 행
 n=1,543은 12,620건 중 모델이 맞힌 12.2%이고 — 파일럿 규칙이 거기서는 제대로
 적용됐다 — 그 사실이 MCR 결과 전체의 모집단을 규정한다.
 
@@ -275,11 +290,11 @@ held-out 821행에서 판독은 gold보다 모델의 실제 답과 더 자주 �
 
 ---
 
-## Table 2 — Intervention accuracy (§4.2)
+## Table 1 — Intervention accuracy (§4.1)
 
 행 = 코퍼스, 열 = 조건. 지표는 정확도 하나. 케이스 수·낙폭은 본문.
 
-**Table 2.** Accuracy by arm on a cohort originally selected as source-correct
+**Table 1.** Accuracy by arm on a cohort originally selected as source-correct
 under the generation-time matcher and then rescored with the canonical
 word-boundary matcher. Finding-position activations are bit-identical across
 arms by construction. Canonical no-note accuracy can therefore be below 1.
@@ -325,7 +340,7 @@ MCR에서는 12.31pp(.9410→.8179) 낮춘다. 독립성 주장은 행동 효과
 작용한다. 즉 편향이 우리에게 불리하므로 전집합 수치를 그대로 싣고 각주로
 밝힌다; `analyze_hint_effect.py --exclude-collisions`가 반대쪽을 준다.
 
-**Figure 3(b) data (not a separate main table).** Where the moved answers go.
+**Figure 2(b) data (not a separate main table).** Where the moved answers go.
 
 | Corpus | Moved | To the suggestion | To a third diagnosis |
 |---|---:|---:|---:|
@@ -359,14 +374,14 @@ mostly does not.*
 
 ---
 
-## Table 3a — What the note does inside (§4.3)
+## Table 2a — What the note does inside (§4.2)
 
-**08-24 신설.** 이 논문의 중심 주장이 지금까지 표가 없이 Figure 4에만
+**08-24 신설.** 이 논문의 중심 주장이 지금까지 표가 없이 Figure 3에만
 있었다. 그림은 정확히 인용되지 않고, 관성 반론을 닫는 것이 이 세 줄이므로
 표가 있어야 한다. 지표 하나(최종 토큰에서 프로브가 정답에 주는 확률),
 셀당 값 하나, Δ는 명시된 파생 열.
 
-**Table 3a.** Probability the cross-fit linear probe places on the gold
+**Table 2a.** Probability the cross-fit linear probe places on the gold
 diagnosis at the final token, by what the model then did. "No note" reads the
 same cases with the note removed; finding-position activations are identical
 across the two by construction, so Δ is the note's internal cost.
@@ -416,17 +431,20 @@ baseline의 가능성까지 부정하지 않는다.
 
 ---
 
-## Table 3b — Single-run attribution (§4.3)
+## Table 2b — Single-run attribution (§4.2)
 
 셀당 값 하나: All / Silent를 **열 두 개**로. MCR은 숫자 열이 아니라
 **적용 가능 여부 열**로 — 값이 아니라 정의의 문제라서.
 
-**Table 3b.** Within-diagnosis AUROC for identifying moved cases from the
+**Table 2b.** Within-diagnosis AUROC for identifying moved cases from the
 wrong-note run alone. All: n=1,747. Silent: n=1,641 (218 moved), restricted to
 cases whose answer does not name the suggestion, where the output-copying
 heuristic is blind by construction. `Task supervision` makes explicit that
 the fixed-class probe and the text channels do not operate under identical
 assumptions.
+
+The AV row is interpreted only within the pairing-specificity scope established
+by Appendix Table A1; it is not a clinician-facing explanation result.
 
 | Channel | Input access | Task supervision | AUROC, all | AUROC, silent |
 |---|---|---|---:|---:|
@@ -504,11 +522,13 @@ prompt_cot는 케이스 파일에 이미 있음)** — 나오면 "AUROC, MCR (be
 
 ---
 
-## Table 4 — Correction ladder (§4.4)
+## Table 3 — Correction ladder (§4.3)
 
-**Table 4.** Second-pass accuracy with the wrong note still in place. Moved:
+**Table 3.** Second-pass accuracy with the wrong note still in place. Moved:
 the canonical 321 causally moved cases. Capitulation: share of newly broken
 answers landing on the suggested diagnosis (first-pass counterpart .3209).
+The r5 text channel is the AV readout qualified by Appendix Table A1; r6 is a
+fixed-label supervised control, not a natural-language method.
 
 | Rung | Appended | Overall | Moved | Capitulation |
 |---|---|---:|---:|---:|
@@ -549,9 +569,9 @@ entrenchment but does not by itself establish a rationalization mechanism.*
 | r6 probe class label | .8318 | **n.a. (현재 설계)** | DDXPlus의 고정 49-class probe를 직접 이전할 수 없음 |
 
 ᵈ DDXPlus r7 is the moved recovery on the 1,151-ID common cohort, not the
-full-run Table 4 population.
+full-run Table 3 population.
 
-*r6의 직접 이전 불가가 §4.4의 마지막 질문이다. DDXPlus만 보면 probe가 교정
+*r6의 직접 이전 불가가 §4.3의 마지막 질문이다. DDXPlus만 보면 probe가 교정
 비교에서 이기고, 독자는 자연어 채널이 잉여라고 결론지어도 좋다. MCR에서는
 동일한 고정-class 채널이 없지만, 이것만으로 자연어 채널의 우위를 증명하지
 않는다. source-aligned MCR 판독과 open-vocabulary baseline을 실제로 비교해야 한다.
@@ -562,7 +582,7 @@ full-run Table 4 population.
 아니다 (08-25).** r5와 r6이 둘 다 r4(입력 재제시)를 이기고, 내용 정확도를
 맞추면 둘 사이 차이는 0이다(4b 1행). 교정 축의 결론은 **채널 중립**이다.
 자연어의 잠재적 자리는 열린 진단 어휘와 근거 제시 상황이지만, 전자는 MCR
-source-aligned 실험, 후자는 외부 판정 전에는 배포 권고가 아니다(Table 5).
+source-aligned 실험, 후자는 외부 판정 전에는 배포 권고가 아니다(Discussion guide).
 
 **r7은 가장 명백한 자기설명 경쟁자를 닫는다.** 모델 자신의 CoT를 되먹여도
 moved 회복은 12.4%에 그쳤다. 다만 CoT 실행의 답이 direct 첫 답과 다른 케이스를
@@ -614,9 +634,9 @@ advantage from this table.*
 
 ---
 
-## Table 5 — Discussion guidance (§5)
+## Discussion decision guide (unnumbered; §5 prose)
 
-**Table 5.** When to use which instrument, from the measurements in §4.
+**Discussion guide.** When to use which instrument, from the measurements in §4.
 
 | Setting | Instrument | Basis (§) |
 |---|---|---|
@@ -632,22 +652,25 @@ advantage from this table.*
 - **Figure 1 — Experimental design.** 동일 vignette에 no/neutral/wrong/correct
   note를 붙이는 인과 대조, causal masking, activation readout, probe, second-pass
   correction을 한 흐름도로 보인다. 숫자표를 반복하지 않는다.
-- **Figure 2 — Where information is readable.** 서로 다른 실험을 한 heatmap의
-  두 행처럼 직접 비교하지 않는다. (a) cue-token/held-out cue strings와
-  (b) final-prompt-token/diagnosis-heldout sweep을 독립 패널로 표시하고, 패널
-  간 절대값 비교를 금지한다.
-- **Figure 3 — Behavioral intervention.** (a) Table 2의 네 조건 정확도를
+- **Figure 2 — Behavioral intervention.** (a) Table 1의 네 조건 정확도를
   코퍼스별로 보이고, (b) moved 답의 행방을 `to suggestion` 대 `third
-  diagnosis` stacked bar로 보인다. 따라서 moved 321/91/230 및 437/137/300은
-  별도 본문 표로 반복하지 않는다.
-- **Figure 4 — Internal trajectory.** 절대 decoded signal, no-note 대비 paired
+  diagnosis` stacked bar로 보인다. (a)는 gold가 chart에 없는 clean cohort,
+  (b)는 canonical 전체 source-correct cohort이므로 각 패널에 n을 따로 쓴다.
+- **Figure 3 — Internal trajectory.** 절대 decoded signal, no-note 대비 paired
   cost, suggestion-top1 최초 지점을 보인다. canonical 321건 중 suggestion
   top-1 경험 55, never 266이며, never는 gold-throughout 151과 other-top1 115로
   나뉜다. note 이전 last-finding 7건은 개입 효과가 아니라 baseline
   differential signal이다. 채택형 최종 토큰의 `p(gold)=.725` 대
   `p(suggestion)=.211`과 constraint에서 최대인 paired cost를 캡션에서
   직접 지적한다.
-- **Appendix Figure A1 — Case study.** 심근염 사례의 chart/note/chain/answer와
+- **Figure 4 — Detection to correction.** (a) Table 2b의 채널별 all/silent
+  AUROC, (b) Table 3의 overall accuracy와 moved recovery를 나란히 둔다.
+  내부 신호가 moved를 탐지하고 선택된 사례를 고칠 수 있어도, selector 없이
+  전부 재질문하면 전체 정확도가 무너진다는 정책 결론을 한 장에 잇는다.
+- **Appendix Figure A1 — AV readability map.** cue-token held-out string sweep와
+  final-prompt-token diagnosis-heldout sweep을 독립 패널로 둔다. recipe와 held-out
+  축이 다르므로 두 패널 간 절대값 비교를 금지한다.
+- **Appendix Figure A2 — Case study.** 심근염 사례의 chart/note/chain/answer와
   내부 판독을 질적으로 나란히 둔다. canonical moved-lost-gold 230건 중
   판독 결론이 gold를 명명한 비율은 **.591**이다; 과거 matcher의 `64.1%`는
   인용하지 않는다.
@@ -655,33 +678,33 @@ advantage from this table.*
 ## 남은 ▢ (표 전반)
 
 - **canonical matcher는 확정** — DDXPlus moved/adopted/third = 321/91/230,
-  MCR = 437/137/300. wording·CoT·Figure A1과 corpus-300 non-overlap 재집계도
+  MCR = 437/137/300. wording·CoT·Appendix Figure A2와 corpus-300 non-overlap 재집계도
   완료됐다.
-- T3a: final probability 셀 전사 완료; paired CI/추세 값은 새 궤적 실행에서 반영
-- T3b: standalone rule-based silent 값은 원장에 없음; 필요하면 직접 재출력
-- T1: 외부 판정자의 438행 의미 재채점, MCR cue-position 계기 검증 및 산문
+- T2a: final probability 셀 전사 완료; paired CI/추세 값은 새 궤적 실행에서 반영
+- T2b: standalone rule-based silent 값은 원장에 없음; 필요하면 직접 재출력
+- A1: 외부 판정자의 438행 의미 재채점, MCR cue-position 계기 검증 및 산문
   서술률 행
-- T3b: MCR 출력 채널 AUROC(CPU 가능), MCR CoT 채널(GPU), logit lens 칸
-- T4: **MCR 사다리(Appendix Table A7)** — derangement gate는 통과; r3/r4는 지금 실행 가능, r7은 MCR CoT
+- T2b: MCR 출력 채널 AUROC(CPU 가능), MCR CoT 채널(GPU), logit lens 칸
+- T3: **MCR 사다리(Appendix Table A7)** — derangement gate는 통과; r3/r4는 지금 실행 가능, r7은 MCR CoT
   실행 필요, r5는 wrong-note activation 추출 필요, r6은 현재 고정-class
   설계에서 직접 이전 불가. `run_mcr_ladder.sh`
 
 ## v2 → v3에서 바뀐 것 (08-24)
 
-- **T3 신설**: 기전(대조 곡선·never-flip)이 표 없이 그림에만 있었다.
+- **구 T3 신설**: 기전(대조 곡선·never-flip)이 표 없이 그림에만 있었다.
   관성 반론을 닫는 세 줄이므로 인용 가능한 표가 필요하다.
-- 구 T3(채널별 귀속) → **T3b**. 둘 다 §4.3이고, 2b/2c/2d와 같은 관례다.
-- T1의 **답-위치 vanilla 검사**는 실행 완료됐지만 n=229/230 정합 전까지
+- camera-ready에서는 궤적/귀속을 **T2a/T2b**로 묶는다.
+- Appendix A1의 **답-위치 vanilla 검사**는 실행 완료됐지만 n=229/230 정합 전까지
   본표가 아니라 산문/부록에 둔다.
 - 캡션이 계기를 명시하도록 설계 규칙에 한 줄 추가.
 
 ## v1 대비 바뀐 것
 
-- T1: 길이·형식 행 제거(단위 불일치 → 본문), 방향 화살표와
+- Appendix A1(구 T1): 길이·형식 행 제거(단위 불일치 → 본문), 방향 화살표와
   `Control / baseline` 열로 단순화, 동일 .751의 두 대조군을 한 행에 병합
-- T2: 파생 통계 행 제거(본문), 행=코퍼스·열=조건으로 전치, moved destination은
-  Figure 3(b), wording/source ablation은 Appendix A2/A3로 이동
-- T3b(구 T3): 슬래시 셀 제거(All/Silent 열 분리), MCR을 boolean 열로, CoT 셀당 한 값
-- T4: 첫 패스 행을 캡션으로, r7/content-match/policy/MCR 확장은
+- T1(구 T2): 파생 통계 행 제거(본문), 행=코퍼스·열=조건으로 전치, moved destination은
+  Figure 2(b), wording/source ablation은 Appendix A2/A3로 이동
+- T2b(구 T3b): 슬래시 셀 제거(All/Silent 열 분리), MCR을 boolean 열로, CoT 셀당 한 값
+- T3(구 T4): 첫 패스 행을 캡션으로, r7/content-match/policy/MCR 확장은
   Appendix A4–A7로 이동
-- T5: 근거 문장 대신 절 참조
+- Discussion guide(구 T5): 번호를 제거하고 근거 문장 대신 절 참조

@@ -277,7 +277,7 @@ swap·shuffle·heldout·오염 통제로 activation-specificity를 먼저 통과
 마지막으로 출력·CoT·LLM monitor·probe·AV를 같은 single-run moved 탐지 과제에서
 비교하고, 궤적 및 교정 사다리의 모집단과 지표를 고정한다.
 
-**§4.1 측정 관문(M0).** 이 절은 첫 번째 현상 결과나 독립 RQ가 아니라, 이후
+**Appendix A 측정 관문(M0).** 이는 첫 번째 현상 결과나 독립 RQ가 아니라, 이후
 AV 산문을 activation 관측치로 취급하기 위한 선행 calibration이다. 무학습
 체크포인트도 읽을 줄은 안다(서술률 0.72, 우연
 0.088)지만 계기는 아니다(형식 준수 0.05, 지어낸 액자에 내용을 섞는다).
@@ -291,14 +291,14 @@ AV 산문을 activation 관측치로 취급하기 위한 선행 calibration이�
 짚는다: **결렬은 우리가 만든 게 아니라 활성값에 있다.** Li et al.의 두
 비판이 여기서 닫힌다.
 
-**§4.2 교란은 실재하고 설명은 예고하지 않는다.** 4조건 정확도, 답이 바뀐
+**§4.1 교란은 실재하고 설명은 예고하지 않는다.** 4조건 정확도, 답이 바뀐
 321건의 행방(채택 91 · 제3 진단 230 — **답만 봐서는 다수가 안 보인다**),
 체인의 무예고(0.50–0.53), CoT의 이중성(피해를 1/4로 줄이되 채택률은 늘림).
 꼬리에 강건성: 문구 4종에서 실제형 소견서의 낙폭이 가장 크게 관측됐지만,
 길이·레지스터 matched placebo가 없어 추가 낙폭의 원인은 미분리다. 흔들림과
 설득의 분리는 MCR에서도 방향이 재현된다.
 
-**§4.3 내부 궤적과 출력은 자주 어긋난다.** moved 321건 중 제안이 어느
+**§4.2 내부 궤적과 출력은 자주 어긋난다.** moved 321건 중 제안이 어느
 랜드마크에서도 top-1이 아닌 경우가 266건이다. 그중 gold throughout는
 151건, 다른 진단 top-1은 115건이다. 따라서 “상태는 항상 정답을 보존한다”가
 아니라 “출력 이동에 제안 top-1 채택이 필요하지 않다”가 정본 주장이다.
@@ -307,7 +307,7 @@ probe .9280/.9840(all/silent)이다.
 프런티어 모니터를 세워도 내부가 이긴다는 것이 이 절의 실제 주장이고,
 프로브가 이기는 조건과 그 조건이 무너지는 코퍼스를 같은 자리에서 말한다.
 
-**§4.4 교정.** 되먹임은 작동한다(.0031 → .6293/.8318). 그러나 재실행 자체가
+**§4.3 교정.** 되먹임은 작동한다(.0031 → .6293/.8318). 그러나 재실행 자체가
 파괴적이고, 부서진 답은 제안 쪽으로 더 자주 간다. 지렛대는 내용이다 — 증거
 재제시 통제 대비 +22.4%p이며, 전체 correct/correct에서 형식의 추가 기여가
 검출되지 않는다(p=1.000). 병목은 탐지가 아니라 선별이고(recall .8457 /
@@ -322,10 +322,10 @@ precision .3615), 허위 경보의 68.4%가 어댑터 오독이다. 자기 CoT r
 ### 0.3 초안 집필 순서 (막힌 것 없이 지금 쓸 수 있는 순서)
 
 1. §3 Methodology — 주장이 없어 실측 대기와 무관하다. 가장 먼저 쓴다.
-2. §4.2 · §4.4 — 실측 완결. 표(T2·T4)가 이미 조판 형태다.
-3. §4.3 — Figure 4 count와 Table 3a canonical 확률은 확정. canonical probe
+2. §4.1 · §4.3 — 실측 완결. 표(T1·T3)가 이미 조판 형태다.
+3. §4.2 — Figure 3 count와 Table 2a canonical 확률은 확정. canonical probe
    AUROC와 Δ의 CI/추세 검정은 대기.
-4. §4.1 — 답 위치 vanilla 대조 완료(08-24). 대기 없음.
+4. Appendix A — 답 위치 vanilla 대조 완료(08-24). 대기 없음.
 5. §1 · §5 — 4장이 고정된 뒤에 쓴다(기여 목록이 4장의 수치를 인용).
 6. §2 — 초안·LaTeX 완성. 정독 노트 2편 반영만.
 
@@ -632,7 +632,7 @@ AV 결과를 RQ 분석에 사용하기 전에 다음 서로 다른 실패 모드
 - **Semantic audit**: lexical matcher가 놓치는 paraphrase와 laterality/site 오류를
   저자 손채점과 외부 판정자로 재검사한다.
 
-Table 1은 이 관문의 결과다. 각 행의 cohort와 baseline이 다르므로 하나의 순위표로
+Appendix Table A1은 이 관문의 결과다. 각 행의 cohort와 baseline이 다르므로 하나의 순위표로
 읽지 않는다. 이 검증은 “AV가 임상적으로 옳다”거나 “probe보다 낫다”를 증명하지
 않고, 이후 자연어 분석에서 최소한 activation pairing에 반응하는 계기임을 보인다.
 
@@ -700,10 +700,11 @@ Source forward는 BF16, activation 저장과 probe 분석은 float32다. 주요 
 4-GPU workstation에서 수행하며 한 prompt forward에서 필요한 모든 landmark를
 수집한다. 모델 ID, exact prompt, random seed, case builder, manifest, matcher,
 analysis script를 공개하고 canonical rescore 파일만 본문 수치에 사용한다.
-## 4. Experimental Results — 08-25 전면 갱신 (6소절 → 확정 4소절, 수치 실측 반영)
+## 4. Experimental Results — camera-ready order (08-25)
 
-**구조 정정**: 이 절은 옛 6소절(4.1–4.6)로 적혀 있었으나 확정 구조는 **4소절**
-이다. 4.4(탐지 지도)는 4.3에 흡수하고, 4.6(강건성)은 4.2 꼬리로 넣는다.
+**구조 정정**: AV 검증은 연구 질문의 결과가 아니라 측정 관문이므로 Method
+§3.3에서 예고하고 Appendix A에서 검증한다. 본문 Results는 **행동 → 내부
+궤적·탐지 → 조건부 교정**의 3소절만 둔다.
 
 **표 번호 정정 (08-25).** 이전 판본은 종합 점수판을 Table 1로 앞세우고
 나머지를 뒤로 밀었다. 그 점수판은 폐기됐다 — 한 표에 AUROC·비율·✔/✕를
@@ -713,25 +714,24 @@ analysis script를 공개하고 canonical rescore 파일만 본문 수치에 사
 
 | 번호 | 내용 | 절 |
 |---|---|---|
-| Table 1 | 계기 검증 배터리(화살표로 방향 표기, 대조군 한 열) | 4.1 |
-| Table 2 | 코퍼스별 4조건 개입 정확도 | 4.2 |
-| Table 3a | **기전: 최종 토큰 p(정답), 행동 그룹별 대조** | 4.3 |
-| Table 3b | 단일 실행 귀속 AUROC (채널별, all/silent 분리) | 4.3 |
-| Table 4 | 교정 사다리 | 4.4 |
-| Table 5 | 언제 무엇을 쓰나 (의사결정) | 5 |
+| Table 1 | 코퍼스별 4조건 개입 정확도 | 4.1 |
+| Table 2a | **기전: 최종 토큰 p(정답), 행동 그룹별 대조** | 4.2 |
+| Table 2b | 단일 실행 귀속 AUROC (채널별, all/silent 분리) | 4.2 |
+| Table 3 | 교정 사다리 | 4.3 |
+| Appendix Table A1 | AV 계기 검증 배터리 | Appendix A |
 
-Table 2의 moved destination은 Figure 3(b)로 흡수한다. wording/source
-ablation과 Table 4의 r7 common-cohort, content-matched, deployment-policy,
-MCR 확장은 Appendix A2–A7로 보낸다. Table 1의 answer-position n=229 보조
-검사는 canonical n=230 정합 전까지 본표가 아니라 §4.1 산문/부록에 둔다.
+Table 1의 moved destination은 Figure 2(b)로 흡수한다. wording/source
+ablation과 Table 3의 r7 common-cohort, content-matched, deployment-policy,
+MCR 확장은 Appendix A2–A7로 보낸다. Appendix Table A1의 answer-position
+n=229 보조 검사는 canonical n=230 정합 전까지 산문으로만 둔다.
 
 조판 원고는 `table_camera_ready_2026-08-25.md`. 종합 점수판이 하던 일
-("왜 프로브·CoT·SHAP가 아닌가")은 **4.3의 P6 한 문단**과 **Table 5**가
-나눠 맡는다 — 갈라짐은 서술로, 처방은 표로.
+("왜 프로브·CoT·SHAP가 아닌가")은 **4.2의 채널 비교 문단**과 Discussion
+산문이 나눠 맡는다.
 
 ---
 
-### 4.1 Measurement Gate M0 — AV 산문이 paired activation을 추적하는가 (Table 1 · Figure 2 · 인라인 오독 실물)
+### Appendix A specification — Measurement Gate M0 (Appendix Table A1 · Appendix Figure A1)
 
 이 절은 RQ1의 현상 결과가 아니라 **AV를 이후 분석의 보조 관측치로 사용할 수
 있는지 확인하는 calibration gate**다. 논문의 핵심 행동 효과, probe 궤적,
@@ -741,22 +741,18 @@ single-run probe 탐지는 AV 없이도 성립한다. 다만 AV가 제시하는 
 따라서 출발 질문은 “AV가 probe보다 우수한가”가 아니라 **“이 산문을 제한된
 activation-conditioned measurement로 취급해도 되는가”**다.
 
-**왜 이 절이 Results의 첫머리인가.** 기여 우선순위 때문이 아니라
-`evidence-before-use` 원칙 때문이다. AV 산문은 4.3의 채널 비교와 4.4의 r5
-교정에서 사용되므로, 독자가 그 결과를 보기 전에 pairing 검증을 먼저 알아야
-한다. 실제 원고에서는 이 절을 한 개의 compact table과 두 문단으로 제한하고,
-semantic audit·오독 예시·추가 layer 결과는 Appendix로 보낸다. 공간이 매우
-제한되면 M0 전체를 Methodology/Appendix로 이동할 수 있지만, 그 경우에도
-“AV가 M0를 통과한 범위에서만 사용된다”는 문장은 첫 AV 결과보다 앞에 남겨야
-한다. 논문의 현상 서사는 Abstract, Introduction, Figure 1, 그리고 4.2 제목에서
-먼저 제시한다.
+**왜 Appendix인가.** 핵심 행동 효과, probe 궤적, single-run probe 탐지는 AV
+없이 성립한다. 따라서 `evidence-before-use` 원칙은 Method §3.3에서 “AV는 M0를
+통과한 범위에서만 보조 채널로 해석한다”고 선언하는 것으로 만족시키고, 수치와
+layer map은 Appendix에 둔다. AV가 처음 등장하는 Table 2b와 Table 3 캡션은
+Appendix A1을 참조한다.
 
 - **P1 무학습 기준점**: 읽기 능력 자체는 사전학습 AV에 이미 있다(서술률
   0.7247, 우연 0.088). 그러나 형식 준수 0.05 — **읽을 줄은 아는데 계기가
   아니다.**
 - **P2 어댑터가 바꾸는 것**: 형식 0.05→1.00, 길이 1,557→52자, 정밀도
   0.075→0.671. 이는 **계측 가능한 schema와 의료 mapping의 개선**이지,
-  activation에 원래 없던 정보가 생겼다는 증거가 아니다. Figure 2를 여기 붙이되
+  activation에 원래 없던 정보가 생겼다는 증거가 아니다. Appendix Figure A1을 붙이되
   ⚠️ **두 행이 한 실험이 아님을 캡션이 말한다**(cue행 = v4/v5 레시피·heldout
   cue 문자열, 답행 = v3 레시피·heldout 진단 분할 — 세로 읽기는 셋을 한꺼번에
   비교). **본문이 앞세울 문장은 교란 없는 within-sweep 대비다**: 답 위치는
@@ -769,7 +765,7 @@ semantic audit·오독 예시·추가 layer 결과는 Appendix로 보낸다. 공
 - **P3 신뢰의 네 기둥**: heldout 0.725→0.751(암기 아님) · 셔플 대조 붕괴
   (신호는 벡터-서술 결합에 있음) · 스왑 추적 **0.993** / 암기 **0.000**
   (서술이 벡터에 인과 종속) · 특이성 **0.007**(우연 0.015).
-  **검증 배터리(Table 1)의 논리를 이 문단에 둔다** — 3.3에서 예고만 하던 것을
+  **검증 배터리(Appendix Table A1)의 논리를 이 문단에 둔다** — 3.3에서 예고만 하던 것을
   수치 옆으로 옮겼다(방어는 숫자로 한다).
 - **P4 unseen과 오독의 성격**: heldout 의미 서술 L24는 저자 손채점
   **.7306**, 같은 고유 쌍의 외부 판정 **.7740**(238쌍 전수, 파싱 실패 0;
@@ -789,7 +785,7 @@ semantic audit·오독 예시·추가 layer 결과는 Appendix로 보낸다. 공
   사는 값은 적중률이 아니라 정밀도.** 이 산출물의 last_cue·note 줄은 옛
   manifest 오염으로 인용 금지(답 위치 행은 무관).
 
-### 4.2 소견서 한 줄이 답을 움직인다 — 그리고 설명은 예고하지 않는다 (Table 2 · Figure 3)
+### 4.1 소견서 한 줄이 답을 움직인다 — 그리고 설명은 예고하지 않는다 (Table 1 · Figure 2)
 
 출발 질문: **교란이 실재하는가, 설명은 그것을 말하는가.**
 
@@ -807,7 +803,7 @@ semantic audit·오독 예시·추가 layer 결과는 Appendix로 보낸다. 공
 - **P2 답 바뀜의 분해**: canonical **321/1,747(18.4%)** — 인과적 채택
   **91**, 제3 진단/상실 **230**.
   **답만 봐서는 답 바뀜의 2/3(상실형)가 보이지 않는다**를 여기서 심어
-  4.3의 침묵 부분집합을 예고. Catching-Rationalization이 각주에서
+  4.2의 침묵 부분집합을 예고. Catching-Rationalization이 각주에서
   "uncommon"이라며 제외한 부류가 우리에게는 다수라는 대비도 여기.
 - **P3 인과성 재확인**: 차트가 진단명을 이미 적은 케이스(n=527)에서 오답
   조건 정확도가 .939로 남는다(안 적힌 1,220은 .760; 08-24 재집계 —
@@ -865,7 +861,7 @@ semantic audit·오독 예시·추가 layer 결과는 Appendix로 보낸다. 공
     제안이 설득을 2.3배 만든다**(41.2% vs 17.6%, z=5.26)면서 **흔드는 힘은
     구별되지 않는다**(z=1.75) — 해리의 두 번째 실증.
 
-### 4.3 내부 궤적과 출력은 자주 어긋난다 — 한 번의 실행에서 그 격차를 읽는다 (Table 3a/3b · Figure 4; case study는 Appendix Figure A1)
+### 4.2 내부 궤적과 출력은 자주 어긋난다 — 한 번의 실행에서 그 격차를 읽는다 (Table 2a/2b · Figures 3/4a; case study는 Appendix Figure A2)
 
 출발 질문: **상태의 어디서 왜 바뀌는가, 그리고 그것이 단일 실행에서
 읽히는가.** (구 4.3 기전 + 구 4.4 탐지 지도의 통합.)
@@ -875,16 +871,16 @@ semantic audit·오독 예시·추가 layer 결과는 Appendix로 보낸다. 공
   **±0.000**이다. 인과 마스킹이 보장하는 값이 실제로 나왔으므로 실험대의
   전제가 가정이 아니라 측정이 된다. 소견서 위치의 제안 질량도 전 그룹
   ≤0.022(**읽은 직후에는 구별 불가**) → 그렇다면 그 사이 어디서 갈라지는가.
-- **P2 Figure 4(a,c) — 정본 결과**: moved 321건 중 제안 진단이 어느
+- **P2 Figure 3(a,c) — 정본 결과**: moved 321건 중 제안 진단이 어느
   랜드마크에서도 top-1이 아닌 경우는 **266건(82.9%)**이다. 이 266건은
   **gold top-1 throughout 151건**과 **other top-1, suggestion never 115건**으로
   갈린다. 제안이 적어도 한 번 top-1인 55건의 첫 지점은 last finding 7,
   note 0, question 30, constraint 6, format 5, final 7이다. last finding의
   7건은 소견서 전부터 존재한 차이이므로 소견서 효과로 세지 않는다. 따라서
-  소견서 이후 처음 제안 top-1이 된 것은 **48/321(15.0%)**이다. Figure 4의
+  소견서 이후 처음 제안 top-1이 된 것은 **48/321(15.0%)**이다. Figure 3의
   메시지는 “정답 보존”이 아니라 **출력 이동이 제안의 내부 top-1 우세를
   필요로 하지 않는다**는 것이다.
-- **P3 짝지은 내부 비용 — Figure 4(b)**: wrong-note의 gold probability에서
+- **P3 짝지은 내부 비용 — Figure 3(b)**: wrong-note의 gold probability에서
   같은 케이스의 no-note gold probability를 뺀다. 음수일수록 소견서가 gold
   신호를 더 낮춘 것이다. last finding은 causal masking 때문에 0이고,
   referral note는 no-note arm에 대응 토큰이 없어 N/A다. canonical
@@ -897,7 +893,7 @@ semantic audit·오독 예시·추가 layer 결과는 Appendix로 보낸다. 공
   취약하고 final prompt token에서 일부 회복하지만 이후 출력은 틀린다.
   랜드마크마다 별도 probe를 학습했으므로 이를 단일 probe의 시간 변화나
   보편적 지시문 기전으로 과장하지 않는다.
-- **P5 같은 그림을 문장으로 (Appendix Figure A1)**: canonical matcher에서 정답을
+- **P5 같은 그림을 문장으로 (Appendix Figure A2)**: canonical matcher에서 정답을
   잃고 제3 진단으로 간 230건의 **59.1%**에서
   마지막 위치의 내부 결론 문장이 여전히 정답이다("결론: 심근염, 근거:
   좌측 흉통·호흡곤란" — 출력은 다른 병명). 케이스 패널
@@ -909,7 +905,7 @@ semantic audit·오독 예시·추가 layer 결과는 Appendix로 보낸다. 공
   불가**하므로 단독 증거로 쓰지 않고 정합 각주로만 둔다.
   ⚠️ 기존 서사의 **last_cue 행은 옛 manifest의 인공물**(실제로는 소견서 끝
   위치를 읽음) — 패널은 note→final 5지점으로 줄이거나, 고친 manifest로
-  판독을 재서사한 뒤 채운다(Appendix Figure A1 스펙의 선택지 ②,
+  판독을 재서사한 뒤 채운다(Appendix Figure A2 스펙의 선택지 ②,
   `table_camera_ready_2026-08-25.md`).
 - **P6 그래서 단일 실행에서 탐지된다 — 정직한 지도** (구 4.4 흡수):
   · 규칙 기반 CoT 특징 전체 **.5464** → LLM 모니터 **.7233/.6829**
@@ -926,7 +922,7 @@ semantic audit·오독 예시·추가 layer 결과는 Appendix로 보낸다. 공
     override의 정체는 **소거가 아니라 미표면화**다. 반박이 아니라 표상
     수준의 분해로 서술한다(과제·개입 강도·모델이 모두 다름).
 
-### 4.4 교정: 내용이 지렛대이고, 재실행은 증폭기다 (Table 4)
+### 4.3 교정: 내용이 지렛대이고, 재실행은 증폭기다 (Table 3 · Figure 4b)
 
 출발 질문: **읽은 것으로 고칠 수 있는가 — 무엇이 지렛대이고 무엇이 역효과인가.**
 
@@ -1024,17 +1020,17 @@ source-aligned MCR 결론의 답 필드는 derangement를 통과했지만 절대
 | Intro | **즉시** (기여 목록 08-25 수치로 갱신 완료) |
 | Related Work | **즉시** — 초안·LaTeX 완성, 정독 노트 2편 반영만 |
 | Methodology 3.1–3.4 | **즉시** (현상→개입→측정 채널→평가 순서로 재구성) |
-| 4.1 | **즉시 전부** (답 위치 vanilla 완료, 08-24) |
-| 4.2 | **즉시 전부** |
-| 4.3 | **초안 가능** — Figure 4·Table 3a/3b·canonical probe AUROC 확정, Δ 추세 검정 대기 |
-| 4.4 | **즉시** — DDXPlus r3–r7 canonical 완료; MCR 확장은 별도 |
+| Appendix A | **즉시 전부** (답 위치 vanilla 완료, 08-24) |
+| 4.1 | **즉시 전부** — four-arm behavior |
+| 4.2 | **초안 가능** — Figure 3·Table 2a/2b·canonical probe AUROC 확정, Δ 추세 검정 대기 |
+| 4.3 | **즉시** — DDXPlus r3–r7 canonical 완료; MCR 확장은 별도 |
 | Conclusion | **즉시** |
 
 **초안 집필은 가능하지만 정본 표는 아직 닫히지 않았다.** 남은 실측은
-① Table 3a Δ 값 반영, ② reader-trust 완주와 shuffled 통제,
+① Table 2a Δ 값 반영, ② reader-trust 완주와 shuffled 통제,
 ③ MCR wrong-note 내부 추출·교정, ④ 동일 판정자의 no-CoT 모니터
 대조다. 집필 순서는 §0.3.
 
 **표 번호는 `table_camera_ready_2026-08-25.md`가 정본이다** — 이 문서의
 4.x 소제목에 적힌 번호는 그것을 따른다. 옛 종합 점수판(구 4.0의 Table 1)은
-폐기됐고, 그 역할은 4.3 P6 문단과 Table 5로 나뉘었다.
+폐기됐고, 그 역할은 4.2 채널 비교 문단과 Discussion 산문으로 나뉘었다.

@@ -1,4 +1,4 @@
-# 10 — AV 판독 귀속 (Table 3b)
+# 10 — AV 판독 귀속 (Table 2b · Figure 4a)
 
 **질문**: 자연어 판독이 **한 번의 실행에서** 소견서가 답을 바꿨음을 짚는가.
 
@@ -79,7 +79,7 @@ open-vocabulary probe/retrieval baseline이 불가능하거나 판독이 우월�
 아니다. **"출력 형식이 정의된다 ≠ 실제로 된다"**이며 후자는 아직 못 보였다
 → [13](13-mcr-conclusion-adapter.md)
 
-## Table 3b에서 읽는 법
+## Table 2b에서 읽는 법
 
 - 이기는 신호는 `answer omits the internal conclusion`이다. 즉 자연어 판독이
   소견서라는 원인을 직접 설명했다기보다 **내부 결론과 출력의 불일치**를

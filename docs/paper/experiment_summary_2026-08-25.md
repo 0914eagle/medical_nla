@@ -241,7 +241,7 @@ baseline을 직접 이전할 수 없다고 쓴다. 이것은 MCR 자연어 판�
 
 ## 4. 남은 일
 
-**필수 통제**: Table 3a 행동군 Δ 값 반영 · reader-trust 완주와 shuffled 통제
+**필수 통제**: Table 2a 행동군 Δ 값 반영 · reader-trust 완주와 shuffled 통제
 **확장**: MCR wrong-note 내부 추출 및 교정 사다리
 **외부 판정**: 독자-신뢰 완주/임상 타당성 평가
 **집필 상태**: 본문 초안은 가능하지만, 위 필수 통제 전에는 submission-ready가 아님
