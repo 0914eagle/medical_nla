@@ -68,12 +68,37 @@ Finding-position activations are bit-identical across arms by construction.
 
 | Corpus | n | No note | Neutral | Wrong | Correct |
 |---|---:|---:|---:|---:|---:|
-| DDXPlus | 1,220 | .991 | .934 | **.760** | .932 |
+| DDXPlus | 1,220 | .991 | .934 | **.760** | ▢ᶜ |
+| DDXPlus, 3× replication | 3,343 | .985 | .932 | **.771** | .920 |
 | MedCaseReasoning | 1,543 | .981 | .926 | **.703** | .839 |
+
+ᶜ **08-24 감사에서 걸린 오류.** 이 칸에 적혀 있던 .932는 이 행의 값이 아니다.
+1,747건 실행의 답 파일 어디에도 `correct` 조건이 없고(조건 전수 스캔,
+08-24), .9313은 **corpus-300의 정답 조건을 4,995건 전체(누출 미필터)에서
+잰 값**이다 — 실행도 모집단 필터도 다르다. 나머지 세 칸은 모두 1,747건
+실행의 clean n=1,220이 맞다(.9910 / .9344 / .7598로 재확인). 정답 조건만
+같은 케이스 파일로 다시 실행한다: `scripts/run_ddxplus_correct_arm.sh`
+(한 조건 1,747답, GPU 1시간 내외). 그 전까지 이 칸은 비워 둔다.
 
 *The wrong note costs 23.1 pp on DDXPlus and 27.8 pp on MedCaseReasoning;
 the neutral note costs 5.7 and 5.5 pp, so the suggestion-specific effect is
-17.4 and 22.3 pp — 4.1× and 5.1× the cost of insertion alone.*
+17.4 and 22.3 pp — 4.1× and 5.1× the cost of insertion alone. The 3×
+replication row reproduces the ratio on an independent draw from the same
+corpus: 21.5 pp against 5.3 pp, 4.1×.*
+
+**두 번째 행은 손실이 아니라 소득이다 (08-24).** corpus-300은 네 조건을
+자기 안에 다 갖고 있어 **자급자족하는 재현 행**이고, 전체/위약 배수가
+4.06×로 주 실행의 4.05×를 사실상 그대로 낸다. 정답 조건 칸이 비어 있는
+동안에도 "침입 비용은 제안 방향과 무관하다"는 논증은 이 행과 MCR 행에서
+이미 선다 — 정답을 부르는 소견서조차 DDXPlus에서 6.6pp(.985→.920),
+MCR에서 14.2pp(.981→.839)를 깎는다.
+
+**모든 DDXPlus 비율은 보수적 하한이다.** 답 파일이 `plausible_wrong`
+수정(d29b754) 이전에 생성되어, 오답 소견서가 정답을 부르는 케이스가
+1,747건 중 15건, 4,995건 중 44건 남아 있다(각각 0.86% · 0.88%). 그런
+소견서는 사실상 정답 조건이라 오답 조건의 정확도를 **올리는** 쪽으로
+작용한다. 즉 편향이 우리에게 불리하므로 전집합 수치를 그대로 싣고 각주로
+밝힌다; `analyze_hint_effect.py --exclude-collisions`가 반대쪽을 준다.
 
 **Table 2b.** Where the moved answers go.
 
