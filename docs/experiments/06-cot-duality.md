@@ -2,9 +2,8 @@
 
 **질문**: 추론을 시키면 앵커링이 막히는가.
 
-**상태**: 🔶 전수 생성 완료, **canonical matcher 재집계 대기**. 이전 보고의
-"CoT가 무력화"는 n=381의 과대평가였고 전수에서 "완화"로 정정됐지만,
-아래 절대값은 generation-time matcher 값이다.
+**상태**: ✅ 전수 생성 및 canonical matcher 재집계 완료. 이전 보고의
+"CoT가 무력화"는 n=381의 과대평가였고, 전수 정본에서는 "완화"로 정정됐다.
 
 ---
 
@@ -29,8 +28,10 @@ arm 간 차이를 만들 수 없다.
 
 | | direct | CoT |
 |---|---:|---:|
-| 오답 소견서 낙폭 | **−17.7%p** | **−4.4%p** |
-| 제안 채택률 | 29% | **43%** |
+| no-note accuracy | **.9897** | **.7464** |
+| wrong-note accuracy | **.8117** | **.7018** |
+| 오답 소견서 낙폭 | **−17.80%p** | **−4.46%p** |
+| 제안 채택률, moved 중 | 28.3% | **43.0%** |
 
 ## 읽는 법
 
@@ -55,9 +56,9 @@ arm 간 차이를 만들 수 없다.
 흔들지 않지만 **절대 정확도를 눌렀을 수 있다**. 그리고 2605.29889가 출력 형식
 제약 자체가 실패를 유발할 수 있음을 보였으므로, §3.2에 통제로 **명시**한다.
 
-## 남은 것
+## 재현 조건
 
-- ▢ direct/CoT 두 arm 모두 canonical matcher로 재집계하고 낙폭·moved·채택
-  분자/분모를 다시 기록한다.
-- ▢ CoT 문구 효과와 decoding 변동을 분리하려면 동일 decoding seed 또는
-  deterministic decoding 여부를 Methods에 명시한다.
+- direct와 CoT 모두 deterministic greedy decoding(`do_sample=false`)을 썼다.
+- Direct는 최대 64 new tokens, CoT는 최대 2,048 new tokens이며, CoT가 형식
+  문장 전에 잘리면 동일 모델로 answer-only completion을 붙인다.
+- 따라서 표의 차이는 sampling seed 변동이 아니라 prompt instruction 차이다.
