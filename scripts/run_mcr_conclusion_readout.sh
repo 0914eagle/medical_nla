@@ -33,6 +33,11 @@ ADAPTER="${ADAPTER:-$ART/train/adapters/mcr_conclusion_L${LAYER}_s17}"
 SPLIT_DIR="${SPLIT_DIR:-$ART/train/mcr_conclusion_conclusion_L${LAYER}}"
 TEMPLATE="${TEMPLATE:-prompt_templates/medical_nla_v2_readout.txt}"
 BATCH="${BATCH:-8}"
+# Set from the targets this adapter was trained on, not from the config
+# default. MCR conclusion targets average 764 characters and pass 2,500 at the
+# top; the config's 256 tokens cut 444 of the first run's 821 readouts off
+# mid-sentence, which looked like the adapter degenerating and was our budget.
+MAX_NEW="${MAX_NEW:-768}"
 OUT="${OUT:-$ART/results/readout_mcr_conclusion_L${LAYER}.jsonl}"
 TEST_MANIFEST="${TEST_MANIFEST:-$DATA/mcr_conclusion_test_manifest.jsonl}"
 
@@ -53,6 +58,19 @@ python scripts/filter_manifest_to_split.py \
   --manifest "$FULL" --split "$SPLIT_DIR/sft_test.jsonl" --output "$TEST_MANIFEST" \
   2>&1 | tee -a "$MAIN" || { say "FAILED (split filter)"; exit 1; }
 
+# An existing file is only reusable if it was generated at the budget we now
+# ask for. Skipping on existence alone is what would silently keep the
+# truncated run in place, and every rate computed from it reads as finished
+# output.
+PRIOR=""
+[ -s "$OUT" ] && PRIOR=$(head -1 "$OUT" | python -c \
+  'import json,sys; print(json.load(sys.stdin).get("gen_config",{}).get("max_new_tokens",""))' 2>/dev/null)
+if [ -s "$OUT" ] && [ -n "$PRIOR" ] && [ "$PRIOR" -lt "$MAX_NEW" ]; then
+  say "REDO: $OUT was generated at max_new_tokens=$PRIOR, below $MAX_NEW"
+  mv "$OUT" "$OUT.mnt$PRIOR.bak"
+  say "     moved aside -> $OUT.mnt$PRIOR.bak"
+fi
+
 if [ -s "$OUT" ]; then say "skip (exists: $(wc -l < "$OUT") rows)"; else
   if ! python scripts/check_gpu_setup.py --config configs/default.yaml --require-free-gb 20 >>"$MAIN" 2>&1; then
     say "REFUSED: cards busy (CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-<all>})"; exit 1
@@ -65,8 +83,20 @@ if [ -s "$OUT" ]; then say "skip (exists: $(wc -l < "$OUT") rows)"; else
     --adapter-id "$ADAPTER" \
     --actor-prompt-template-file "$TEMPLATE" \
     --batch-size "$BATCH" \
+    --max-new-tokens "$MAX_NEW" \
     >>"$MAIN" 2>&1 || { say "FAILED"; exit 1; }
 fi
+
+# The budget is only right if the outputs stopped on their own.
+CUT=$(python - "$OUT" <<'PY'
+import json, sys
+n = sum(1 for l in open(sys.argv[1])
+        if "<supporting_cues>" in (json.loads(l).get("nla_output") or "")
+        and "</supporting_cues>" not in (json.loads(l).get("nla_output") or ""))
+print(n)
+PY
+)
+say "readouts still cut off mid-cue: $CUT (raise MAX_NEW if this is not ~0)"
 
 say "ALL DONE -> $OUT"
 say ""

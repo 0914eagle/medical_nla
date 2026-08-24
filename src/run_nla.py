@@ -84,8 +84,10 @@ PASSTHROUGH_FIELDS = [
 ]
 
 
-def generation_kwargs(cfg: dict) -> dict:
+def generation_kwargs(cfg: dict, max_new_tokens: int | None = None) -> dict:
     gen = dict(cfg["generation"])
+    if max_new_tokens is not None:
+        gen["max_new_tokens"] = max_new_tokens
     return {k: v for k, v in gen.items() if v is not None}
 
 
@@ -155,6 +157,19 @@ def main() -> None:
         help="Seed for --limit, so the same subset is scored on every re-run.",
     )
     parser.add_argument(
+        "--max-new-tokens",
+        type=int,
+        default=None,
+        help=(
+            "Override the config's generation budget. The default of 256 fits a "
+            "DDXPlus cue readout and does not fit an MCR conclusion target, "
+            "which averages 764 characters and exceeds 1,000 in 19% of rows: "
+            "444 of 821 readouts were cut off mid-sentence and the run had to "
+            "be redone. Set this from the target length of the corpus being "
+            "read, not from the default."
+        ),
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=16,
@@ -219,7 +234,8 @@ def main() -> None:
     model.eval()
 
     embed_layer = model.get_input_embeddings()
-    gen_kwargs = generation_kwargs(cfg)
+    gen_kwargs = generation_kwargs(cfg, args.max_new_tokens)
+    print(f"[gen] max_new_tokens={gen_kwargs.get('max_new_tokens')}")
     manifest_rows = list(read_jsonl(args.manifest))
     if args.limit is not None and len(manifest_rows) > args.limit:
         # Sampled, not truncated. These manifests are grouped by diagnosis, so

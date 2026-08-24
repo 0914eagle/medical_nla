@@ -169,8 +169,10 @@ def report(name: str, rows: list[dict]) -> None:
     print(f"cues scored {total:,}   per scored row "
           f"{sum(n_cues) / max(len(n_cues), 1):.1f}")
     if status_counts["truncated"] > n * 0.1:
-        print("  ⚠ a tenth or more ran past the token budget mid-cue -- the "
-              "readout is writing a workup, not naming what it read")
+        print("  ⚠ a tenth or more was cut off mid-cue. Check the generation "
+              "budget against this adapter's target length before reading any "
+              "rate here -- MCR conclusion targets average 764 characters and "
+              "the config default of 256 tokens truncated 54% of the first run")
     print(f"  trigram containment, own prompt        {m_own:.3f}")
     print(f"  trigram containment, another prompt    {m_alt:.3f}   (control)")
     print(f"  case-specific gap                      {m_own - m_alt:+.3f}")
