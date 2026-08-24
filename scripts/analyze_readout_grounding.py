@@ -138,11 +138,15 @@ def report(name: str, rows: list[dict]) -> None:
             continue
         n_cues.append(len(cues))
         for cue in cues:
-            seen[" ".join(words(cue))] += 1
             own = containment(cue, grams[i])
             alt = containment(cue, grams[other[i]])
             if own is None or alt is None:
                 continue
+            # Counted only once the cue is scorable, or the repeat rate is a
+            # fraction of two different populations: cues under three words
+            # ("a cough") have no trigrams and are excluded from scoring, and
+            # counting them here pushed the reported rate above 1.
+            seen[" ".join(words(cue))] += 1
             own_scores.append(own)
             other_scores.append(alt)
             grounded += own >= GROUNDED_AT
