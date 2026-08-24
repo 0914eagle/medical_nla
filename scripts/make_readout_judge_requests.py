@@ -1,11 +1,15 @@
 """Turn a pool of readouts into numbered judging requests for an LLM judge.
 
-No API key is available on this machine, so the judge is reached by pasting:
-this writes chunks of numbered (gold, readout) pairs, a person pastes a chunk
-into a chat with a model that is not the backbone, and
-`apply_readout_judgements.py` reads the verdicts back. The judge being a
-different model from the one under study is the point -- judging Gemma's
-readouts with Gemma invites the obvious objection.
+The judge being a different model from the one under study is the point --
+judging Gemma's readouts with Gemma invites the obvious objection.
+
+Two ways out. `--requests` writes {id, prompt} JSONL for run_judge.py, one
+pair per request, and is what to use: an external judge is reachable now, a
+skipped or renumbered line cannot shift every verdict after it, and a killed
+run resumes per pair. The chunk files remain for pasting into a chat when no
+judge is reachable; `--from-judge` converts a run_judge output back into the
+verdict format `apply_readout_judgements.py` already reads, so both paths meet
+at the same place.
 
 **Distinct pairs, not rows.** DDXPlus renders its cues from a fixed
 questionnaire, so the same (gold, readout) pair recurs: eleven of one sixty-row
@@ -65,6 +69,17 @@ Reply with one verdict per line and nothing else, in the form
 
 covering every number below exactly once."""
 
+# The same rubric asked one pair at a time, for `--requests`. Batching 120
+# pairs into one prompt was a constraint of pasting, and it carries a failure
+# the paste era could not avoid: a judge that skips or renumbers one line
+# shifts every verdict after it, silently. One pair per request cannot
+# misalign, resumes per pair, and costs only the rubric repeated.
+SINGLE_RUBRIC = RUBRIC.split("Reply with one verdict")[0] + """\
+Reply with exactly one character and nothing else: A, B, C or D.
+
+GOLD: {gold}
+READ: {read}"""
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -77,6 +92,17 @@ def main() -> None:
         help="Pairs per chunk. Small enough to paste, large enough to be few.",
     )
     parser.add_argument(
+        "--requests",
+        help="Also write {id, prompt} JSONL for run_judge.py -- one request "
+        "per pair, ids matching judge_index.jsonl's n. Use this instead of "
+        "pasting chunks now that an external judge is reachable.",
+    )
+    parser.add_argument(
+        "--from-judge",
+        help="Convert a run_judge.py output back into the verdicts_NN.txt "
+        "format apply_readout_judgements.py reads, and exit. Needs --out-dir.",
+    )
+    parser.add_argument(
         "--skip-judged",
         help=(
             "TSV of pairs already judged (verdict/pool/gold/read), whose pairs "
@@ -84,6 +110,25 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+
+    if args.from_judge:
+        out_dir = Path(args.out_dir)
+        lines, unparsed = [], 0
+        for row in read_jsonl(args.from_judge):
+            verdict = str(row.get("response") or "").strip().upper()
+            letter = next((c for c in verdict if c in "ABCD"), "")
+            if not letter:
+                unparsed += 1
+                continue
+            lines.append(f"{row.get('id')}={letter}")
+        path = out_dir / "verdicts_01.txt"
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"verdicts {len(lines):,} -> {path}   unparseable {unparsed:,}")
+        if unparsed:
+            print("  unparseable verdicts are dropped, not defaulted -- a judge "
+                  "that did not answer is missing data, and any default would "
+                  "move the rate it is measuring.")
+        return
 
     already: set[tuple[str, str]] = set()
     if args.skip_judged:
@@ -114,6 +159,14 @@ def main() -> None:
         for n, (gold, read) in enumerate(fresh, start=1)
     ]
     write_jsonl(out_dir / "judge_index.jsonl", index)
+
+    if args.requests:
+        write_jsonl(Path(args.requests), [
+            {"id": str(e["n"]),
+             "prompt": SINGLE_RUBRIC.format(gold=e["gold"], read=e["read"])}
+            for e in index
+        ])
+        print(f"requests        {len(index):,} -> {args.requests}")
 
     chunks = 0
     for start in range(0, len(fresh), args.chunk_size):
