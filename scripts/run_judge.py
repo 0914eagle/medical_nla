@@ -73,15 +73,20 @@ def check_judge_identity(model: str, allow_same_family: bool) -> None:
               f"be stamped judge_same_family=true", file=sys.stderr)
 
 
-def run_codex(prompt: str, model: str, timeout: int) -> str:
+def run_codex(prompt: str, model: str, timeout: int,
+              codex_cmd: str = "codex") -> str:
     """One `codex exec` invocation, read-only.
 
     codex is an agent, not a completion endpoint: it can decide to read files
-    or run commands. `--sandbox read-only` and `--cd` on a scratch directory
-    keep a judging run from touching the repository, and the prompt is passed
-    on stdin so no shell quoting can mangle a clinical sentence.
+    or run commands. `--sandbox read-only` keeps a judging run from touching
+    the repository, and the prompt is passed on stdin so no shell quoting can
+    mangle a clinical sentence.
+
+    `codex_cmd` is split on spaces so the launcher can be `codex`, a path into
+    a user-local npm prefix, or `npx --yes @openai/codex` on a machine where
+    a global install needs root the user does not have.
     """
-    cmd = ["codex", "exec", "--sandbox", "read-only"]
+    cmd = codex_cmd.split() + ["exec", "--sandbox", "read-only"]
     if model:
         cmd += ["--model", model]
     cmd += ["-"]
@@ -123,6 +128,11 @@ def main() -> None:
     parser.add_argument("--sleep", type=float, default=0.0,
                         help="Seconds between calls, for rate limits.")
     parser.add_argument("--allow-same-family", action="store_true")
+    parser.add_argument(
+        "--codex-cmd", default="codex",
+        help="How to launch codex. Use a user-local path or "
+        "'npx --yes @openai/codex' where a global install needs root.",
+    )
     parser.add_argument("--in-price", type=float, default=0.0,
                         help="USD per 1M input tokens, for --dry-run.")
     parser.add_argument("--out-price", type=float, default=0.0,
@@ -168,7 +178,11 @@ def main() -> None:
     print(f"judging {len(todo):,} requests via {args.backend} "
           f"(model={args.model or 'backend default'})")
 
-    runner = run_codex if args.backend == "codex" else run_openai
+    if args.backend == "codex":
+        def runner(prompt: str, model: str, timeout: int) -> str:
+            return run_codex(prompt, model, timeout, args.codex_cmd)
+    else:
+        runner = run_openai
     failures = 0
     # Appended one row at a time and flushed: an interrupted run keeps every
     # answer it paid for.
