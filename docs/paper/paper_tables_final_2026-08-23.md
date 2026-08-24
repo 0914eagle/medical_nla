@@ -1044,7 +1044,29 @@ grounding·coherence·utility를 1–5로 매기게 한 설계. **로컬 판정�
 attention 화살표. 소견 위치 활성값이 4조건에서 비트 동일함을 시각화 —
 "증거는 그대로인데 답이 바뀐다"가 가정이 아니라 설계임을 그림 하나로.
 
-**Figure 2 — AV 판독 지도.** layer(16/24/32) × position(cue/답 위치) heldout
+**Figure 2 — AV 판독 지도.** ⚠️ **확정 아님 (08-24 재검토).** 두 행이
+**한 실험이 아니다**: cue행은 v4/v5 per-cue 레시피를 **heldout cue 문자열**
+(438행/층)에서, 답행은 v3 cue-first 레시피를 **heldout 진단 분할**(800행/층)
+에서 잰 값이다. 채점기 계열은 같지만 레시피와 heldout 축이 달라, 히트맵을
+세로로 읽으면 위치·레시피·heldout 정의 셋을 한꺼번에 비교하게 된다. 히트맵은
+독자에게 정확히 그 세로 읽기를 권하는 형식이므로 그냥 둘 수 없다.
+
+**적용한 최소 대응**: 행 라벨이 각자의 heldout 축을 이름으로 달게 했다
+(`cue token (held-out cue strings)` / `answer-forming token (held-out
+diagnoses)`). 제목도 "unseen-cue readability"에서 "held-out readability, by
+layer and position"으로 바꿨다 — 앞의 것은 cue행의 축을 표 전체에 붙이는
+잘못된 라벨이었다.
+
+**본문이 앞세울 것은 세로 비교가 아니다.** 답-위치 스윕 **안에서만** 나오는
+대비가 더 강하고 교란이 없다: 같은 위치·같은 레시피·같은 분할에서
+seen .684 vs heldout .249 (L24, 격차 +.435). 답 토큰은 **클래스→전형 cue
+템플릿**을 지탱할 뿐 per-cue 읽기를 하지 못한다는 뜻이고, 이건 한 실험
+내부의 결론이다. 그림은 지도로 쓰고, 주장은 이 문장이 진다.
+
+**깨끗한 해결**(GPU 여유 시): 두 위치를 **한 레시피·한 heldout 정의**로 다시
+돌리면 단일 실험 그림이 된다. 그 전까지 캡션이 위 사정을 명시해야 한다.
+
+원래 설계: layer(16/24/32) × position(cue/답 위치) heldout
 서술률 히트맵. cue-L24 정점, 답 위치는 전 layer 평탄·저조(결론 전용 — 다른
 계측기 필요). **스크립트 완성** (08-24, `make_figure_readout_map.py`;
 인자 없이 실행). 셀 6개는 **한 채점기**(v2 lexical, heldout 평균 토큰

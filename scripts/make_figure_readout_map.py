@@ -23,6 +23,22 @@ annotation reading "hand-labeled" would assert exactly the attribution the
 decision defers. So the figure carries one scorer and says so; the deferred
 numbers live in the text, where the placeholder can be stated.
 
+CAVEAT, and it is not small: the two rows are not one experiment. The cue row
+is the v4/v5 per-cue recipe scored on held-out CUE STRINGS (438 rows/layer);
+the answer row is the v3 cue-first recipe scored on a held-out DIAGNOSIS
+split (800 rows/layer). Same scorer family, different recipe and different
+held-out axis, so reading down a column compares three things at once. The
+row labels name the axes so the reader sees it; the caption must say the rest.
+
+What does NOT depend on the cross-row read, and is the stronger statement:
+inside the answer-position sweep alone, seen cases score .684 at L24 and
+held-out cases .249 (+.435). Same position, same recipe, same split -- the
+answer token supports a class-to-typical-cue template and not per-cue
+reading. Lead with that in the text and use this figure as the map.
+
+The clean fix, when there is GPU time: rerun both positions under one recipe
+and one held-out definition, then this becomes a single-experiment figure.
+
 Values are transcribed constants, not a dump: both sweeps are period-1
 results whose analyzers no longer run end to end, and their numbers are
 frozen in docs/results/results_2026-08-17_{layer,format_position}_sweep.md.
@@ -42,9 +58,14 @@ LAYERS = ["L16", "L24", "L32"]
 # docs/results/results_2026-08-17_layer_sweep.md (heldout mean token recall)
 # and results_2026-08-17_format_position_sweep.md (heldout mean cue_recall,
 # same v2 lexical scorer).
+# Row labels name each row's held-out axis, because the two rows are not the
+# same experiment (see the module docstring): reading down a column compares
+# position AND recipe AND held-out definition at once, and a heatmap invites
+# exactly that read. Naming the axes in the labels is the minimum that keeps
+# the reader honest without a caption they may not read.
 DEFAULT = {
-    "cue token": [0.510, 0.658, 0.589],
-    "answer-forming token": [0.188, 0.249, 0.188],
+    "cue token\n(held-out cue strings)": [0.510, 0.658, 0.589],
+    "answer-forming token\n(held-out diagnoses)": [0.188, 0.249, 0.188],
 }
 
 
@@ -66,17 +87,19 @@ def main() -> None:
     rows = list(values)
     grid = [values[r] for r in rows]
 
-    fig, ax = plt.subplots(figsize=(4.0, 2.2))
+    fig, ax = plt.subplots(figsize=(4.6, 2.3))
     im = ax.imshow(grid, cmap="Greys", vmin=0, vmax=1.0, aspect="auto")
     for ri, row in enumerate(grid):
         for ci, v in enumerate(row):
             ax.text(ci, ri, f"{v:.3f}".lstrip("0"), ha="center", va="center",
                     fontsize=9, color="white" if v > 0.55 else "black")
     ax.set_xticks(range(len(LAYERS)), LAYERS, fontsize=8)
-    ax.set_yticks(range(len(rows)), rows, fontsize=8)
-    ax.set_title("unseen-cue readability (held-out cue strings)", fontsize=8.5)
+    ax.set_yticks(range(len(rows)), rows, fontsize=7.2)
+    # Not "held-out cue strings" any more: that is row 1's axis only, and
+    # putting it in the title would relabel row 2 as something it is not.
+    ax.set_title("held-out readability, by layer and position", fontsize=8.5)
     fig.colorbar(im, ax=ax, shrink=0.85).ax.tick_params(labelsize=7)
-    ax.set_xlabel("layer, mean token recall (one scorer, all cells)", fontsize=7)
+    ax.set_xlabel("layer   ·   mean recall, v2 lexical scorer throughout", fontsize=7)
     fig.tight_layout()
     fig.savefig(args.output, dpi=300, bbox_inches="tight")
     print(f"[figure] {args.output}")
