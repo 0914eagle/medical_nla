@@ -2,10 +2,13 @@
 # Read MCR answer-position states with the conclusion adapter, on held-out rows.
 #   CUDA_VISIBLE_DEVICES=0,1 nohup bash scripts/run_mcr_conclusion_readout.sh > /dev/null 2>&1 &
 #
-# The adapter finished on 08-24 (best_epoch 1 of 3, selected on content loss
-# 1.767 against a scaffold loss of 0.038 -- the XML is learned immediately and
-# the diagnosis is not, which is why selecting on content was the fix that let
-# it save at all).
+# The adapter was retrained on 08-24 after the source-correct filter landed:
+# 1,298 rows where the model actually reached the gold, against the 10,663 of
+# the first build whose targets were 88% states that had concluded something
+# else. best_epoch 1 of 3, content loss 1.8209 -- epochs 2 and 3 were worse, so
+# this is where it peaks and more epochs are not the missing ingredient. The
+# figure is not comparable to the first build's 1.767: the validation set
+# changed from 1,136 mostly-wrong targets to 132 correct ones.
 #
 # TWO THINGS THIS SCRIPT REFUSES TO GUESS.
 #
@@ -58,17 +61,37 @@ python scripts/filter_manifest_to_split.py \
   --manifest "$FULL" --split "$SPLIT_DIR/sft_test.jsonl" --output "$TEST_MANIFEST" \
   2>&1 | tee -a "$MAIN" || { say "FAILED (split filter)"; exit 1; }
 
-# An existing file is only reusable if it was generated at the budget we now
-# ask for. Skipping on existence alone is what would silently keep the
-# truncated run in place, and every rate computed from it reads as finished
-# output.
-PRIOR=""
-[ -s "$OUT" ] && PRIOR=$(head -1 "$OUT" | python -c \
-  'import json,sys; print(json.load(sys.stdin).get("gen_config",{}).get("max_new_tokens",""))' 2>/dev/null)
-if [ -s "$OUT" ] && [ -n "$PRIOR" ] && [ "$PRIOR" -lt "$MAX_NEW" ]; then
-  say "REDO: $OUT was generated at max_new_tokens=$PRIOR, below $MAX_NEW"
-  mv "$OUT" "$OUT.mnt$PRIOR.bak"
-  say "     moved aside -> $OUT.mnt$PRIOR.bak"
+# An existing file is reusable only if it was produced by THIS adapter, at
+# THIS budget, over EVERY row. Existence alone is evidence of none of the
+# three, and each has already been wrong once:
+#
+#   budget    the first run took the config default of 256 and truncated 54%
+#   adapter   a killed run left 128 rows written by the pre-filter adapter,
+#             and the adapter path is unchanged because the new one replaced
+#             it -- only the file's age against the adapter's separates them
+#   coverage  those 128 rows of 821 were then skipped over as finished, and
+#             the script printed ALL DONE over a run that never happened
+REDO=""
+if [ -s "$OUT" ]; then
+  PRIOR=$(head -1 "$OUT" | python -c \
+    'import json,sys; print(json.load(sys.stdin).get("gen_config",{}).get("max_new_tokens",""))' 2>/dev/null)
+  HAVE=$(grep -c . "$OUT" 2>/dev/null || echo 0)
+  WANT=$(grep -c . "$TEST_MANIFEST" 2>/dev/null || echo 0)
+  if [ -n "$PRIOR" ] && [ "$PRIOR" -lt "$MAX_NEW" ]; then
+    REDO="generated at max_new_tokens=$PRIOR, below $MAX_NEW"
+  fi
+  if [ "$WANT" -gt 0 ] && [ "$HAVE" -lt "$WANT" ]; then
+    REDO="incomplete: $HAVE of $WANT rows"
+  fi
+  if [ -f "$ADAPTER/adapter_model.safetensors" ] && \
+     [ "$ADAPTER/adapter_model.safetensors" -nt "$OUT" ]; then
+    REDO="older than the adapter that should have written it"
+  fi
+fi
+if [ -n "$REDO" ]; then
+  say "REDO: $OUT is $REDO"
+  mv "$OUT" "$OUT.stale.$(date +%H%M%S).bak"
+  say "     moved aside -> $OUT.stale.*.bak"
 fi
 
 if [ -s "$OUT" ]; then say "skip (exists: $(wc -l < "$OUT") rows)"; else
@@ -100,7 +123,7 @@ say "readouts still cut off mid-cue: $CUT (raise MAX_NEW if this is not ~0)"
 
 say "ALL DONE -> $OUT"
 say ""
-say "Read ten before trusting any rate. Content loss is 1.77 on an open"
+say "Read ten before trusting any rate. Content loss is 1.82 on an open"
 say "vocabulary, so whether the adapter reads MCR states or writes plausible"
 say "diagnoses is a question no rate can answer on its own:"
 say "  head -3 $OUT | python -m json.tool"
