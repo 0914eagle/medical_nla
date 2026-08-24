@@ -67,6 +67,12 @@ def main() -> None:
     parser.add_argument("--cases", help="Hint case file, for runs predating carried arms.")
     parser.add_argument("--manifests", nargs="+", required=True)
     parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument(
+        "--dump",
+        help="Write the per-landmark numbers as JSON, for make_figure_trajectory.py. "
+        "The figure is drawn from this file rather than by re-running the probes, "
+        "so the plotted values are the reported values by construction.",
+    )
     args = parser.parse_args()
 
     import torch
@@ -83,6 +89,11 @@ def main() -> None:
 
     roles = [r for r in LANDMARK_ORDER if any(k[2] == r for k in paths)]
     print(f"cases {len(cases):,}   classes {len(class_names)}   landmarks {roles}")
+
+    # role -> group -> {n, p_gold, p_hint, hold_gold, and the cf_* twins where
+    # the counterfactual exists}. Filled alongside the printed lines so the
+    # dump can never disagree with the report.
+    dump: dict[str, Any] = {"landmarks": [], "groups": {}, "flips": {}}
 
     # Per moved case, the argmax verdict at each landmark, to find flip points.
     verdicts: dict[str, dict[str, str]] = defaultdict(dict)
@@ -188,26 +199,37 @@ def main() -> None:
         print(f"\n{role.upper()}  (n={len(usable):,}"
               + (f", wrong-arm argmax==gold {heldout_hits / heldout_n:.3f})"
                  if train_variant == "none" else ", trained on wrong arm)"))
+        dump["landmarks"].append(role)
         for group in ("kept", "moved-onto-hint", "moved-lost-gold"):
             rows = stats[group]
             if not rows:
                 continue
             n = len(rows)
+            cell = {
+                "n": n,
+                "p_gold": sum(r[0] for r in rows) / n,
+                "p_hint": sum(r[1] for r in rows) / n,
+                "hold_gold": sum(r[2] for r in rows) / n,
+            }
             print(
-                f"  {group:<16} p(gold) {sum(r[0] for r in rows) / n:.3f}"
-                f"   p(suggestion) {sum(r[1] for r in rows) / n:.3f}"
-                f"   still holds gold {sum(r[2] for r in rows) / n:.3f}"
+                f"  {group:<16} p(gold) {cell['p_gold']:.3f}"
+                f"   p(suggestion) {cell['p_hint']:.3f}"
+                f"   still holds gold {cell['hold_gold']:.3f}"
             )
             base = counterfactual[group]
             if base:
                 m = len(base)
                 b_gold = sum(r[0] for r in base) / m
+                cell["cf_p_gold"] = b_gold
+                cell["cf_p_hint"] = sum(r[1] for r in base) / m
+                cell["cf_hold_gold"] = sum(r[2] for r in base) / m
                 print(
                     f"  {'  same cases, no note':<16} p(gold) {b_gold:.3f}"
-                    f"   p(suggestion) {sum(r[1] for r in base) / m:.3f}"
-                    f"   still holds gold {sum(r[2] for r in base) / m:.3f}"
-                    f"   [note costs {sum(r[0] for r in rows) / n - b_gold:+.3f}]"
+                    f"   p(suggestion) {cell['cf_p_hint']:.3f}"
+                    f"   still holds gold {cell['cf_hold_gold']:.3f}"
+                    f"   [note costs {cell['p_gold'] - b_gold:+.3f}]"
                 )
+            dump["groups"].setdefault(group, {})[role] = cell
 
     flips = Counter()
     for bid, by_role in verdicts.items():
@@ -218,6 +240,13 @@ def main() -> None:
         for role in [*LANDMARK_ORDER, "never"]:
             if flips.get(role):
                 print(f"  {role:<12} {flips[role]:>5}")
+    dump["flips"] = dict(flips)
+
+    if args.dump:
+        import json
+
+        Path(args.dump).write_text(json.dumps(dump, indent=2), encoding="utf-8")
+        print(f"\n[dump] {args.dump}")
 
 
 if __name__ == "__main__":
