@@ -1,5 +1,10 @@
 # Camera-ready tables, v2 (2026-08-25)
 
+**현재 표의 정본이다.** 단, 아래 `MCR 결론 판독` subsection은 실패 원인을
+보존한 감사 기록이며 표의 근거가 아니다. 그 실행의 `.052`, `.034`, `6×`
+수치는 source-misaligned target에서 나온 무효 결과로 인용하지 않는다.
+문서 역할과 제출 전 관문은 `README.md`를 따른다.
+
 설계 규칙 (v1의 실패에서):
 - **표 하나 = 지표 하나.** 단위가 다른 값은 같은 열에 두지 않는다.
 - **열 = 조건/방법, 행 = 측정 대상.** 파생 통계(차이, 배수)는 별도 열이
@@ -66,7 +71,7 @@ original wording behind.*
 | 서술 정밀도 · 오염 · heldout 서술률 | ✔ | 판독 실행 후 기존 분석기 그대로 |
 | 스왑 추적 · 문맥 암기 | △ | `make_span_counterfactual_rows.py`(산문용 span 치환, 미실행) — cue 축자 등장 필요·탈락률 미측정·비문 캐비앳 |
 | unseen-cue 서술 | ✕→△ | MCR 분할은 케이스 분할이지 cue 문자열 heldout이 아님 — 분할 재구성 없이는 정의 안 됨 |
-| 답 위치 결론 | ✔ | 결론 어댑터(학습 중)가 여는 칸 |
+| 답 위치 결론 | △ | source-aligned 결론 어댑터 재학습과 무학습 대조가 필요 |
 
 ▢ 그 밖에 남은 것: shuffle-control 값, swap/memorization의 정확한 n.
 
@@ -359,8 +364,9 @@ masking guarantees and therefore what the design must reproduce.*
 말하지만 값이 다르다 — 상실형 최종 토큰에서 "상태가 정답을 쥠"이 프로브
 .904, v2 판독 .651, 무학습 판독 .603 (세 계기 모두 같은 229건). **결렬의 존재는 두 계기가, 정밀한
 해부는 프로브만 말한다**는 것을 본문이 그대로 밝힌다. 프로브는 닫힌
-49클래스에 학습된 분류기이므로 이 표는 **MCR에서 미측정이 아니라 정의
-불가**다 — 그 사실이 Table 3b 마지막 열과 Table 5의 근거가 된다.
+49클래스에 학습된 분류기이므로 **동일한 probe를 MCR에 직접 이전할 수
+없다** — MCR 내부 기전은 미측정이며, 다른 open-vocabulary representation
+baseline의 가능성까지 부정하지 않는다.
 
 ---
 
@@ -469,20 +475,21 @@ landing on the suggested diagnosis (first-pass counterpart .293).
 | r3 reconsider only | .460 | ▢ 실행 가능 | 어댑터 불필요 |
 | r4 findings re-shown | .398 | ▢ 실행 가능 | 어댑터 불필요 |
 | r7 own chain | ▢ | ▢ (CoT 실행 필요) | GPU ~1–2h |
-| r5 readout conclusion | .627 | ▢ 어댑터 학습 중 | 결론 어댑터가 여는 칸 |
-| r6 probe class label | .830 | **✕ 존재 불가** | 진단 6,934종·대부분 1회 — 되먹일 클래스 집합이 없다 |
+| r5 readout conclusion | .627 | ▢ source-aligned 어댑터 필요 | 최초 MCR 실행은 target misalignment로 무효 |
+| r6 probe class label | .830 | **n.a. (현재 설계)** | DDXPlus의 고정 49-class probe를 직접 이전할 수 없음 |
 
-*r6의 불가능이 §4.4의 마지막 문장이다. DDXPlus만 보면 probe가 교정 비교에서
-이기고, 독자는 자연어 채널이 잉여라고 결론지어도 좋다. **그 채널만이 존재하는
-코퍼스**가 그 결론의 답이며, 주장이 아니라 측정으로 보여야 한다.
+*r6의 직접 이전 불가가 §4.4의 마지막 질문이다. DDXPlus만 보면 probe가 교정
+비교에서 이기고, 독자는 자연어 채널이 잉여라고 결론지어도 좋다. MCR에서는
+동일한 고정-class 채널이 없지만, 이것만으로 자연어 채널의 우위를 증명하지
+않는다. source-aligned MCR 판독과 open-vocabulary baseline을 실제로 비교해야 한다.
 실행: `scripts/run_mcr_ladder.sh` (기본 rungs 3 4 7; 어댑터가 나오면
 `RUNGS="3 4 5 7" READOUTS=…`).*
 
 **이 표가 확립하는 명제는 "내부를 되먹여라"이지 "자연어로 되먹여라"가
 아니다 (08-25).** r5와 r6이 둘 다 r4(입력 재제시)를 이기고, 내용 정확도를
-맞추면 둘 사이 차이는 0이다(4b 1행). 교정 축의 결론은 **채널 중립**이며,
-자연어가 필요해지는 곳은 회복률이 아니라 **클래스 채널이 존재하지 않는
-코퍼스**와 **근거 제시가 요구되는 상황**이다(Table 5).
+맞추면 둘 사이 차이는 0이다(4b 1행). 교정 축의 결론은 **채널 중립**이다.
+자연어의 잠재적 자리는 열린 진단 어휘와 근거 제시 상황이지만, 전자는 MCR
+source-aligned 실험, 후자는 외부 판정 전에는 배포 권고가 아니다(Table 5).
 
 **r7이 이 명제를 완성한다 (▢ 실행 대기).** 지금까지 내부 되먹임의 비교
 대상은 "입력을 다시 보여주기"였고, 가장 명백한 경쟁자 — **모델 자신의 CoT를
@@ -544,8 +551,8 @@ check against the chart, a conclusion with its grounds does.*
 | Setting | Instrument | Basis (§) |
 |---|---|---|
 | Closed label set, training labels available | Supervised probe | 4.3, 4.4 |
-| Open diagnosis space | NL readout | 4.2–4.3 |
-| Clinician-facing grounds required | NL readout | 4.1, 4.3 |
+| Open diagnosis space | Source-aligned NL readout (candidate; validation pending) | 4.2, limitation |
+| Clinician-facing grounds required | NL readout plus external validation | 4.1, limitation |
 | Self-correction by re-asking | Neither — avoid | 4.4 |
 
 ---
@@ -568,7 +575,8 @@ check against the chart, a conclusion with its grounds does.*
   답 위치 vanilla 행, MCR 산문 서술률 행
 - T3b: MCR 출력 채널 AUROC(CPU 가능), MCR CoT 채널(GPU), logit lens 칸
 - T4: **MCR 사다리(Table 4d)** — r3/r4는 지금 실행 가능, r7은 MCR CoT
-  실행 필요, r5는 결론 어댑터 대기, r6은 존재 불가(결과). `run_mcr_ladder.sh`
+  실행 필요, r5는 source-aligned 결론 어댑터 대기, r6은 현재 고정-class
+  설계에서 직접 이전 불가. `run_mcr_ladder.sh`
 - T4: **r7(자기 설명 되먹임)** — DDXPlus·MCR 양쪽. 이 단이 없으면 4.4는
   "내부를 되먹여라"가 아니라 "뭐라도 되먹여라"까지만 주장한다
 

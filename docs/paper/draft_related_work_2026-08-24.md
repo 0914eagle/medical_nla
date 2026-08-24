@@ -92,24 +92,33 @@ are probes, patches, or graph distances rather than readable statements,
 and they end at detection — the one attempted continuation into
 correction reports failure.
 
-Internal access has reached medicine only as localization: probes confirm
-that clinical knowledge is present in hidden states [ADR-probing, 2025;
-alignment-resistant probing, 2025], and sparse autoencoders extract
-medical features from clinical models [JMIR-SAE, 2026; EHR-SAE, 2026].
-What knowledge lives where is mapped; why a particular case failed is not
-asked.
+Medical work has moved beyond localization. Fraile Navarro et al. (2026)
+use the same Gemma-3-12B NLA checkpoint and layer-32 activations to show
+that clinical content can survive a triage output-format failure and to
+predict case-level flips. Tayebi Arasteh et al. (2026) likewise recover
+evidence grades from hidden states when the model's verbalized grade is
+near chance. These are direct convergence results, not gaps we claim to
+fill. Their tasks are acuity formatting and evidence grading rather than
+diagnosis; neither causally isolates a referral-note suggestion, verifies
+the natural-language readout as an activation-dependent instrument, or
+tests a controlled correction ladder. Probes and sparse autoencoders also
+localize clinical knowledge and features [ADR-probing, 2025;
+alignment-resistant probing, 2025; JMIR-SAE, 2026; EHR-SAE, 2026].
 
 We chain these pieces, in medicine, on the causal testbed of §2.1: a
 verified natural-language readout attributes which cases the note moved
-from a single deployed run (§4.4, with the supervised-probe upper bound
+from a single deployed run (§4.3, with the supervised-probe upper bound
 reported alongside); a positional trajectory shows that anchoring is a
 rift between a preserved internal state and the emitted answer, not an
 overwriting of the state (§4.3); the readout renders that internal state
 as a statement a clinician can read (§4.3); and feeding the statement back
 recovers the moved cases where re-showing the evidence does not,
-net-positive once paired with a precise selector (§4.5) — including on
-real case reports whose open label space admits no classifier head
-(§4.6).
+net-positive once paired with a precise selector (§4.4) — with the
+behavioural anchoring effect replicated on real case reports whose open
+diagnosis vocabulary does not admit the same fixed-class probe (§4.2).
+Internal-state and correction claims on those case
+reports remain separate experiments rather than consequences of the
+behavioural replication.
 
 ---
 

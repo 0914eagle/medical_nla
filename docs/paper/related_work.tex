@@ -95,12 +95,18 @@ are probes, patches, or graph distances rather than readable statements,
 and they end at detection --- the one attempted continuation into
 correction reports failure.
 
-Internal access has reached medicine only as localization: probes confirm
-that clinical knowledge is present in hidden states
-\cite{adrprobing2025, alignmentresistant2025}, and sparse autoencoders
-extract medical features from clinical models \cite{jmirsae2026, ehrsae2026}.
-What knowledge lives where is mapped; why a particular case failed is not
-asked.
+Medical work has moved beyond localization. Fraile Navarro et al. use the
+same Gemma-3-12B NLA checkpoint and layer-32 activations to show that
+clinical content can survive a triage output-format failure and to predict
+case-level flips \cite{frailenavarro2026internal}. Tayebi Arasteh et al.
+likewise recover evidence grades from hidden states when the model's
+verbalized grade is near chance \cite{tayebi2026evidence}. These are direct
+convergence results, not gaps we claim to fill. Their tasks are acuity
+formatting and evidence grading rather than diagnosis; neither causally
+isolates a referral-note suggestion, verifies the natural-language readout
+as an activation-dependent instrument, or tests a controlled correction
+ladder. Probes and sparse autoencoders also localize clinical knowledge and
+features \cite{adrprobing2025, alignmentresistant2025, jmirsae2026, ehrsae2026}.
 
 We chain these pieces, in medicine, on the causal testbed of
 Section~\ref{sec:related-explainability}: a verified natural-language
@@ -113,9 +119,11 @@ renders that internal state as a statement a clinician can read
 (Section~\ref{sec:results-mechanism}); and feeding the statement back
 recovers the moved cases where re-showing the evidence does not,
 net-positive once paired with a precise selector
-(Section~\ref{sec:results-correction}) --- including on real case reports
-whose open label space admits no classifier head
-(Section~\ref{sec:results-breadth}).
+(Section~\ref{sec:results-correction}). We separately replicate the
+behavioural anchoring effect on real case reports whose open diagnosis
+vocabulary does not admit the same fixed-class probe. Internal-state and
+correction claims on those case reports require separate experiments rather
+than following from that behavioural replication.
 
 % ---------------------------------------------------------------------------
 % \cite key -> paper mapping (fill refs.bib from this list; delete when done)
@@ -126,6 +134,8 @@ whose open label space admits no classifier head
 % chen2023drift             How is ChatGPT's behavior changing over time? arXiv:2307.09009  [optional]
 % clinicalcode2025          Cracking the clinical code: scoping review on mechanistic interpretability in medical report generation. ScienceDirect S2950363925000377
 % clinicalreasoningfails2026 Why LLMs' Clinical Reasoning Fails. medRxiv 2026.01.26.26344845
+% frailenavarro2026internal  Internal Representation, Not Clinical Knowledge. arXiv:2605.29889
+% tayebi2026evidence         Internal-verbalized evidence-grade dissociation. arXiv:2606.29034
 % croskerry2003             The importance of cognitive errors in diagnosis... Acad Med 2003
 % mahajan2025bias           Cognitive bias in clinical LLMs. npj Digit Med 8:428 (2025)
 % lundberg2017shap          A unified approach to interpreting model predictions (SHAP). NeurIPS 2017, arXiv:1705.07874
