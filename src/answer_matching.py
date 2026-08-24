@@ -110,18 +110,45 @@ def content_tokens(text: str) -> set[str]:
     return {word for word in normalize(text).split() if word not in FILLER_WORDS}
 
 
+def _contains_at_word_boundary(haystack: str, needle: str) -> bool:
+    """`needle` occurs in `haystack` as whole words, not inside a longer one.
+
+    Plain containment scored three different wrong answers as correct, all of
+    them clinically opposite to the gold:
+
+        "pe" (an alias of pulmonary embolism) inside "**pe**ricarditis" -- 26
+        cases of the adoption count, and every pulmonary-embolism case answered
+        "pericarditis" was scored correct
+        "stable angina" inside "un**stable angina**" -- the acute coronary
+        syndrome read as the chronic one
+        "bronchitis" inside "laryngotracheo**bronchitis**" -- croup read as
+        bronchitis
+
+    The same collision was already fixed once in `gold_is_written_in`, where
+    "PE" matched inside "the posterior as-**pe**-ct of the ankle". It was not
+    fixed here, and this is the function that scores every answer.
+    """
+    return re.search(
+        rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", haystack
+    ) is not None
+
+
 def is_correct(answer: str | None, gold: str, aliases: list[str]) -> bool:
     """Strict rule: the answer contains the gold name, or the gold contains it.
 
     Containment in either direction, since a model may answer "acute otitis
     media" for "Otitis media" or the reverse; both name the same condition.
+    Containment is at word boundaries -- see `_contains_at_word_boundary` for
+    what plain substring matching accepted.
     """
     if not answer:
         return False
     got = normalize(answer)
     for candidate in [gold, *aliases]:
         want = normalize(candidate)
-        if want and (want in got or got in want):
+        if not want:
+            continue
+        if _contains_at_word_boundary(got, want) or _contains_at_word_boundary(want, got):
             return True
     return False
 

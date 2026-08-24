@@ -120,3 +120,33 @@ def test_spelling_folding_does_not_maul_unrelated_words():
     """Folding "ae"/"oe" wholesale would rewrite these; the list is explicit."""
     assert normalize("aerosol") == "aerosol"
     assert normalize("anaesthesia") == "anaesthesia"
+
+
+def test_a_short_alias_does_not_match_inside_a_longer_word():
+    """"pe" is an alias of pulmonary embolism and sits inside "pericarditis".
+
+    Plain containment scored every pulmonary-embolism case answered
+    "Pericarditis" as correct, and put 26 of them into the adoption count. The
+    same collision was fixed once in gold_is_written_in, where "PE" matched
+    inside "the posterior as-pe-ct of the ankle", and was missed here -- in the
+    function that scores every answer in the paper.
+    """
+    from src.ddxplus_aliases import aliases_for
+
+    assert not is_correct("Pericarditis", "Pulmonary embolism",
+                          aliases_for("Pulmonary embolism"))
+    assert is_correct("PE", "Pulmonary embolism", aliases_for("Pulmonary embolism"))
+
+
+def test_containment_does_not_cross_a_clinical_opposite():
+    """"stable angina" sits inside "unstable angina", which is the other disease."""
+    assert not is_correct("Unstable angina", "Stable angina", [])
+    assert is_correct("Stable angina", "Stable angina", [])
+    # Croup is not bronchitis, however the letters fall.
+    assert not is_correct("Laryngotracheobronchitis (Croup)", "Bronchitis", [])
+
+
+def test_legitimate_containment_survives_the_boundary_rule():
+    assert is_correct("Acute bronchitis", "Bronchitis", [])
+    assert is_correct("Otitis media", "Acute otitis media", [])
+    assert is_correct("Iron Deficiency Anemia", "Anemia", [])
