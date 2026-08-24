@@ -22,7 +22,7 @@
 | [06](06-cot-duality.md) | CoT의 이중성 | 4.2 | 🔶 canonical 재집계 |
 | [07](07-chain-attribution-rule-based.md) | 체인 귀속 — 규칙 기반 3종 | 4.2 | 🔶 silent/CI 동기화 |
 | [08](08-cot-llm-monitor.md) | 체인 귀속 — LLM 모니터 | 4.2 | ✅ 08-24 |
-| [09](09-probe-detection-trajectory.md) | 프로브: 탐지·궤적·용량반응 (Table 3) | 4.3 | 🔶 canonical 표 전사 |
+| [09](09-probe-detection-trajectory.md) | 프로브: 탐지·궤적·용량반응 (Table 3) | 4.3 | ✅ canonical 표·궤적 |
 | [10](10-readout-attribution.md) | 판독 귀속 (Table 3b) | 4.3 | 🔶 상세 특징 동기화 |
 | [11](11-channel-gap-bootstrap.md) | 채널 격차 신뢰구간 | 4.3 | 🔶 2개 CI 대기 |
 | [12](12-correction-ladder.md) | 교정 사다리 r3–r7 (Table 4) | 4.4 | 🔶 canonical 재집계 + r7 |

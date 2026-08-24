@@ -39,7 +39,7 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 |---|---|---|
 | 오답 소견서가 진단을 움직인다 | DDXPlus main −23.03 pp; 3× larger run −21.30 pp; MCR −26.89 pp | 행동 효과는 두 코퍼스; c300은 독립 표본 아님 |
 | suggestion이 내부 top-1을 대개 차지하지 못한다 | moved 321건 중 266건(82.9%)에서 suggestion이 어느 landmark에서도 top-1이 아님 | 그중 gold throughout 151, third-diagnosis path 115 |
-| 소견서는 내부 gold signal을 행동별로 다르게 낮춘다 | canonical paired trajectory 확인, exact Table 3 probability 전사 대기 | DDXPlus, 49-class cross-fit probe |
+| 소견서는 내부 gold signal을 행동별로 다르게 낮춘다 | final Δ: 유지 **−.007**, 제3 진단 **−.055**, 제안 채택 **−.195** | DDXPlus, 49-class cross-fit probe |
 | CoT보다 내부 채널이 강하다 | 정본 silent subset(n=1,641) AUROC: LLM CoT monitor .6829, NL readout .8302; gap +.1473 CI [.0691,.2209] | probe canonical silent 값은 대기 |
 | 자연어 판독은 벡터에 종속된다 | swap .993, memorization .000, contamination .007; heldout cue content .751 (n=770, 기계 채점) | DDXPlus 검증 배터리 |
 | 내부 내용을 되먹이면 회복한다 | 구 matcher에서 moved accuracy .012 → r5 .627 / r6 .830 | canonical moved=321 재집계와 r7 대기 |
@@ -93,8 +93,8 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 
 1. canonical matcher로 wording, CoT, r3–r7 교정 사다리를 모두 재집계한다.
    r7 자기 CoT 되먹임 대조도 이때 함께 닫는다.
-2. Table 3의 canonical 1,426/230/91 그룹별 확률과 canonical probe all/silent
-   값을 채운다.
+2. canonical probe all/silent 값을 채우고, Table 3의 Δ 차이에 paired CI 또는
+   추세 검정을 추가한다.
 3. DDXPlus main neutral/correct 누락 셀을 같은 fixed cohort에서 채운다.
 4. 외부 판정자 또는 임상의 평가로 자연어 판독의 유용성과 임상적 타당성을
    보조 검증한다.

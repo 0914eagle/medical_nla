@@ -357,30 +357,38 @@ across the two by construction, so Δ is the note's internal cost.
 
 | Behaviour under the wrong note | n | With the note | No note | Δ |
 |---|---:|---:|---:|---:|
-| Answer unchanged | **1,426** | ▢ | ▢ | ▢ |
-| Lost the gold, answered elsewhere | **230** | ▢ | ▢ | ▢ |
-| Adopted the suggestion | **91** | ▢ | ▢ | ▢ |
+| Answer unchanged | **1,426** | **.980** | **.987** | **−.007** |
+| Lost the gold, answered elsewhere | **230** | **.880** | **.934** | **−.055** |
+| Adopted the suggestion | **91** | **.725** | **.919** | **−.195** |
 
 *The canonical trajectory contains 321 moved cases. The suggestion is probe
 top-1 at least once in 55 (17.1%); seven of those already decode to it before
 the note. In 266 (82.9%) it is never top-1. That last group must not be called
 "gold throughout": 151 cases keep gold top-1 at every observed landmark,
 while 115 pass through another diagnosis without ever making the suggestion
-top-1. Exact final-token probabilities for the 1,426/230/91 groups remain to
-be transcribed from the canonical dump. At the last finding the paired cost
+top-1. At the last finding the paired cost
 is zero by causal masking; the note token itself has no no-note counterpart
 and its paired cost is undefined.*
 
 *Panel (a) highlights the internal-output mismatch directly: even among cases
-that emitted the suggestion, the final-token mean is approximately
-`p(gold)=.73` versus `p(suggestion)=.21` (about 3.5×). These are group means,
-not per-case knowledge or calibration claims; exact values will be copied from
-the canonical dump into Table 3. Panel (b) is non-monotonic: the paired gold
+that emitted the suggestion, the final-token mean is
+`p(gold)=.725` versus `p(suggestion)=.211` (about 3.4×). These are group means
+from a 49-way probe, not per-case knowledge, model next-token probabilities, or
+calibration claims. Panel (b) is non-monotonic: the paired gold
 cost is largest around the constraint and partially recovers at the final
-token, identifying the instruction segment as the most vulnerable observed
-landmark under this L32 prompt skeleton. In panel (c), `note=0` is an observed
+token (`adopted: −.439→−.195`; `lost: −.304→−.055`). This identifies the
+instruction segment as the most vulnerable observed landmark under this L32
+prompt skeleton, but each landmark uses a separately trained probe. The
+recovery was insufficient for correct output; it does not establish a causal
+failure to transmit the recovered signal. In panel (c), `note=0` is an observed
 count and is printed explicitly; this differs from panel (b), where the note
 delta is `N/A` because the no-note arm has no matching note token.*
+
+*At the note landmark, the gold-label probe reports `p(suggestion)=.000` at
+display precision in all three groups. This means the suggestion is not
+decoded as a diagnosis by this probe at that point; it does not prove that
+suggestion information is absent from the activation. A hint-label probe or
+matched retrieval test would be required for that stronger claim.*
 
 **계기 표기**: 이 표는 **프로브**다. 자연어 판독은 같은 방향을 독립적으로
 말하지만 값이 다르다 — 상실형 최종 토큰에서 "상태가 정답을 쥠"이 프로브
@@ -613,7 +621,7 @@ check against the chart, a conclusion with its grounds does.*
   MCR = 437/137/300. 남은 것은 wording·CoT·T4 downstream 표의 동일 matcher
   재집계다.
 - T2: 주 실행 neutral rescore와 correct arm, corpus-300 non-overlap subset
-- T3: canonical dump의 final probability 셀과 dose-response/CI 전사
+- T3: final probability 셀 전사 완료; paired bootstrap CI/추세 검정 보강
 - T3b: rule-based silent, canonical probe all/silent, 나머지 두 paired CI
 - T1: shuffle-control 값, swap/memorization/specificity의 정확한 n,
   답 위치 vanilla 행, MCR 산문 서술률 행

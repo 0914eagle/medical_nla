@@ -33,7 +33,7 @@ top-1”이라는 뜻이 아니다. 정답이 모든 관측 지점에서 top-1�
 | "의뢰 소견서의 의심 진단에 앵커링된다" | 오답 소견서 −23.1%p(DDX 1,220) · −27.8%p(MCR 1,543), 위약 대비 제안 고유 −17.4/−22.3%p | ○ | 두 코퍼스 재현. 개입 1종(문구 4종으로 보강) |
 | "출력 이동과 제안의 내부 top-1은 자주 불일치한다" | moved 321건 중 제안이 한 번도 top-1이 아닌 **266건(82.9%)** | ○ | **DDXPlus 전용**, 닫힌 49-class probe. “정답 보존”과 동의어가 아님 |
 | "내부 궤적은 이질적이다" | gold top-1 throughout **151/321**, other top-1 without suggestion **115/321**, suggestion top-1 at least once **55/321** | ○ | 관측한 6개 위치와 한 레이어의 궤적. 연속 토큰 전체나 다른 레이어를 뜻하지 않음 |
-| "소견서가 내부 상태에도 비용을 준다" | 무소견서 짝과의 probe probability 차이 | △ | canonical 1,426/230/91 그룹의 정확한 값 재기입 대기. 과거 0.007/0.055/0.187은 인용 보류 |
+| "소견서가 내부 상태에도 비용을 준다" | final paired Δ: 유지 −.007, 제3 진단 −.055, 제안 채택 −.195 | ○ | DDXPlus L32, landmark별 별도 probe. CI/추세 검정 보강 대기 |
 | "한 번의 실행에서 찾아낸다" | 진단 내 층화 AUROC: AV 판독 전체 **.7506**, 침묵 **.8302** | ○ | canonical probe 값은 재집계 대기. AV가 최강이라는 주장은 하지 않음 |
 | "임상의가 읽을 문장으로 서술한다" | 검증 배터리(스왑 0.993 · 암기 0.000 · 오염 0.007 · heldout cue 기계채점 .751) | △ | 계기가 **벡터에 종속**임은 증명됨. 의미채점 L24 .731은 판정 주체 교체 대기. "임상의에게 유용한가"는 **미측정** |
 | "되먹여 되돌린다" | 답이 바뀐 케이스 0.012 → r5 0.627 / r6 0.830, 재제시 통제 대비 +22.8%p | ○ | **조건부**. 무선별 재실행은 순손해(전체 0.814 → 0.42대). 선별과 결합해야 이득 |
@@ -287,8 +287,8 @@ precision 0.362), 허위 경보의 69%가 어댑터 오독이다. 배포 결론�
 
 1. §3 Methodology — 주장이 없어 실측 대기와 무관하다. 가장 먼저 쓴다.
 2. §4.2 · §4.4 — 실측 완결. 표(T2·T4)가 이미 조판 형태다.
-3. §4.3 — Figure 4 count 분해는 확정. Table 3의 정확한 canonical 확률과
-   나머지 채널 재집계는 대기.
+3. §4.3 — Figure 4 count와 Table 3 canonical 확률은 확정. canonical probe
+   AUROC와 Δ의 CI/추세 검정은 대기.
 4. §4.1 — 답 위치 vanilla 대조 완료(08-24). 대기 없음.
 5. §1 · §5 — 4장이 고정된 뒤에 쓴다(기여 목록이 4장의 수치를 인용).
 6. §2 — 초안·LaTeX 완성. 정독 노트 2편 반영만.
@@ -739,11 +739,15 @@ not-flagged / moved), **항복률**(broken 중 답이 의심 병명이 된 비�
   같은 케이스의 no-note gold probability를 뺀다. 음수일수록 소견서가 gold
   신호를 더 낮춘 것이다. last finding은 causal masking 때문에 0이고,
   referral note는 no-note arm에 대응 토큰이 없어 N/A다. canonical
-  1,426/230/91 그룹의 정확한 수치를 결과 덤프에서 옮기기 전에는 과거
-  0.007/0.055/0.187을 인용하지 않는다.
-- **P4 위치별 구조**: canonical 곡선에서 제안/정답 확률의 위치별 변화는
-  보이지만, 행동 그룹별 paired-cost 정확한 값을 Table 3에 옮기기 전에는
-  과거 −0.420/−0.187과 조기경보 수치를 정본으로 인용하지 않는다.
+  canonical final 비용은 유지 **−.007**, 제3 진단 **−.055**, 제안 채택
+  **−.195**다. 행동적 이동이 강할수록 평균 내부 비용이 커지는 용량-반응이
+  유지된다.
+- **P4 위치별 구조**: paired cost는 단조 증가하지 않는다. 제안 채택형은
+  question −.167 → constraint **−.439** → format −.183 → final −.195,
+  정답 상실형은 −.057 → **−.304** → −.188 → −.055다. constraint가 가장
+  취약하고 final prompt token에서 일부 회복하지만 이후 출력은 틀린다.
+  랜드마크마다 별도 probe를 학습했으므로 이를 단일 probe의 시간 변화나
+  보편적 지시문 기전으로 과장하지 않는다.
 - **P5 같은 그림을 문장으로 (Figure 5)**: 과거 matcher 집계에서는 정답을
   잃은 케이스의 **64.1%**에서
   마지막 위치의 내부 결론 문장이 여전히 정답이다("결론: 심근염, 근거:
@@ -874,13 +878,13 @@ CoT 모니터·독자-신뢰·설명 품질 · logit lens와 학습 프로브를
 | Methodology 3.1–3.4 | **즉시** (3.3은 축소 반영) |
 | 4.1 | **즉시 전부** (답 위치 vanilla 완료, 08-24) |
 | 4.2 | **즉시 전부** |
-| 4.3 | **초안 가능** — Figure 4 count는 확정, Table 3 확률·canonical probe는 대기 |
+| 4.3 | **초안 가능** — Figure 4·Table 3은 확정, canonical probe AUROC·Δ CI는 대기 |
 | 4.4 | **초안 가능** — r7 전에는 "내부 되먹임이 고유하게 낫다"는 최종 주장 보류 |
 | Conclusion | **즉시** |
 
 **초안 집필은 가능하지만 정본 표는 아직 닫히지 않았다.** 남은 실측은
-① DDXPlus main neutral/correct 정본 값, ② Table 3 그룹별 확률과 canonical
-probe, ③ wording/CoT/r3–r7 canonical 재집계, ④ source-aligned MCR 내부
+① DDXPlus main neutral/correct 정본 값, ② canonical probe AUROC와 Table 3
+Δ CI, ③ wording/CoT/r3–r7 canonical 재집계, ④ source-aligned MCR 내부
 판독·교정, ⑤ 동일 판정자의 no-CoT 모니터 대조다. 집필 순서는 §0.3.
 
 **표 번호는 `table_camera_ready_2026-08-25.md`가 정본이다** — 이 문서의

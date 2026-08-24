@@ -2,8 +2,8 @@
 
 **질문**: 답이 바뀐 케이스에서 **내부 상태는 무엇을 하고 있는가.**
 
-**상태**: 🔶 canonical trajectory 재실행 완료 (`moved=321`), Table 3의 정확한
-확률값 문서 전사 대기. DDXPlus 전용이며 MCR 내부 기전은 현재 **미측정**이다.
+**상태**: ✅ canonical trajectory와 Table 3 전사 완료 (`moved=321`).
+DDXPlus 전용이며 MCR 내부 기전은 현재 **미측정**이다.
 
 ---
 
@@ -33,13 +33,12 @@ no-note arm에 대응 위치가 없으므로 paired cost가 `N/A`다.
 
 | 오답 소견서 하 행동 | n | 소견서 있음 | 소견서 없음 | Δ |
 |---|---:|---:|---:|---:|
-| 답 유지 | **1,426** | ▢ | ▢ | ▢ |
-| 정답 상실, 제3 진단 | **230** | ▢ | ▢ | ▢ |
-| **제안 채택** | **91** | ▢ | ▢ | ▢ |
+| 답 유지 | **1,426** | **.980** | **.987** | **−.007** |
+| 정답 상실, 제3 진단 | **230** | **.880** | **.934** | **−.055** |
+| **제안 채택** | **91** | **.725** | **.919** | **−.195** |
 
-구 `.980/.987`, `.879/.934`, `.736/.923`은 `1,423/229/95` 모집단에서 나온
-값이므로 인용하지 않는다. canonical dump의 `groups[*].final`을 그대로 전사해
-채운다.
+canonical 그룹에서도 내부 비용은 답 유지 < 제3 진단 < 제안 채택 순으로
+커진다. 구 마지막 값 −.187은 canonical 그룹 재분류 후 −.195가 됐다.
 
 ## 읽는 법
 
@@ -48,13 +47,13 @@ no-note arm에 대응 위치가 없으므로 paired cost가 `N/A`다.
 최종 토큰에서도 세 집단 모두 평균 정답 신호가 남는다. 이것은 집단 평균이며
 각 사례에서 gold가 top-1이라는 뜻은 아니다.
 
-특히 **제안 채택형**의 final token에서도 그림상 평균 `p(gold)≈.73`,
-`p(suggestion)≈.21`로 gold mass가 약 **3.5배** 높다. 정의상 이 집단은 실제
+특히 **제안 채택형**의 final token에서도 평균 `p(gold)=.725`,
+`p(suggestion)=.211`로 gold mass가 약 **3.4배** 높다. 정의상 이 집단은 실제
 출력에서는 제안을 채택했다. 따라서 이 패널의 가장 강한 대비는 “제안을
 출력했으니 내부에서도 제안이 지배했을 것”이라는 예상이 집단 평균에서
 성립하지 않는다는 점이다. 단, 이 평균 비율을 개별 사례의 지식 보존이나
-calibration으로 해석하지 않는다. 정확한 소수점은 canonical dump의 Table 3
-전사와 함께 확정한다.
+calibration이나 모델의 실제 next-token 확률로 해석하지 않는다. 둘 다
+49-way probe가 디코드한 집단 평균 확률이다.
 
 **Figure 4(b)**는 같은 사례의 `p_wrong(gold) - p_none(gold)`다. 0이면 소견서가
 내부 정답 신호를 움직이지 않았고, 음수가 클수록 비용이 크다. 마지막 finding의
@@ -62,7 +61,22 @@ calibration으로 해석하지 않는다. 정확한 소수점은 canonical dump�
 없어 `N/A`다. 비용은 읽기 순서에 따라 단조 증가하지 않는다. constraint에서
 가장 커졌다가 final에서 일부 회복하므로, **지시문 구간이 gold signal에 가장
 취약한 관측 지점**이라는 별도 관찰을 준다. 이는 L32와 현재 프롬프트 골격에
-대한 위치별 결과이며 모든 레이어·프롬프트의 보편적 기전으로 일반화하지 않는다.
+대한 위치별 결과이며, 랜드마크마다 별도 probe를 학습했으므로 모든
+레이어·프롬프트의 보편적 기전이나 단일 probe의 시간 변화로 일반화하지 않는다.
+
+canonical paired cost의 핵심 지점은 다음과 같다.
+
+| 지점 | 제안 채택 Δ | 정답 상실 Δ |
+|---|---:|---:|
+| question | −.167 | −.057 |
+| **constraint** | **−.439** | **−.304** |
+| format | −.183 | −.188 |
+| final | −.195 | −.055 |
+
+두 moved 집단 모두 constraint에서 비용이 가장 크고 final prompt token에서
+일부 회복한다. 그런데 이 사례들은 이후 잘못된 답을 생성한다. 따라서 관측된
+gold signal의 회복은 올바른 출력에 **충분하지 않았다**. 이를 “회복 신호가
+출력 경로에 전달되지 않았다”는 인과 주장으로 확대하지는 않는다.
 
 **Figure 4(c), canonical 321건**:
 
@@ -85,6 +99,12 @@ suggestion top-1이 된 사례는 48/321(15.0%)**다.
 패널 (b)의 referral note는 no-note counterpart가 없어 `N/A`인 반면, 패널
 (c)의 referral note는 측정된 first-top1 count가 실제로 **0**이다. Figure에는
 막대가 보이지 않아도 `0` 라벨을 표시해 누락과 구분한다.
+
+note landmark에서 gold-label probe가 준 `p(suggestion)`은 세 집단 모두
+표시 정밀도에서 `.000`이다. 이는 **이 probe가 그 지점에서 suggestion을
+진단 top-1 신호로 디코드하지 못했다**는 뜻이다. suggestion 정보가 activation에
+전혀 없다는 뜻은 아니다. 그 부재를 검증하려면 suggestion identity를 직접
+라벨로 둔 probe나 matched-vs-mismatched retrieval 검사가 필요하다.
 
 핵심은 `never suggestion top-1 = gold throughout`가 아니라는 것이다. 266건 중
 151건만 gold가 모든 관측 landmark에서 top-1이고, 115건은 제3 진단이 top-1인
@@ -122,10 +142,11 @@ baseline과 함께 실제로 측정하기 전에는 자연어 채널의 필요�
 
 ## 남은 것
 
-- ▢ canonical dump의 final `p_gold/cf_p_gold/Δ`를 Table 3에 전사한다.
-- ▢ moved 사례의 emitted accuracy와 gold/suggestion probability ratio도
-  canonical 321행에서 다시 계산한 뒤에만 인용한다.
-- ▢ dose-response 통계와 CI를 canonical group `1,426/230/91`로 재계산한다.
+- ✅ canonical final `p_gold/cf_p_gold/Δ`와 채택형 `p(suggestion)=.211` 전사.
+- ▢ Table 3의 세 Δ 차이에 대한 paired bootstrap CI 또는 추세 검정을 추가한다.
+- ▢ constraint 최대값이 landmark별 probe calibration 차이인지 확인하려면
+  각 위치 probe의 heldout 성능·calibration을 함께 보고한다.
+- ▢ suggestion 표상 부재를 주장하려면 hint-label probe/retrieval 대조를 추가한다.
 - ▢ MCR에서 같은 궤적을 주장하려면 wrong-note activation 추출과 적절한
   open-vocabulary/binary representation baseline이 필요하다.
 
