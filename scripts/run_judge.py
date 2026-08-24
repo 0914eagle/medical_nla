@@ -74,16 +74,22 @@ def check_judge_identity(model: str, allow_same_family: bool) -> None:
               f"be stamped judge_same_family=true", file=sys.stderr)
 
 
-def parse_codex_banner_model(stdout: str) -> str:
+def parse_codex_banner_model(*streams: str) -> str:
     """The model codex actually used, from its own banner.
 
     codex picks a default (gpt-5.6-sol at the time of writing) unless --model
     says otherwise, so "whatever codex chose" is not a provenance record. The
     banner names it, and the paper needs that name.
+
+    Both streams are searched because the banner is diagnostic output, and
+    which pipe it lands on is codex's business, not ours -- the first run
+    recorded "codex-default" for exactly this reason.
     """
-    for line in stdout.splitlines()[:15]:
-        if line.startswith("model:"):
-            return line.split(":", 1)[1].strip()
+    for stream in streams:
+        for line in (stream or "").splitlines()[:20]:
+            stripped = line.strip()
+            if stripped.startswith("model:"):
+                return stripped.split(":", 1)[1].strip()
     return ""
 
 
@@ -130,7 +136,7 @@ def run_codex(prompt: str, model: str, timeout: int,
                 "codex wrote no final message; stdout tail: "
                 f"{proc.stdout[-400:]!r}"
             )
-        return answer, parse_codex_banner_model(proc.stdout)
+        return answer, parse_codex_banner_model(proc.stdout, proc.stderr)
     finally:
         Path(out_file).unlink(missing_ok=True)
 
