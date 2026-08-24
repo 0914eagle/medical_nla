@@ -56,10 +56,19 @@ original wording behind.*
 유리하고 이름 하나당으로는 .526 vs .675로 뒤집힌다. **어댑터가 사는 값은
 적중률이 아니라 정밀도다** — 이 표의 나머지 행이 전부 그 이야기다.
 
-▢ 남은 것: shuffle-control 값, swap/memorization의 정확한 n,
-**MCR 산문 서술률 행** — 계기가 실제 임상 문장도 읽는지는 1기 mcr_sweep
-산출물 재집계(CPU)로 채운다. 이 행이 있어야 T1이 DDXPlus 전용 검증표가
-아니게 된다.
+**T1은 현재 전 행이 DDXPlus다 — MCR 열 계획 (08-24 재검토판).**
+행별 가능성은 도구가 아니라 선행 조건이 가른다. 공통 선행:
+**MCR cue 위치 어댑터**(학습 여부 서버 확인 필요; `mcr_sweep_v1`은 추출만
+있고 판독이 없다 — "재집계 CPU"라던 이전 계획은 오기) + 판독 실행(GPU).
+
+| 행 | MCR | 경로 |
+|---|:-:|---|
+| 서술 정밀도 · 오염 · heldout 서술률 | ✔ | 판독 실행 후 기존 분석기 그대로 |
+| 스왑 추적 · 문맥 암기 | △ | `make_span_counterfactual_rows.py`(산문용 span 치환, 미실행) — cue 축자 등장 필요·탈락률 미측정·비문 캐비앳 |
+| unseen-cue 서술 | ✕→△ | MCR 분할은 케이스 분할이지 cue 문자열 heldout이 아님 — 분할 재구성 없이는 정의 안 됨 |
+| 답 위치 결론 | ✔ | 결론 어댑터(학습 중)가 여는 칸 |
+
+▢ 그 밖에 남은 것: shuffle-control 값, swap/memorization의 정확한 n.
 
 ---
 
