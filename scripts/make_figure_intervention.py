@@ -60,6 +60,16 @@ def main() -> None:
         if pop is None:
             raise SystemExit(f"{path} has no '{args.population}' population "
                              f"(has: {sorted(data)})")
+        # A dump missing an arm draws a cluster with fewer bars, which reads as
+        # a finished figure rather than a missing run. Say so: the arms of one
+        # run are often in separate answer files, and analyze_hint_effect
+        # merges them only if all of them were passed to it.
+        missing = [a for a in ARM_ORDER if a not in pop["arms"]]
+        if missing:
+            print(f"[warn] {label}: no {', '.join(missing)} arm in {path} -- "
+                  f"that cluster will be drawn with {4 - len(missing)} bars.\n"
+                  f"       Re-dump with every answer file for this run: "
+                  f"analyze_hint_effect.py --answers a.jsonl b.jsonl --dump ...")
         clusters.append((label, pop))
 
     fig, ax = plt.subplots(figsize=(0.6 + 2.4 * len(clusters), 2.9))

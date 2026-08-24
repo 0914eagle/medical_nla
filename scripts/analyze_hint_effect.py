@@ -230,6 +230,13 @@ def main() -> None:
     )
     parser.add_argument("--show", type=int, default=5, help="Flipped cases to print.")
     parser.add_argument(
+        "--exclude-collisions",
+        action="store_true",
+        help="Drop cases whose 'wrong' suggestion names the gold under the "
+        "scoring rule. They carry no intervention, and leaving them in "
+        "biases every rate toward the null.",
+    )
+    parser.add_argument(
         "--dump",
         help="Write the per-population arm accuracies as JSON, for "
         "make_figure_intervention.py. The figure is drawn from this file, so "
@@ -263,8 +270,14 @@ def main() -> None:
             f"\n⚠ {len(collided):,} of {len(cases):,} cases have a 'wrong' "
             "suggestion that matches the gold under the scoring rule —\n"
             "  no intervention is present in them. Rebuild with the fixed "
-            "builder, or read every rate below as diluted by that share."
+            "builder, or read every rate below as diluted by that share.\n"
+            "  The dilution is toward the null: a 'wrong' note naming the gold\n"
+            "  acts as a correct note, so those cases mostly stay right and\n"
+            "  inflate the wrong arm. --exclude-collisions drops them."
         )
+    if args.exclude_collisions and collided:
+        cases = {c: arms for c, arms in cases.items() if c not in set(collided)}
+        print(f"  --exclude-collisions: {len(cases):,} cases remain")
 
     leaky = {c: arms for c, arms in cases.items() if arms["none"].get("gold_in_prompt")}
     clean = {c: arms for c, arms in cases.items() if not arms["none"].get("gold_in_prompt")}
@@ -280,6 +293,10 @@ def main() -> None:
             for name, pop in (("all", cases), ("clean", clean), ("leaky", leaky))
             if pop
         }
+        # Recorded, not just printed: a figure drawn from this file should be
+        # able to state its own caveat without re-reading the console.
+        dump["collisions"] = len(collided)
+        dump["collisions_excluded"] = bool(args.exclude_collisions)
         Path(args.dump).write_text(json.dumps(dump, indent=2), encoding="utf-8")
         print(f"\n[dump] {args.dump}")
 
