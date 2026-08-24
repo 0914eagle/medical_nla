@@ -58,10 +58,37 @@ representation`, `internal-output dissociation`이다.
 ## Slide 1. 문제를 한 사례로 시작한다
 
 첫 화면에는 동일한 환자 presentation 두 개를 나란히 둔다. 왼쪽은 소견서가
-없는 원본이고, 오른쪽은 환자 소견 뒤에 다음 한 줄만 추가한 prompt다.
+없는 원본이고, 오른쪽은 환자 소견 뒤에 한 줄만 추가한 prompt다. 아래는
+슬라이드 구성을 설명하기 위한 **구체적인 synthetic example**이다. 정량 결과의
+실측 row라고 부르지 않으며, 최종 슬라이드에서는 Appendix 후보인
+`ddxplus_myocarditis_0000265`의 실제 prompt를 결과 artifact에서 export해 교체한다.
 
 ```text
-The referring note suspects {plausible but wrong diagnosis}.
+You are an expert physician. A 29-year-old man presents with the following
+findings:
+- sharp central chest pain
+- shortness of breath
+- palpitations
+- a recent viral illness
+- an elevated cardiac troponin level
+
+[WRONG-NOTE ARM ONLY]
+The referring note suspects unstable angina.
+
+What is the single most likely diagnosis?
+
+Give the diagnosis only. Do not explain your reasoning.
+You MUST end your response with exactly "The answer is <diagnosis>."
+```
+
+두 열의 차이는 `[WRONG-NOTE ARM ONLY]` 아래 한 줄뿐이다. 왼쪽 no-note 열에서는
+그 두 줄을 삭제하고 나머지 byte sequence를 동일하게 둔다. 화면에서는 공통
+presentation을 한 번만 쓰고, 가운데에 다음처럼 개입만 강조해도 된다.
+
+```text
+NO NOTE                                  WRONG NOTE
+[nothing]                                The referring note suspects
+                                         unstable angina.
 ```
 
 왼쪽에서 모델은 정답을 냈지만 오른쪽에서는 틀린 진단이나 제3의 진단을 낸다.
@@ -107,7 +134,7 @@ Medical-NLA의 성능 홍보가 아니라, 인과적으로 만든 output 이동�
 의도적으로 분리한다.
 
 1. **Cross-fitted linear diagnosis probe**는 DDXPlus의 고정된 진단 공간에서
-   각 진단의 decodability를 확률로 정량화한다. 내부 궤적과 단일 실행 탐지의
+   각 진단의 decodability를 확률로 정량화한다. 내부 궤적과 단일 실행 영향 귀속의
    주 계기다.
 2. **Natural-language AV readout**은 activation에서 cue와 진단 후보를 자연어로
    제안한다. 분류 vocabulary를 미리 닫기 어려운 곳에서 사용할 가능성이 있지만,
@@ -176,7 +203,8 @@ diagnostic signal`, `internal-output dissociation`, `suggestion dominance`로
 signal 또는 제3 진단 signal이 남을 수 있다. 이 가설은 행동 변화와 probe
 trajectory를 대조해 검증한다.
 
-**H2 — 단일 실행의 내부 채널은 output과 CoT보다 moved case를 더 잘 찾는다.**
+**H2 — 단일 실행의 내부 채널은 output과 CoT보다 note-caused answer movement를
+더 잘 귀속한다.**
 배포 시에는 none/wrong 쌍을 동시에 볼 수 없으므로 wrong-note 한 번의 실행만으로
 이 케이스가 개입 때문에 움직였을 가능성을 추정해야 한다. Output-only,
 rule-based CoT, LLM monitor, AV, probe를 같은 모집단에서 비교한다.
@@ -206,10 +234,10 @@ heldout cue, cross-patient contamination으로 검사한다. M0은 연구 질문
 출력이 이동한 사례에서 gold·suggestion·제3 진단의 decodable signal은 prompt
 landmark를 따라 어떻게 변하는가?
 
-**RQ2 — 단일 실행 탐지.** 반사실 none arm을 볼 수 없는 상황에서 wrong-note
-한 번의 output, CoT, LLM monitor, probe, AV 중 무엇이 causally moved case를
-가장 잘 식별하는가? 특히 answer가 suggestion과 다른 silent subset에서도
-신호가 남는가?
+**RQ2 — 단일 실행 영향 귀속.** 반사실 none arm을 볼 수 없는 상황에서
+wrong-note 한 번의 output, CoT, LLM monitor, probe, AV 중 무엇이 **이 note가
+없었더라면 답이 달랐을 사건**을 가장 잘 식별하는가? 특히 answer가 suggestion과
+다른 silent subset에서도 신호가 남는가?
 
 **RQ3 — 조건부 교정.** Decode한 내부 내용을 source model에 다시 제공하면
 답을 고칠 수 있는가? 효과는 자연어 형식, 내용 정확도, 재실행 자체 중 무엇에서
@@ -225,7 +253,7 @@ RQ2가 오류 진단·조기 경보, RQ3가 해결이다. RQ1은 이 세 응용�
 | 교수님이 제시한 축 | 논문 안의 질문 | 현재 답의 범위 |
 |---|---|---|
 | 설명 | M0 + RQ1의 위치별 내부 측정 | activation-dependent 후보는 읽지만 임상 설명 효용은 미확립 |
-| 진단/경보 | RQ2 single-run moved attribution | DDXPlus에서 가능; probe가 최강 |
+| 진단/경보 | RQ2 single-run note-influence attribution | DDXPlus에서 가능; probe가 최강 |
 | 해결 | RQ3 conditional correction | 정확한 content는 유용; selector 없이는 순손해 |
 
 ## Slide 8. 우리의 노벨티: 진단 변화의 사례별 인과 귀속
@@ -245,11 +273,12 @@ RQ2가 오류 진단·조기 경보, RQ3가 해결이다. RQ1은 이 세 응용�
 > 궤적과 조건부 교정까지 시험한다.**
 
 노벨티의 단위는 NLA, probe, anchoring 중 하나의 최초성이 아니다. 새로 정의한
-연구 객체는 **`causally moved case`**다. 각 사례의 no-note와 wrong-note 실행을
-쌍으로 비교해 `moved` 정답지를 만들지만, detector에는 wrong-note 실행 하나만
-준다. 따라서 일반적인 “현재 답이 틀렸는가?”나 “제안 문구를 답에서 복사했는가?”가
-아니라, **관측하지 못한 no-note 반사실에 비해 이 note가 답을 실제로 움직였는가**를
-예측한다.
+평가 문제는 **single-run causal influence attribution**, 즉 **“현재 답의 변화가
+이 wrong note 때문에 생겼는가?”를 귀속하는 문제**다. 여기서 `case`를 찾는 것이
+아니다. 각 사례의 no-note와 wrong-note 실행을 쌍으로 비교해 `moved` label을
+만들지만, detector에는 wrong-note 실행 하나만 준다. 따라서 일반적인 “현재 답이
+틀렸는가?”나 “제안 문구를 답에서 복사했는가?”가 아니라, **관측하지 못한 no-note
+반사실에 비해 이 note가 답을 실제로 움직였는가**를 예측한다.
 
 화면의 비교표는 아래처럼 결과 단위 중심으로 단순화한다.
 
@@ -271,7 +300,7 @@ RQ2가 오류 진단·조기 경보, RQ3가 해결이다. RQ1은 이 세 응용�
 가장 방어 가능한 주장은 다음 세 개다.
 
 1. **새 평가 문제**: wrong-note 단일 실행에서, 숨겨진 same-case no-note
-   counterfactual이 정의한 `causally moved`를 예측한다.
+   counterfactual이 정의한 `note-caused answer movement`를 예측한다.
 2. **새 기전 결과**: 출력 이동과 suggestion의 내부 top-1 우세가 같은 사건이
    아님을 gold/suggestion/other 궤적으로 보인다. Moved 321건 중 266건(82.9%)에서
    suggestion은 관측한 어느 landmark에서도 probe top-1이 아니다.
@@ -447,7 +476,7 @@ prompt와 source answer를 생성한 prompt가 달랐다. 이 세 문제는 초�
 | gold string leakage 제거 | 1,220 | prompt에 정답명이 직접 나온 행 제외 | main clean behavior table |
 
 `1,747`과 `1,220`은 서로 다른 실험의 분모다. 행동 주표는 1,220이고,
-trajectory와 single-run detection은 1,747 전체를 쓴다.
+trajectory와 single-run attribution은 1,747 전체를 쓴다.
 
 현재 논문용 DDXPlus prompt는 3-cue 파일럿이 아니라 cleaning 후 남은
 positive/meaningful cue 전체를 bullet로 넣는다. Exact skeleton은 다음과 같다.
@@ -480,6 +509,13 @@ wrong note가 원래 정답을 실제로 움직였는지 정의하려면 먼저 
 문자 그대로 등장한 사례를 제외한 main clean cohort는 1,220개다.
 
 ## Slide 12. 네 개의 referral-note arm을 어떻게 만들었는가
+
+**왜 이 실험이 필요한가.** Wrong-note 조건 하나만 원본과 비교하면, 성능 저하가
+잘못된 진단 내용 때문인지, 문장이 하나 늘어난 탓인지, referral이라는 권위 있는
+frame 때문인지 분리할 수 없다. 또한 correct note가 들어왔을 때도 성능이
+떨어진다면 “wrong content에 앵커링됐다”보다 “외부 제안이 들어오면 전반적으로
+흔들린다”가 더 정확한 해석이다. 그래서 네 arm은 장식적인 augmentation이 아니라
+**wrong suggestion의 의미 효과를 식별하기 위한 최소 인과 대조군**이다.
 
 **화면에 넣을 인과 분해 표**
 
@@ -516,6 +552,15 @@ Neutral arm은 문장 삽입과 referral framing 자체의 비용을 측정한�
 
 ## Slide 13. 소견서 표현 robustness와 MCR의 wrong note
 
+**왜 이 실험이 필요한가.** Slide 12에서 효과가 나와도, 그것이
+`The referring note suspects ...`라는 정확한 문구나 DDXPlus의 합성 bullet prompt에
+특화된 artifact일 수 있다. 따라서 두 종류의 일반화가 필요하다. 첫째, 같은
+진단 제안을 referral/colleague/patient/realistic voice로 바꿔도 방향이 유지되는지
+본다. 둘째, 구조화된 닫힌 DDXPlus가 아니라 실제 증례 서술과 열린 진단 어휘를
+가진 MCR에서도 행동 효과가 복제되는지 본다. 다만 MCR은 wrong diagnosis를 만드는
+규칙과 내부 계기가 DDXPlus와 다르므로, 여기서는 **행동 외적 타당성**만 복제하고
+82.9% trajectory mechanism까지 일반화하지 않는다.
+
 **화면에 넣을 corpus별 wrong-suggestion 생성표**
 
 | Corpus | wrong diagnosis 출처 | 장점 | 해석 한계 |
@@ -546,6 +591,14 @@ limitations에 밝힌다.
 
 ## Slide 14. Direct answer와 CoT answer를 어떻게 생성했는가
 
+**왜 두 생성 조건이 필요한가.** 이 논문은 CoT를 무조건 믿지도, 무조건 버리지도
+않는다. Direct 조건은 외부 suggestion이 최종 선택 자체를 얼마나 움직이는지
+측정하는 행동 기준선이다. CoT 조건은 명시적 추론 시간이 anchoring을 완화하는지,
+반대로 suggestion을 정당화하는지, 그리고 chain text가 단일 실행 영향 귀속에
+얼마나 유용한지를 측정한다. 두 조건을 분리하지 않으면 “CoT가 보호했다”와
+“direct prompt가 사실상 짧은 CoT를 생성했다”를 구분할 수 없고, LLM monitor가
+읽을 일관된 chain도 정의할 수 없다.
+
 **화면에 넣을 decoding 조건표**
 
 | 조건 | Prefill | 최대 생성 | 파싱 대상 | 목적 |
@@ -573,6 +626,16 @@ CoT 조건은 prefill 없이 최대 2,048 token을 허용한다. Budget 안에 c
 prefix가 byte-identical하고 instruction suffix만 다르다.
 
 ## Slide 15. 정답 채점과 moved label을 어떻게 정의했는가
+
+**왜 별도의 `moved` label이 필요한가.** `wrong answer`는 모델이 틀렸다는
+결과만 말하고, 그 오류가 소견서 때문에 생겼는지는 말하지 않는다. 원래 no-note
+에서도 틀렸다면 wrong-note 실행의 오답을 note 탓으로 돌릴 수 없다. 반대로
+`answer == suggestion`만 보면 제안을 그대로 복사한 경우만 잡고, 제안 때문에
+추론이 흔들려 제3 진단으로 간 경우를 놓친다. 그래서 같은 사례의 no-note와
+wrong-note 결과를 비교해 **note가 답을 바꾼 사건을 사후 평가 label로 정의**한다.
+Detector는 이 pair를 입력으로 보지 않고 wrong run 하나만 받는다. 즉 Slide 15는
+“케이스 탐지”가 아니라 **숨겨진 반사실적 note influence를 단일 실행에서
+귀속하는 평가 문제**를 만드는 단계다.
 
 **화면에 넣을 label 정의표**
 
@@ -1157,7 +1220,7 @@ LLM monitor, natural-language readout, linear probe를 동일한 single-run task
 있다. 둘째, LLM monitor에서 CoT를 제거한 동일 판정자 arm이 필요하다. 현재 monitor는
 vignette, note, CoT, answer를 모두 보므로 CoT만의 증분을 분리하지 못한다.
 
-셋째, MCR wrong-note activation 추출, MCR single-run detection, MCR correction
+셋째, MCR wrong-note activation 추출, MCR single-run attribution, MCR correction
 ladder가 남아 있다. 현재 MCR은 행동 복제와 source-aligned answer readout까지만
 완료됐다. 넷째, MCR cue-position readout과 counterfactual span swap이 필요하다.
 다섯째, Appendix Figure A1 layer 비교에서 epoch와 reader recipe를 맞춘 position/layer control이
@@ -1293,4 +1356,4 @@ decode 가능한 정보가 있지만 vanilla verbalizer가 이를 안정적으�
 reconstruction score와 semantic content를 분리하며, supervised AV의 출력은
 heldout·swap·shuffle 없이는 activation evidence로 믿지 않는다. 그러나 파일럿
 자체가 현재 논문의 RQ는 아니다. 현재 RQ는 referral-note intervention 아래의
-내부-출력 결렬, 단일 실행 탐지, 조건부 교정이다.
+내부-출력 결렬, 단일 실행 영향 귀속, 조건부 교정이다.

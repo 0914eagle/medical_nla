@@ -17,7 +17,7 @@ top-1”이라는 뜻이 아니다. 정답이 모든 관측 지점에서 top-1�
 
 운영적으로 풀면 다음과 같다. **환자 cue와 충돌하는 잘못된 임상 제안이 들어온
 DDXPlus 조건에서, activation을 직접 보는 내부 채널은 생성된 CoT를 읽는 채널보다
-causally moved case를 더 잘 식별한다.** 동일 wrong-note 단일 실행에서
+note-caused answer movement를 더 잘 귀속한다.** 동일 wrong-note 단일 실행에서
 cross-fitted probe는 all/silent AUROC `.9280/.9840`, 강한 LLM CoT monitor는
 `.7233/.6829`다. AV readout은 `.7506/.8302`로 probe보다 약하지만 자연어 후보를
 제공한다. 이 문장은 “모든 의료 과제에서 내부가 CoT보다 우월하다”는 일반 명제가
@@ -106,7 +106,7 @@ cross-fitted linear probe를 주 계기로 측정한다.
 - 따라서 RQ1은 “모델이 속으로 항상 정답을 안다”가 아니라 **행동적 이동과
   내부 suggestion dominance가 같은 사건이 아니다**라는 명제를 묻는다.
 
-### RQ2 — 단일 실행 탐지와 채널 비교
+### RQ2 — 단일 실행 영향 귀속과 채널 비교
 
 > **반사실 none arm을 보지 않고 wrong-note 실행 한 번만으로, 어떤 사례가
 > note 때문에 움직였는지 탐지할 수 있는가? 출력·CoT·probe·AV는 각각 무엇을
@@ -302,7 +302,7 @@ AV 산문을 activation 관측치로 취급하기 위한 선행 calibration이�
 랜드마크에서도 top-1이 아닌 경우가 266건이다. 그중 gold throughout는
 151건, 다른 진단 top-1은 115건이다. 따라서 “상태는 항상 정답을 보존한다”가
 아니라 “출력 이동에 제안 top-1 채택이 필요하지 않다”가 정본 주장이다.
-단일 실행 탐지는 LLM 모니터 .7233/.6829, AV 판독 .7506/.8302,
+단일 실행 영향 귀속은 LLM 모니터 .7233/.6829, AV 판독 .7506/.8302,
 probe .9280/.9840(all/silent)이다.
 프런티어 모니터를 세워도 내부가 이긴다는 것이 이 절의 실제 주장이고,
 프로브가 이기는 조건과 그 조건이 무너지는 코퍼스를 같은 자리에서 말한다.
@@ -335,7 +335,7 @@ precision .3615), 허위 경보의 68.4%가 어댑터 오독이다. 자기 CoT r
 
 **임무**: 임상적으로 실재하는 잠정 진단이 downstream 판단을 좁힐 수 있다는
 문제에서 출발해, `행동적 출력 이동 != 내부 suggestion dominance`라는 대전제를
-세우고, 이를 측정·단일 실행 탐지·조건부 교정하는 세 RQ로 도달한다. 자연어 AV는
+세우고, 이를 측정·단일 실행 영향 귀속·조건부 교정하는 세 RQ로 도달한다. 자연어 AV는
 이 현상의 유일한 증거도 주인공도 아니다. 닫힌 진단 공간에서는 cross-fitted
 probe가 주 정량 계기이고, AV는 activation-dependent 자연어 후보를 제공하는 보조
 계기다.
@@ -357,8 +357,8 @@ probe가 주 정량 계기이고, AV는 activation-dependent 자연어 후보를
   top-1 diagnosis가 되지 않을 수 있다. Gold가 유지되는 경로와 제3 진단으로
   이동하는 경로를 모두 허용한다.
 - **H2 — single-run attribution**: 반사실 none arm을 detector에게 주지 않아도,
-  wrong-note 실행의 내부 채널은 output/CoT 채널보다 `moved` 사례를 더 잘
-  식별할 수 있다.
+  wrong-note 실행의 내부 채널은 output/CoT 채널보다 **그 note가 답을 움직였는지**
+  더 잘 귀속할 수 있다.
 - **H3 — conditional correction**: 정확한 내부 content는 moved answer 교정에
   유용하지만, 무선별 재실행과 부정확한 판독은 kept answer를 파괴한다. 이득은
   자연어 형식 자체보다 content 정확도와 selector에 의해 결정된다.
@@ -368,9 +368,10 @@ probe가 주 정량 계기이고, AV는 activation-dependent 자연어 후보를
 - **RQ1 (현상·궤적)**: wrong referral note는 진단 행동을 얼마나 움직이며,
   moved case에서 gold·suggestion·other diagnosis의 decodable signal은 prompt
   landmark를 따라 어떻게 변하는가?
-- **RQ2 (단일 실행 탐지)**: wrong-note 실행 한 번의 output, CoT, LLM monitor,
-  probe, AV 중 무엇이 causally moved case를 가장 잘 식별하는가? 답이 suggestion을
-  말하지 않는 canonical silent subset에서도 가능한가?
+- **RQ2 (단일 실행 영향 귀속)**: wrong-note 실행 한 번의 output, CoT, LLM
+  monitor, probe, AV 중 무엇이 숨겨진 no-note 반사실이 정의한 **note-caused
+  answer movement**를 가장 잘 식별하는가? 답이 suggestion을 말하지 않는
+  canonical silent subset에서도 가능한가?
 - **RQ3 (교정)**: decode한 내부 content를 source model에 되먹이면 답을 회복하는가?
   효과를 재실행, evidence 재제시, label, 자연어 readout으로 분해하면 실제
   지렛대는 무엇인가?
@@ -470,7 +471,7 @@ suggestion은 관측한 어느 landmark에서도 probe top-1이 아니다.
      제안이 어느 랜드마크에서도 top-1이 아니다. 그중 gold throughout는
      151건이고 other top-1은 115건이다. 행동적 이동과 내부 제안 우세의
      불일치 및 그 이질성을 함께 보고한다.
-  3. **단일 실행 탐지의 정직한 지도**: 설명문 **0.50–0.53** · 출력 기반은 침묵
+  3. **단일 실행 영향 귀속의 정직한 지도**: 설명문 **0.50–0.53** · 출력 기반은 침묵
      부분집합(답 바뀜의 2/3)에서 **구조적 장님** · 닫힌 코퍼스에서는 지도
      프로브 **.9280/.9840**, AV 판독 **.7506/.8302**(all/silent)로
      닫힌 공간에서는 프로브가 앞선다. 판독의 자리는 계측과 열린 어휘 가설
@@ -485,7 +486,7 @@ suggestion은 관측한 어느 landmark에서도 probe top-1이 아니다.
      reader utility는 실패했다. 즉 AV를 우월한 detector가 아니라 검증이 필요한
      자연어·가설 생성 채널로 위치시킨다.
 - 마지막에 로드맵 한 줄: §2는 위 네 선행 흐름과 남은 교차점을 정리하고, §3은
-  인과 테스트베드와 계기를 정의하며, §4는 행동→궤적→단일 실행 탐지→교정
+  인과 테스트베드와 계기를 정의하며, §4는 행동→궤적→단일 실행 영향 귀속→교정
   순으로 답한다.
 
 ## 2. Related Work (확정 3절)
@@ -534,7 +535,7 @@ Related Work 직전 또는 끝에서 신규성을 다음처럼 한 문장으로 
 2. wrong note의 내용만 바꾸는 인과 개입과 `moved` 정답지를 어떻게 만드는가(3.2).
 3. 출력·CoT·probe·AV가 각각 무엇을 읽고, AV가 증거로 쓰이기 전에 어떤
    측정 관문을 통과해야 하는가(3.3).
-4. 이 계기들로 행동 효과, 위치 궤적, 단일 실행 탐지, 교정을 어떻게 평가하는가(3.4).
+4. 이 계기들로 행동 효과, 위치 궤적, 단일 실행 영향 귀속, 교정을 어떻게 평가하는가(3.4).
 
 **AV를 쓰는 이유는 probe보다 정확해서가 아니다.** 닫힌 DDXPlus 49-class에서는
 지도 probe가 더 강하고 이를 주 정량 계기로 사용한다. AV는 고정 label head가
@@ -701,7 +702,7 @@ constraint(`Do not explain...`), answer-format instruction, final prompt token�
 각 위치의 3,840차원 activation에서 DDXPlus diagnosis를 예측하는 선형 분류기를
 학습한다. Test case와 동일 base ID의 모든 arm은 해당 fold의 training에서 제외한다.
 Diagnosis별 사례는 다른 fold에 존재하므로 이 probe는 closed-vocabulary supervised
-decoder다. 궤적의 `p(gold)`, `p(suggestion)`, top-1과 single-run detection의 주
+decoder다. 궤적의 `p(gold)`, `p(suggestion)`, top-1과 single-run attribution의 주
 정량 계기다. Probe decodability는 해당 정보가 source generation에 인과적으로
 사용됐다는 증거가 아니다.
 
