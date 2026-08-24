@@ -27,6 +27,7 @@ untuned checkpoint's score on the same items.
 | Description precision | 438 | .671 | .075 | untuned |
 | Held-out description rate | 2,122 | .751 | .088 | chance |
 | Unseen-cue description | 438 | .750 | .720 | untuned |
+| Conclusion at the answer position | 217 | .682 | .636 | untuned |
 
 *Format compliance and output length are reported in the text (0.05 → 1.00;
 1,557 → 52 characters): they establish that the readout is machine-scorable,
@@ -40,10 +41,19 @@ original wording behind.*
 2차 채점이나 자기 일치율로 메우지 않는다. 그때까지 본문에는 수치만 싣고
 채점 주체는 서술하지 않으며, 최종 원고에서 판정자 절차로 채운다.
 
-▢ 남은 것: shuffle-control 값, swap/memorization의 정확한 n, 답-위치
-vanilla 행(실행 중), **MCR 산문 서술률 행** — 계기가 실제 임상 문장도
-읽는지는 1기 mcr_sweep 산출물 재집계(CPU)로 채운다. 이 행이 있어야 T1이
-DDXPlus 전용 검증표가 아니게 된다.
+**답-위치 행이 이 표에서 가장 이상하게 읽히는 행이고, 그것이 요점이다
+(08-24).** 다른 행과 달리 Reference가 Readout에 가깝다 — 무학습
+체크포인트도 답이 바뀐 케이스의 63.6%에서 정답을 짚는다. **결렬은 우리
+어댑터의 산물이 아니라 활성값의 성질이다**, 라는 뜻이고 이쪽이 더 강한
+결과다. 본문은 여기에 두 번째 수치를 붙인다: vanilla는 판독 하나당
+진단명을 1.21개 부르고 v2는 1.01개를 부르므로, 포함 검사로는 vanilla가
+유리하고 이름 하나당으로는 .526 vs .675로 뒤집힌다. **어댑터가 사는 값은
+적중률이 아니라 정밀도다** — 이 표의 나머지 행이 전부 그 이야기다.
+
+▢ 남은 것: shuffle-control 값, swap/memorization의 정확한 n,
+**MCR 산문 서술률 행** — 계기가 실제 임상 문장도 읽는지는 1기 mcr_sweep
+산출물 재집계(CPU)로 채운다. 이 행이 있어야 T1이 DDXPlus 전용 검증표가
+아니게 된다.
 
 ---
 
