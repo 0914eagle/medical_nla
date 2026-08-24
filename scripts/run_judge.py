@@ -31,6 +31,7 @@ tokens" is not a good reason to spend someone's money.
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import os
 import subprocess
@@ -229,6 +230,23 @@ def main() -> None:
     failures = 0
     # Appended one row at a time and flushed: an interrupted run keeps every
     # answer it paid for.
+    # One writer per output. Two judges appending to the same file interleave
+    # their lines and, worse, each snapshots the resume set at its own start --
+    # so the second re-judges everything the first has not finished yet, at
+    # full price, and the output ends up with duplicate ids. Both happened.
+    lock_path = out_path.with_suffix(out_path.suffix + ".lock")
+    try:
+        lock_fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        raise SystemExit(
+            f"another judge is writing {out_path} ({lock_path} exists).\n"
+            "  Wait for it, or point --out somewhere else. If no judge is "
+            f"running, the last one was killed: rm {lock_path}"
+        )
+    os.write(lock_fd, f"{os.getpid()}\n".encode())
+    os.close(lock_fd)
+    atexit.register(lambda: lock_path.unlink(missing_ok=True))
+
     with out_path.open("a", encoding="utf-8") as f:
         for i, req in enumerate(todo, 1):
             try:

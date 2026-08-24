@@ -249,8 +249,14 @@ def main() -> None:
 
     write_jsonl(Path(args.output), out)
     n_moved = sum(1 for rs in chosen if rs[0]["label_moved"])
-    print(f"wrote {len(out):,} rows = {len(chosen):,} cases x {len(CHANNELS)} channels"
+    from collections import Counter
+    arms = Counter(row["readout_channel"] for row in out)
+    # Counted, not assumed: with --controls the rows per case are no longer
+    # len(CHANNELS), and printing that number made a 4-arm file announce three.
+    print(f"wrote {len(out):,} rows = {len(chosen):,} cases x {len(arms)} arms"
           f"  (moved {n_moved:,}, kept {len(chosen) - n_moved:,})  -> {args.output}")
+    for arm, count in sorted(arms.items()):
+        print(f"    {arm:<18} {count:,}")
     print("  Positives are cases the note actually moved; the judge never sees "
           "the label, the gold, or which channel it is reading.")
 
