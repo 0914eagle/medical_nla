@@ -245,11 +245,48 @@ def main() -> None:
         "make_figure_intervention.py. The figure is drawn from this file, so "
         "the plotted values are the reported values by construction.",
     )
+    parser.add_argument(
+        "--exclude-from",
+        nargs="+",
+        default=[],
+        help="Drop every base_id appearing in these files. The larger corpus "
+        "is drawn per-diagnosis from the same pool as the smaller one and "
+        "contains 1,676 of its 1,747 cases, so running on it is not a second "
+        "sample -- it is the same cases plus new ones, and an effect living "
+        "entirely in the original half survives the union unchanged. "
+        "Excluding the first run's ids leaves the genuinely unseen cases. "
+        "The ladder analyzer has carried this flag since the overlap was "
+        "found; the intervention table needs it for the same reason.",
+    )
     args = parser.parse_args()
 
     cases = group_by_case(args.answers, args.cases)
     if not cases:
         raise SystemExit("no case had all three arms; is the run finished?")
+
+    if args.exclude_from:
+        excluded: set[str] = set()
+        for path in args.exclude_from:
+            excluded |= {str(r.get("base_id") or "") for r in read_jsonl(path)}
+        excluded -= {""}
+        before = len(cases)
+        cases = {c: arms for c, arms in cases.items() if c not in excluded}
+        overlap = before - len(cases)
+        print(
+            f"excluding {len(excluded):,} base_ids seen in the earlier run: "
+            f"{before:,} cases -> {len(cases):,} ({overlap:,} dropped)"
+        )
+        if not cases:
+            raise SystemExit(
+                "every case was excluded -- the two runs are the same cases, "
+                "so there is no unseen subset to report."
+            )
+        if not overlap:
+            print(
+                "  ⚠ nothing was dropped. Either these files share no "
+                "base_ids with the answers, or the id fields differ; this is "
+                "not evidence that the runs are disjoint."
+            )
 
     # The wrong arm's suspicion was picked by exact normalized inequality with
     # the gold while answers are scored by alias-aware containment, so a
