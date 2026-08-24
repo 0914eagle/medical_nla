@@ -37,7 +37,7 @@ DEFAULT = {
 
 def annotate(ax, xs: list[int], ys: list[float], *, dy: float = 0.025) -> None:
     for x, value in zip(xs, ys):
-        ax.text(x, value + dy, f"{value:.3f}".lstrip("0"), ha="center", fontsize=7)
+        ax.text(x, value + dy, f"{value:.3f}", ha="center", fontsize=7)
 
 
 def main() -> None:
@@ -66,7 +66,7 @@ def main() -> None:
     ax_cue.text(
         0.02,
         0.04,
-        "per-cue recipe; n=438/layer",
+        "one readout per cue; n=438 per layer",
         transform=ax_cue.transAxes,
         fontsize=6.5,
         color="0.25",
@@ -91,7 +91,7 @@ def main() -> None:
     ax_final.text(
         0.02,
         0.04,
-        "cue-first recipe; n=727/800",
+        "cue-first readout; n=727 seen / 800 held-out",
         transform=ax_final.transAxes,
         fontsize=6.5,
         color="0.25",

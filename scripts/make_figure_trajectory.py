@@ -4,12 +4,13 @@ Three panels separate three claims that the old two-panel figure conflated:
 
 * absolute decoded gold (and adopted-group suggestion) probability;
 * the paired note effect, wrong-note minus no-note, on the same cases;
-* the first landmark where the suggestion becomes probe top-1.
+* the first landmark where the suggestion becomes probe top-1, with cases
+  where it never does split into gold-throughout and third-diagnosis paths.
 
-The final `never suggestion top-1` bar does not imply that gold was top-1 at
-every landmark: a third diagnosis may have been top-1. The analyzer's next
-canonical rerun will update the bar counts after answer-matcher corrections;
-this script always reads them from the dump and never hard-codes 268/324.
+The final stacked `suggestion never top-1` bar explicitly separates cases
+where gold was top-1 throughout from cases where a third diagnosis became
+top-1. This script always reads the counts from the dump and never hard-codes
+the trajectory denominator.
 
 Drawn from the dump JSON rather than by re-running the probes, so the plotted
 values are the reported values by construction. Black-and-white safe: groups
@@ -97,7 +98,13 @@ def main() -> None:
     ax_curve.set_ylim(0, 1.0)
     ax_curve.set_ylabel("Mean probe probability", fontsize=8)
     ax_curve.tick_params(labelsize=7)
-    ax_curve.legend(fontsize=6.5, frameon=False, loc="lower left")
+    ax_curve.legend(
+        fontsize=6.2,
+        frameon=False,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.24),
+        ncol=2,
+    )
     ax_curve.spines[["top", "right"]].set_visible(False)
     ax_curve.set_title("(a) Decoded signal under the wrong note", fontsize=8)
 
@@ -109,12 +116,26 @@ def main() -> None:
     ax_delta.spines[["top", "right"]].set_visible(False)
     ax_delta.set_title("(b) Paired internal cost of the note", fontsize=8)
 
+    # There is no note-position token in the no-note arm, so a paired delta at
+    # that landmark is undefined rather than zero.
+    if "note" in landmarks:
+        note_x = landmarks.index("note")
+        y0, y1 = ax_delta.get_ylim()
+        ax_delta.text(
+            note_x,
+            y1 - 0.08 * (y1 - y0),
+            "N/A",
+            ha="center",
+            va="top",
+            fontsize=6.2,
+            color="0.35",
+        )
+
     flips = data["flips"]
-    order = [*landmarks, "never"]
+    order = list(landmarks)
     counts = [flips.get(r, 0) for r in order]
     bars = ax_flip.bar(
-        range(len(order)), counts,
-        color=["0.55"] * len(landmarks) + ["black"], width=0.7,
+        range(len(order)), counts, color="0.55", width=0.7,
     )
     for bar, count in zip(bars, counts):
         if count:
@@ -122,17 +143,86 @@ def main() -> None:
                 bar.get_x() + bar.get_width() / 2, count, str(count),
                 ha="center", va="bottom", fontsize=6.5,
             )
-    # Single-line labels rotated, not the two-line labels of panel (a): seven
+    # `never suggestion` is not synonymous with `gold throughout`. Show the
+    # two mutually exclusive paths as a stacked final bar so the visual cannot
+    # support that stronger, invalid reading.
+    top1_paths = data.get("top1_paths", {})
+    gold_all = int(top1_paths.get("gold_all_landmarks", 0))
+    other_never = int(top1_paths.get("other_top1_but_never_suggestion", 0))
+    never_total = int(flips.get("never", gold_all + other_never))
+    never_x = len(order)
+    if gold_all + other_never == never_total and never_total:
+        ax_flip.bar(
+            never_x,
+            gold_all,
+            color="black",
+            width=0.7,
+            label="gold top-1 throughout",
+        )
+        ax_flip.bar(
+            never_x,
+            other_never,
+            bottom=gold_all,
+            color="0.72",
+            edgecolor="black",
+            linewidth=0.5,
+            hatch="///",
+            width=0.7,
+            label="other top-1; suggestion never top-1",
+        )
+        if gold_all:
+            ax_flip.text(
+                never_x,
+                gold_all / 2,
+                str(gold_all),
+                ha="center",
+                va="center",
+                fontsize=6.2,
+                color="white",
+            )
+        if other_never:
+            ax_flip.text(
+                never_x,
+                gold_all + other_never / 2,
+                str(other_never),
+                ha="center",
+                va="center",
+                fontsize=6.2,
+            )
+        ax_flip.text(
+            never_x,
+            never_total,
+            f"total {never_total}",
+            ha="center",
+            va="bottom",
+            fontsize=6.2,
+        )
+        ax_flip.legend(fontsize=5.4, frameon=False, loc="upper left")
+    else:
+        # Backward compatibility for pre-audit dumps. The label remains
+        # explicit, but camera-ready figures should use a dump with top1_paths.
+        ax_flip.bar(never_x, never_total, color="black", width=0.7)
+        if never_total:
+            ax_flip.text(
+                never_x,
+                never_total,
+                str(never_total),
+                ha="center",
+                va="bottom",
+                fontsize=6.5,
+            )
+
+    # Single-line labels rotated, not the two-line labels of panel (a): the
     # narrow bars cannot host them side by side without collisions.
     flat = {
         "last_cue": "last finding",
         "note": "note",
         "final": "final token",
-        "never": "suggestion never top-1",
     }
-    ax_flip.set_xticks(range(len(order)))
+    ax_flip.set_xticks(range(len(order) + 1))
     ax_flip.set_xticklabels(
-        [flat.get(r, LANDMARK_LABEL.get(r, r).replace("\n", " ")) for r in order],
+        [flat.get(r, LANDMARK_LABEL.get(r, r).replace("\n", " ")) for r in order]
+        + ["suggestion never top-1"],
         fontsize=6.5, rotation=40, ha="right",
     )
     ax_flip.set_ylabel("moved cases", fontsize=8)
@@ -140,7 +230,7 @@ def main() -> None:
     ax_flip.spines[["top", "right"]].set_visible(False)
     ax_flip.set_title("(c) First suggestion top-1 landmark", fontsize=8)
 
-    fig.tight_layout()
+    fig.subplots_adjust(left=0.06, right=0.99, top=0.88, bottom=0.31, wspace=0.32)
     fig.savefig(args.output, dpi=300, bbox_inches="tight")
     print(f"[figure] {args.output}")
 
