@@ -55,16 +55,17 @@ run_trajectory() {
     say "rows built: $(wc -l < "$TRAJ_ROWS")"
   fi
 
-  if find "$ART/activations/$TRAJ_RUN" -name manifest.jsonl -size +0 2>/dev/null | grep -q .; then
-    say "activations exist under $ART/activations/$TRAJ_RUN -- skipping"
-  else
-    python -m src.extract_activations \
-      --config configs/default.yaml \
-      --input "$TRAJ_ROWS" \
-      --layers "$LAYER" \
-      --run-name "$TRAJ_RUN" \
-      >>"$MAIN" 2>&1 || { say "FAILED (extract)"; return 1; }
-  fi
+  # Always run it: extraction resumes by default, writing only the rows missing
+  # from the manifest. Skipping on "a manifest exists" was wrong -- a run killed
+  # at 98% leaves a manifest that looks finished, and the gap would have been
+  # silently carried into the analysis. A completed run costs one model load.
+  python -m src.extract_activations \
+    --config configs/default.yaml \
+    --input "$TRAJ_ROWS" \
+    --layers "$LAYER" \
+    --run-name "$TRAJ_RUN" \
+    --resume \
+    >>"$MAIN" 2>&1 || { say "FAILED (extract)"; return 1; }
   say "trajectory done. Analysis is CPU-only and needs the wrong/none answers:"
   say "  python scripts/analyze_trajectory.py --cases $CASES \\"
   say "    --answers <first-pass answers for the none and wrong arms> \\"
