@@ -362,6 +362,17 @@ def main() -> None:
         "adds the hybrid policy (probe selects, content corrects).",
     )
     parser.add_argument(
+        "--common-ids",
+        action="store_true",
+        help="Restrict every rung to the base_ids present in ALL of them. r7 "
+        "sits on a smaller population by construction -- cases whose chain "
+        "answer differs from the direct first answer are dropped, because a "
+        "rung starting from a different first answer is not on the same "
+        "ladder. Without this, r7's column is computed over 1,151 cases and "
+        "r3-r6's over 1,747, and the difference between them is partly the "
+        "difference between two case sets.",
+    )
+    parser.add_argument(
         "--exclude-from",
         nargs="+",
         default=[],
@@ -381,10 +392,20 @@ def main() -> None:
     if excluded:
         print(f"excluding {len(excluded):,} base_ids seen in the earlier run")
 
+    keep: set[str] | None = None
+    if args.common_ids:
+        for path in args.rungs:
+            ids = {str(r.get("base_id") or "") for r in read_jsonl(path)} - {""}
+            keep = ids if keep is None else (keep & ids)
+        print(f"restricted to {len(keep or ()):,} base_ids present in all "
+              f"{len(args.rungs)} rungs")
+
     first_rows: list[dict[str, Any]] = []
     rung_rows: dict[Any, list[dict[str, Any]]] = {}
     for path in args.rungs:
         rows = list(read_jsonl(path))
+        if keep is not None:
+            rows = [r for r in rows if str(r.get("base_id") or "") in keep]
         if excluded:
             rows = [r for r in rows if str(r.get("base_id") or "") not in excluded]
         if not rows:
