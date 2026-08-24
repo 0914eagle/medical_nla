@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import shutil
 import sys
 from collections import Counter
@@ -36,6 +37,10 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.jsonl import read_jsonl, write_jsonl
+
+# The conclusion schema's two content fields. Non-greedy and DOTALL so a
+# multi-line <supporting_cues> is one span rather than none.
+_CONCLUSION_FIELD = re.compile(r"<(answer|supporting_cues)>(.*?)</\1>", re.DOTALL)
 
 SPLITS = ("train", "val", "test_seen", "test_heldout")
 TARGET_STYLE = "structured_readout_v3_cue_first"
@@ -105,6 +110,17 @@ def content_char_spans(target_text: str) -> list[tuple[int, int]]:
     Characters rather than re-tokenized pieces, because the boundaries have to
     be mapped onto the training tokenization rather than change it: the target
     is still encoded in one call, and offsets locate the content within it.
+
+    Two target shapes reach this function. The cue-first targets this module
+    writes put each finding on its own "- <cue>" line. The conclusion readouts
+    -- the v2 answer-position schema, and the MCR conclusion split built on it
+    -- have no bullets at all: their content is what sits inside <answer> and
+    <supporting_cues>, and every other character is the same XML in every row.
+    Handling only the first shape returned an empty span list for the second,
+    which cost a full MCR training run: no content tokens means a content loss
+    of NaN, `NaN < best` is False at every epoch, and the loop trained for
+    hours without ever saving an adapter. Bullets still take precedence, so
+    nothing about the cue-position corpora changes.
     """
     spans = []
     offset = 0
@@ -112,6 +128,14 @@ def content_char_spans(target_text: str) -> list[tuple[int, int]]:
         if line.startswith("- ") and len(line) > 2:
             spans.append((offset + 2, offset + len(line)))
         offset += len(line) + 1
+    if spans:
+        return spans
+    # <task_type> is deliberately absent: it is a constant word in every row,
+    # which is the definition of scaffold here.
+    for match in _CONCLUSION_FIELD.finditer(target_text):
+        start, end = match.span(2)
+        if end > start:
+            spans.append((start, end))
     return spans
 
 

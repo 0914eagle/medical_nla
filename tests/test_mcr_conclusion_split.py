@@ -30,3 +30,34 @@ def test_validation_is_carved_out_of_train_and_is_stable():
     assert 0.10 < assignments.count("val") / len(assignments) < 0.32
     # Same seed, same case, same side -- a case must not drift between builds.
     assert assignments == [split_of(f"case_{i}", "train", 0.2, 17) for i in range(300)]
+
+
+def test_conclusion_targets_have_content_spans():
+    """The MCR conclusion target has no "- " bullets, and the trainer selects
+    the best epoch on content loss. If its spans do not parse, content tokens
+    are zero, the content loss is NaN, `NaN < best` is False at every epoch,
+    and training runs to the end saving no adapter -- which is what happened on
+    08-24. The span rule and the target text must therefore be tested together."""
+    from scripts.make_medical_nla_v3_cue_first_targets import content_char_spans
+    from scripts.make_mcr_conclusion_split import target_text
+
+    text = target_text("Myocarditis", ["left-sided chest pain", "dyspnoea"])
+    spans = content_char_spans(text)
+    covered = [text[start:end] for start, end in spans]
+    assert covered == ["Myocarditis", "left-sided chest pain; dyspnoea"]
+    # The scaffold must stay out: it is the same XML in every row, so counting
+    # it as content would make the selector rank epochs by rounding error.
+    assert "task_type" not in "".join(covered)
+    assert "readout" not in "".join(covered)
+
+
+def test_bullet_targets_are_unaffected_by_the_conclusion_rule():
+    """Cue-position corpora must score exactly as before; the conclusion rule
+    is a fallback, not a replacement."""
+    from scripts.make_medical_nla_v3_cue_first_targets import content_char_spans
+
+    bullets = "<observed>\n- coughing blood\n- a fever\n</observed>"
+    assert [bullets[a:b] for a, b in content_char_spans(bullets)] == [
+        "coughing blood",
+        "a fever",
+    ]

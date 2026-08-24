@@ -467,6 +467,25 @@ def main() -> None:
         flush=True,
     )
 
+    # Checked before the first forward pass, because the failure it catches is
+    # silent and expensive: a target shape whose content spans do not parse
+    # gives zero content tokens, a content loss of NaN, and `NaN < best` False
+    # at every epoch -- so the loop trains to the end and saves no adapter at
+    # all. That cost one full MCR conclusion run. Two rows are enough: the
+    # spans come from the target's shape, which is constant within a split.
+    if args.select_on == "content":
+        probe_rows = (train_rows + eval_rows)[:2]
+        if probe_rows and not any(
+            content_char_spans(str(row.get("target_text") or "")) for row in probe_rows
+        ):
+            raise SystemExit(
+                "no content spans in the first training targets, so --select-on "
+                "content would rank every epoch by NaN and save nothing.\n"
+                "  Either the target shape is new (teach content_char_spans "
+                "about it) or pass --select-on total.\n"
+                f"  first target: {str(probe_rows[0].get('target_text'))[:200]!r}"
+            )
+
     global_step = 0
     optimizer_step = 0
     # The adapter kept was the last epoch's, whatever the validation loss did.
@@ -531,6 +550,12 @@ def main() -> None:
         # is a constant the adapter has already learned; ranking epochs by it
         # ranks them by rounding error.
         selector = val.content_loss if args.select_on == "content" else val.loss
+        if selector != selector:  # NaN, and NaN < anything is False
+            # The startup check should have caught this; if something else
+            # produced a NaN mid-run, fall back rather than silently declining
+            # to save for the rest of training.
+            print("[eval] content loss is NaN -- selecting on total loss instead", flush=True)
+            selector = val.loss
         improved = selector < best_val_loss
         print(
             f"[eval] epoch={epoch} val_loss={val.loss:.4f} "
