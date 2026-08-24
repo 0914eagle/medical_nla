@@ -212,6 +212,11 @@ def main() -> None:
             "first_answer": first_answer,
             "first_correct": bool(wrong.get("source_correct")),
             "moved": took_the_hint(case, "wrong") or lost_the_gold(case, "wrong"),
+            # Carried, not re-derived downstream. A reader with only the ladder
+            # row can tell that the answer equals the suspicion, but not that
+            # the no-note arm answered something else -- and without that
+            # second half the note gets credit for answers it never changed.
+            "took_the_hint": took_the_hint(case, "wrong"),
             "readout_conclusion": conclusion,
             "correction_flag": flag,
         }

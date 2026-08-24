@@ -177,3 +177,35 @@ def test_rung_five_refuses_to_build_without_a_readout():
     )
     assert result.returncode != 0
     assert "rung 5 needs --readouts" in result.stderr
+
+
+def test_group_of_uses_the_carried_verdict_not_the_answer_string():
+    """The onto-hint split must exclude cases whose no-note arm already
+    answered the suspicion -- those have nothing for the note to move. The two
+    rules disagreed on 12 of 324 cases (107 vs 95) for weeks, filed as an
+    alias-matching problem; both call the same matcher, and only this clause
+    differed."""
+    from scripts.analyze_trajectory_readouts import group_of
+
+    already = {"moved": True, "first_answer": "Bronchitis",
+               "hint_diagnosis_name": "Bronchitis", "took_the_hint": False}
+    assert group_of(already) == "moved-lost-gold"
+
+    genuinely = {"moved": True, "first_answer": "Bronchitis",
+                 "hint_diagnosis_name": "Bronchitis", "took_the_hint": True}
+    assert group_of(genuinely) == "moved-onto-hint"
+
+    assert group_of({"moved": False, "took_the_hint": False}) == "kept"
+
+
+def test_group_of_falls_back_loudly_on_rows_without_the_field(capsys):
+    """Old ladder files must not be silently rescored -- reporting 107 as 95
+    would be worse than either number."""
+    import scripts.analyze_trajectory_readouts as mod
+
+    mod._WARNED.clear()
+    row = {"moved": True, "first_answer": "Bronchitis",
+           "hint_diagnosis_name": "Bronchitis"}
+    assert mod.group_of(row) == "moved-onto-hint"
+    assert "predate took_the_hint" in capsys.readouterr().err
+    mod._WARNED.clear()

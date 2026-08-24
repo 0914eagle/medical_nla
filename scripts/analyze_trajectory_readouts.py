@@ -71,9 +71,33 @@ def names_mentioned(text: str, vocabulary: list[str]) -> int:
     return sum(1 for name in vocabulary if mentions_name(text, name, aliases_for(name)))
 
 
+_WARNED: list[bool] = []
+
+
 def group_of(ladder_row: dict[str, Any]) -> str:
+    """kept / moved-onto-hint / moved-lost-gold, by the same rule as everywhere.
+
+    The onto-hint split used to be "the answer equals the suspicion", which
+    counts cases whose no-note arm already answered that suspicion -- cases
+    with nothing for the note to move. `took_the_hint` excludes them, and the
+    two rules disagreed on exactly 12 of 324 cases (107 vs 95), a gap that was
+    filed for weeks as an alias-matching discrepancy. Both rules call the same
+    alias-aware matcher; only this clause differed.
+
+    Rows built before the builder carried the field fall back to the old rule
+    and say so, because silently reporting 107 as 95 would be worse than
+    either number.
+    """
     if not ladder_row.get("moved"):
         return "kept"
+    if "took_the_hint" in ladder_row:
+        return "moved-onto-hint" if ladder_row["took_the_hint"] else "moved-lost-gold"
+    if not _WARNED:
+        _WARNED.append(True)
+        print("[warn] ladder rows predate took_the_hint; falling back to "
+              "answer==suggestion, which over-counts onto-hint. Rebuild with "
+              "make_correction_ladder_cases.py to match the other analyses.",
+              file=sys.stderr)
     first = str(ladder_row.get("first_answer") or "")
     hint = str(ladder_row.get("hint_diagnosis_name") or "")
     onto = bool(hint) and is_correct(first, hint, aliases_for(hint))
