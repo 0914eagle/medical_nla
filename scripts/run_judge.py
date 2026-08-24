@@ -35,6 +35,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -73,29 +74,65 @@ def check_judge_identity(model: str, allow_same_family: bool) -> None:
               f"be stamped judge_same_family=true", file=sys.stderr)
 
 
-def run_codex(prompt: str, model: str, timeout: int,
-              codex_cmd: str = "codex") -> str:
-    """One `codex exec` invocation, read-only.
+def parse_codex_banner_model(stdout: str) -> str:
+    """The model codex actually used, from its own banner.
 
-    codex is an agent, not a completion endpoint: it can decide to read files
-    or run commands. `--sandbox read-only` keeps a judging run from touching
-    the repository, and the prompt is passed on stdin so no shell quoting can
-    mangle a clinical sentence.
-
-    `codex_cmd` is split on spaces so the launcher can be `codex`, a path into
-    a user-local npm prefix, or `npx --yes @openai/codex` on a machine where
-    a global install needs root the user does not have.
+    codex picks a default (gpt-5.6-sol at the time of writing) unless --model
+    says otherwise, so "whatever codex chose" is not a provenance record. The
+    banner names it, and the paper needs that name.
     """
-    cmd = codex_cmd.split() + ["exec", "--sandbox", "read-only"]
-    if model:
-        cmd += ["--model", model]
-    cmd += ["-"]
-    out = subprocess.run(
-        cmd, input=prompt, capture_output=True, text=True, timeout=timeout
-    )
-    if out.returncode != 0:
-        raise RuntimeError(f"codex exec failed ({out.returncode}): {out.stderr[-800:]}")
-    return out.stdout.strip()
+    for line in stdout.splitlines()[:15]:
+        if line.startswith("model:"):
+            return line.split(":", 1)[1].strip()
+    return ""
+
+
+def run_codex(prompt: str, model: str, timeout: int,
+              codex_cmd: str = "codex") -> tuple[str, str]:
+    """One `codex exec` invocation, read-only. Returns (answer, model_used).
+
+    codex is an agent, not a completion endpoint. Two consequences are handled
+    here rather than downstream:
+
+    - **Its stdout is a transcript**, not an answer: a version banner, the
+      echoed prompt, then the reply, then a token count. Parsing that with a
+      regex would be guesswork, so `--output-last-message` is used instead --
+      codex writes only the final message to a file and the file is the answer.
+      stdout is kept solely to read the banner's model name, and as a fallback
+      if the file comes back empty.
+    - **It keeps session state and expects a git repo.** `--ephemeral` stops
+      1,747 session files from accumulating and `--skip-git-repo-check` lets
+      the judge run from anywhere.
+
+    The prompt goes on stdin (`-`), so no shell quoting can mangle a clinical
+    sentence.
+    """
+    handle, out_file = tempfile.mkstemp(suffix=".codex.txt")
+    os.close(handle)
+    try:
+        cmd = codex_cmd.split() + [
+            "exec", "--sandbox", "read-only", "--ephemeral",
+            "--skip-git-repo-check", "--output-last-message", out_file,
+        ]
+        if model:
+            cmd += ["--model", model]
+        cmd += ["-"]
+        proc = subprocess.run(
+            cmd, input=prompt, capture_output=True, text=True, timeout=timeout
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"codex exec failed ({proc.returncode}): {proc.stderr[-800:]}"
+            )
+        answer = Path(out_file).read_text(encoding="utf-8").strip()
+        if not answer:
+            raise RuntimeError(
+                "codex wrote no final message; stdout tail: "
+                f"{proc.stdout[-400:]!r}"
+            )
+        return answer, parse_codex_banner_model(proc.stdout)
+    finally:
+        Path(out_file).unlink(missing_ok=True)
 
 
 def run_openai(prompt: str, model: str, timeout: int) -> str:
@@ -109,7 +146,7 @@ def run_openai(prompt: str, model: str, timeout: int) -> str:
         # the endpoint allows.
         temperature=0,
     )
-    return (resp.choices[0].message.content or "").strip()
+    return (resp.choices[0].message.content or "").strip(), model
 
 
 def main() -> None:
@@ -179,7 +216,7 @@ def main() -> None:
           f"(model={args.model or 'backend default'})")
 
     if args.backend == "codex":
-        def runner(prompt: str, model: str, timeout: int) -> str:
+        def runner(prompt: str, model: str, timeout: int) -> tuple[str, str]:
             return run_codex(prompt, model, timeout, args.codex_cmd)
     else:
         runner = run_openai
@@ -189,7 +226,7 @@ def main() -> None:
     with out_path.open("a", encoding="utf-8") as f:
         for i, req in enumerate(todo, 1):
             try:
-                response = runner(req["prompt"], args.model, args.timeout)
+                response, model_used = runner(req["prompt"], args.model, args.timeout)
             except Exception as exc:  # noqa: BLE001 -- one bad row must not end the run
                 failures += 1
                 print(f"[{i}/{len(todo)}] {req['id']}: FAILED {exc}", file=sys.stderr)
@@ -197,7 +234,9 @@ def main() -> None:
             row: dict[str, Any] = {
                 "id": req["id"],
                 "response": response,
-                "judge_model": args.model or f"{args.backend}-default",
+                # The model codex reports, not the flag we passed: an empty
+                # --model means codex chose, and the choice is the provenance.
+                "judge_model": model_used or args.model or f"{args.backend}-default",
                 "judge_backend": args.backend,
                 "judged_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             }
