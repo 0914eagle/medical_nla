@@ -203,7 +203,15 @@ def main() -> None:
         deltas.sort()
         low = deltas[int(0.025 * len(deltas))]
         high = deltas[min(int(0.975 * len(deltas)), len(deltas) - 1)]
-        mark = "" if low > 0 else "   (CI includes 0)"
+        # An interval entirely below zero excludes zero too, and saying it
+        # "includes 0" turns a channel that actively hurt the reader into a
+        # null. Direction is named, not just significance.
+        if low > 0:
+            mark = "   helped"
+        elif high < 0:
+            mark = "   HURT (interval below zero)"
+        else:
+            mark = "   (CI includes 0)"
         print(f"  {channel:<16}{delta:>+9.4f}"
               f"{f'[{low:+.3f}, {high:+.3f}]':>20}{len(shared):>10,}{mark}")
     print("\n  Only a delta whose interval excludes zero says the account "
