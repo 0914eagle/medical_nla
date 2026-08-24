@@ -115,6 +115,12 @@ def main() -> None:
         labels.append({
             "id": base_id,
             "moved": bool(took_the_hint(case, "wrong") or lost_the_gold(case, "wrong")),
+            # Carried so scoring can stratify within diagnosis without
+            # reopening the case file. The corpus is label-deterministic
+            # enough that a pooled AUROC part-measures "guess the diagnosis",
+            # which is why every channel is compared within one.
+            "diagnosis_name": str(wrong.get("diagnosis_name") or ""),
+            "answer_is_suggestion": bool(took_the_hint(case, "wrong")),
         })
 
     write_jsonl(Path(args.output), requests)
