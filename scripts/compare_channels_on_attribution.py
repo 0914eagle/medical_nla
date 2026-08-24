@@ -57,7 +57,7 @@ from scripts.score_cue_position_readouts import readout_body
 from src.answer_matching import is_correct
 from src.cue_readout_scoring import content_words, overlap_f1
 from src.ddxplus_aliases import aliases_for
-from src.jsonl import read_jsonl
+from src.jsonl import read_jsonl, write_jsonl
 
 Readouts = dict[tuple[str, str, str], str]
 
@@ -255,6 +255,12 @@ def main() -> None:
         help="Extraction manifests, to restore the arm on readouts from runs "
         "that predate run_nla carrying it.",
     )
+    parser.add_argument(
+        "--dump",
+        default=None,
+        help="JSONL of per-case scores for every channel, so the gap between "
+        "two channels can be bootstrapped instead of eyeballed.",
+    )
     args = parser.parse_args()
 
     cases = group_by_case(args.answers, args.cases)
@@ -276,6 +282,31 @@ def main() -> None:
 
     labels = [moved(case) for case in cases.values()]
     diagnosis = [str(case["none"].get("diagnosis_name") or "") for case in cases.values()]
+
+    # Per-case scores, so the gap between two channels can carry an interval.
+    # The printed AUROCs are point estimates over the same cases, and "the
+    # readout beats the monitor by 14.7 points" is not a claim until the
+    # difference has been resampled -- paired on the case, because the two
+    # channels score the same patients and an unpaired interval would be wider
+    # than the comparison actually is.
+    dump: dict[str, dict[str, Any]] = {}
+
+    def record(case_ids: list[str], features: dict[str, list[float]],
+               row_labels: list[bool], row_diagnosis: list[str]) -> None:
+        if args.dump is None:
+            return
+        for i, case_id in enumerate(case_ids):
+            row = dump.setdefault(case_id, {
+                "base_id": case_id,
+                "diagnosis_name": row_diagnosis[i],
+                "moved": bool(row_labels[i]),
+                "answer_is_suggestion": bool(answer_names(
+                    cases[case_id]["wrong"],
+                    cases[case_id]["wrong"].get("hint_diagnosis_name"))),
+            })
+            for name, values in features.items():
+                row[name] = values[i]
+
     print(f"cases {len(cases):,}   the note moved the answer in {sum(labels):,}")
     if not any(labels) or all(labels):
         raise SystemExit("no contrast to measure: every case moved, or none did")
@@ -297,6 +328,7 @@ def main() -> None:
         ],
     }
     report(f"ANSWER ALONE  ({len(cases):,} cases)", trivial, labels, diagnosis)
+    record(list(cases), trivial, labels, diagnosis)
 
     if args.cot_answers:
         chains = group_by_case(args.cot_answers, args.cases)
@@ -306,12 +338,11 @@ def main() -> None:
             for case in shared:
                 for key, value in chain_features(chains[case]).items():
                     built[key].append(value)
-            report(
-                f"CHAIN OF THOUGHT  ({len(shared):,} cases)",
-                built,
-                [moved(cases[c]) for c in shared],
-                [str(cases[c]["none"].get("diagnosis_name") or "") for c in shared],
-            )
+            chain_labels = [moved(cases[c]) for c in shared]
+            chain_dx = [str(cases[c]["none"].get("diagnosis_name") or "") for c in shared]
+            report(f"CHAIN OF THOUGHT  ({len(shared):,} cases)", built,
+                   chain_labels, chain_dx)
+            record(shared, built, chain_labels, chain_dx)
 
     if args.readouts:
         readouts = load_readouts(args.readouts, args.readout_manifests)
@@ -330,12 +361,10 @@ def main() -> None:
                 "base_id and hint_variant from the extraction manifest; check that "
                 "the run kept them."
             )
-        report(
-            f"INTERNAL READOUT  ({len(kept):,} cases)",
-            built,
-            [moved(cases[c]) for c in kept],
-            [str(cases[c]["none"].get("diagnosis_name") or "") for c in kept],
-        )
+        kept_labels = [moved(cases[c]) for c in kept]
+        kept_dx = [str(cases[c]["none"].get("diagnosis_name") or "") for c in kept]
+        report(f"INTERNAL READOUT  ({len(kept):,} cases)", built, kept_labels, kept_dx)
+        record(kept, built, kept_labels, kept_dx)
 
     # The decisive cut. "The answer states the suspicion" identifies every
     # anchored case for free, so a channel matters only where that baseline is
@@ -378,6 +407,10 @@ def main() -> None:
                 [moved(cases[c]) for c in silent_kept],
                 [str(cases[c]["none"].get("diagnosis_name") or "") for c in silent_kept],
             )
+
+    if args.dump is not None:
+        write_jsonl(Path(args.dump), list(dump.values()))
+        print(f"\n[dump] {len(dump):,} cases -> {args.dump}")
 
     print(
         "\n  0.5 is no information. The chain's row is expected to sit there --\n"
