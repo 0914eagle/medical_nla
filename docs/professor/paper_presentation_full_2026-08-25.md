@@ -277,105 +277,110 @@ RQ2가 오류 진단·조기 경보, RQ3가 해결이다. RQ1은 이 세 응용�
 | 진단/경보 | RQ2 single-run note-influence attribution | DDXPlus에서 가능; probe가 최강 |
 | 해결 | RQ3 conditional correction | 정확한 content는 유용; selector 없이는 순손해 |
 
-## Slide 8. 우리의 노벨티: 진단 변화의 사례별 인과 귀속
+## Slide 8A. 기존 연구는 어디까지 왔는가
 
-이 슬라이드는 선행연구 목록으로 시작하지 않는다. 화면 맨 위에 다음 문장을
-크게 둔다.
+이 슬라이드의 목적은 “아무도 하지 않았다”가 아니라, 우리가 출발하는 네 개의
+확립된 사실을 먼저 인정하는 것이다. 화면에는 아래 표만 둔다.
 
-> **We define whether a wrong clinical suggestion causally moved each answer,
-> attribute that hidden counterfactual event from one observable run, trace
-> where the competing diagnoses go, and test when decoded content can correct
-> the answer.**
-
-한국어로는 다음과 같다.
-
-> **잘못된 임상 제안이 답을 바꾼 원인을 숨겨진 반사실로 사례별 정의하고,
-> 배포 시 관측 가능한 단일 실행의 내부 상태로 귀속한 뒤, 같은 신호의 위치
-> 궤적과 조건부 교정까지 시험한다.**
-
-노벨티의 단위는 NLA, probe, anchoring 중 하나의 최초성이 아니다. 새로 정의한
-평가 문제는 **single-run causal influence attribution**, 즉 **“현재 답의 변화가
-이 wrong note 때문에 생겼는가?”를 귀속하는 문제**다. 여기서 `case`를 찾는 것이
-아니다. 각 사례의 no-note와 wrong-note 실행을 쌍으로 비교해 `moved` label을
-만들지만, detector에는 wrong-note 실행 하나만 준다. 따라서 일반적인 “현재 답이
-틀렸는가?”나 “제안 문구를 답에서 복사했는가?”가 아니라, **관측하지 못한 no-note
-반사실에 비해 이 note가 답을 실제로 움직였는가**를 예측한다.
-
-화면의 비교표는 아래처럼 결과 단위 중심으로 단순화한다.
-
-| 기존 연구가 끝난 지점 | 우리가 추가한 새 단위 | 왜 단순 결합이 아닌가 |
+| 연구 흐름 | 대표 연구 | 이미 알려진 것 |
 |---|---|---|
-| Misleading context가 평균 정확도를 낮춘다 | **Same-case four-arm causal label**: none/neutral/wrong/correct로 문장 삽입과 suggestion 고유 효과를 분리 | 집단 낙폭이 아니라 사례별 `moved/not moved` 정답지가 생김 |
-| CoT가 bias를 누락하거나 합리화할 수 있다 | **Single-run causal attribution**: hidden none arm을 입력으로 주지 않고 wrong run 하나에서 moved를 탐지 | 단순 오답 탐지·hint 언급 탐지가 아니라 반사실 원인 귀속 |
-| Hidden state가 output보다 정보를 더 담을 수 있다 | **Competing-diagnosis trajectory**: gold/suggestion/other를 여섯 landmark에서 분리 | “정답 정보가 남는다”를 넘어 답 이동의 경로를 세 종류로 해부 |
-| Internal signal로 오류 탐지 또는 steering을 시도한다 | **Controlled correction ladder**: retry/evidence/label/readout과 selector를 분해 | detectability를 곧 controllability로 간주하지 않고 content·형식·정책 효과를 분리 |
+| 의료 anchoring·misleading context | BiasMedQA, MED-STRESS, MedMisBench, Narrative Anchoring | 외부 맥락·압박·문체가 진단 정확도와 답을 바꿀 수 있음 |
+| CoT faithfulness | Turpin, Lanham, Afolabi | 답을 움직인 원인이 CoT에서 누락되거나 사후 합리화될 수 있음 |
+| 내부-출력 해리 | Catching Rationalization, Fraile Navarro, Tayebi Arasteh, Basu | Hidden-state signal이 출력·자기서술보다 강할 수 있음 |
+| Activation 해석·개입 | probe/lens/SAE, Patchscopes, SelfIE, LatentQA, NLA, selective reprompting | 내부 변수 decode, 자연어 readout, internal-signal 기반 개입이 가능함 |
 
-이 표 아래에는 우리 setting이 기존 hint-copy보다 어려운 이유를 한 줄로 둔다.
+**발표자 설명.** BiasMedQA는 1,273개 USMLE 문항에 인지 편향 문장을 주입했고,
+MED-STRESS는 다중 턴 압박에서 초기 정답 포기를, MedMisBench는 misleading
+context에서 평균 정확도 `71.1%→38.0%`를 보고했다. 따라서 외부 임상 맥락이
+모델을 흔든다는 행동 효과는 우리의 최초 발견이 아니다.
 
-> **DDXPlus moved 321건 중 230건(71.7%)은 suggestion을 복사하지 않고 제3
-> 진단으로 이동한다. 따라서 `answer == suggestion`이라는 단순 copy rule로는
-> 대부분의 인과 영향을 잡을 수 없다.**
+CoT도 이미 완전한 인과 기록으로 보기 어렵다는 증거가 있다. Turpin과 Lanham은
+일반 도메인에서 bias 누락과 과제별 faithfulness 차이를 보였고, Afolabi는 의료
+폐쇄형 모델에서 suggestion이 명시적 인정 없이 흡수될 수 있음을 보였다.
 
-### Slide 8에서 말할 정확한 신규성
+내부 채널의 의료 적용도 이미 있다. Fraile Navarro는 **우리와 같은
+Gemma-3-12B NLA와 L32 activation**으로 triage format failure를 분석했고, Tayebi
+Arasteh는 evidence grade, Basu는 clinical risk에서 내부 신호가 출력을 초과할 수
+있음을 보였다. 따라서 `first medical NLA`나 `first medical internal-output
+dissociation`은 주장하지 않는다.
 
-가장 방어 가능한 주장은 다음 세 개다.
+## Slide 8B. 그런데 무엇이 아직 풀리지 않았는가
 
-1. **새 평가 문제**: wrong-note 단일 실행에서, 숨겨진 same-case no-note
-   counterfactual이 정의한 `note-caused answer movement`를 예측한다.
-2. **새 기전 결과**: 출력 이동과 suggestion의 내부 top-1 우세가 같은 사건이
-   아님을 gold/suggestion/other 궤적으로 보인다. Moved 321건 중 266건(82.9%)에서
-   suggestion은 관측한 어느 landmark에서도 probe top-1이 아니다.
-3. **새 end-to-end 검증 범위**: 행동 개입 → 위치 궤적 → output/CoT/LLM
-   monitor/probe/AV의 single-run 비교 → content와 selector를 분해한 교정을 같은
-   사례 정의 위에서 연결한다.
+화면에는 “기존 결과 → 남은 질문”을 직접 대조한다.
 
-`To our knowledge`를 붙여 쓸 수 있는 문장은 아래 정도다. 최종 투고 전에는
-서지 검색을 한 번 더 고정한다.
+| 기존 결과 | 아직 남은 문제 |
+|---|---|
+| Misleading context가 평균 정확도를 낮춘다 | **어느 개별 답이 그 note 때문에 바뀌었는가?** 현재 오답과 note-caused error는 다름 |
+| CoT가 원인을 누락할 수 있다 | **같은 wrong run에서 output·CoT·내부 중 무엇이 note influence를 가장 잘 귀속하는가?** |
+| 내부에 정답·위험 신호가 남을 수 있다 | **Gold, suggestion, 제3 진단은 answer formation 동안 각각 어디로 가는가?** |
+| Probe/readout으로 내부 정보를 읽을 수 있다 | **읽힌 정보가 paired activation에 근거하는가, verbalizer가 답을 지어내는가?** |
+| 오류 신호로 재질문·steering할 수 있다 | **탐지가 실제 교정으로 이어지는가? Content, 형식, selector 중 무엇이 효과를 만드는가?** |
+
+의료에서 가장 가까운 연구들도 각각 여기서 멈춘다.
+
+| 최근접 의료 연구 | 과제와 기여 | 우리 질문과 다른 지점 |
+|---|---|---|
+| Fraile Navarro et al. | Triage output-format failure, NLA로 clinical content 확인 | Referral suggestion의 사례별 인과 효과와 competing-diagnosis trajectory가 아님 |
+| Tayebi Arasteh | Evidence grade의 internal/verbalized gap | 최종 진단 변화나 외부 suggestion intervention이 아님 |
+| Basu et al. | Clinical-risk probe와 output sensitivity gap | Referral anchoring의 원인 귀속·자연어 판독·correction ladder가 아님 |
+| Afolabi et al. | 의료 CoT causal ablation과 hint injection | Closed-source라 내부 궤적을 직접 관측하지 못하고 single-run note-influence attribution을 평가하지 않음 |
+
+따라서 공백을 “의료에서 내부를 본 적이 없다”로 말하면 틀리다. 정확한 공백은
+다음이다.
+
+> **우리가 확인한 범위에서, 의료 진단 제안의 영향을 same-case 반사실로
+> 사례별 정의하고, 하나의 wrong-note 실행에서 그 영향을 귀속하며,
+> gold/suggestion/other의 위치 궤적과 조건부 교정을 같은 protocol로 연결한
+> 연구는 없었다.**
+
+또한 이 문제는 단순 hint-copy detection이 아니다. 우리 결과에서 DDXPlus
+moved 321건 중 **230건(71.7%)은 suggestion을 복사하지 않고 제3 진단으로
+이동**했다. 따라서 `answer == suggestion`만 검사하면 note가 야기한 이동의
+대부분을 놓친다.
+
+## Slide 8C. 그래서 우리는 문제를 이렇게 푼다
+
+화면에는 RQ와 방법을 일대일로 연결한 다음 표를 둔다.
+
+| 단계 | 우리가 만든 것 | 답하는 질문 |
+|---|---|---|
+| 1. Causal testbed | Same patient에 `none/neutral/wrong/correct` referral-suggestion sentence | Wrong content 자체가 답을 움직였는가? |
+| 2. Pair-derived label | No-note와 wrong-note 결과로 `note-caused answer movement` 정의 | 평가할 인과 사건은 무엇인가? |
+| 3. Internal trajectory | 여섯 landmark에서 gold/suggestion/other probe probability | 답이 바뀌는 동안 competing diagnosis는 어디로 가는가? |
+| 4. Single-run attribution | Detector에는 wrong run 하나만 제공; output/CoT/LLM monitor/probe/AV 비교 | 배포 시 note influence를 귀속할 수 있는가? |
+| 5. Measurement gate | AV swap/shuffle/heldout/memorization/contamination 통제 | 자연어 판독이 activation을 실제로 따라가는가? |
+| 6. Correction ladder | retry/evidence/label/readout + selector 비교 | 정확한 content를 언제 되먹여야 순이득인가? |
+
+슬라이드 하단에는 논문의 한 문장짜리 노벨티를 둔다.
+
+> **We causally define note-induced answer movement with a hidden same-case
+> counterfactual, attribute that event from one observable run, trace the
+> competing diagnoses, and test conditional correction under the same label.**
+
+한국어 발표 문장:
+
+> **우리는 소견서가 답을 움직인 사건을 같은 환자의 숨겨진 반사실로 정의하고,
+> 실제로 관측 가능한 wrong-note 실행 하나에서 그 영향을 내부 상태로 귀속한 뒤,
+> 경쟁 진단의 위치 궤적과 조건부 교정까지 연결합니다.**
+
+이 논문의 기여는 NLA, probe, anchoring 중 하나의 최초성이 아니다. 새 평가
+문제인 **single-run note-influence attribution**과 이를 중심으로 한
+`intervention → trajectory → attribution → correction`의 연결이다. 자연어 AV는
+이 사슬의 유일한 근거가 아니라 검증 관문을 통과해야 하는 보조 open-vocabulary
+계기이고, 닫힌 DDXPlus에서는 cross-fitted probe가 주 정량 계기다.
+
+`To our knowledge`를 붙이는 최종 문장은 아래 범위로 제한하고, 투고 전 서지
+검색을 다시 고정한다.
 
 > **To our knowledge, this is the first study to combine a placebo-controlled
-> clinical-suggestion intervention with case-level counterfactual attribution,
-> competing-diagnosis activation trajectories, and a controlled correction
-> ladder in one diagnostic protocol.**
+> clinical-suggestion intervention with single-run counterfactual influence
+> attribution, competing-diagnosis activation trajectories, and a controlled
+> correction ladder in one diagnostic protocol.**
 
 반대로 “first medical NLA”, “first internal-output dissociation in medicine”,
-“first study of medical anchoring”은 선행연구 때문에 쓰지 않는다.
+“first study of medical anchoring”은 쓰지 않는다.
 
-### 이 노벨티가 선행연구 사이에서 생기는 위치
-
-아래 내용은 화면에 모두 넣지 않고 발표자 설명 또는 backup slide로 둔다.
-
-**첫 흐름: 의료 행동 강건성.** BiasMedQA는 1,273개 USMLE 문항에 일곱 종류의
-인지 편향 문장을 주입했고 모델별 10–26% 수준의 정확도 저하를 보고했다.
-MED-STRESS는 아홉 frontier LLM의 다중 턴 임상 압박에서 초기 정답 포기를,
-MedMisBench는 11개 설정에서 평균 정확도 `71.1%→38.0%`를 보고했다. Narrative
-Anchoring은 임상 사실을 보존하고 register만 바꿔도 진단이 달라짐을 보였다.
-따라서 **“외부 임상 맥락이 답을 흔든다”는 행동 발견은 우리 최초 기여가 아니다.**
-
-**둘째 흐름: CoT 충실성과 내부 탐지.** Turpin et al.은 답을 움직인 bias가
-CoT에서 누락되고 합리화될 수 있음을, Lanham et al.은 CoT 의존성이 과제와
-모델에 따라 달라짐을 보였다. Afolabi et al.은 같은 문제를 의료 폐쇄형 모델의
-causal ablation과 hint injection으로 확인했다. Catching Rationalization은
-pre-generation probe가 전체 CoT를 본 LLM monitor와 비슷하고 post-generation
-probe는 더 강할 수 있음을 보였다. 우리의 차이는 일반 객관식 hint-copy가 아니라
-open diagnosis에서 moved 321건 중 **230건(71.7%)이 suggestion이 아닌 제3
-진단으로 이동**하는 setting의 원인 귀속이다.
-
-**셋째 흐름: 의료 내부-출력 해리.** Fraile Navarro et al.은 **우리와 같은
-Gemma-3-12B NLA checkpoint와 L32 activation**을 triage format failure에 이미
-사용했다. Tayebi Arasteh는 evidence grade가 activation에서는 회복되지만 stated
-grade는 chance에 가까움을, Basu et al.은 임상 위험 probe AUROC `.982`와 낮은
-출력 sensitivity의 gap을 보였다. 그러므로 “의료 NLA 최초”, “의료 내부-출력
-불일치 최초”는 금지한다. 우리의 좁은 차이는 **최종 진단 과제, referral-note
-인과 개입, same-case placebo, six-landmark trajectory, single-run moved attribution,
-conditional correction**을 하나의 사례별 인과 protocol로 연결한 것이다.
-
-**넷째 흐름: 자연어 activation readout.** Patchscopes, SelfIE, LatentQA, NLA는
-activation을 고정 class가 아닌 문장으로 읽는 길을 열었다. 그러나 Li et al.
-(ICML 2026)은 target activation 없이도 기존 verbalization benchmark를 풀 수 있고,
-verbalizer의 parametric knowledge가 target-model state처럼 보일 수 있음을 보였다.
-그래서 우리의 M0는 부록 장식이 아니라 AV를 관측치로 쓸 최소 자격 검사다.
-
-발표자용 원문 링크:
+### Slides 8A–8C 발표자용 원문 링크
 
 - [BiasMedQA, npj Digital Medicine 2024](https://www.nature.com/articles/s41746-024-01283-6)
 - [MED-STRESS, ACL 2026](https://arxiv.org/abs/2605.23932)
