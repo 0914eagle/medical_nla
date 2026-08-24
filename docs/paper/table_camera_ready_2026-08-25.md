@@ -7,6 +7,8 @@
 - 셀 하나에 값 하나. 슬래시로 두 값을 넣지 않는다.
 - 숫자 열에 텍스트 금지. 정의되지 않는 칸은 – 와 표 각주.
 - 소수 자리 통일 (비율 .xxx, pp는 정수 또는 x.x).
+- **캡션이 계기를 명시한다.** T1은 자연어 판독, T3은 프로브, T3b는 채널별.
+  같은 절 안에서도 어느 계기가 잰 값인지 독자가 표만 보고 알아야 한다.
 
 ---
 
@@ -107,12 +109,49 @@ mostly does not.*
 
 ---
 
-## Table 3 — Single-run attribution (§4.3)
+## Table 3 — What the note does inside (§4.3)
+
+**08-24 신설.** 이 논문의 중심 주장이 지금까지 표가 없이 Figure 5에만
+있었다. 그림은 정확히 인용되지 않고, 관성 반론을 닫는 것이 이 세 줄이므로
+표가 있어야 한다. 지표 하나(최종 토큰에서 프로브가 정답에 주는 확률),
+셀당 값 하나, Δ는 명시된 파생 열.
+
+**Table 3.** Probability the cross-fit linear probe places on the gold
+diagnosis at the final token, by what the model then did. "No note" reads the
+same cases with the note removed; finding-position activations are identical
+across the two by construction, so Δ is the note's internal cost.
+
+| Behaviour under the wrong note | n | With the note | No note | Δ |
+|---|---:|---:|---:|---:|
+| Answer unchanged | 1,423 | .980 | .987 | −.007 |
+| Lost the gold, answered elsewhere | 229 | .879 | .934 | −.055 |
+| Adopted the suggestion | 95 | .736 | .923 | **−.187** |
+
+*The cost grows with the behavioural outcome, so the state is not merely
+carrying an earlier answer forward: it reads the note and moves as much as it
+reads. It does not move enough to be overturned. In the bottom row the probe
+still puts 3.5× more mass on the gold than on the suggestion, while by
+definition every one of those cases emitted the suggestion. Across all six
+landmarks, 268 of the 324 moved cases (82.7%) never once read the suggestion
+as top-1, against an emitted accuracy of .012 on the same cases. At the
+finding positions the cost is ±.000 to three decimals, which is what causal
+masking guarantees and therefore what the design must reproduce.*
+
+**계기 표기**: 이 표는 **프로브**다. 자연어 판독은 같은 방향을 독립적으로
+말하지만 값이 다르다 — 상실형 최종 토큰에서 "상태가 정답을 쥠"이 프로브
+.904, v2 판독 .682, 무학습 판독 .636. **결렬의 존재는 두 계기가, 정밀한
+해부는 프로브만 말한다**는 것을 본문이 그대로 밝힌다. 프로브는 닫힌
+49클래스에 학습된 분류기이므로 이 표는 **MCR에서 미측정이 아니라 정의
+불가**다 — 그 사실이 Table 3b 마지막 열과 Table 5의 근거가 된다.
+
+---
+
+## Table 3b — Single-run attribution (§4.3)
 
 셀당 값 하나: All / Silent를 **열 두 개**로. MCR은 숫자 열이 아니라
 **적용 가능 여부 열**로 — 값이 아니라 정의의 문제라서.
 
-**Table 3.** Within-diagnosis AUROC for identifying moved cases from the
+**Table 3b.** Within-diagnosis AUROC for identifying moved cases from the
 wrong-note run alone. Silent: cases whose answer differs from the suggestion
 (70% of moved), where output-only signals are blind by construction. The
 last column states whether the channel is definable when the diagnosis space
@@ -247,7 +286,9 @@ check against the chart, a conclusion with its grounds does.*
 
 ## 그림이 나르는 것 (표에 안 넣는 수치)
 
-- 84.8% never-flip, 대조 곡선 0.007/.055/.187, 위치별 비용 → **Figure 5**
+- 위치별 비용 곡선(랜드마크 6지점, 그룹 3종) → **Figure 5**. 최종 토큰의
+  세 값과 never-flip 268/324는 **Table 3으로 옮겼다** — 그림은 모양을,
+  표는 인용 가능한 값을 나른다.
 - 사례 서술(심근염 케이스) → **Figure 4**
 - layer×position → **Figure 2**
 
@@ -259,16 +300,24 @@ check against the chart, a conclusion with its grounds does.*
   통일에 딸려 있다.
 - T1: shuffle-control 값, swap/memorization/specificity의 정확한 n,
   답 위치 vanilla 행, MCR 산문 서술률 행
-- T3: MCR 출력 채널 AUROC(CPU 가능), MCR CoT 채널(GPU), logit lens 칸
+- T3b: MCR 출력 채널 AUROC(CPU 가능), MCR CoT 채널(GPU), logit lens 칸
 - T4: **MCR 사다리(Table 4d)** — r3/r4는 지금 실행 가능, r7은 MCR CoT
   실행 필요, r5는 결론 어댑터 대기, r6은 존재 불가(결과). `run_mcr_ladder.sh`
 - T4: **r7(자기 설명 되먹임)** — DDXPlus·MCR 양쪽. 이 단이 없으면 4.4는
   "내부를 되먹여라"가 아니라 "뭐라도 되먹여라"까지만 주장한다
 
+## v2 → v3에서 바뀐 것 (08-24)
+
+- **T3 신설**: 기전(대조 곡선·never-flip)이 표 없이 그림에만 있었다.
+  관성 반론을 닫는 세 줄이므로 인용 가능한 표가 필요하다.
+- 구 T3(채널별 귀속) → **T3b**. 둘 다 §4.3이고, 2b/2c/2d와 같은 관례다.
+- T1에 **답-위치 vanilla 행** 추가 (실행 완료).
+- 캡션이 계기를 명시하도록 설계 규칙에 한 줄 추가.
+
 ## v1 대비 바뀐 것
 
 - T1: 길이·형식 행 제거(단위 불일치 → 본문), Reference 열 신설
 - T2: 파생 통계 행 제거(본문), 행=코퍼스·열=조건으로 전치, 2b/2c 분리
-- T3: 슬래시 셀 제거(All/Silent 열 분리), MCR을 boolean 열로, CoT 셀당 한 값
+- T3b(구 T3): 슬래시 셀 제거(All/Silent 열 분리), MCR을 boolean 열로, CoT 셀당 한 값
 - T4: 첫 패스 행을 캡션으로, 4b 열 정리
 - T5: 근거 문장 대신 절 참조
