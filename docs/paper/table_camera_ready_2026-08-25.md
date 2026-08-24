@@ -70,6 +70,58 @@ original wording behind.*
 
 ▢ 그 밖에 남은 것: shuffle-control 값, swap/memorization의 정확한 n.
 
+### ⚠️ MCR 결론 판독 실행 완료 (08-24) — 비율을 내기 전에 눈으로 본 것
+
+821행 held-out(sft_test, base_id 필터 확인, 소견서 없는 프롬프트 0건).
+**여섯 건을 읽었고, 결과는 이 칸을 단순한 서술률로 채우면 안 된다고 말한다.**
+
+`<answer>`는 임상적 이웃까지 간다 — 무작위가 아니다:
+
+| gold | 판독 | |
+|---|---|---|
+| Extraosseous peripheral calcifying odontogenic cyst | Oral fibroma | 구강 결절, 다른 병리 |
+| Solid pseudopapillary epithelial neoplasm | Gastric duplication cyst | 위벽 부착 낭성 종괴 |
+| Rosai-Dorfman Disease | IgG4-related disease | 조직구/섬유염증, 실제 감별 |
+| proximal tibiofibular joint **osteoarthritis** | tibiofibular joint **dislocation** | **같은 관절** |
+| Guillain-Barre syndrome | Guillain–Barré syndrome | **정확** |
+| neurogenic **pulmonary** edema | **cerebral** edema | 장기가 틀림 |
+
+`<supporting_cues>`는 **프롬프트에서 뽑힌 것이 아니라 생성된다**:
+
+- 33세 케이스를 "A 50-year-old woman"으로, 68세 폐이식 케이스를
+  "62-year-old man with type 2 diabetes"로 쓴다.
+- 프롬프트가 "scattered calcifications"인데 근거는 "**no** calcifications".
+- **진단명을 맞힌 GBS 케이스**조차 "lumbar puncture revealed **normal**
+  cerebrospinal fluid"라고 쓴다 — 실제 프롬프트는 CSF 단백 76 mg/dL, 즉
+  알부민세포해리를 정반대로 적었다.
+- 무릎/근위경비관절 케이스의 근거가 전부 **발목**이고 좌우도 뒤집힌다.
+- 상용구가 반복된다: "Laboratory studies showed a normal complete blood
+  count and metabolic panel", "He had no significant medical history".
+
+즉 어댑터가 하는 일은 **해당 전문과의 일반적 증례보고 워크업 작성**이다.
+DDXPlus에서는 소견 어휘가 닫혀 있어 이 실패가 가려졌다 — 그럴듯한 DDXPlus
+문장을 쓰면 자주 실제로 일치했다. **열린 산문에서 드러났다.**
+
+**논문에 미치는 영향 셋.**
+1. 이 칸은 서술률 하나로 못 채운다. 근거를 지어내고 진단명을 맞힌 판독은
+   상태를 읽은 판독과 같은 점수를 받는다.
+2. **caveat 1(내부 해부는 DDXPlus 한정)이 강해진다.** 이제 "프로브가 열린
+   어휘에서 정의 안 됨"이라는 소극적 근거가 아니라, **판독의 근거가 실제로
+   전이되지 않는다는 적극적 증거**가 있다.
+3. 어댑터가 연 것은 `<answer>` 칸이지 `<supporting_cues>` 칸이 아니다.
+   이전에 "NL 판독 열을 연다"고 적은 것을 이 범위로 좁힌다.
+
+**측정으로 바꾸는 중**: `scripts/analyze_readout_grounding.py` — 근거 문장을
+자기 프롬프트와, **무작위로 짝지은 남의 프롬프트**와 각각 trigram 겹침으로
+대조한다. 두 값의 차이만이 케이스 고유 정보다. 차이가 ~0이면 근거는
+"올바른 레지스터의 의료 산문"일 뿐 이 활성값에 대해 아무것도 말하지 않는다.
+겹침이 아니라 **차이**를 싣는다 — 임상 산문은 상용구를 공유하므로 자기
+프롬프트 겹침 단독으로는 해석이 불가능하다. ▢ 실행.
+
+**어댑터 부족인지 상태의 성질인지는 아직 안 갈린다**: content loss 1.767,
+best_epoch 1/3, 학습 10,663행. 근거 접지가 통제와 갈리지 않으면 다음 질문은
+"더 학습하면 되는가"이고, 그건 별도 실행이다.
+
 ---
 
 ## Table 2 — Intervention accuracy (§4.2)
