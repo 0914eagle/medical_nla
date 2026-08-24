@@ -371,6 +371,17 @@ be transcribed from the canonical dump. At the last finding the paired cost
 is zero by causal masking; the note token itself has no no-note counterpart
 and its paired cost is undefined.*
 
+*Panel (a) highlights the internal-output mismatch directly: even among cases
+that emitted the suggestion, the final-token mean is approximately
+`p(gold)=.73` versus `p(suggestion)=.21` (about 3.5×). These are group means,
+not per-case knowledge or calibration claims; exact values will be copied from
+the canonical dump into Table 3. Panel (b) is non-monotonic: the paired gold
+cost is largest around the constraint and partially recovers at the final
+token, identifying the instruction segment as the most vulnerable observed
+landmark under this L32 prompt skeleton. In panel (c), `note=0` is an observed
+count and is printed explicitly; this differs from panel (b), where the note
+delta is `N/A` because the no-note arm has no matching note token.*
+
 **계기 표기**: 이 표는 **프로브**다. 자연어 판독은 같은 방향을 독립적으로
 말하지만 값이 다르다 — 상실형 최종 토큰에서 "상태가 정답을 쥠"이 프로브
 .904, v2 판독 .651, 무학습 판독 .603 (세 계기 모두 같은 229건). **결렬의 존재는 두 계기가, 정밀한

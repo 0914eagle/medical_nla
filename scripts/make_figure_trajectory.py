@@ -137,11 +137,24 @@ def main() -> None:
     bars = ax_flip.bar(
         range(len(order)), counts, color="0.55", width=0.7,
     )
+    zero_label_y = max([*counts, 1]) * 0.012
     for bar, count in zip(bars, counts):
         if count:
             ax_flip.text(
                 bar.get_x() + bar.get_width() / 2, count, str(count),
                 ha="center", va="bottom", fontsize=6.5,
+            )
+        else:
+            # A missing label is easy to misread as a missing landmark. In the
+            # canonical trajectory the referral-note count is a measured zero.
+            ax_flip.text(
+                bar.get_x() + bar.get_width() / 2,
+                zero_label_y,
+                "0",
+                ha="center",
+                va="bottom",
+                fontsize=6.5,
+                color="0.35",
             )
     # `never suggestion` is not synonymous with `gold throughout`. Show the
     # two mutually exclusive paths as a stacked final bar so the visual cannot

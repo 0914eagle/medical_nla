@@ -48,10 +48,21 @@ no-note arm에 대응 위치가 없으므로 paired cost가 `N/A`다.
 최종 토큰에서도 세 집단 모두 평균 정답 신호가 남는다. 이것은 집단 평균이며
 각 사례에서 gold가 top-1이라는 뜻은 아니다.
 
+특히 **제안 채택형**의 final token에서도 그림상 평균 `p(gold)≈.73`,
+`p(suggestion)≈.21`로 gold mass가 약 **3.5배** 높다. 정의상 이 집단은 실제
+출력에서는 제안을 채택했다. 따라서 이 패널의 가장 강한 대비는 “제안을
+출력했으니 내부에서도 제안이 지배했을 것”이라는 예상이 집단 평균에서
+성립하지 않는다는 점이다. 단, 이 평균 비율을 개별 사례의 지식 보존이나
+calibration으로 해석하지 않는다. 정확한 소수점은 canonical dump의 Table 3
+전사와 함께 확정한다.
+
 **Figure 4(b)**는 같은 사례의 `p_wrong(gold) - p_none(gold)`다. 0이면 소견서가
 내부 정답 신호를 움직이지 않았고, 음수가 클수록 비용이 크다. 마지막 finding의
 0은 causal masking sanity check이고 referral-note 위치는 paired counterpart가
-없어 `N/A`다. constraint 부근에서 비용이 가장 크고 final에서 일부 회복한다.
+없어 `N/A`다. 비용은 읽기 순서에 따라 단조 증가하지 않는다. constraint에서
+가장 커졌다가 final에서 일부 회복하므로, **지시문 구간이 gold signal에 가장
+취약한 관측 지점**이라는 별도 관찰을 준다. 이는 L32와 현재 프롬프트 골격에
+대한 위치별 결과이며 모든 레이어·프롬프트의 보편적 기전으로 일반화하지 않는다.
 
 **Figure 4(c), canonical 321건**:
 
@@ -70,6 +81,10 @@ no-note arm에 대응 위치가 없으므로 paired cost가 `N/A`다.
 따라서 suggestion이 한 번이라도 top-1인 moved 사례는 55/321(17.1%)이고,
 그중 7건은 note를 보기 전부터 suggestion이 top-1이었다. **note 이후 처음
 suggestion top-1이 된 사례는 48/321(15.0%)**다.
+
+패널 (b)의 referral note는 no-note counterpart가 없어 `N/A`인 반면, 패널
+(c)의 referral note는 측정된 first-top1 count가 실제로 **0**이다. Figure에는
+막대가 보이지 않아도 `0` 라벨을 표시해 누락과 구분한다.
 
 핵심은 `never suggestion top-1 = gold throughout`가 아니라는 것이다. 266건 중
 151건만 gold가 모든 관측 landmark에서 top-1이고, 115건은 제3 진단이 top-1인
