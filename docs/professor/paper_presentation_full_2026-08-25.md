@@ -57,8 +57,29 @@ representation`, `internal-output dissociation`이다.
 
 ## Slide 1. 문제를 한 사례로 시작한다
 
-첫 화면에는 동일한 환자 presentation 두 개를 나란히 둔다. 왼쪽은 소견서가
-없는 원본이고, 오른쪽은 환자 소견 뒤에 한 줄만 추가한 prompt다. 아래는
+### 먼저 정의할 `note`
+
+이 발표에서 `note`는 환자 전체 chart, 병력, 증상 목록을 뜻하지 않는다. 환자
+findings는 모든 조건에 공통으로 이미 주어져 있다. `note`는 그 findings 뒤와
+질문 앞에 삽입되는 **의뢰자의 잠정 진단 한 문장(referral-suggestion sentence)**을
+가리키는 실험용 약칭이다.
+
+| 용어 | 환자 findings | 추가 referral sentence |
+|---|:-:|---|
+| `no-note` 또는 `none` | 동일하게 있음 | 없음 |
+| `neutral-note` | 동일하게 있음 | `The referring note requests evaluation.` |
+| `wrong-note` | 동일하게 있음 | `The referring note suspects {plausible wrong diagnosis}.` |
+| `correct-note` | 동일하게 있음 | `The referring note suspects {gold diagnosis}.` |
+
+따라서 `no-note`는 **의료 정보가 없는 조건이 아니며**, `wrong-note`는 환자
+소견을 거짓으로 바꾼 조건도 아니다. 두 조건의 차이는 잠정 진단 제안 한 줄뿐이다.
+실제 referral letter는 훨씬 길 수 있으므로 논문에서는 “전체 소견서를 그대로
+재현했다”가 아니라 **소견서 안의 diagnostic-suggestion component를 통제했다**고
+표현한다.
+
+첫 화면에는 동일한 환자 presentation 두 개를 나란히 둔다. 왼쪽은 **추가
+referral sentence가 없는** 원본이고, 오른쪽은 환자 소견 뒤에 그 한 줄만 추가한
+prompt다. 아래는
 슬라이드 구성을 설명하기 위한 **구체적인 synthetic example**이다. 정량 결과의
 실측 row라고 부르지 않으며, 최종 슬라이드에서는 Appendix 후보인
 `ddxplus_myocarditis_0000265`의 실제 prompt를 결과 artifact에서 export해 교체한다.
@@ -516,6 +537,10 @@ frame 때문인지 분리할 수 없다. 또한 correct note가 들어왔을 때
 떨어진다면 “wrong content에 앵커링됐다”보다 “외부 제안이 들어오면 전반적으로
 흔들린다”가 더 정확한 해석이다. 그래서 네 arm은 장식적인 augmentation이 아니라
 **wrong suggestion의 의미 효과를 식별하기 위한 최소 인과 대조군**이다.
+
+여기서도 `note`는 full referral document가 아니라 위에서 정의한
+**referral-suggestion sentence**다. 네 arm 모두 age, sex, findings, 질문,
+출력 형식 지시는 동일하고 이 sentence의 유무와 내용만 달라진다.
 
 **화면에 넣을 인과 분해 표**
 

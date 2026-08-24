@@ -29,6 +29,16 @@
 AV의 activation specificity는 별도 **M0 measurement gate**다. 이는 연구 질문의
 답이 아니라 자연어 판독을 증거로 사용할 수 있는지 검사하는 선행 조건이다.
 
+### 용어: `note`가 뜻하는 것
+
+이 문서의 `note`는 full chart나 전체 referral letter가 아니다. 모든 arm에는
+동일한 patient findings가 들어가며, `note`는 findings 뒤와 diagnosis question
+앞에 추가하는 한 문장짜리 **referral diagnostic suggestion**을 뜻한다.
+`no-note`는 그 추가 문장이 없는 조건이고, `wrong-note`는 동일 findings에
+plausible but wrong diagnosis를 의뢰자의 잠정 진단으로 추가한 조건이다. 따라서
+논문에서는 full-note realism이 아니라 referral letter의 diagnostic-suggestion
+component에 대한 통제 실험이라고 서술한다.
+
 ## English Introduction Draft
 
 Clinical diagnosis rarely begins from an unframed case. A downstream clinician

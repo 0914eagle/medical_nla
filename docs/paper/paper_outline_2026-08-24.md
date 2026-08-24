@@ -340,6 +340,12 @@ precision .3615), 허위 경보의 68.4%가 어댑터 오독이다. 자기 CoT r
 probe가 주 정량 계기이고, AV는 activation-dependent 자연어 후보를 제공하는 보조
 계기다.
 
+**용어 고정**: 본문의 `note`는 전체 chart나 full referral letter가 아니라,
+동일한 patient findings 뒤에 삽입하는 한 문장짜리 `referral diagnostic
+suggestion`이다. `no-note`는 findings가 없는 조건이 아니라 이 추가 문장만 없는
+조건이고, `wrong-note`는 동일 findings에 plausible wrong diagnosis를 잠정
+진단으로 덧붙인 조건이다.
+
 ### 1.1 먼저 제시할 대전제·가설·RQ
 
 인트로 초반에 독자가 논문의 논리 구조를 잃지 않도록 다음 순서로 명시한다.
