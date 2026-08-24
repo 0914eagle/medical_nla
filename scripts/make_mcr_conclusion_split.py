@@ -20,6 +20,23 @@ it trains, so it trains on MCR's train split and is read out on test. Cases
 whose presentation names its own diagnosis are dropped, since a readout that
 recites a name printed in the prompt has demonstrated nothing.
 
+**Training rows are restricted to cases the source model answers correctly,
+and this build omitted that.** It is the rule the DDXPlus pipeline is built on
+-- `make_medical_nla_v2_source_aligned_splits.py` exists for exactly this --
+and the reason is that nothing here knows what an activation contains. The
+only handle is the model's own output, so `gold` may be used as the target
+only where the model reached it. Everywhere else, training a readout to emit
+the gold teaches it to guess the right answer from context, which is the
+failure the readout is supposed to detect.
+
+DDXPlus survived the omission because it is a 49-class task the model mostly
+gets right, so gold and conclusion coincide in most rows. MCR is 6,934
+diagnoses over published case reports, and the same missing filter is a
+different experiment: the first conclusion adapter was trained on states that
+had concluded something else, and read out as a diagnosis in the right
+specialty on grounds belonging to no patient. Pass `--answers` and the split
+keeps only the rows where the gold is what the state actually reached.
+
 The row schema is copied from an existing split rather than declared, because
 the trainer reads keys this script does not own. Pass `--template` at any
 `sft_train.jsonl` the trainer already accepts; every key present there is
@@ -85,7 +102,35 @@ def main() -> None:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--val-share", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument(
+        "--answers", nargs="+", default=None,
+        help="MCR direct source answers. Rows the model got wrong are dropped "
+        "from train and val: the target is the gold diagnosis, and a state "
+        "that concluded something else does not contain it.",
+    )
+    parser.add_argument(
+        "--keep-source-wrong-in-test",
+        action=argparse.BooleanOptionalAction, default=True,
+        help="Keep source-wrong cases in the test split. They are the rows "
+        "where readout and output disagree, which is the measurement the "
+        "paper rests on -- they must not be trained on and must not be lost.",
+    )
     args = parser.parse_args()
+
+    correct: set[str] | None = None
+    if args.answers:
+        correct = {
+            str(row.get("base_id") or row.get("id") or "")
+            for path in args.answers
+            for row in read_jsonl(path)
+            if row.get("source_correct")
+        } - {""}
+        print(f"source-correct cases: {len(correct):,}")
+    else:
+        print("⚠ no --answers: train rows will include states that concluded "
+              "something other than the gold, which teaches the readout to "
+              "guess rather than read. This is how the first MCR conclusion "
+              "adapter was built.")
 
     template_keys = list(next(iter(read_jsonl(args.template))).keys())
     print(f"schema from template: {template_keys}")
@@ -102,7 +147,8 @@ def main() -> None:
         raise SystemExit("--split-name needs one entry per --cases file")
 
     rows: dict[str, list[dict[str, Any]]] = {"train": [], "val": [], "test": []}
-    dropped = {"no activation": 0, "no diagnosis or cues": 0, "gold printed in prompt": 0}
+    dropped = {"no activation": 0, "no diagnosis or cues": 0, "gold printed in prompt": 0,
+               "source-wrong (train/val only)": 0}
     for index, path in enumerate(args.cases):
         declared = args.split_name[index] if args.split_name else None
         for case in read_jsonl(path):
@@ -123,6 +169,14 @@ def main() -> None:
                 continue
 
             corpus_split = declared or str(case.get("corpus_split") or "train")
+            split = split_of(base_id, corpus_split, args.val_share, args.seed)
+            # Source-wrong rows never train. They stay in test, where the
+            # disagreement between what the state holds and what the model
+            # said is the measurement rather than a defect.
+            if correct is not None and base_id not in correct:
+                if split != "test" or not args.keep_source_wrong_in_test:
+                    dropped["source-wrong (train/val only)"] += 1
+                    continue
             built = {key: act.get(key, case.get(key)) for key in template_keys}
             built.update(
                 {
@@ -132,7 +186,8 @@ def main() -> None:
                     "target_style": TARGET_STYLE,
                 }
             )
-            rows[split_of(base_id, corpus_split, args.val_share, args.seed)].append(built)
+            built["source_correct"] = correct is None or base_id in correct
+            rows[split].append(built)
 
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -141,7 +196,9 @@ def main() -> None:
             print(f"⚠ {name}: empty")
             continue
         write_jsonl(out / f"sft_{name}.jsonl", split_rows)
-        print(f"  sft_{name}.jsonl  {len(split_rows):,} rows")
+        n_ok = sum(1 for r in split_rows if r.get("source_correct"))
+        print(f"  sft_{name}.jsonl  {len(split_rows):,} rows"
+              f"   source-correct {n_ok:,} ({n_ok / len(split_rows):.3f})")
     for reason, count in dropped.items():
         if count:
             print(f"dropped {count:,}: {reason}")
