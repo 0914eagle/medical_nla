@@ -152,6 +152,13 @@ def main() -> None:
     out = [row for rows in chosen for row in rows]
     if not out:
         raise SystemExit("no rows built; check inputs")
+    # Emitted in a fixed shuffle, so a judging run that is still in progress --
+    # or was killed -- is a random sample rather than the positives block. In
+    # case order every moved case comes first, and the first 972 judgements
+    # contained no negative at all: AUROC was undefined and the true-positive
+    # rates alone looked like a result. Ids are the join key, so order is free
+    # to change.
+    random.Random(args.sample_seed).shuffle(out)
 
     write_jsonl(Path(args.output), out)
     n_moved = sum(1 for rs in chosen if rs[0]["label_moved"])

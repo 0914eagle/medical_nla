@@ -136,6 +136,17 @@ def main() -> None:
         doubt_rate[(channel, label)].append(doubt)
 
     print(f"rows {len(rows):,} | unparseable {unparsed:,}")
+    # A partial run can hold only positives, and then every AUROC is nan while
+    # the doubt rates still print. Said plainly, because three nans beside a
+    # 0.897 reads as a channel that won.
+    for channel, pairs in by_channel.items():
+        n_pos = sum(1 for _, y in pairs if y)
+        if n_pos in (0, len(pairs)):
+            print(f"  ⚠ '{channel}' has only {'moved' if n_pos else 'kept'} "
+                  f"cases ({len(pairs):,}); AUROC is undefined and the doubt "
+                  "rate below is not a score -- a channel that doubts "
+                  "everything would show the same number")
+            break
     print(f"\n  {'channel':<10}{'AUROC':>8}{'95% CI':>18}"
           f"{'doubts moved':>14}{'doubts kept':>13}{'n':>7}")
     for channel in sorted(by_channel, key=lambda c: -auroc(by_channel[c])):
