@@ -149,6 +149,18 @@ the same internal trajectory claim.
 > single-run attribution across observable and internal channels, and tests the
 > conditions under which decoded content can correct the answer.
 
+더 직접적으로는 **새 문제 정의**를 먼저 말한다.
+
+> Our primary novelty is the case-level causal attribution problem. A hidden
+> same-case no-note run defines whether the wrong note moved the answer, while
+> the detector receives only the observable wrong-note run. We then trace the
+> competing diagnoses and test correction under the same causal label.
+
+이 정의가 중요한 이유는 moved case가 suggestion-copy case와 같지 않기 때문이다.
+DDXPlus의 moved 321건 중 230건(71.7%)은 suggestion이 아니라 제3 진단으로
+이동한다. 따라서 answer가 suggestion과 같은지 검사하는 output-only rule로는
+대부분의 인과 영향을 탐지할 수 없다.
+
 ## 원문 확인용 출처 지도
 
 | 논문·자료 | 이 문서에서 지지하는 주장 | 원문 |

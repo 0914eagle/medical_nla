@@ -493,6 +493,20 @@ suggestion은 관측한 어느 landmark에서도 probe top-1이 아니다.
 최신 선행을 두 절로 압축하면 의료 행동 연구와 내부 해석 연구 사이의 직접
 경쟁자가 가려진다. 세 절로 분리한다.
 
+Related Work 직전 또는 끝에서 신규성을 다음처럼 한 문장으로 고정한다.
+
+> **Our novelty is the case-level causal attribution problem: we define whether
+> a wrong clinical suggestion moved each answer using a hidden same-case
+> counterfactual, predict that event from one observable run, trace the
+> competing diagnoses through answer formation, and test when decoded content
+> supports correction.**
+
+따라서 이 논문은 anchoring, probe, NLA 중 하나의 최초성을 주장하는 논문이
+아니다. `moved`라는 반사실적 사례 단위 정답지와 이를 중심으로 한
+**intervention → trajectory → single-run attribution → conditional correction**
+연결이 기여다. 특히 moved 321건 중 230건은 suggestion이 아닌 제3 진단으로
+이동하므로, 이 문제는 단순 hint-copy detection으로 환원되지 않는다.
+
 - **2.1 Clinical anchoring and misleading context**: 사람의 referral-letter
   anchor(Staal; Spaanjaars) → BiasMedQA·MED-STRESS·MedMisBench·Narrative
   Anchoring. 결론은 “행동 취약성은 알려져 있다; 우리 행동 낙폭은 신규성보다

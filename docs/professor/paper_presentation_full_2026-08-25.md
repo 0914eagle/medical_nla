@@ -228,17 +228,71 @@ RQ2가 오류 진단·조기 경보, RQ3가 해결이다. RQ1은 이 세 응용�
 | 진단/경보 | RQ2 single-run moved attribution | DDXPlus에서 가능; probe가 최강 |
 | 해결 | RQ3 conditional correction | 정확한 content는 유용; selector 없이는 순손해 |
 
-## Slide 8. 선행연구와 정확한 차이
+## Slide 8. 우리의 노벨티: 진단 변화의 사례별 인과 귀속
 
-이 슬라이드는 “관련 연구가 없다”가 아니라 **각 흐름이 어디까지 왔고, 어느
-연결고리가 비어 있는가**를 보여준다. 화면에는 아래 표를 그대로 둔다.
+이 슬라이드는 선행연구 목록으로 시작하지 않는다. 화면 맨 위에 다음 문장을
+크게 둔다.
 
-| 선행 흐름 | 이미 된 것 | 아직 비어 있던 것 | 우리 위치 |
-|---|---|---|---|
-| 의료 anchoring·오도 맥락 | BiasMedQA, MED-STRESS, MedMisBench가 정확도 하락과 방어를 측정 | 답이 바뀐 개별 사례의 내부 진단 궤적 | four-arm 행동 효과는 testbed 검증으로 쓰고 내부 행방을 분해 |
-| CoT faithfulness | Turpin/Lanham/Afolabi가 self-report 불충실 가능성을 개입으로 측정 | 임상 referral suggestion의 사례별 인과 귀속 | output·CoT·LLM monitor를 내부 채널과 동일 single-run task에서 비교 |
-| 내부-출력 해리 | Catching Rationalization, Fraile Navarro, Tayebi Arasteh, Basu가 내부 신호가 출력을 초과함을 보임 | 진단 제안 아래 위치별 suggestion/gold/other 궤적과 조건부 교정 | H1 trajectory + H2 attribution + H3 correction을 한 protocol로 연결 |
-| activation 해석 | probe/lens/SAE와 Patchscopes/SelfIE/LatentQA/NLA가 내부를 decode·언어화 | verbalizer prior와 activation 정보의 분리 | probe를 주 계기로 두고 AV는 swap/shuffle/heldout 관문 후 보조 사용 |
+> **We define whether a wrong clinical suggestion causally moved each answer,
+> attribute that hidden counterfactual event from one observable run, trace
+> where the competing diagnoses go, and test when decoded content can correct
+> the answer.**
+
+한국어로는 다음과 같다.
+
+> **잘못된 임상 제안이 답을 바꾼 원인을 숨겨진 반사실로 사례별 정의하고,
+> 배포 시 관측 가능한 단일 실행의 내부 상태로 귀속한 뒤, 같은 신호의 위치
+> 궤적과 조건부 교정까지 시험한다.**
+
+노벨티의 단위는 NLA, probe, anchoring 중 하나의 최초성이 아니다. 새로 정의한
+연구 객체는 **`causally moved case`**다. 각 사례의 no-note와 wrong-note 실행을
+쌍으로 비교해 `moved` 정답지를 만들지만, detector에는 wrong-note 실행 하나만
+준다. 따라서 일반적인 “현재 답이 틀렸는가?”나 “제안 문구를 답에서 복사했는가?”가
+아니라, **관측하지 못한 no-note 반사실에 비해 이 note가 답을 실제로 움직였는가**를
+예측한다.
+
+화면의 비교표는 아래처럼 결과 단위 중심으로 단순화한다.
+
+| 기존 연구가 끝난 지점 | 우리가 추가한 새 단위 | 왜 단순 결합이 아닌가 |
+|---|---|---|
+| Misleading context가 평균 정확도를 낮춘다 | **Same-case four-arm causal label**: none/neutral/wrong/correct로 문장 삽입과 suggestion 고유 효과를 분리 | 집단 낙폭이 아니라 사례별 `moved/not moved` 정답지가 생김 |
+| CoT가 bias를 누락하거나 합리화할 수 있다 | **Single-run causal attribution**: hidden none arm을 입력으로 주지 않고 wrong run 하나에서 moved를 탐지 | 단순 오답 탐지·hint 언급 탐지가 아니라 반사실 원인 귀속 |
+| Hidden state가 output보다 정보를 더 담을 수 있다 | **Competing-diagnosis trajectory**: gold/suggestion/other를 여섯 landmark에서 분리 | “정답 정보가 남는다”를 넘어 답 이동의 경로를 세 종류로 해부 |
+| Internal signal로 오류 탐지 또는 steering을 시도한다 | **Controlled correction ladder**: retry/evidence/label/readout과 selector를 분해 | detectability를 곧 controllability로 간주하지 않고 content·형식·정책 효과를 분리 |
+
+이 표 아래에는 우리 setting이 기존 hint-copy보다 어려운 이유를 한 줄로 둔다.
+
+> **DDXPlus moved 321건 중 230건(71.7%)은 suggestion을 복사하지 않고 제3
+> 진단으로 이동한다. 따라서 `answer == suggestion`이라는 단순 copy rule로는
+> 대부분의 인과 영향을 잡을 수 없다.**
+
+### Slide 8에서 말할 정확한 신규성
+
+가장 방어 가능한 주장은 다음 세 개다.
+
+1. **새 평가 문제**: wrong-note 단일 실행에서, 숨겨진 same-case no-note
+   counterfactual이 정의한 `causally moved`를 예측한다.
+2. **새 기전 결과**: 출력 이동과 suggestion의 내부 top-1 우세가 같은 사건이
+   아님을 gold/suggestion/other 궤적으로 보인다. Moved 321건 중 266건(82.9%)에서
+   suggestion은 관측한 어느 landmark에서도 probe top-1이 아니다.
+3. **새 end-to-end 검증 범위**: 행동 개입 → 위치 궤적 → output/CoT/LLM
+   monitor/probe/AV의 single-run 비교 → content와 selector를 분해한 교정을 같은
+   사례 정의 위에서 연결한다.
+
+`To our knowledge`를 붙여 쓸 수 있는 문장은 아래 정도다. 최종 투고 전에는
+서지 검색을 한 번 더 고정한다.
+
+> **To our knowledge, this is the first study to combine a placebo-controlled
+> clinical-suggestion intervention with case-level counterfactual attribution,
+> competing-diagnosis activation trajectories, and a controlled correction
+> ladder in one diagnostic protocol.**
+
+반대로 “first medical NLA”, “first internal-output dissociation in medicine”,
+“first study of medical anchoring”은 선행연구 때문에 쓰지 않는다.
+
+### 이 노벨티가 선행연구 사이에서 생기는 위치
+
+아래 내용은 화면에 모두 넣지 않고 발표자 설명 또는 backup slide로 둔다.
 
 **첫 흐름: 의료 행동 강건성.** BiasMedQA는 1,273개 USMLE 문항에 일곱 종류의
 인지 편향 문장을 주입했고 모델별 10–26% 수준의 정확도 저하를 보고했다.
@@ -263,7 +317,7 @@ grade는 chance에 가까움을, Basu et al.은 임상 위험 probe AUROC `.982`
 출력 sensitivity의 gap을 보였다. 그러므로 “의료 NLA 최초”, “의료 내부-출력
 불일치 최초”는 금지한다. 우리의 좁은 차이는 **최종 진단 과제, referral-note
 인과 개입, same-case placebo, six-landmark trajectory, single-run moved attribution,
-conditional correction**의 결합이다.
+conditional correction**을 하나의 사례별 인과 protocol로 연결한 것이다.
 
 **넷째 흐름: 자연어 activation readout.** Patchscopes, SelfIE, LatentQA, NLA는
 activation을 고정 class가 아닌 문장으로 읽는 길을 열었다. 그러나 Li et al.
