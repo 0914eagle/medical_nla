@@ -171,6 +171,22 @@ if rescore "$COT_IN" "$COT_OUT"; then
         --cot "$COT_OUT"
   fi
 fi
+
+REFERENCE="$RES/ddxplus_hint_answers_v2_rescored.jsonl"
+if have "$REFERENCE" "$COT_OUT"; then
+  WORDING_ARGS=()
+  for W in colleague patient realistic; do
+    F="$RES/ddxplus_hint_answers_${W}_rescored.jsonl"
+    [ -s "$F" ] && WORDING_ARGS+=(--wording "$W=$F")
+  done
+  note "Slide 20 -- one Direct-defined canonical clean cohort for every row"
+  run python scripts/summarize_slide20_robustness.py \
+      --reference-answers "$REFERENCE" \
+      "${WORDING_ARGS[@]}" \
+      --cot-answers "$COT_OUT" \
+      --output-json "$REPORTS/slide20_canonical_clean.json" \
+      --summary-md "$REPORTS/slide20_canonical_clean_summary.md"
+fi
 fi
 
 # --------------------------------------------------------------------------
