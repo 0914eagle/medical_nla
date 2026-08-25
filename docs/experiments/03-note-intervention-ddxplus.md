@@ -110,6 +110,11 @@ neutral/correct를 재실행하고 canonical matcher로 채점해 **.9377/.9246*
    장치가 아니다.
 4. Figure 2(b)의 `91/230` 분해는 설득과 불안정화를 구분한다. 오답 출력 대부분은
    제안 복사가 아니라 제3 진단으로의 붕괴다.
+5. 전체 moved 321건은 clean 289건(88 suggestion, 201 third diagnosis)과
+   explicit-gold 32건(3 suggestion, 29 third diagnosis)으로 나뉜다. 따라서
+   moved의 90.0%가 clean에서 발생하고, clean에서도 제3 진단 이동이 69.6%다.
+   `gold_in_prompt`는 train-test leakage가 아니라 presentation이 정답명 또는
+   alias를 직접 포함하는지를 표시하는 층화 변수다.
 
 **말하면 안 되는 것**: corpus-300은 원 실행의 초집합이며 base ID가 겹친다.
 `independent replication`이라고 쓰지 않고 **3× larger run**이라고 부른다.

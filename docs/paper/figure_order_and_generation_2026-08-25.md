@@ -31,8 +31,16 @@ AV validation은 Appendix Table A1이다. Discussion의 도구 선택표는 번�
 - **(b) moved destination**: 전체 source-correct cohort에서 causally moved된 답을
   suggestion 채택과 제3 진단 이동으로 나눈다. DDXPlus 91/230, MCR 137/300이다.
 
+DDXPlus moved 321건의 explicit-gold 민감도 분해는 clean `289/1,220`
+(suggestion 88, third diagnosis 201) 대 explicit-gold `32/527`
+(suggestion 3, third diagnosis 29)이다. 즉 moved의 289/321(90.0%)이 clean에서
+발생하고 clean에서도 제3 진단 이동이 201/289(69.6%)다. Figure 2(b)는 정본
+전체 321건을 유지하고 이 분해는 캡션에 적는다.
+
 **중요:** (a)와 (b)는 분모가 다르다. 코드 기본값이 각각 `clean`과 `all`이며,
 각 패널 x축에 n을 따로 인쇄한다. 두 패널 n을 같은 모집단처럼 설명하지 않는다.
+여기서 `clean`은 train-test leakage가 아니라 **presentation에 gold name/alias가
+직접 나오지 않는 행**이라는 뜻이다.
 
 최신 `analyze_hint_effect.py`는 dump에 `moved.n`, `to_suggestion`,
 `to_third_diagnosis`를 기록한다. 기존 dump에는 이 block이 없으므로 먼저 다시 만든다.

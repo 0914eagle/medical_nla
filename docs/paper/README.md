@@ -54,6 +54,7 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 | 주장 | 현재 근거 | 주장 가능한 범위 |
 |---|---|---|
 | 오답 소견서가 진단을 움직인다 | DDXPlus main −23.03 pp; 3× larger run −21.30 pp; MCR −26.89 pp | 행동 효과는 두 코퍼스 |
+| moved 결과는 explicit-gold 행이 만든 것이 아니다 | DDXPlus moved 321 중 clean **289(90.0%)**; clean moved 중 third diagnosis **201/289(69.6%)** | `gold_in_prompt`는 input-content 층화이지 train-test leakage가 아님 |
 | corpus-300은 이제 독립 재현이다 | 주 실행 id를 뺀 **미관측 3,319**(clean 2,192)에서 오답 조건 **.7682** vs 초집합 .7670 — 0.12 pp 차 | 행동 효과에 한정; 사다리도 r5−r4 +15.94 pp로 재현 |
 | suggestion이 내부 top-1을 대개 차지하지 못한다 | moved 321건 중 266건(82.9%)에서 suggestion이 어느 landmark에서도 top-1이 아님 | 그중 gold throughout 151, third-diagnosis path 115 |
 | 소견서는 내부 gold signal을 행동별로 다르게 낮춘다 | final Δ: 유지 **−.007**, 제3 진단 **−.055**, 제안 채택 **−.195** | DDXPlus, 49-class cross-fit probe |

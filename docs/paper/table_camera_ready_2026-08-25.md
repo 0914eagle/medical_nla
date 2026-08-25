@@ -372,6 +372,15 @@ MCR에서는 12.31pp(.9410→.8179) 낮춘다. 독립성 주장은 행동 효과
 | DDXPlus | **321** | **91** | **230** |
 | MedCaseReasoning | **437** | **137** | **300** |
 
+*DDXPlus sensitivity to an explicit gold name in the presentation.* Of the
+321 moved cases, 289/321 (90.0%) come from the clean subset that does not name
+the gold diagnosis (289/1,220 moved: 88 to the suggestion and 201 to a third
+diagnosis). The explicit-gold subset contributes 32/527 moved cases (3 to the
+suggestion and 29 to a third diagnosis). Thus the moved result is not driven
+by label-explicit prompts; the moved rate is lower when the presentation
+directly names the gold (6.1% versus 23.7%). Here `gold_in_prompt` denotes an
+input-content stratum, not train-test leakage.*
+
 **Appendix Table A2.** Speaker/wording variants, DDXPlus,
 n = 1,747 each.
 

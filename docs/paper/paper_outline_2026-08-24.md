@@ -629,6 +629,10 @@ intervention pool로 고정한다. 이는 모델의 일반 정확도를 보고�
 `gold_in_prompt`로 표시한다. Main clean behavior table은 이를 제외한 1,220건을
 사용하고, 전체 1,747건은 moved 분해·trajectory·detection에 사용한다. 독립
 확장은 진단당 300건에서 구축하되 주 실행과 겹치는 base ID를 제외해 보고한다.
+`gold_in_prompt`는 train-test leakage가 아니라 **explicit gold-name in the
+presentation** 층화 변수다. 전체 moved 321건 중 289건(90.0%)이 clean에서
+발생했고, clean에서도 201/289(69.6%)가 제3 진단으로 이동했다. Explicit-gold
+527건에서는 32건(6.1%)만 moved되어 clean 289/1,220(23.7%)보다 낮았다.
 
 MCR에서도 동일하게 no-note source-correct 사례만 causal behavior population으로
 사용한다. 평가 가능한 전체에서 선택된 조건부 모집단이라는 점과 낮은 source

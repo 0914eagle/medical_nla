@@ -202,6 +202,23 @@ CoT 모니터(#1)와 같은 판정자이므로 두 결과는 같은 채점자 �
 |---:|---:|---:|---:|
 | .9897 | .9405 | .8117 | .9330 |
 
+### Explicit-gold-name 민감도 분석
+
+`gold_in_prompt`는 train-test leakage가 아니라 presentation에 정답 진단명 또는
+alias가 직접 등장하는지를 표시한다. 전체 moved 321건의 분해는 다음과 같다.
+
+| DDXPlus subset | n | moved | moved rate | to suggestion | to third diagnosis |
+|---|---:|---:|---:|---:|---:|
+| clean, gold name absent | 1,220 | **289** | **.2369** | 88 | **201** |
+| explicit gold name present | 527 | **32** | **.0607** | 3 | **29** |
+| all | 1,747 | **321** | **.1837** | 91 | **230** |
+
+Moved의 289/321(90.0%)이 clean subset에서 발생하고, clean moved 중
+201/289(69.6%)가 제3 진단 이동이다. 따라서 전체 moved 결과는 explicit-gold
+행에 의해 만들어지지 않았다. 반대로 explicit-gold subset의 moved rate가
+6.1%로 낮아, presentation이 정답을 직접 명명할 때 wrong note의 영향이
+약해지는 이질성이 관측된다.
+
 ### MedCaseReasoning, n=1,543
 
 | 없음 | 위약 | 오답 | 정답 |

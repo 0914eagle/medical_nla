@@ -520,7 +520,7 @@ prompt와 source answer를 생성한 prompt가 달랐다. 이 세 문제는 초�
 |---|---:|---|---|
 | 균형 표집 | 4,900 | 49 diagnoses × 100 | source baseline·activation pool |
 | no-note source-correct | 1,747 | 개입 전 정답이어야 causal loss 정의 가능 | moved·trajectory·detection |
-| gold string leakage 제거 | 1,220 | prompt에 정답명이 직접 나온 행 제외 | main clean behavior table |
+| explicit gold-name 행 제외 | 1,220 | presentation에 정답명·alias가 직접 나온 527행 제외 | main clean behavior table |
 
 `1,747`과 `1,220`은 서로 다른 실험의 분모다. 행동 주표는 1,220이고,
 trajectory와 single-run attribution은 1,747 전체를 쓴다.
@@ -552,8 +552,10 @@ Age와 sex는 진단 정보이므로 presentation head에 넣지만 cue target�
 49개 diagnosis마다 seed 17로 100개씩, 총 4,900개를 균형 샘플링했다. Source
 Gemma가 no-note에서 맞힌 사례만 intervention population으로 사용한다. 이는
 wrong note가 원래 정답을 실제로 움직였는지 정의하려면 먼저 정답이어야 하기
-때문이다. 이 조건을 통과한 사례는 1,747개였고, gold diagnosis가 presentation에
-문자 그대로 등장한 사례를 제외한 main clean cohort는 1,220개다.
+때문이다. 이 조건을 통과한 사례는 1,747개였고, gold diagnosis 또는 alias가
+presentation에 문자 그대로 등장한 527개를 제외한 main clean cohort는 1,220개다.
+이를 `gold string leakage`라고 부르면 train-test leakage로 오해하기 쉬우므로
+발표와 본문에서는 **explicit gold-name in presentation**이라고 부른다.
 
 ## Slide 12. 네 개의 referral-note arm을 어떻게 만들었는가
 
@@ -954,6 +956,13 @@ MCR의 1,543은 평가 가능한 12,620건 중 source model이 no-note에서 맞
 DDXPlus 1,747건 중 canonical moved는 321건이다. Suggestion을 인과적으로 채택한
 경우는 91건(28.3%), suggestion이 아닌 제3 진단으로 이동한 경우는 230건(71.7%)이다.
 MCR moved 437건에서도 suggestion 채택 137건(31.4%), 제3 진단 이동 300건(68.6%)이다.
+
+**Explicit-gold 민감도 분석.** DDXPlus moved 321건 중 289건(90.0%)은 정답명이
+presentation에 없는 clean 1,220건에서 나왔다. Clean moved rate는 289/1,220
+`=23.7%`이고, 그중 201/289(69.6%)가 제3 진단 이동이다. 정답명이 직접 나온
+527건에서는 moved가 32건(6.1%; suggestion 3, third diagnosis 29)에 그쳤다.
+따라서 moved 현상과 제3 진단 이동은 explicit-gold 행이 만든 결과가 아니며,
+오히려 정답명이 직접 주어지면 wrong note의 영향이 크게 약해진다.
 
 이 분해가 논문의 탐지 문제를 결정한다. Answer가 suggestion을 그대로 복사했는지만
 보는 detector는 moved의 약 70%를 놓친다. 의료 열린 진단에서는 hint가 하나의
