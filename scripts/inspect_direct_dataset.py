@@ -230,6 +230,42 @@ def audit_kg(kg_root: Path) -> dict[str, Any]:
     }
 
 
+def canonical_json_digest(path: Path) -> str:
+    payload = read_json(path)
+    canonical = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return digest_bytes(canonical)
+
+
+def compare_kg_roots(release_root: Path, reference_root: Path) -> dict[str, Any]:
+    release = {path.stem: path for path in release_root.rglob("*.json")}
+    reference = {path.stem: path for path in reference_root.rglob("*.json")}
+    common = sorted(set(release) & set(reference))
+    equal: list[str] = []
+    different: list[str] = []
+    invalid: list[str] = []
+    for name in common:
+        try:
+            is_equal = canonical_json_digest(release[name]) == canonical_json_digest(
+                reference[name]
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            invalid.append(name)
+            continue
+        (equal if is_equal else different).append(name)
+    return {
+        "release_files": len(release),
+        "reference_files": len(reference),
+        "common_files": len(common),
+        "semantic_hash_equal": len(equal),
+        "semantic_hash_different": different,
+        "invalid_common_files": invalid,
+        "release_only": sorted(set(release) - set(reference)),
+        "reference_only": sorted(set(reference) - set(release)),
+    }
+
+
 def normalize_data_root(value: str) -> str:
     parts = [part for part in value.replace("\\", "/").split("/") if part not in {"", "."}]
     if parts and parts[0].casefold() == "samples":
@@ -412,6 +448,21 @@ def markdown_summary(result: dict[str, Any]) -> str:
                 "",
             ]
         )
+    kg_comparison = result.get("reference_kg_comparison")
+    if kg_comparison:
+        lines.extend(
+            [
+                "## Reference KG Comparison",
+                "",
+                f"- release / reference files: **{kg_comparison['release_files']} / {kg_comparison['reference_files']}**",
+                f"- common files: **{kg_comparison['common_files']}**",
+                f"- canonical JSON hash equal: **{kg_comparison['semantic_hash_equal']}**",
+                f"- canonical JSON hash different: `{kg_comparison['semantic_hash_different']}`",
+                f"- release-only categories: `{kg_comparison['release_only']}`",
+                f"- reference-only categories: `{kg_comparison['reference_only']}`",
+                "",
+            ]
+        )
     return "\n".join(lines)
 
 
@@ -425,6 +476,11 @@ def main() -> None:
         "--data-list",
         type=Path,
         help="Optional public DiReCT data_list.csv used for aggregate release alignment.",
+    )
+    parser.add_argument(
+        "--reference-kg-root",
+        type=Path,
+        help="Optional public DiReCT KG root used for canonical JSON hash comparison.",
     )
     parser.add_argument("--expected-notes", type=int, default=511)
     args = parser.parse_args()
@@ -442,6 +498,10 @@ def main() -> None:
     }
     if args.data_list:
         result["official_data_list"] = audit_data_list(args.samples_root, args.data_list)
+    if args.reference_kg_root:
+        result["reference_kg_comparison"] = compare_kg_roots(
+            args.kg_root, args.reference_kg_root
+        )
     if result["samples"]["json_files"] != args.expected_notes:
         result["warning"] = (
             f"Expected {args.expected_notes} sample JSON files, found "
