@@ -26,7 +26,9 @@ MCR behavior 1,452다.
 4. `table_camera_ready_2026-08-25.md` — 현재 표의 수치와 캡션을 확인한다.
 5. `figure_order_and_generation_2026-08-25.md` — 그림 순서·생성 명령·해석 경계를 확인한다.
 6. `prior_work_2026-08-24.md` — 신규성의 범위와 가장 가까운 선행을 확인한다.
-7. `draft_related_work_2026-08-24.md` / `related_work.tex` — 실제 Related Work 원고.
+7. `prior_work_verification.md` — 선행의 각 주장을 우리 실험대에서 직접
+   시험한 결과. 재현 실패 둘(Turpin의 은폐, Yuan의 비인과성)이 여기 있다.
+8. `draft_related_work_2026-08-24.md` / `related_work.tex` — 실제 Related Work 원고.
 
 `related_work_2026-08-23.md`는 문헌 조사 원장이고, `reading_*.md`는 최근접
 논문의 정독 노트다. `judge_jobs_2026-08-24.md`는 외부 판정자 실험의 실행
