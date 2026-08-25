@@ -115,6 +115,21 @@ python scripts/make_figure_readout_map.py \
 
 Figure 1과 수작업 case study A2를 제외한 네 장을 한 번에 만든다.
 
+가장 안전한 명령은 Figure 2 분석 dump도 canonical answer에서 다시 만드는 wrapper다.
+
+```bash
+cd /home/eagle0914/medical_nla
+bash scripts/run_paper_figures_without_figure1.sh /data1/heejae
+```
+
+PDF가 필요하면:
+
+```bash
+FORMAT=pdf bash scripts/run_paper_figures_without_figure1.sh /data1/heejae
+```
+
+이미 dump가 준비되어 있어 plot만 다시 그릴 때는 아래 Python 드라이버를 쓴다.
+
 ```bash
 python scripts/make_paper_figures.py \
   --ddx-dump $ART/results/figure2_ddx_dump.json \
@@ -133,6 +148,10 @@ figure3_trajectory.png
 figure4_detection_correction.png
 appendix_figure_a1_readout_map.png
 ```
+
+현재 Figure 4의 detection panel은 확정된 channel만 그린다. 실험 17의 source
+output-head likelihood가 끝나면 canonical JSON과 표를 먼저 갱신한 뒤 Figure 4를
+다시 그린다. `▢` 값을 임의로 plot하지 않는다.
 
 ## 7. 아직 그림에 넣지 않는 것
 
