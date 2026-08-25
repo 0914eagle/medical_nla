@@ -6,6 +6,7 @@ import pytest
 
 from scripts.analyze_hint_effect import (
     group_by_case,
+    require_canonical_no_note_correct,
     summarize,
     summarize_population,
     took_the_hint,
@@ -191,6 +192,23 @@ def test_accuracy_comes_from_the_recorded_verdict(tmp_path):
     assert stats["none"]["correct"] == 1.0
     assert stats["wrong"]["correct"] == 0.0
     assert stats["correct"]["correct"] == 1.0
+
+
+def test_canonical_no_note_filter_restores_the_causal_eligibility_rule(tmp_path):
+    eligible = arms(
+        "eligible", gold="Pneumonia", wrong="Bronchitis",
+        answers=("Pneumonia", "Bronchitis", "Pneumonia"),
+    )
+    rescored_out = arms(
+        "rescored-out", gold="Pneumonia", wrong="Bronchitis",
+        answers=("Tuberculosis", "Bronchitis", "Pneumonia"),
+    )
+    cases = group_by_case(write(tmp_path, eligible + rescored_out))
+
+    filtered = require_canonical_no_note_correct(cases)
+
+    assert set(filtered) == {"eligible"}
+    assert summarize(filtered)["none"]["correct"] == 1.0
 
 
 def test_a_run_over_two_arms_is_read_not_dropped(tmp_path):

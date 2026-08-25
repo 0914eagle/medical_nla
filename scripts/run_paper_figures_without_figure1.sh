@@ -53,10 +53,12 @@ done
 echo "[1/3] rebuilding canonical Figure 2 dumps"
 python scripts/analyze_hint_effect.py \
   --answers "$DDX_DIRECT" "$DDX_NEUTRAL" "$DDX_CORRECT" \
+  --require-canonical-no-note-correct \
   --dump "$DDX_DUMP"
 
 python scripts/analyze_hint_effect.py \
   --answers "$MCR_ANSWERS" \
+  --require-canonical-no-note-correct \
   --dump "$MCR_DUMP"
 
 echo "[2/3] rendering Figures 2--4 and Appendix Figure A1"
@@ -79,4 +81,3 @@ for name in \
 done
 
 echo "[done] Figure 1 intentionally excluded; output dir: $OUT_DIR"
-

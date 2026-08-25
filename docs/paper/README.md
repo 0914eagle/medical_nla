@@ -1,5 +1,11 @@
 # 논문 문서 안내 — 현재 정본
 
+> **08-25 재집계 진행 중.** No-note correctness를 canonical matcher로 다시
+> 적용하기로 결정했다. 현재 문서의 DDXPlus 1,747/1,220, MCR 1,543 기반 행동·
+> moved·trajectory·detection·correction 수치는 generation-time fixed cohort의
+> 감사값이다. Primary 수치는 canonical no-note-correct cohort로 CPU 재집계한 뒤
+> 교체한다. 재집계 완료 전에는 기존 수치를 최종치로 인용하지 않는다.
+
 이 폴더의 논문 서사는 **현상 우선**이다. 주인공은 NLA 자체가 아니라,
 의뢰 소견서의 의심 진단이 의료 LLM의 출력은 바꾸지만 내부 정답 신호를
 완전히 대체하지 못한다는 **internal-output dissociation**이다. 프로브는 이를

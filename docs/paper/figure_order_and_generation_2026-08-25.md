@@ -50,10 +50,12 @@ python scripts/analyze_hint_effect.py \
   --answers $ART/results/ddxplus_hint_answers_v2_rescored.jsonl \
             $ART/results/ddxplus_hint_answers_neutral_rescored.jsonl \
             $ART/results/ddxplus_hint_answers_correct_rescored.jsonl \
+  --require-canonical-no-note-correct \
   --dump $ART/results/figure2_ddx_dump.json
 
 python scripts/analyze_hint_effect.py \
   --answers $ART/results/mcr_hint_answers_full_rescored.jsonl \
+  --require-canonical-no-note-correct \
   --dump $ART/results/figure2_mcr_dump.json
 
 python scripts/make_figure_intervention.py \
@@ -61,8 +63,14 @@ python scripts/make_figure_intervention.py \
   --labels DDXPlus MedCaseReasoning \
   --accuracy-population clean \
   --destination-population all \
+  --omit-no-note \
   --output $ART/results/figure2_behavior.png
 ```
+
+`--require-canonical-no-note-correct`를 쓰면 none accuracy는 1.0이므로 Figure 2(a)는
+none 막대를 반복하지 않는다. `--omit-no-note`는 1.0 기준선을 대신 그리고, dump의
+none accuracy가 실제로 1.0이 아니면 오류로 중단한다. 기존 generation-time fixed
+cohort를 감사 목적으로 재현할 때만 두 옵션을 생략한다.
 
 ## 3. Figure 3 — Internal trajectory
 

@@ -1,5 +1,10 @@
 # 실험 전체 정리 (2026-08-25 기준)
 
+> **Primary cohort refresh pending.** Canonical matcher에서도 no-note 정답인
+> 사례만 남겨 DDXPlus 전체 1,729/clean 1,204, non-overlap clean 2,137, MCR
+> 1,452를 primary로 재집계한다. 아래 기존 수치는 완료 전까지 fixed-cohort audit로
+> 읽고 최종 인용하지 않는다.
+
 한 장으로 보는 현황. 각 실험이 무엇을 보이는지 · 실측치 · 상태.
 상세 수치와 표 캡션은 `table_camera_ready_2026-08-25.md`. 문서 역할과
 주장 경계는 이 폴더의 `README.md`를 따른다.

@@ -181,6 +181,12 @@ CoT 모니터(#1)와 같은 판정자이므로 두 결과는 같은 채점자 �
 
 ## 3. Table 1 · Figure 2 — 개입 정확도와 moved destination (§4.1)
 
+> **08-25 primary-cohort 결정.** 아래 1,747/1,220 수치는 generation-time
+> matcher로 선택한 fixed cohort를 canonical matcher로 재채점한 감사값이다.
+> 논문 primary는 canonical no-note-correct를 다시 요구해 전체 1,729, clean
+> 1,204로 재집계한다. 새 moved·arm 수치가 나오기 전까지 아래 값을 최종 primary로
+> 인용하지 않는다. 기존 값은 fixed-cohort sensitivity로 보존한다.
+
 `analyze_hint_effect.py`, 재채점 파일.
 
 ### DDXPlus, clean n=1,220 (차트가 정답을 적지 않은 케이스)

@@ -292,6 +292,14 @@ held-out 821행에서 판독은 gold보다 모델의 실제 답과 더 자주 �
 
 ## Table 1 — Intervention effect decomposition and replication (§4.1)
 
+> **Pending canonical eligibility refresh (08-25).** The values below are the
+> fixed cohorts selected by the generation-time matcher and canonically
+> rescored. The primary table will be recomputed after requiring canonical
+> no-note correctness (DDXPlus clean 1,204; non-overlap clean 2,137; MCR
+> 1,452). No-note accuracy will then be 1.0 by construction and will be omitted
+> from the displayed accuracy panel; these fixed-cohort values remain as an
+> appendix audit until the refresh is complete.
+
 Figure 2(a)가 네 arm의 원시 정확도를 이미 인쇄하므로, 본문 표는 같은
 숫자를 반복하지 않고 인과 해석에 필요한 비용을 분해한다. 모든 숫자 열의
 단위는 percentage points (pp)다. `Non-overlapping replication`은 같은

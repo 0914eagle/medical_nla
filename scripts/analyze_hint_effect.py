@@ -136,6 +136,23 @@ def arms_in(cases: dict[str, Case]) -> tuple[str, ...]:
     return tuple(variant for variant in VARIANTS if variant in present)
 
 
+def require_canonical_no_note_correct(cases: dict[str, Case]) -> dict[str, Case]:
+    """Keep only cases correct in the no-note arm under the stored scorer.
+
+    The intervention cohort was originally selected with the generation-time
+    matcher. After canonical rescoring, a small number of no-note rows are no
+    longer correct. The paper's causal estimand is loss among answers that are
+    correct without a note, so its primary analysis must re-apply that
+    eligibility rule after rescoring. Keeping this as an explicit option also
+    preserves the old fixed-cohort audit.
+    """
+    return {
+        case_id: arms
+        for case_id, arms in cases.items()
+        if bool(arms.get("none", {}).get("source_correct"))
+    }
+
+
 def answer_names(row: dict[str, Any], diagnosis: str | None) -> bool:
     """Whether this arm's answer is that diagnosis, aliases included."""
     name = str(diagnosis or "").strip()
@@ -259,6 +276,14 @@ def main() -> None:
         "biases every rate toward the null.",
     )
     parser.add_argument(
+        "--require-canonical-no-note-correct",
+        action="store_true",
+        help="Re-apply the no-note-correct eligibility rule after canonical "
+        "rescoring. This makes no-note accuracy 1.0 by construction and is "
+        "the paper's primary causal cohort; omit it only for the historical "
+        "fixed-cohort audit.",
+    )
+    parser.add_argument(
         "--dump",
         help="Write per-population arm accuracies and moved destinations as JSON, for "
         "make_figure_intervention.py. The figure is drawn from this file, so "
@@ -337,6 +362,16 @@ def main() -> None:
     if args.exclude_collisions and collided:
         cases = {c: arms for c, arms in cases.items() if c not in set(collided)}
         print(f"  --exclude-collisions: {len(cases):,} cases remain")
+
+    if args.require_canonical_no_note_correct:
+        before = len(cases)
+        cases = require_canonical_no_note_correct(cases)
+        print(
+            "  --require-canonical-no-note-correct: "
+            f"{before:,} cases -> {len(cases):,}"
+        )
+        if not cases:
+            raise SystemExit("no canonically correct no-note cases remain")
 
     leaky = {c: arms for c, arms in cases.items() if arms["none"].get("gold_in_prompt")}
     clean = {c: arms for c, arms in cases.items() if not arms["none"].get("gold_in_prompt")}

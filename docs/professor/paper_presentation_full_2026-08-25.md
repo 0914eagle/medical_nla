@@ -525,6 +525,13 @@ prompt와 source answer를 생성한 prompt가 달랐다. 이 세 문제는 초�
 `1,747`과 `1,220`은 서로 다른 실험의 분모다. 행동 주표는 1,220이고,
 trajectory와 single-run attribution은 1,747 전체를 쓴다.
 
+**Canonical primary 재집계 결정.** 위 1,747/1,220은 generation-time matcher로
+선정한 fixed cohort의 provenance 수치다. 논문 primary는 canonical matcher에서도
+no-note가 정답인 전체 1,729건과 clean 1,204건으로 다시 제한한다. 이 primary
+cohort에서는 no-note accuracy가 1.0 by construction이므로 결과 그림에서 none
+막대는 생략하고 1.0 기준선만 둔다. 기존 fixed-cohort 수치는 appendix audit로
+보존한다. 아래 결과표의 neutral/wrong/correct와 moved 수치는 재집계 후 교체한다.
+
 현재 논문용 DDXPlus prompt는 3-cue 파일럿이 아니라 cleaning 후 남은
 positive/meaningful cue 전체를 bullet로 넣는다. Exact skeleton은 다음과 같다.
 

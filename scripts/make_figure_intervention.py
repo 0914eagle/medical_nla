@@ -54,6 +54,12 @@ def main() -> None:
         "--population", choices=["clean", "all", "leaky"],
         help="Legacy shortcut: use one population for both panels.",
     )
+    parser.add_argument(
+        "--omit-no-note",
+        action="store_true",
+        help="Omit the no-note accuracy bar and draw a 1.0 reference line. "
+        "Use only with dumps restricted to canonically correct no-note cases.",
+    )
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     if len(args.dumps) != len(args.labels):
@@ -97,13 +103,14 @@ def main() -> None:
     fig, (ax, ax_dest) = plt.subplots(
         1, 2, figsize=(7.2, 3.0), gridspec_kw={"width_ratios": [1.45, 1.0]}
     )
-    width = 0.19
+    display_arms = [a for a in ARM_ORDER if not (args.omit_no_note and a == "none")]
+    width = 0.24 if len(display_arms) == 3 else 0.19
     for ci, (label, pop, _) in enumerate(clusters):
-        for ai, arm in enumerate(ARM_ORDER):
+        for ai, arm in enumerate(display_arms):
             stats = pop["arms"].get(arm)
             if not stats:
                 continue
-            x = ci + (ai - 1.5) * width
+            x = ci + (ai - (len(display_arms) - 1) / 2) * width
             acc = stats["correct"]
             ax.bar(
                 x, acc, width * 0.92, facecolor=ARM_FACE[arm], edgecolor="black",
@@ -117,6 +124,17 @@ def main() -> None:
     ax.set_xticklabels(
         [f"{label}\n(n = {pop['n']:,})" for label, pop, _ in clusters], fontsize=8
     )
+    if args.omit_no_note:
+        for label, pop, _ in clusters:
+            no_note = pop["arms"].get("none", {}).get("correct")
+            if no_note is None or abs(float(no_note) - 1.0) > 1e-12:
+                raise SystemExit(
+                    f"{label}: --omit-no-note requires no-note accuracy 1.0; got {no_note}"
+                )
+        ax.axhline(
+            1.0, color="0.45", linestyle=":", linewidth=0.9,
+            label="no-note reference = 1.0 (selection criterion)", zorder=0,
+        )
     ax.set_ylim(0.6, 1.02)
     ax.set_ylabel("accuracy", fontsize=8)
     ax.tick_params(labelsize=7)

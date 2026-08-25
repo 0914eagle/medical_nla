@@ -38,6 +38,7 @@ def main() -> None:
         "--dumps", args.ddx_dump, args.mcr_dump,
         "--labels", "DDXPlus", "MedCaseReasoning",
         "--accuracy-population", "clean", "--destination-population", "all",
+        "--omit-no-note",
         "--output", str(out / f"figure2_behavior.{ext}"),
     )
     run(
