@@ -65,9 +65,10 @@ probe·AV·CoT monitor는 wrong-note 한 번만 보고 그 label을 예측한다
 ### 논문 Methodology와 발표의 대응
 
 발표는 논문의 §3 순서를 그대로 따른다. Slide 9–11은 §3.1 데이터와 direct-answer
-모집단, Slide 12–15는 §3.2 four-arm 인과 개입과 moved 정의, Slide 16–19는
-§3.3 내부 측정 채널과 AV 측정 관문 M0, Slide 18–28은 §3.4의 행동·궤적·단일
-실행 탐지·교정 평가다. 따라서 AV가 먼저 나오고 현상을 나중에 찾는 구조가
+모집단, Slide 12–14는 §3.2 four-arm 인과 개입과 moved 정의, Slide 15–16은
+§3.3 내부 측정 채널과 AV 측정 관문 M0, Slide 17–28은 §3.4의 행동·궤적·단일
+실행 탐지·교정 평가다. CoT 생성 프로토콜은 Methods 흐름을 끊지 않도록 CoT 결과
+바로 앞인 Slide 19에서 짧게 소개한다. 따라서 AV가 먼저 나오고 현상을 나중에 찾는 구조가
 아니다. Slide 1–7에서 현상과 RQ를 먼저 세우고, Methodology에서 probe와 AV를
 그 질문에 답하기 위한 서로 다른 측정 채널로 소개한다.
 
@@ -649,43 +650,20 @@ confusion을 사용한다. 그런 기록이 없으면 cue-word Jaccard similarit
 문장 template을 쓰지만 plausibility provenance가 같지는 않으며, 이 차이를
 limitations에 밝힌다.
 
-## Slide 14. Direct answer와 CoT answer를 어떻게 생성했는가
+## Slide 14. What exactly are we predicting? - moved label의 정의
 
-**왜 두 생성 조건이 필요한가.** 이 논문은 CoT를 무조건 믿지도, 무조건 버리지도
-않는다. Direct 조건은 외부 suggestion이 최종 선택 자체를 얼마나 움직이는지
-측정하는 행동 기준선이다. CoT 조건은 명시적 추론 시간이 anchoring을 완화하는지,
-반대로 suggestion을 정당화하는지, 그리고 chain text가 소견서 유발 이동을 단일 실행에서 판별하는 데
-얼마나 유용한지를 측정한다. 두 조건을 분리하지 않으면 “CoT가 보호했다”와
-“direct prompt가 사실상 짧은 CoT를 생성했다”를 구분할 수 없고, LLM monitor가
-읽을 일관된 chain도 정의할 수 없다.
+**왜 Slide 13 바로 다음에 필요한가.** Slide 12는 네 개의 개입 arm을 정의하고,
+Slide 13은 DDXPlus와 MCR에서 plausible wrong suggestion을 실제로 어떻게 만드는지
+설명했다. 이제 입력 구성이 끝났으므로, 같은 사례의 no-note와 wrong-note 실행을
+비교해 **어떤 변화를 소견서가 유발한 사건이라고 부를지** 정의해야 한다. 이 label을
+정하지 않으면 이후의 moved 321건, suggestion 채택 91건, silent subset과 탐지
+AUROC가 무엇을 뜻하는지 설명할 수 없다. 따라서 흐름은 다음과 같다.
 
-**화면에 넣을 decoding 조건표**
-
-| 조건 | Prefill | 최대 생성 | 파싱 대상 | 목적 |
-|---|---|---:|---|---|
-| Direct | `The answer is` | 64 tokens | closing diagnosis | 설명 없이 실제 선택 측정 |
-| CoT | 없음 | 2,048 tokens | closing diagnosis | 생성 reasoning과 답 측정 |
-| Forced close | 기존 chain 재사용 | 32 tokens | closing diagnosis | budget 초과 시 답만 완성 |
-
-Source model은 `google/gemma-3-12b-it`, BF16, deterministic greedy decoding
-(`do_sample=false`)이다. Prompt는 Hugging Face chat template으로 감싸되 별도
-instruction을 추가하지 않는다. 과거에는 answer script가 prompt를 다시 감싸
-activation extraction과 서로 다른 forward pass를 만든 버그가 있었기 때문에,
-현재 instruction은 case JSONL 안에 고정되어 있다.
-
-Direct 조건은 assistant turn을 `The answer is`에서 시작하도록 prefill하고 최대
-64 token만 생성한다. 자유 생성으로 두면 Gemma가 “Okay, let's break down this
-case”로 시작해 direct 조건도 사실상 CoT가 되기 때문이다. 최종 response는
-`The answer is{completion}`으로 복원하며, 정규식으로 closing diagnosis만 파싱한다.
-전체 response에서 gold 문자열을 검색하지 않는다. 그렇게 하면 감별 과정에서
-배제한 진단도 정답으로 오채점되기 때문이다.
-
-CoT 조건은 prefill 없이 최대 2,048 token을 허용한다. Budget 안에 closing answer를
-내지 못한 경우 모델 자신의 생성된 chain을 그대로 다시 주고 답 부분만 32 token
-안에서 완성하며 `answer_forced=true`로 기록한다. Direct와 CoT는 presentation
-prefix가 byte-identical하고 instruction suffix만 다르다.
-
-## Slide 15. 정답 채점과 moved label을 어떻게 정의했는가
+```text
+개입 구성(Slides 12–13)
+  → no-note/wrong-note pair로 moved 정답 label 생성(Slide 14)
+  → detector는 wrong-note run 하나의 output/CoT/activation만 사용(Slides 15 이후)
+```
 
 **왜 별도의 `moved` label이 필요한가.** `wrong answer`는 모델이 틀렸다는
 결과만 말하고, 그 오류가 소견서 때문에 생겼는지는 말하지 않는다. 원래 no-note
@@ -693,10 +671,17 @@ prefix가 byte-identical하고 instruction suffix만 다르다.
 `answer == suggestion`만 보면 제안을 그대로 복사한 경우만 잡고, 제안 때문에
 추론이 흔들려 제3 진단으로 간 경우를 놓친다. 그래서 같은 사례의 no-note와
 wrong-note 결과를 비교해 **note가 답을 바꾼 사건을 사후 평가 label로 정의**한다.
-Detector는 이 pair를 입력으로 보지 않고 wrong run 하나만 받는다. 즉 Slide 15는
+Detector는 이 pair를 입력으로 보지 않고 wrong run 하나만 받는다. 즉 Slide 14는
 일반적인 오답 탐지가 아니라, **같은 사례의 no-note 기준 실행으로 정의한
 소견서 유발 답변 이동을 wrong-note 한 번만 보고 판별하는 평가 문제**를 만드는
 단계다.
+
+예를 들어 gold가 pneumonia이고 wrong suggestion이 pulmonary embolism일 때,
+no-note에서는 pneumonia를 답했지만 wrong-note에서 heart failure를 답하면 제안을
+직접 복사하지 않았어도 `lost_the_gold=True`, `moved=True`, `silent=True`다. 반대로
+no-note에서도 이미 heart failure를 답했다면 wrong-note가 오답이어도 소견서 때문에
+생긴 변화가 아니므로 `moved=False`다. 이 구분이 단순 error prediction과 현재의
+note-influence attribution을 가른다.
 
 **화면에 넣을 label 정의표**
 
@@ -724,7 +709,7 @@ unchanged라는 뜻이 아니다. Canonical silent 1,641개 안에는 moved 218�
 대부분 제3 진단으로 이동한 사례다. 이 subset은 output-copy heuristic을 제거한
 상태에서 내부 채널의 추가 정보를 시험한다.
 
-## Slide 16. Activation을 어디서 어떻게 추출했는가
+## Slide 15. Activation을 어디서 어떻게 추출했는가
 
 **화면에 넣을 계기 구분표**
 
@@ -754,7 +739,7 @@ test case의 activation은 probe training에 들어가지 않지만, 같은 diag
 case label은 지도학습에 사용된다. 따라서 probe는 oracle은 아니지만 강한
 supervised closed-vocabulary baseline이다.
 
-## Slide 17. 자연어 activation readout은 정확히 무엇을 학습했는가
+## Slide 16. 자연어 activation readout은 정확히 무엇을 학습했는가
 
 **화면 한쪽에 넣을 학습 사양**
 
@@ -895,7 +880,7 @@ epoch, L32는 3 epoch이어서 layer와 training exposure가 섞여 있다. 안�
 현재 recipe에서 L24가 가장 높은 경향을 보이고, heldout diagnosis transfer가 크게
 떨어진다는 것이다. “L24가 의학 정보의 최적 layer”라는 인과 주장은 하지 않는다.
 
-## Slide 18. RQ1 행동 결과 - referral note가 실제로 답을 바꾸는가
+## Slide 17. RQ1 행동 결과 - referral note가 실제로 답을 바꾸는가
 
 **발표자 노트 - 왜 여기서 RQ1을 시작하는가.** 앞의 M0 실험은 AV가 적어도
 일부 activation-case pairing을 추적한다는 것을 확인하기 위한 **측정 도구 검증**이었다.
@@ -948,7 +933,7 @@ MCR의 1,543은 평가 가능한 12,620건 중 source model이 no-note에서 맞
 흔들려 제3의 진단으로 갔는지 알 수 없다. 두 기전은 탐지 방법도 달라진다. 그래서
 다음에는 움직인 답의 **도착지**를 분해한다.
 
-## Slide 19. 이동은 suggestion 복사가 아니라 주로 제3 진단 이동이다
+## Slide 18. 이동은 suggestion 복사가 아니라 주로 제3 진단 이동이다
 
 **화면에 넣을 moved destination 표**
 
@@ -976,12 +961,33 @@ presentation에 없는 clean 1,220건에서 나왔다. Clean moved rate는 289/1
 선택지로 들어가는 것이 아니라 전체 differential geometry를 흔들어 다른 진단으로
 보낼 수 있다.
 
-**발표자 연결 원고.** Slide 18은 “답이 움직인다”를 보였고, Slide 19는 그 움직임의
+**발표자 연결 원고.** Slide 17은 “답이 움직인다”를 보였고, Slide 18은 그 움직임의
 약 70%가 단순 suggestion 복사가 아님을 보였다. 따라서 이후 실험의 목표는
 `answer == suggestion` 같은 표면 규칙을 정교하게 만드는 것이 아니라, 외부 제안이
 모델의 판단 상태를 어떻게 교란했는지 찾는 것으로 바뀐다. 다만 이 현상이 referral
 문구 하나에만 생긴 프롬프트 artifact라면 일반적인 기전으로 볼 수 없다. 그래서
 다음에는 발화자와 문구를 바꾸고, CoT를 허용해도 현상이 남는지 확인한다.
+
+## Slide 19. CoT 결과를 보기 전에 - Direct와 CoT prompt는 어떻게 다른가
+
+이 슬라이드는 별도의 Methodology 논점을 추가하는 것이 아니라, 다음 결과를 읽기
+위한 짧은 프로토콜 확인이다. Direct와 CoT는 같은 presentation prefix를 사용하지만
+instruction suffix와 decoding budget이 다르다. 따라서 다음 슬라이드의 direct/CoT
+차이는 단순히 같은 prompt에서 생성 길이만 늘린 비교가 아니다.
+
+| 조건 | Prefill | 최대 생성 | 파싱 대상 |
+|---|---|---:|---|
+| Direct | `The answer is` | 64 tokens | closing diagnosis |
+| CoT | 없음 | 2,048 tokens | closing diagnosis |
+| Forced close | 기존 chain 재사용 | 32 tokens | closing diagnosis |
+
+Source model은 `google/gemma-3-12b-it`, BF16, deterministic greedy decoding
+(`do_sample=false`)이다. Direct는 자유 reasoning을 막기 위해 assistant turn을
+`The answer is`에서 시작한다. CoT는 prefill 없이 reasoning과 closing answer를
+생성한다. Budget 안에 closing answer가 없으면 생성된 chain은 그대로 유지하고
+32 tokens 안에서 답만 완성해 `answer_forced=true`로 기록한다. 정답 채점은 전체
+chain에서 gold 문자열을 찾지 않고 closing diagnosis만 사용한다. 세부 chat-template과
+파싱 규칙은 Appendix로 보낸다.
 
 ## Slide 20. 문구 변화와 CoT의 이중성
 
