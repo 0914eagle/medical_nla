@@ -2,7 +2,7 @@
 
 **질문**: 답이 바뀐 케이스에서 **내부 상태는 무엇을 하고 있는가.**
 
-**상태**: ✅ canonical trajectory와 Table 2a 전사 완료 (`moved=321`).
+**상태**: ✅ canonical-eligible trajectory와 Table 2a 전사 완료 (`n=1,729`, `moved=319`).
 DDXPlus 전용이며 MCR 내부 기전은 현재 **미측정**이다.
 
 ---
@@ -33,12 +33,13 @@ no-note arm에 대응 위치가 없으므로 paired cost가 `N/A`다.
 
 | 오답 소견서 하 행동 | n | 소견서 있음 | 소견서 없음 | Δ |
 |---|---:|---:|---:|---:|
-| 답 유지 | **1,426** | **.980** | **.987** | **−.007** |
-| 정답 상실, 제3 진단 | **230** | **.880** | **.934** | **−.055** |
-| **제안 채택** | **91** | **.725** | **.919** | **−.195** |
+| 답 유지 | **1,410** | **.981** | **.987** | **−.006** |
+| 정답 상실, 제3 진단 | **230** | **.878** | **.932** | **−.054** |
+| **제안 채택** | **89** | **.730** | **.929** | **−.199** |
 
-canonical 그룹에서도 내부 비용은 답 유지 < 제3 진단 < 제안 채택 순으로
-커진다. 구 마지막 값 −.187은 canonical 그룹 재분류 후 −.195가 됐다.
+canonical-eligible 그룹에서도 내부 비용은 답 유지 < 제3 진단 < 제안 채택
+순으로 커진다. 행동 심각도 순서와 final cost의 Spearman ρ는 **−.282**, 95% CI
+**[−.328, −.233]**으로 0을 배제한다.
 
 ## 읽는 법
 
@@ -47,8 +48,8 @@ canonical 그룹에서도 내부 비용은 답 유지 < 제3 진단 < 제안 채
 최종 토큰에서도 세 집단 모두 평균 정답 신호가 남는다. 이것은 집단 평균이며
 각 사례에서 gold가 top-1이라는 뜻은 아니다.
 
-특히 **제안 채택형**의 final token에서도 평균 `p(gold)=.725`,
-`p(suggestion)=.211`로 gold mass가 약 **3.4배** 높다. 정의상 이 집단은 실제
+특히 **제안 채택형**의 final token에서도 평균 `p(gold)=.730`,
+`p(suggestion)=.212`로 gold mass가 약 **3.4배** 높다. 정의상 이 집단은 실제
 출력에서는 제안을 채택했다. 따라서 이 패널의 가장 강한 대비는 “제안을
 출력했으니 내부에서도 제안이 지배했을 것”이라는 예상이 집단 평균에서
 성립하지 않는다는 점이다. 단, 이 평균 비율을 개별 사례의 지식 보존이나
@@ -68,33 +69,33 @@ canonical paired cost의 핵심 지점은 다음과 같다.
 
 | 지점 | 제안 채택 Δ | 정답 상실 Δ |
 |---|---:|---:|
-| question | −.167 | −.057 |
-| **constraint** | **−.439** | **−.304** |
-| format | −.183 | −.188 |
-| final | −.195 | −.055 |
+| question | −.171 | −.060 |
+| **constraint** | **−.467** | **−.299** |
+| format | −.188 | −.189 |
+| final | −.199 | −.054 |
 
 두 moved 집단 모두 constraint에서 비용이 가장 크고 final prompt token에서
 일부 회복한다. 그런데 이 사례들은 이후 잘못된 답을 생성한다. 따라서 관측된
 gold signal의 회복은 올바른 출력에 **충분하지 않았다**. 이를 “회복 신호가
 출력 경로에 전달되지 않았다”는 인과 주장으로 확대하지는 않는다.
 
-**Figure 3(c), canonical 321건**:
+**Figure 3(c), canonical-eligible 319건**:
 
 | 첫 suggestion top-1 지점 또는 경로 | n | moved 중 비율 |
 |---|---:|---:|
 | last finding (note 이전) | 7 | 2.2% |
 | referral note | 0 | 0.0% |
-| question | 30 | 9.3% |
-| constraint | 6 | 1.9% |
+| question | 29 | 9.1% |
+| constraint | 10 | 3.1% |
 | format | 5 | 1.6% |
-| final token | 7 | 2.2% |
-| **suggestion never top-1** | **266** | **82.9%** |
-| └ gold top-1 throughout | 151 | 47.0% |
-| └ other diagnosis top-1, suggestion never top-1 | 115 | 35.8% |
+| final token | 6 | 1.9% |
+| **suggestion never top-1** | **262** | **82.1%** |
+| └ gold top-1 throughout | 147 | 46.1% |
+| └ other diagnosis top-1, suggestion never top-1 | 115 | 36.1% |
 
-따라서 suggestion이 한 번이라도 top-1인 moved 사례는 55/321(17.1%)이고,
+따라서 suggestion이 한 번이라도 top-1인 moved 사례는 57/319(17.9%)이고,
 그중 7건은 note를 보기 전부터 suggestion이 top-1이었다. **note 이후 처음
-suggestion top-1이 된 사례는 48/321(15.0%)**다.
+suggestion top-1이 된 사례는 50/319(15.7%)**다.
 
 패널 (b)의 referral note는 no-note counterpart가 없어 `N/A`인 반면, 패널
 (c)의 referral note는 측정된 first-top1 count가 실제로 **0**이다. Figure에는
@@ -106,8 +107,8 @@ note landmark에서 gold-label probe가 준 `p(suggestion)`은 세 집단 모두
 전혀 없다는 뜻은 아니다. 그 부재를 검증하려면 suggestion identity를 직접
 라벨로 둔 probe나 matched-vs-mismatched retrieval 검사가 필요하다.
 
-핵심은 `never suggestion top-1 = gold throughout`가 아니라는 것이다. 266건 중
-151건만 gold가 모든 관측 landmark에서 top-1이고, 115건은 제3 진단이 top-1인
+핵심은 `never suggestion top-1 = gold throughout`가 아니라는 것이다. 262건 중
+147건만 gold가 모든 관측 landmark에서 top-1이고, 115건은 제3 진단이 top-1인
 적이 있다. Figure 3의 stacked bar가 이 둘을 분리한다.
 
 **한 문장 해석**: 오답 소견서는 내부 gold signal을 행동 결과에 비례해
@@ -126,7 +127,7 @@ top-1 표상으로 자리잡지는 않는다. 이는 late decoded state와 emitt
 | **무학습 AV 판독** | **.603** |
 
 **결렬의 존재는 두 계기가 말하고, 정밀한 해부는 프로브만 말한다.** canonical
-82.9%와 landmark 경로 분해는 **프로브 전용**이며 본문이 그대로 밝힌다.
+82.1%와 landmark 경로 분해는 **프로브 전용**이며 본문이 그대로 밝힌다.
 
 ## 같은 49-way 진단 프로브는 MCR에 직접 이전되지 않는다
 
@@ -142,8 +143,9 @@ baseline과 함께 실제로 측정하기 전에는 자연어 채널의 필요�
 
 ## 남은 것
 
-- ✅ canonical final `p_gold/cf_p_gold/Δ`와 채택형 `p(suggestion)=.211` 전사.
-- ▢ Table 2a의 세 Δ 차이에 대한 paired bootstrap CI 또는 추세 검정을 추가한다.
+- ✅ canonical final `p_gold/cf_p_gold/Δ`와 채택형 `p(suggestion)=.212` 전사.
+- ✅ Table 2a의 paired bootstrap CI와 행동 심각도 순서의 Spearman 추세 검정
+  전사. final ρ=−.282 [−.328,−.233].
 - ▢ constraint 최대값이 landmark별 probe calibration 차이인지 확인하려면
   각 위치 probe의 heldout 성능·calibration을 함께 보고한다.
 - ▢ suggestion 표상 부재를 주장하려면 hint-label probe/retrieval 대조를 추가한다.
@@ -153,6 +155,8 @@ baseline과 함께 실제로 측정하기 전에는 자연어 채널의 필요�
 ## 재현
 
 ```bash
-python scripts/analyze_trajectory.py --dump $ART/results/trajectory_dump.json
-python scripts/make_figure_trajectory.py --dump $ART/results/trajectory_dump.json
+python scripts/analyze_trajectory.py --dump $ART/results/trajectory_dump_canonical_eligible.json
+python scripts/make_figure_trajectory.py \
+  --dump $ART/results/trajectory_dump_canonical_eligible.json \
+  --output $ART/results/paper_figures/figure3_trajectory_canonical_eligible.png
 ```

@@ -5,10 +5,10 @@
 수치는 source-misaligned target에서 나온 무효 결과로 인용하지 않는다.
 문서 역할과 제출 전 관문은 `README.md`를 따른다.
 
-> **수치 잠금 상태 (08-25):** Table 1/Figure 2와 Table 2b·3은
-> canonical-eligible DDXPlus **1,729건(moved 319)**으로 갱신됐다. Table 2a의
-> trajectory 세부 분해와 Table 2b의 paired-bootstrap CI는 새 로그 전사가
-> 끝날 때까지 잠금 상태다. 옛 1,747/321 값은 fixed-cohort 감사값으로만 남긴다.
+> **수치 잠금 상태 (08-25):** Table 1/Figure 2, Table 2a/Figure 3,
+> Table 2b·3은 canonical-eligible DDXPlus **1,729건(moved 319)**으로 갱신됐다.
+> Table 2b의 paired-bootstrap CI와 Table 3 capitulation만 새 로그 전사
+> 대기다. 옛 1,747/321 값은 fixed-cohort 감사값으로만 남긴다.
 
 설계 규칙 (v1의 실패에서):
 - **표 하나 = 지표 하나.** 단위가 다른 값은 같은 열에 두지 않는다.
@@ -462,10 +462,6 @@ mostly does not.*
 표가 있어야 한다. 지표 하나(최종 토큰에서 프로브가 정답에 주는 확률),
 셀당 값 하나, Δ는 명시된 파생 열.
 
-> **LOCKED — fixed-cohort audit.** 아래 Table 2a와 Figure 3 수치는 새
-> `trajectory_dump_canonical_eligible.json`을 전사하기 전까지 camera-ready
-> 본문에 사용하지 않는다.
-
 **Table 2a.** Probability the cross-fit linear probe places on the gold
 diagnosis at the final token, by what the model then did. "No note" reads the
 same cases with the note removed; finding-position activations are identical
@@ -473,14 +469,19 @@ across the two by construction, so Δ is the note's internal cost.
 
 | Behaviour under the wrong note | n | With the note | No note | Δ |
 |---|---:|---:|---:|---:|
-| Answer unchanged | **1,426** | **.980** | **.987** | **−.007** |
-| Lost the gold, answered elsewhere | **230** | **.880** | **.934** | **−.055** |
-| Adopted the suggestion | **91** | **.725** | **.919** | **−.195** |
+| Answer unchanged | **1,410** | **.981** | **.987** | **−.006** |
+| Lost the gold, answered elsewhere | **230** | **.878** | **.932** | **−.054** |
+| Adopted the suggestion | **89** | **.730** | **.929** | **−.199** |
 
-*The fixed-cohort trajectory contains 321 moved cases. The suggestion is probe
-top-1 at least once in 55 (17.1%); seven of those already decode to it before
-the note. In 266 (82.9%) it is never top-1. That last group must not be called
-"gold throughout": 151 cases keep gold top-1 at every observed landmark,
+*Paired case-bootstrap 95% CIs for Δ are `[-.010,-.003]`,
+`[-.077,-.031]`, and `[-.272,-.130]`, respectively. Coding behaviour severity
+as unchanged < lost-gold < adopted gives Spearman ρ=−.282
+`[-.328,-.233]`; this is an ordered association, not a causal mediation test.*
+
+*The canonical-eligible trajectory contains 319 moved cases. The suggestion is
+probe top-1 at least once in 57 (17.9%); seven of those already decode to it
+before the note. In 262 (82.1%) it is never top-1. That last group must not be
+called "gold throughout": 147 cases keep gold top-1 at every observed landmark,
 while 115 pass through another diagnosis without ever making the suggestion
 top-1. At the last finding the paired cost
 is zero by causal masking; the note token itself has no no-note counterpart
@@ -488,11 +489,11 @@ and its paired cost is undefined.*
 
 *Panel (a) highlights the internal-output mismatch directly: even among cases
 that emitted the suggestion, the final-token mean is
-`p(gold)=.725` versus `p(suggestion)=.211` (about 3.4×). These are group means
+`p(gold)=.730` versus `p(suggestion)=.212` (about 3.4×). These are group means
 from a 49-way probe, not per-case knowledge, model next-token probabilities, or
 calibration claims. Panel (b) is non-monotonic: the paired gold
 cost is largest around the constraint and partially recovers at the final
-token (`adopted: −.439→−.195`; `lost: −.304→−.055`). This identifies the
+token (`adopted: −.467→−.199`; `lost: −.299→−.054`). This identifies the
 instruction segment as the most vulnerable observed landmark under this L32
 prompt skeleton, but each landmark uses a separately trained probe. The
 recovery was insufficient for correct output; it does not establish a causal
@@ -753,12 +754,12 @@ advantage from this table.*
   diagnosis` stacked bar로 보인다. (a)는 gold가 chart에 없는 clean cohort,
   (b)는 canonical 전체 source-correct cohort이므로 각 패널에 n을 따로 쓴다.
 - **Figure 3 — Internal trajectory.** 절대 decoded signal, no-note 대비 paired
-  cost, suggestion-top1 최초 지점을 보인다. 아래 321건은 fixed-cohort
-  감사값이며 새 319건 덤프 전사 전에는 잠금 상태다. suggestion
-  top-1 경험 55, never 266이며, never는 gold-throughout 151과 other-top1 115로
+  cost, suggestion-top1 최초 지점을 보인다. canonical-eligible 319건에서
+  suggestion top-1 경험 57, never 262이며, never는 gold-throughout 147과
+  other-top1 115로
   나뉜다. note 이전 last-finding 7건은 개입 효과가 아니라 baseline
-  differential signal이다. 채택형 최종 토큰의 `p(gold)=.725` 대
-  `p(suggestion)=.211`과 constraint에서 최대인 paired cost를 캡션에서
+  differential signal이다. 채택형 최종 토큰의 `p(gold)=.730` 대
+  `p(suggestion)=.212`와 constraint에서 최대인 paired cost를 캡션에서
   직접 지적한다.
 - **Figure 4 — Detection to correction.** (a) Table 2b의 채널별 all/silent
   AUROC, (b) Table 3의 overall accuracy와 moved recovery를 나란히 둔다.

@@ -88,15 +88,15 @@ gold를 유지한 채 suggestion을 추가한 사례도 포함한다. 따라서 
 `scripts/analyze_trajectory.py --dump`의 정본 JSON이다.
 
 - **(a) absolute signal**: wrong-note arm의 행동군별 `p(gold)`, 그리고 suggestion
-  채택군의 `p(suggestion)`을 그린다. 채택군 final에서도 `.725` 대 `.211`로
+  채택군의 `p(suggestion)`을 그린다. 채택군 final에서도 `.730` 대 `.212`로
   gold가 3.4배 높다는 것이 핵심이다. 단, 이는 source next-token probability가
   아니라 landmark별 cross-fit diagnosis probe probability다.
 - **(b) paired note cost**: 같은 case의 `p_wrong(gold)-p_none(gold)`. Constraint에서
   비용이 최대이고 final에서 일부 회복한다. 단조 누적이 아니며, 현재 prompt
   skeleton의 위치 효과이지 보편적인 `constraint token` 기전이 아니다.
-- **(c) first suggestion top-1**: canonical-eligible 모집단에서 다시 계산한 moved
-  사례를 first top-1 landmark별로 나눈다. 옛 321/266/151/115는 matcher-era
-  고정 코호트 값이므로 본문에서 폐기한다. Note의 0 label은 측정된 0이며
+- **(c) first suggestion top-1**: canonical-eligible moved 319건을 first top-1
+  landmark별로 나눈다. never=262, gold-throughout=147, other-top1=115이며
+  suggestion top-1 경험은 57건이다. Note의 0 label은 측정된 0이며
   누락이 아니다.
 
 ```bash
