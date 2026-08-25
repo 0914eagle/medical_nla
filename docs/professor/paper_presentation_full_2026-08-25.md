@@ -1314,14 +1314,53 @@ content, R6는 같은 목적의 압축된 probe label, R7은 모델 자신의 Co
 따라서 다음 슬라이드의 숫자는 방법 간 순위표라기보다 **어떤 정보가 교정을
 만드는지 분해하는 실험**으로 읽어야 한다.
 
-**화면 상단에 먼저 넣을 RQ3의 두 단계.** `moved`를 아는 것과 실제로 개입
-대상을 고르는 것을 분리한다.
+**화면 상단에 먼저 넣을 RQ3의 두 단계.** 여기에는 혼동하기 쉬운 두 가지 구분이
+있다. 첫째는 실험자가 정답 라벨을 만드는 **평가 절차**와 실제 시스템이 동작하는
+**배포 절차**의 구분이다. 둘째는 배포 시스템 안의 **위험 사례 선택(selector)**과
+**선택된 사례 교정(corrector)**의 구분이다.
+
+### 구분 1: 실험 평가와 실제 사용
 
 ```text
 평가 단계: no-note/wrong-note pair + gold로 moved 정답 라벨을 만든다.
 배포 단계: gold와 no-note 실행 없이, 현재 wrong-note run 하나의 detector로
           개입 여부를 고른다.
 ```
+
+평가 단계에서 no-note와 gold를 쓰는 이유는 detector에게 답을 알려주기 위해서가
+아니다. `이 사례는 소견서 때문에 실제로 맞은 답을 잃었는가`라는 정답표를 만들어
+detector와 correction policy를 채점하기 위해서다. 실제 사용에서는 반사실인
+no-note 실행도 정답도 관측할 수 없으므로 둘 다 입력에서 제거한다.
+
+### 구분 2: 배포 가능한 RQ3 시스템의 두 모듈
+
+| 단계 | 입력 | 출력 | 이 단계가 답하는 질문 |
+|---|---|---|---|
+| **1. Selector** | 현재 wrong-note 실행의 output/CoT/logit/activation/readout | 위험 점수와 개입 여부 | 이 사례가 소견서 때문에 잘못 움직였을 가능성이 높은가? |
+| **2. Corrector** | flag된 사례의 원 prompt·첫 답 + r5/r6 교정 정보 | 수정된 최종 진단 | 개입하기로 한 사례를 실제로 정답으로 되돌릴 수 있는가? |
+
+Selector는 새 진단을 만드는 모델이 아니라 **누구에게만 두 번째 기회를 줄지** 고른다.
+Corrector는 모든 사례에 실행하지 않고 selector가 고른 사례에만 실행한다. 이 분리가
+필요한 이유는 r5/r6가 moved 사례에서는 잘 작동하지만 모든 사례에 적용하면 원래
+맞던 답도 대량으로 깨뜨리기 때문이다.
+
+구체적인 예시는 다음과 같다.
+
+```text
+사후 평가에서만 보이는 사실:
+  no-note answer = pneumonia (gold)
+  wrong-note answer = pulmonary embolism
+  -> true moved = 1
+
+실제 사용 시 보이는 것:
+  wrong-note answer + 그 실행의 activation/readout만 관측
+  -> selector score가 threshold 이상이면 corrector 실행
+  -> 아니면 첫 답을 그대로 유지
+```
+
+여기서 시스템은 `pneumonia가 gold`라는 사실이나 no-note answer를 보고 flag하지
+않는다. 그것들은 실험 종료 후 selector가 올바르게 flag했는지와 corrected answer가
+실제로 맞았는지를 계산할 때만 사용한다.
 
 즉 아래 correction ladder의 `moved recovery`는 **사후에 moved로 판명된 사례에서
 교정 재료의 조건부 가치를 측정하는 지표**다. 실제 사용에서 moved를 미리 아는
@@ -1336,6 +1375,20 @@ return first_answer
 Gold, no-note answer, true `moved`는 threshold를 고르거나 배포 입력으로 쓰지 않고
 최종 test 평가에만 쓴다. 이 구분을 먼저 말해야 Slide 25의 높은 moved recovery를
 oracle 배포 성능으로 오해하지 않는다.
+
+### 현재 검증된 단계와 아직 남은 단계
+
+| RQ3 검증 단계 | 현재 증거 | 상태 |
+|---|---|---|
+| **A. Corrector의 조건부 정보 가치** | true moved subset에서 r5 `.6301`, r6 `.8339`; r5−r4 `+22.6%p` | 완료 |
+| **B. Selector와 corrector의 end-to-end 결합** | 과거 fixed-cohort proof of concept만 존재 | canonical held-out 검증 대기 |
+
+단계 A에서는 분석을 위해 true moved subset을 사용한다. 이는 `고쳐야 할 사례를 이미
+안다`고 가정한 oracle-style 분석이며, **어떤 교정 정보가 유용한지**만 답한다.
+단계 B에서는 RQ2 detector가 flag한 사례에만 r5/r6를 적용해 전체 test 정확도,
+newly broken, net correction, intervention rate를 측정한다. 논문이 `실제 성능을
+높였다`고 말하려면 단계 B까지 성공해야 한다. 단계 B가 실패하면 RQ3 결론은
+`moved 사례에서 내부 content가 조건부로 유용하다`로 제한한다.
 
 **화면에 넣을 intervention 설계표**
 
