@@ -164,6 +164,16 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 10. **Source output-head likelihood 기준선**을 canonical wrong-note 1,729건에서
     실행한다. 생성문과 hidden-state probe 사이의 필수 비교이며, 과거 source-error
     logprob 결과로 대체하지 않는다.
+11. **Detector-gated correction을 canonical 1,729건에서 제출 수준으로 다시
+    검증한다.** 과거 fixed-cohort의 probe-selector+r5 `.9141`과 argmax replacement
+    `.9651`은 proof of concept다. Validation에서 threshold/policy를 고정하고,
+    held-out test에서 overall accuracy, moved recovery, unchanged preservation,
+    newly broken, net correction, intervention rate와 paired CI를 보고하기 전에는
+    RQ3를 전체 성능 향상으로 쓰지 않는다.
+
+전체 의존관계와 Overleaf 이전 순서는
+[`submission_roadmap_to_overleaf_2026-08-25.md`](submission_roadmap_to_overleaf_2026-08-25.md)를
+정본으로 따른다.
 
 ## 갱신 규칙
 

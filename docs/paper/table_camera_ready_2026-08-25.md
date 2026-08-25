@@ -728,6 +728,12 @@ advantage from this table.*
 | Probe selects, re-ask r6 | .9531 | .966 |
 | Probe selects, re-ask r5 | .9141 | .927 |
 
+*These are fixed-cohort proof-of-concept policies, not the final canonical
+deployment estimate. Submission-grade RQ3 requires the 1,729-case canonical
+cohort, a validation-frozen operating point, held-out policy evaluation, and
+paired uncertainty for net correction. Until then, this table belongs in the
+appendix and does not establish overall deployment benefit.*
+
 ---
 
 ## Discussion decision guide (unnumbered; §5 prose)

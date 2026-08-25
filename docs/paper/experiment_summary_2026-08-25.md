@@ -67,7 +67,7 @@
 | **r6 probe 클래스명** | 정확한 클래스 피드백 통제 | moved **.8339**; 내용 정확도 재집계 로그 전사 대기 | ✅; 배포 권고 아님 |
 | **r7 자기 CoT** | 모델 자신의 설명을 되먹이면 고쳐지는가 | 공통 1,151 id에서 moved **.1236** (r5 .5281, r6 .7416) | ✅; 쉬운 공통 집합 |
 | 항복률 방어 | 판독 내용을 함께 주면 소견 재제시보다 투항이 줄어드는가 | 옛 fixed-cohort r5 < r4 **−14.7%p** | 🔶 canonical ladder 로그 전사 대기 |
-| 하이브리드 | 탐지-교정 고리가 닫힌다 | probe 선별 + argmax = **.9651** | ✅ |
+| 하이브리드 예비 정책 | 내부 selector와 correction을 결합할 수 있는가 | 옛 fixed-cohort: probe 선별 + argmax **.9651**, +r5 **.9141** | 🔶 proof of concept; canonical 재집계·validation-frozen policy·paired CI 대기 |
 | 허위경보 해부 | 정밀도 병목의 정체 | 어댑터 오독 **68.4%** · 매칭 17.1% · 버틴 흔들림 14.5% | ✅ |
 
 ### 외부 판정자 과제
@@ -248,8 +248,9 @@ baseline을 직접 이전할 수 없다고 쓴다. 이것은 MCR 자연어 판�
 
 **③ probe는 경쟁자가 아니라 우리 논문의 도구다.** 이번 주 중심 발견(궤적,
 용량-반응)은 전부 probe로 측정했다. 역할 분담이 논문의 구조다 — **probe가
-위치를 찍고, AV 판독이 그 자리의 후보 의미를 탐색하며, 하이브리드에서 probe가
-개입 대상을 고르고 정확한 내용이 교정한다. 현재 판독을 임상의에게 직접 보여주는
+위치를 찍고, AV 판독이 그 자리의 후보 의미를 탐색한다. Fixed-cohort
+하이브리드는 probe가 개입 대상을 고를 수 있다는 proof of concept지만, 최신
+canonical 정책 검증은 남아 있다. 현재 판독을 임상의에게 직접 보여주는
 인터페이스는 지지되지 않는다.**
 
 **테제**: 의료 LLM의 행동적 앵커링과 내부에서 디코드되는 제안 우세는 자주
@@ -268,7 +269,23 @@ baseline을 직접 이전할 수 없다고 쓴다. 이것은 MCR 자연어 판�
 
 ## 4. 남은 일
 
-**필수 통제**: Table 2a 행동군 Δ 값·paired CI 반영
-**확장**: MCR wrong-note 내부 추출 및 교정 사다리
-**외부 판정**: 독자-신뢰 임상 전문가 재현/임상 타당성 평가
-**집필 상태**: 본문 초안은 가능하지만, 위 필수 통제 전에는 submission-ready가 아님
+**P0 주장 게이트**: canonical 1,729에서 detector-gated r5/r6/argmax 정책을
+validation-frozen threshold로 평가하고 overall accuracy, moved recovery,
+unchanged preservation, newly broken, net correction, intervention rate와 paired CI를
+보고한다. 이 결과 전에는 RQ3를 “oracle-identified moved에서 content가 유용하다”로
+제한한다.
+
+**P0 기준선**: source output-head likelihood를 같은 1,729건에서 계산해 probe의
+hidden-state 추가 이득을 확인한다.
+
+**필수 전사**: channel-gap CI, canonical capitulation/newly-broken, Appendix A2
+`.591`, corpus-300 matcher/서술 정합성.
+
+**확장**: no-CoT monitor, MCR wrong-note 내부 추출·탐지·교정 사다리, matched
+realistic placebo.
+
+**외부 판정**: 독자-신뢰 임상 전문가 재현/임상 타당성 평가는 보조 검증이다.
+
+**집필 상태**: RQ1/RQ2 본문 초안은 가능하다. RQ3의 utility 문장과 Abstract/
+Conclusion의 성능 향상 표현은 P0 detector-gated 결과 뒤에 동결한다. 전체 순서는
+`submission_roadmap_to_overleaf_2026-08-25.md`를 따른다.

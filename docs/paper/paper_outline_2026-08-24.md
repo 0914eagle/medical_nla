@@ -125,8 +125,9 @@ cross-fitted linear probe를 주 계기로 측정한다.
 
 ### RQ3 — 조건부 교정과 효용
 
-> **정확한 내부 content를 다시 제공하면 moved answer를 회복할 수 있는가?
-> 무엇이 지렛대이고, 언제 개입이 순손해가 되는가?**
+> **Wrong-note 단일 실행에서 harmful movement가 식별됐을 때, 정확한 내부
+> content를 선택적으로 다시 제공하면 unaffected answer를 보존하면서 moved
+> answer를 회복할 수 있는가? 무엇이 지렛대이고 언제 개입이 순손해가 되는가?**
 
 - moved accuracy는 first wrong answer `.0031`에서 AV feedback r5 `.6301`, probe
   label r6 `.8339`로 상승한다.
@@ -135,6 +136,13 @@ cross-fitted linear probe를 주 계기로 측정한다.
   아니라 **정확한 내부 content가 지렛대**라는 것이다.
 - 무선별 재질문은 kept answer를 대량으로 깨므로 selector와 결합해야 한다.
   자기 CoT feedback r7의 moved recovery는 `.1236`으로 r5/r6보다 낮다.
+- 여기까지의 사다리는 **사후에 moved로 확인된 subset에서의 conditional
+  information value**를 확립한다. 과거 fixed-cohort probe-selector+r5 `.9141`은
+  예비 결합 결과지만, 최신 canonical 1,729 재집계와 validation-frozen threshold,
+  test paired CI가 끝나기 전에는 전체 QA 성능 향상으로 쓰지 않는다.
+- 배포 정책은 wrong-note run 하나의 detector score만 사용해 개입 여부를 고른다.
+  Gold와 no-note pair는 moved label과 최종 평가에만 사용하며 selector 입력에는
+  들어가지 않는다.
 
 테제 한 줄: **앵커링의 행동적 출력 이동과 내부에서 디코드되는 진단 우세는
 자주 어긋난다. Probe는 닫힌 공간에서 이를 정밀하게 측정하고, 검증된 AV는
@@ -840,6 +848,13 @@ kept breakage, net effect, suggestion capitulation을 보고한다. 전량 재�
 probe selector, direct argmax replacement, selector+r5/r6 policy를 비교한다.
 R5와 r6의 content correctness를 층화해 자연어 형식과 content accuracy를 구분한다.
 
+Deployment policy의 threshold와 정책은 validation에서 고정하고 held-out test에서
+한 번 평가한다. Selector는 wrong-note 실행의 output/CoT/output-head likelihood/
+probe/AV만 받을 수 있으며, gold·no-note answer·true moved는 받지 않는다. 주 지표는
+overall accuracy, moved recovery, unchanged preservation, newly broken, net correction,
+intervention rate다. 과거 fixed-cohort 하이브리드는 proof of concept로 남기고,
+canonical validation/test 재평가를 RQ3의 submission gate로 둔다.
+
 #### Human/LLM reader utility
 
 Vignette와 source answer에 no account, CoT, probe label, AV readout 중 하나를 붙여
@@ -1125,9 +1140,11 @@ Appendix A1을 참조한다.
   구멍 17.1% / 버틴 내부 흔들림 14.5%로 나뉜다. 과거 matcher의 recall
   0.846 / precision 0.362는 canonical 재집계 전까지 인용하지 않는다. 현재
   결론은 개입 대상 선정에 계기 오차와 매칭 오차가 함께 들어간다는 것이다.
-- **P6 배포 정책과 코퍼스 조건부 결론**: probe 선별 + argmax 교체가 최고
-  (.9651 / .9726, 재실행 없음). 실행 내 비교로 r6 .9531/.9658 > r5
-  .9141/.9265 > r4. **결론은 조건부로 쓴다** — 라벨된 학습 데이터 + 닫힌
+- **P6 배포 정책의 예비 결과와 코퍼스 조건부 결론**: 옛 fixed-cohort에서
+  probe 선별 + argmax 교체가 최고(.9651 / .9726, 재실행 없음)였다. 실행 내
+  비교로 r6 .9531/.9658 > r5 .9141/.9265 > r4다. 최신 canonical 1,729의
+  validation-frozen policy와 paired CI가 나오기 전에는 proof of concept로만
+  둔다. **결론은 조건부로 쓴다** — 라벨된 학습 데이터 + 닫힌
   진단 목록이 있으면 프로브 교체가 최선이다. **진단 공간이 열려 있으면
   현재의 고정-class probe 경로를 직접 이전할 수 없다.** 이 조건에서
   source-aligned 자연어 판독의 답 필드는 모델 답 `.2643` 대 deranged `.0049`로

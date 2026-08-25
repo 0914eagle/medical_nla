@@ -104,6 +104,13 @@ r5 대 r6은 형식만이 아니라 **감독 수준도** 다르다. ③ 프로�
 배포 권고에는 들어가지 않는다. 그리고 **선별 없는 재질문은 순 해롭다** —
 r3/r4가 첫 답 .814를 .42로 떨어뜨린다.
 
+**상태 주의**: 이 표는 옛 fixed-cohort proof of concept다. 최신 canonical
+1,729건에서 selector score와 r5/r6 결과를 다시 조인하고, validation에서 operating
+point를 고정한 뒤 held-out test에서 overall accuracy, moved recovery, unchanged
+preservation, newly broken, net correction, intervention rate와 paired CI를 내야
+배포 정책 결과로 승격할 수 있다. 그 전까지 본문의 RQ3는 oracle-identified moved
+subset에서의 conditional information value까지만 확정한다.
+
 ## Table 3을 읽는 법
 
 1. r3은 **재실행 자체**, r4는 **입력 재제시**, r5는 **자연어 내부 판독**,

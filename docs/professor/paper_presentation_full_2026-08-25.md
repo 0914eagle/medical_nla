@@ -282,9 +282,10 @@ probe, AV 중 무엇이 **그 소견서가 없었더라면 답이 달랐을 사�
 식별하는가? 특히 answer가 suggestion 이름을 말하지 않는 silent subset에서도
 신호가 남는가?
 
-**RQ3 — 조건부 교정.** Decode한 내부 내용을 source model에 다시 제공하면
-답을 고칠 수 있는가? 효과는 자연어 형식, 내용 정확도, 재실행 자체 중 무엇에서
-오는가?
+**RQ3 — 선택적 조건부 교정.** Wrong-note 단일 실행에서 harmful movement가
+의심되는 사례를 골라 decode한 내부 내용을 다시 제공하면, unaffected answer를
+보존하면서 답을 고칠 수 있는가? 효과는 selector, 내용 정확도, 자연어 형식,
+재실행 자체 중 무엇에서 오는가?
 
 교수님의 `설명-진단-해결`과 대응시키면, M0과 채널 비교가 설명 수단의 타당성,
 RQ2가 오류 진단·조기 경보, RQ3가 해결이다. RQ1은 이 세 응용이 겨냥하는
@@ -297,7 +298,7 @@ RQ2가 오류 진단·조기 경보, RQ3가 해결이다. RQ1은 이 세 응용�
 |---|---|---|
 | 설명 | M0 + RQ1의 위치별 내부 측정 | activation-dependent 후보는 읽지만 임상 설명 효용은 미확립 |
 | 진단/경보 | RQ2: wrong-note 한 번으로 소견서 유발 이동 판별 | DDXPlus에서 가능; probe가 최강 |
-| 해결 | RQ3 conditional correction | 정확한 content는 유용; selector 없이는 순손해 |
+| 해결 | RQ3 selective correction | moved subset에서 정확한 content는 유용; 정본 end-to-end selector 정책은 최종 검증 대기 |
 
 ## Slide 8A. 기존 연구는 어디까지 왔는가
 
@@ -1279,7 +1280,10 @@ R5는 R4보다 moved recovery가 22.6pp 높다. Canonical capitulation은 새 �
 같은 fixed-cohort에서 probe selector와 argmax 직접 교체 정책은 전체 `.9651`, selector+r6 재질문
 `.9531`, selector+r5 `.9141`이다. 닫힌 label space에서는 재질문보다 argmax 직접
 교체가 낫다. 이 결과는 natural-language method의 우승이 아니라, 내부 신호를
-선택적으로 사용할 수 있다는 proof of concept다.
+선택적으로 사용할 수 있다는 proof of concept다. 다만 최신 canonical 1,729
+코호트에서 validation으로 threshold를 고정하고 held-out test의 paired CI까지
+계산한 결과가 아니므로, 이것만으로 완성된 배포 정책이나 전체 성능 향상을
+주장하지 않는다.
 
 **발표자 연결 원고.** R5와 R6는 moved subset에서는 크게 회복하지만 모든 사례에
 적용하면 전체 정확도가 첫 답보다 낮다. 따라서 내부 신호의 가치는 무조건적인
@@ -1443,15 +1447,19 @@ RQ2에 대한 답은 DDXPlus에서 yes다. 내부-출력 결렬은 wrong-note �
 탐지할 수 있고, 닫힌 진단 공간에서는 probe가 가장 강하다. AV는 probe보다
 약하지만 silent subset에서도 output-only 신호가 제공하지 못하는 정보를 담는다.
 
-RQ3에 대한 답은 조건부 yes다. 정확한 internal content는 moved case를 회복시키지만,
-무선별 재질문은 전체 성능을 파괴하고 잘못된 readout은 해롭다. Natural-language
-format의 독립적 이점은 아직 확립되지 않았다.
+RQ3에 대한 현재 답은 두 층으로 나뉜다. **조건부 정보 가치**는 yes다. 정확한
+internal content는 사후에 moved로 확인된 case를 회복시킨다. 그러나 **실제 시스템
+효용**은 아직 최종 검증 전이다. 배포에서는 gold나 no-note pair를 볼 수 없으므로
+RQ2 detector가 개입 대상을 골라야 하며, 최신 canonical cohort에서 그 selector와
+r5를 결합한 validation/test 정책을 아직 동결하지 않았다. 무선별 재질문은 전체
+성능을 파괴하고 natural-language format의 독립적 이점도 확립되지 않았다.
 
 **다음 슬라이드로 넘어가는 이유.** 이제 개별 실험 결과가 아니라 이 연쇄에서
 무엇이 새로 남았는지를 정리할 수 있다. 기여는 “AV 하나를 만들었다”가 아니라,
-인과적 오류 label을 만들고, 출력·CoT·activation 채널을 같은 label에 비교하고,
-탐지와 교정을 selector까지 포함해 연결했으며, 자연어 설명의 실패도 통제로
-분리했다는 데 있다.
+인과적 오류 label을 만들고 출력·CoT·activation 채널을 같은 label에 비교했으며,
+moved subset에서 내부 content의 조건부 교정 가치를 분해했다는 데 있다. 탐지와
+교정을 selector로 잇는 fixed-cohort proof of concept는 있지만, 최신 canonical
+정책 검증은 남아 있다. 자연어 설명의 실패도 통제로 분리했다.
 
 ## Slide 30. 논문의 기여를 다섯 문장으로 정리한다
 
@@ -1469,16 +1477,23 @@ LLM monitor, natural-language readout, linear probe를 동일한 single-run task
 
 | 우선순위 | 남은 작업 | 닫히는 주장 |
 |---:|---|---|
-| 1 | Source output-head likelihood baseline | probe의 hidden-state 추가 이득 판정 |
-| 2 | 동일 LLM monitor의 no-CoT arm | CoT만의 순수 증분 |
-| 3 | MCR wrong-note activation·detection | DDXPlus 내부 기전의 열린 어휘 확장 |
-| 4 | MCR correction ladder | probe가 직접 이전되지 않는 조건의 교정 |
-| 5 | matched realistic placebo | 길이·문체와 clinical suggestion 분리 |
-| 6 | Appendix Figure A1 matched recipe/layer | layer 효과와 학습량 분리 |
+| 1 | Canonical detector-gated correction | RQ2 탐지가 전체 순이득의 RQ3 정책으로 이어지는가 |
+| 2 | Source output-head likelihood baseline | probe의 hidden-state 추가 이득 판정 |
+| 3 | 동일 LLM monitor의 no-CoT arm | CoT만의 순수 증분 |
+| 4 | MCR wrong-note activation·detection | DDXPlus 내부 기전의 열린 어휘 확장 |
+| 5 | MCR correction ladder | probe가 직접 이전되지 않는 조건의 교정 |
+| 6 | matched realistic placebo·matched layer control | 문체·길이·학습량 교란 분리 |
 
 Reader-trust 2,896행 전수와 same-channel shuffled account control은 완료됐다.
-현재 첫째 미결 기준선은 source output-head likelihood다. 이 값이 probe와 비슷하면
-probe가 hidden-only 정보를 추가로 발견했다는 주장을 줄여야 한다. 둘째, LLM
+현재 첫째 제출 게이트는 detector-gated correction이다. Selector는 wrong-note run
+하나만 보고 flag하며, threshold는 validation에서 고정하고 test에서 overall accuracy,
+moved recovery, unchanged preservation, newly broken, net correction, intervention
+rate를 평가한다. No intervention, all-r5, source-confidence, CoT/monitor, AV, probe,
+oracle-moved 정책을 비교한다. 과거 fixed-cohort selector+r5 `.9141`은 proof of
+concept이지 이 정본 검증을 대체하지 않는다.
+
+둘째 미결 기준선은 source output-head likelihood다. 이 값이 probe와 비슷하면
+probe가 hidden-only 정보를 추가로 발견했다는 주장을 줄여야 한다. 셋째, LLM
 monitor에서 CoT를 제거한 동일 판정자 arm이 필요하다. 현재 monitor는 vignette,
 note, CoT, answer를 모두 보므로 CoT만의 증분을 분리하지 못한다.
 
