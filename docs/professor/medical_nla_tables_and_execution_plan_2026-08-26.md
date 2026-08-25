@@ -58,8 +58,11 @@ Aggregate audit와 공식 공개 `data_list.csv` 대조에서 다음을 확인�
   일치한 것은 7개뿐이고 17개는 내용이 달라 두 release를 섞지 않는다. 주 설명 평가는
   sample annotation만으로 수행하고, KG가 필요한 별도 실험에서는 restricted 24개만
   사용해 Gastritis를 제외하거나 KG 버전을 별도 조건으로 명시한다.
-- data list에서 73개 note가 amended로 표시된다. 원문 span grounding 평가는
-  amended 여부를 보존하고 별도 sensitivity analysis를 낸다.
+- data list에서 73개 note가 amended로 표시된다. 그러나 restricted release는 55개
+  category/PDD 디렉터리 그룹과 그룹별 행 수를 유지하면서 511개 파일명을 전부
+  바꿨다(basename overlap 0). 따라서 공개 data list의 amendment flag는 restricted
+  개별 note에 경로로 조인할 수 없다. Content-based 조인을 별도로 검증하기 전에는
+  73이라는 aggregate만 기록하고 row-level sensitivity 분석에 사용하지 않는다.
 
 ### 제한 데이터 취급
 
@@ -206,9 +209,10 @@ taxonomy, MCR OOD 사례, seed sensitivity를 둔다.
 
 이 단계의 산출물은 raw note가 아닌 aggregate JSON/Markdown이어야 한다.
 
-현재 1--5의 aggregate 감사와 KG provenance 비교는 완료되었다. 남은 E0 작업은 공개
-data list와 511개 파일의 전수 조인, 4개 미파싱 환자 행의 안전한 그룹화, 공식
-loader/evaluator 재현, split manifest 생성이다.
+현재 1--5의 aggregate 감사, 공개 data list의 디렉터리 수준 정합성, KG provenance
+비교는 완료되었다. 공개 data list와 restricted note의 경로 기반 row 조인은 파일명
+전면 재명명 때문에 불가능함을 확인했다. 남은 E0 작업은 4개 미파싱 환자 행의 안전한
+그룹화, 공식 loader/evaluator 재현, canonical PDD 규칙과 split manifest 생성이다.
 
 ### E0의 결정 게이트
 

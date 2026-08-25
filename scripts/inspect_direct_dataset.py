@@ -300,6 +300,16 @@ def resolve_release_path(value: str, release_paths: dict[str, Path]) -> str | No
     return None
 
 
+def directory_group(value: str, category_dirs: set[str]) -> str | None:
+    parts = normalize_data_root(value).split("/")
+    parent_parts = parts[:-1]
+    category_lookup = {category.casefold() for category in category_dirs}
+    for index, part in enumerate(parent_parts):
+        if part.casefold() in category_lookup:
+            return "/".join(parent_parts[index:]).casefold()
+    return None
+
+
 def audit_data_list(samples_root: Path, data_list_path: Path) -> dict[str, Any]:
     with data_list_path.open(encoding="utf-8-sig", newline="") as f:
         rows = list(csv.DictReader(f))
@@ -314,6 +324,29 @@ def audit_data_list(samples_root: Path, data_list_path: Path) -> dict[str, Any]:
         path.relative_to(samples_root).as_posix(): path
         for path in samples_root.rglob("*.json")
     }
+    listed_category_dirs = {
+        parts[1]
+        for row in rows
+        if len(parts := normalize_data_root(row["Data Root"]).split("/")) >= 3
+        and parts[0].casefold() == "samples"
+    }
+    release_groups = Counter(
+        group
+        for relative in release_paths
+        if (group := directory_group(relative, listed_category_dirs)) is not None
+    )
+    listed_groups = Counter(
+        group
+        for row in rows
+        if (
+            group := directory_group(row["Data Root"], listed_category_dirs)
+        )
+        is not None
+    )
+    release_basenames = Counter(Path(path).name for path in release_paths)
+    listed_basenames = Counter(
+        Path(normalize_data_root(row["Data Root"])).name for row in rows
+    )
     listed_paths: Counter[str] = Counter()
     matched_release_paths: set[str] = set()
     categories: Counter[str] = Counter()
@@ -379,6 +412,30 @@ def audit_data_list(samples_root: Path, data_list_path: Path) -> dict[str, Any]:
             if resolve_release_path(row["Data Root"], release_paths) is None
         ),
         "release_files_missing_from_list": len(set(release_paths) - matched_release_paths),
+        "release_path_depths": dict(
+            sorted(Counter(len(Path(path).parts) for path in release_paths).items())
+        ),
+        "listed_path_depths": dict(
+            sorted(
+                Counter(
+                    len(Path(normalize_data_root(row["Data Root"])).parts)
+                    for row in rows
+                ).items()
+            )
+        ),
+        "directory_groups_release": len(release_groups),
+        "directory_groups_listed": len(listed_groups),
+        "directory_groups_shared": len(set(release_groups) & set(listed_groups)),
+        "directory_groups_with_equal_counts": sum(
+            release_groups[group] == listed_groups[group]
+            for group in set(release_groups) & set(listed_groups)
+        ),
+        "unique_release_basenames": len(release_basenames),
+        "unique_listed_basenames": len(listed_basenames),
+        "exact_basename_overlap": len(set(release_basenames) & set(listed_basenames)),
+        "row_identity_available": (
+            len(set(release_basenames) & set(listed_basenames)) == len(rows)
+        ),
         "invalid_matched_json": invalid_matched_json,
         "disease_categories": len(categories),
         "category_counts": dict(categories.most_common()),
@@ -466,6 +523,11 @@ def markdown_summary(result: dict[str, Any]) -> str:
                 f"- matched release files: **{data_list['matched_release_files']}**",
                 f"- listed paths missing from release: **{data_list['listed_paths_missing_from_release']}**",
                 f"- release files missing from list: **{data_list['release_files_missing_from_list']}**",
+                f"- release/listed path depths: `{data_list['release_path_depths']}` / `{data_list['listed_path_depths']}`",
+                f"- shared directory groups: **{data_list['directory_groups_shared']} / {data_list['directory_groups_listed']}**",
+                f"- directory groups with equal row counts: **{data_list['directory_groups_with_equal_counts']} / {data_list['directory_groups_listed']}**",
+                f"- exact basename overlap: **{data_list['exact_basename_overlap']}**",
+                f"- row identity available from path: **{data_list['row_identity_available']}**",
                 f"- disease categories / category-PDD pairs: **{data_list['disease_categories']} / {data_list['pdd_pairs']}**",
                 f"- PDD-pair count summary: `{data_list['pdd_count_summary']}`",
                 f"- amendment counts: `{data_list['amendment_counts']}`",
@@ -473,6 +535,8 @@ def markdown_summary(result: dict[str, Any]) -> str:
                 f"- path PDD mismatches: `{data_list['path_pdd_mismatch_pairs']}`",
                 f"- listed PDD vs annotation-root mismatches: **{data_list['listed_pdd_vs_root_mismatches']}**",
                 f"- listed PDD -> annotation-root mappings: `{data_list['listed_pdd_vs_root_mismatch_pairs']}`",
+                "",
+                "When directory groups align but basename overlap is zero, the restricted release has renamed files. The public data list remains valid for aggregate vocabulary and counts, but its row-level amendment flags cannot be joined by path.",
                 "",
                 "The official evaluator derives diagnosis accuracy from the annotation chain root, not the folder label. Report a sensitivity analysis excluding list/root mismatches.",
                 "",

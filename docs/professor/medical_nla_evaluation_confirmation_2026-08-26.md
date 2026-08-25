@@ -768,9 +768,12 @@ E0 data/evaluator audit
    그대로 serialize할 수 있는지 sample에서 확인한다.
 5. 공개 baseline output 또는 sample에 official evaluator를 실행해 paper 범위와
    재현되는지 확인한다.
-6. Amended observation이 들어간 case는 flag를 보존하고, 원 note에 실제 span이 있는
-   사례만의 sensitivity 결과를 별도로 낸다. 의사가 plausible observation을 보충한
-   사례는 text-grounding과 같은 것으로 세면 안 된다.
+6. 공개 data list에는 amended case 73개가 있지만 restricted release는 디렉터리
+   구조만 유지한 채 파일명을 모두 바꿨다. 따라서 amendment flag를 경로로 개별
+   restricted note에 붙이지 않는다. Content-based 조인이 일대일로 검증될 경우에만
+   원 note span이 있는 사례의 sensitivity 결과를 내며, 그렇지 않으면 이 한계를
+   명시한다. 의사가 plausible observation을 보충한 사례를 text-grounding과 같은
+   것으로 세면 안 된다.
 7. 폴더/data-list PDD와 annotation chain root가 다른 43건은 공식 evaluator 재현에서는
    root를 사용한다. 동시에 이 43건을 제외한 결과를 sensitivity analysis로 보고해
    행정 라벨과 annotation 불일치에 결론이 의존하지 않는지 확인한다.
