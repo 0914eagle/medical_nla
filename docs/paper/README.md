@@ -25,6 +25,8 @@ MCR behavior 1,452다.
 3. `draft_introduction_2026-08-25.md` — 영어 Introduction 초안, H/RQ, 원문 출처 지도를 본다.
 4. `table_camera_ready_2026-08-25.md` — 현재 표의 수치와 캡션을 확인한다.
 5. `figure_order_and_generation_2026-08-25.md` — 그림 순서·생성 명령·해석 경계를 확인한다.
+   → 표·그림의 **수치가 채워진 한 장 요약**은 `tables_and_figures.md`.
+   설계 이력은 위 두 문서에, 지금 인용 가능한 값만 그 문서에 있다.
 6. `prior_work_2026-08-24.md` — 신규성의 범위와 가장 가까운 선행을 확인한다.
 7. `prior_work_verification.md` — 선행의 각 주장을 우리 실험대에서 직접
    시험한 결과. 재현 실패 둘(Turpin의 은폐, Yuan의 비인과성)이 여기 있다.
