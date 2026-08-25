@@ -60,7 +60,7 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 | 주장 | 현재 근거 | 주장 가능한 범위 |
 |---|---|---|
 | 오답 소견서가 진단을 움직인다 | canonical-eligible DDXPlus main **−23.75 pp**; MCR **−29.34 pp** | 행동 효과는 두 코퍼스; non-overlap primary refresh 대기 |
-| moved의 다수는 제안 복사가 아니다 | DDXPlus **230/319(72.1%)**, MCR **300/427(70.3%)**가 제3 진단으로 이동 | DDX moved의 **287/319(90.0%)**가 clean presentation |
+| moved의 다수는 제안 복사가 아니다 | primary behavior에서 DDXPlus clean **201/287(70.0%)**, MCR **300/427(70.3%)**가 제3 진단으로 이동 | DDX 전체 eligible 민감도는 **230/319(72.1%)** |
 | corpus-300은 이제 독립 재현이다 | 주 실행 id를 뺀 **미관측 3,319**(clean 2,192)에서 오답 조건 **.7682** vs 초집합 .7670 — 0.12 pp 차 | 행동 효과에 한정; 사다리도 r5−r4 +15.94 pp로 재현 |
 | suggestion이 내부 top-1을 대개 차지하지 못한다 | canonical moved 319건 중 **262건(82.1%)**에서 suggestion이 어느 landmark에서도 top-1이 아님 | 그중 gold throughout 147, third-diagnosis path 115 |
 | 소견서는 내부 gold signal을 행동별로 다르게 낮춘다 | final Δ: 유지 **−.006**, 제3 진단 **−.054**, 제안 채택 **−.199** | paired CI 모두 0 배제; final trend ρ=−.282 [−.328,−.233] |

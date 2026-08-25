@@ -125,9 +125,9 @@ neutral/correct를 재실행하고 canonical matcher로 채점해 **.9377/.9246*
 2. `neutral → wrong`은 삽입 비용을 뺀 **오답 제안 고유 효과**다.
 3. `none → correct`도 하락하므로, 소견서는 정답 방향이어도 무조건 도움이 되는
    장치가 아니다.
-4. Figure 2(b)의 `89/230` 분해는 제안 채택과 그 밖의 gold 상실을 구분한다. 오답 출력 대부분은
+4. Figure 2(b)의 clean `86/201` 분해는 제안 채택과 그 밖의 gold 상실을 구분한다. 오답 출력 대부분은
    제안 복사가 아니라 제3 진단으로의 붕괴다.
-5. 전체 moved 319건은 clean 287건(86 suggestion, 201 third diagnosis)과
+5. 전체 eligible 민감도 moved 319건은 clean 287건(86 suggestion, 201 third diagnosis)과
    explicit-gold 32건(3 suggestion, 29 third diagnosis)으로 나뉜다. 따라서
    moved의 90.0%가 clean에서 발생하고, clean에서도 제3 진단 이동이 70.0%다.
    `gold_in_prompt`는 train-test leakage가 아니라 presentation이 정답명 또는

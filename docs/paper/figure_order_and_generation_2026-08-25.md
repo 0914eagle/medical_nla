@@ -29,15 +29,15 @@ AV validation은 Appendix Table A1이다. Discussion의 도구 선택표는 번�
   No-note는 canonical eligibility 선정 조건이라 1.0 기준선으로만 표시한다. Gold가 chart에
   노출되지 않은 `clean` cohort를 쓴다. Wrong만 낮고 neutral은 덜 낮아야 단순
   문장 삽입 비용이 아니라 suggestion-specific effect로 읽을 수 있다.
-- **(b) moved destination**: 전체 canonical no-note-correct cohort에서 causally
-  moved된 답을 suggestion 채택과 제3 진단 이동으로 나눈다. DDXPlus **89/230**,
-  MCR **127/300**이다.
+- **(b) moved destination**: panel (a)와 같은 primary behavior cohort에서
+  causally moved된 답을 suggestion 채택과 제3 진단 이동으로 나눈다. DDXPlus
+  clean은 **86/201**, MCR은 **127/300**이다.
 
-DDXPlus canonical moved는 **319/1,729**이고 그중 suggestion 채택 89, 제3 진단
-이동 230이다. Clean/explicit-gold 분해는 `287/1,204`(suggestion 86, other
-diagnosis 201) 대 `32/525`(suggestion 3, other diagnosis 29)다. 즉 moved의
-287/319(90.0%)이 clean에서 발생하고 clean에서도 other-diagnosis 이동이
-201/287(70.0%)다.
+Figure 2의 DDXPlus primary clean moved는 **287/1,204**이고 그중 suggestion 채택
+86, 제3 진단 이동 201이다. 전체 canonical-eligible 민감도 분석은
+`319/1,729`(suggestion 89, other diagnosis 230)이며 explicit-gold subset은
+`32/525`(suggestion 3, other diagnosis 29)다. 즉 clean에서도 other-diagnosis
+이동이 201/287(70.0%)로 주 결론이 유지된다.
 
 **중요:** (a)와 (b)는 분모가 다르다. 코드 기본값이 각각 `clean`과 `all`이며,
 각 패널 x축에 n을 따로 인쇄한다. 두 패널 n을 같은 모집단처럼 설명하지 않는다.
@@ -64,7 +64,7 @@ python scripts/make_figure_intervention.py \
   --dumps $ART/results/figure2_ddx_dump.json $ART/results/figure2_mcr_dump.json \
   --labels DDXPlus MedCaseReasoning \
   --accuracy-population clean \
-  --destination-population all \
+  --destination-population clean \
   --omit-no-note \
   --output $ART/results/figure2_behavior.png
 ```
@@ -76,7 +76,7 @@ cohort를 감사 목적으로 재현할 때만 두 옵션을 생략한다.
 
 **현재 primary 패널 값**: DDXPlus clean `n=1,204`에서 neutral/wrong/correct
 `.9460/.7625/.9302`; MCR `n=1,452`에서 `.9339/.7066/.8388`. Figure 2(b)는
-DDXPlus `319=89+230`, MCR `427=127+300`을 표시해야 한다.
+DDXPlus clean `287=86+201`, MCR `427=127+300`을 표시해야 한다.
 Moved는 `lost_gold OR causally_adopted_suggestion`이므로 각 코퍼스의 1건처럼
 gold를 유지한 채 suggestion을 추가한 사례도 포함한다. 따라서 panel (b)는
 **Composition of causally affected cases**로 제목을 붙이고, 범례는

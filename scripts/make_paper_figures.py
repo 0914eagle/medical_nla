@@ -41,7 +41,7 @@ def main() -> None:
         sys.executable, str(root / "scripts/make_figure_intervention.py"),
         "--dumps", args.ddx_dump, args.mcr_dump,
         "--labels", "DDXPlus", "MedCaseReasoning",
-        "--accuracy-population", "clean", "--destination-population", "all",
+        "--accuracy-population", "clean", "--destination-population", "clean",
         "--omit-no-note",
         "--output", str(out / f"figure2_behavior.{ext}"),
     )

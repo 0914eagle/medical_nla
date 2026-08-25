@@ -1,12 +1,11 @@
 """Figure 2 -- behavioral effect of the referral-note intervention.
 
 Panel (a) draws intervention-arm accuracy for the clean population whose chart
-does not name the gold diagnosis. Panel (b) decomposes all causally affected
-cases into causal suggestion adoption and gold loss without suggestion
-adoption. The two
-panels intentionally use different populations: the accuracy comparison
-excludes presentations that explicitly name the gold, whereas the canonical moved counts are defined
-on the full source-correct cohort. Both denominators are printed in the plot.
+does not name the gold diagnosis. The paper's primary panel (b) decomposes
+causally affected cases in the same clean population into causal suggestion
+adoption and gold loss without suggestion adoption. An all-eligible sensitivity
+version can still be rendered explicitly with ``--destination-population all``.
+Both denominators are printed in the plot.
 
 Drawn from dump JSON rather than by re-scoring answers, so the plotted values
 are the reported values by construction. Older dumps must be regenerated so
@@ -48,8 +47,8 @@ def main() -> None:
         help="Population for panel (a); clean is the paper's primary accuracy cohort.",
     )
     parser.add_argument(
-        "--destination-population", default="all", choices=["clean", "all", "leaky"],
-        help="Population for panel (b); all gives the canonical moved counts.",
+        "--destination-population", default="clean", choices=["clean", "all", "leaky"],
+        help="Population for panel (b); clean is the paper's primary behavior cohort.",
     )
     parser.add_argument(
         "--population", choices=["clean", "all", "leaky"],

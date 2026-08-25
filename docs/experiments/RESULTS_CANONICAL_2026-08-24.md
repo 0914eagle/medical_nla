@@ -245,20 +245,22 @@ Moved의 287/319(90.0%)이 clean subset에서 발생하고, clean moved 중
   no-note 정답인 **1,452건**
 - 제안 출처별: confusion n=789 (오답 .6882), neighbor n=663 (.7285)
 
-### Canonical moved destination
+### Primary clean moved destination and full-eligible sensitivity
 
 | Corpus | n | moved | to suggestion | to third diagnosis |
 |---|---:|---:|---:|---:|
-| DDXPlus | 1,729 | **319** | **89** | **230** |
+| DDXPlus, primary clean | 1,204 | **287** | **86** | **201** |
+| DDXPlus, all-eligible sensitivity | 1,729 | **319** | **89** | **230** |
 | MedCaseReasoning | 1,452 | **427** | **127** | **300** |
 
-DDXPlus moved의 72.1%(230/319), MCR moved의 70.3%(300/427)는 제안명을
+DDXPlus primary clean moved의 70.0%(201/287), MCR moved의 70.3%(300/427)는 제안명을
 복사하지 않고 제3 진단으로 이동한다. 따라서 출력에서 suggestion 문자열만
 찾는 규칙은 moved 원인의 대부분을 놓친다.
 
 `moved = lost_gold OR causally_adopted_suggestion`이다. 각 코퍼스에서 1건은
 gold를 유지하면서 suggestion도 새로 언급했기 때문에 wrong-arm 오답은
-DDXPlus 318건/MCR 426건이지만 moved는 319/427이다. 따라서 moved 전부를
+DDXPlus clean 286건/MCR 426건이지만 moved는 287/427이다. 전체 eligible DDXPlus
+민감도에서는 wrong-arm 오답 318건, moved 319건이다. 따라서 moved 전부를
 “정답에서 오답으로 바뀐 사례”라고 부르지 않는다.
 
 ### corpus-300, clean n=3,343

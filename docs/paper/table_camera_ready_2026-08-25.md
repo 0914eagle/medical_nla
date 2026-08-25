@@ -386,19 +386,20 @@ primary row를 채우는 값으로 쓰지 않는다.
 
 | Corpus | Moved | To the suggestion | To a third diagnosis |
 |---|---:|---:|---:|
-| DDXPlus | **319** | **89** | **230** |
+| DDXPlus, clean | **287** | **86** | **201** |
 | MedCaseReasoning | **427** | **127** | **300** |
 
 *`Moved` is the union of losing the gold diagnosis and causally adopting the
 suggestion. In each corpus, one adopted-suggestion answer still retains a gold
-mention; hence wrong-arm errors are 318/1,729 and 426/1,452, while moved counts
-are 319 and 427. Do not describe every moved row as a correct-to-incorrect
+mention; hence wrong-arm errors are 286/1,204 and 426/1,452, while moved counts
+are 287 and 427. Do not describe every moved row as a correct-to-incorrect
 transition.*
 
 *DDXPlus sensitivity to an explicit gold name in the presentation.* Of the
-319 causally affected cases, 287/319 (90.0%) come from clean presentations
-that do not name the gold (287/1,204 affected: 86 adopted the suggestion and
-201 lost the gold for another diagnosis). The explicit-gold subset contributes
+319 causally affected cases in the full eligible sensitivity population,
+287/319 (90.0%) come from clean presentations that do not name the gold
+(287/1,204 affected: 86 adopted the suggestion and 201 lost the gold for
+another diagnosis). The explicit-gold subset contributes
 32/525 cases (3 suggestion adoptions and 29 other diagnoses). The corresponding
 rates are 23.8% and 6.1%. Thus the effect is not driven by label-explicit
 presentations. Here `gold_in_prompt` denotes an input-content stratum, not
@@ -775,8 +776,9 @@ advantage from this table.*
 
 ## 남은 ▢ (표 전반)
 
-- **canonical matcher와 eligibility는 확정** — DDXPlus moved/adopted/third =
-  319/89/230, MCR = 427/127/300. wording·CoT·Appendix Figure A2와 corpus-300 non-overlap 재집계도
+- **canonical matcher와 eligibility는 확정** — Figure 2의 DDXPlus clean
+  moved/adopted/third = 287/86/201; 전체 eligible 민감도는 319/89/230;
+  MCR = 427/127/300. wording·CoT·Appendix Figure A2와 corpus-300 non-overlap 재집계도
   완료됐다.
 - T2a: final probability 셀 전사 완료; paired CI/추세 값은 새 궤적 실행에서 반영
 - T2b: standalone rule-based silent 값은 원장에 없음; 필요하면 직접 재출력

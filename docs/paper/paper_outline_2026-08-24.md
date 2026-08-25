@@ -517,7 +517,7 @@ Related Work 직전 또는 끝에서 신규성을 다음처럼 한 문장으로 
 따라서 이 논문은 anchoring, probe, NLA 중 하나의 최초성을 주장하는 논문이
 아니다. `moved`라는 반사실적 사례 단위 정답지와 이를 중심으로 한
 **intervention → trajectory → single-run attribution → conditional correction**
-연결이 기여다. Primary behavior cohort의 moved 319건 중 230건은 suggestion이 아닌 제3 진단으로
+연결이 기여다. Primary clean behavior cohort의 moved 287건 중 201건은 suggestion이 아닌 제3 진단으로
 이동하므로, 이 문제는 단순 hint-copy detection으로 환원되지 않는다.
 
 - **2.1 Clinical anchoring and misleading context**: 사람의 referral-letter
@@ -955,8 +955,9 @@ Appendix A1을 참조한다.
   답 파일이 plausible_wrong 수정 이전 생성이라 정답을 부르는 "오답" 소견서
   15/1,747(0.86%)이 오답 조건 정확도를 올리는 쪽으로 남아 있다
   (`--exclude-collisions`가 반대쪽을 준다).
-- **P2 답 바뀜의 분해**: canonical primary **319/1,729(18.4%)** — 인과적 채택
-  **89**, 제3 진단/상실 **230**.
+- **P2 답 바뀜의 분해**: canonical primary clean **287/1,204(23.8%)** — 인과적
+  채택 **86**, 제3 진단/상실 **201**. 전체 eligible 민감도는
+  **319/1,729(18.4%) = 89+230**이다.
   **답만 봐서는 답 바뀜의 2/3(상실형)가 보이지 않는다**를 여기서 심어
   4.2의 침묵 부분집합을 예고. Catching-Rationalization이 각주에서
   "uncommon"이라며 제외한 부류가 우리에게는 다수라는 대비도 여기.
@@ -1097,8 +1098,8 @@ Appendix A1을 참조한다.
 - **P3 부서짐의 방향(항복률)**: 부서진 답이 제안으로 간 비율 r3 0.450 /
   r4 **.6410** / r5 .4940. ⚠️ **08-25 정정** — 이를 "첫 패스의 몇 배"라고
   쓰면 **조건부를 무조건부로 나눈 것**이다. 같은 규칙의 짝은 "소견서가 답을
-  바꾼 케이스 중 제안으로 간 비율"의 primary behavior 값 **89/319=.279**다.
-  canonical 첫 패스 항복률은 `.3209`다. **r4가 최악(.6410)이고 r5는 r4보다
+  바꾼 케이스 중 제안으로 간 비율"의 primary clean behavior 값 **86/287=.300**다.
+  과거 fixed-cohort 첫 패스 항복률 `.3209`는 appendix 감사값이다. **r4가 최악(.6410)이고 r5는 r4보다
   14.7%p 낮다(.4940)** — 절대 최저는 r3(.4507)이다.
 - **P4 무엇이 지렛대인가 — r4/r5/r6 분해**:
   · **r5 > r4**: +22.6%p(1,729). **AV 판독 내용이

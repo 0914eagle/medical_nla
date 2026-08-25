@@ -18,7 +18,8 @@
 이 논문은 단순히 의료용 NLA 하나를 fine-tuning했다는 논문이 아니다. 잘못된
 의뢰 소견서가 의료 LLM의 최종 진단을 바꾸더라도, 제안 진단이 내부 표현의
 최우세 진단으로 완전히 자리 잡지 않는 경우가 많다는 현상을 인과적으로
-구성하고 측정한 논문이다. DDXPlus에서 출력이 바뀐 319건 중 262건(82.1%)은
+구성하고 측정한 논문이다. DDXPlus 전체 eligible activation 분석에서 출력이
+바뀐 319건 중 262건(82.1%)은
 제안 진단이 관측한 여섯 prompt landmark에서 한 번도 diagnosis probe top-1이
 되지 않았다. 이 내부-출력 결렬은 한 번의 wrong-note 실행에서 탐지할 수 있고,
 정확한 내부 내용을 조건부로 되먹이면 일부 오류를 회복할 수 있다. 그러나 현재
@@ -225,7 +226,8 @@ MCR supporting-ground 판독과 reader-trust에서 실패했고, 닫힌 공간�
 > signal을 완전히 제거하지 않고도 출력을 바꿀 수 있다. 따라서 출력, CoT,
 > activation을 분리하여 측정해야 한다.
 
-이 대전제는 “항상 내부에 정답이 남는다”가 아니다. 실제로 moved 319건 중
+이 대전제는 “항상 내부에 정답이 남는다”가 아니다. 실제로 전체 eligible
+activation trajectory의 moved 319건 중
 gold가 여섯 landmark에서 계속 top-1인 경우는 147건뿐이다. 나머지는 제안 또는
 제3 진단으로 내부 top-1 경로가 달라진다. 논문의 관심은 단순 정답 보존이 아니라
 **출력 이동과 내부 top-1 이동이 동일한 사건이 아니라는 것**이다.
@@ -356,7 +358,7 @@ dissociation`은 주장하지 않는다.
 > 연구는 없었다.**
 
 또한 이 문제는 단순 hint-copy detection이 아니다. 우리 결과에서 DDXPlus
-moved 319건 중 **230건(72.1%)은 suggestion을 복사하지 않고 제3 진단으로
+moved 287건 중 **201건(70.0%)은 suggestion을 복사하지 않고 제3 진단으로
 이동**했다. 따라서 `answer == suggestion`만 검사하면 note가 야기한 이동의
 대부분을 놓친다.
 
@@ -661,8 +663,9 @@ limitations에 밝힌다.
 Slide 13은 DDXPlus와 MCR에서 plausible wrong suggestion을 실제로 어떻게 만드는지
 설명했다. 이제 입력 구성이 끝났으므로, 같은 사례의 no-note와 wrong-note 실행을
 비교해 **어떤 변화를 소견서가 유발한 사건이라고 부를지** 정의해야 한다. 이 label을
-정하지 않으면 primary behavior의 moved 319건·silent subset·탐지 AUROC가 각각
-무엇을 뜻하는지 설명할 수 없다.
+정하지 않으면 primary clean behavior의 moved 287건과, 전체 eligible activation
+분석의 moved 319건·silent subset·탐지 AUROC가 각각 무엇을 뜻하는지 설명할 수
+없다.
 따라서 흐름은 다음과 같다.
 
 ```text
@@ -950,26 +953,26 @@ model이 no-note에서 맞힌 사례(11.5%)다. 최초 matcher 선정은 1,543�
 
 | Corpus | Moved | To suggestion | To third diagnosis |
 |---|---:|---:|---:|
-| DDXPlus | **319** | 89 (27.9%) | **230 (72.1%)** |
+| DDXPlus, clean | **287** | 86 (30.0%) | **201 (70.0%)** |
 | MCR | **427** | 127 (29.7%) | **300 (70.3%)** |
 
-*이 표는 Figure 2(b)와 동일한 destination population을 쓴다: DDXPlus는
-canonical-eligible 전체 1,729건, MCR은 1,452건이다. Figure 2(a)의 정확도 막대는
-DDXPlus에서 explicit gold-name 행을 뺀 clean 1,204건을 쓰므로, 두 패널의 DDXPlus
-분모는 의도적으로 다르다. 이동한 답의 행방을 셀 때 clean 행만 고르면 현상 전체의
-destination을 일부 버리게 되므로 panel (b)는 전체 eligible population을 유지한다.*
+*이 표는 Figure 2(b)와 동일한 primary behavior population을 쓴다. DDXPlus의
+panel (a)와 (b)는 모두 explicit gold-name 행을 뺀 clean 1,204건이고, MCR은
+canonical-eligible 1,452건이다. DDXPlus 전체 eligible 1,729건의 319=89+230은
+민감도 분석과 이후 activation 분석의 모집단으로 별도 보고한다.*
 
 두 corpus 모두 약 70%가 suggestion 복사가 아니다. 이 때문에 “answer가 note의
 진단명을 그대로 말했는가”만 보는 출력 휴리스틱은 구조적으로 대부분을 놓친다.
 
-DDXPlus canonical-eligible 전체 1,729건 중 moved는 319건이다. Suggestion을
-인과적으로 채택한 경우는 89건(27.9%), suggestion이 아닌 제3 진단으로 이동한
-경우는 230건(72.1%)이다. MCR canonical-eligible 1,452건의 moved 427건 중
+DDXPlus clean 1,204건 중 moved는 287건이다. Suggestion을 인과적으로 채택한
+경우는 86건(30.0%), suggestion이 아닌 제3 진단으로 이동한 경우는
+201건(70.0%)이다. MCR canonical-eligible 1,452건의 moved 427건 중
 suggestion 채택은 127건(29.7%), 제3 진단 이동은 300건(70.3%)이다.
 
-**Explicit-gold 민감도 분석.** DDXPlus moved 319건 중 287건(90.0%)은 정답명이
-presentation에 없는 clean 1,204건에서 나왔다. Clean moved rate는 287/1,204
-`=23.8%`이고, 그중 201/287(70.0%)가 제3 진단 이동이다. 정답명이 직접 나온
+**전체 eligible 민감도 분석.** DDXPlus 전체 1,729건의 moved 319건 중
+287건(90.0%)은 정답명이 presentation에 없는 clean 1,204건에서 나왔다. Clean
+moved rate는 287/1,204 `=23.8%`이고, 그중 201/287(70.0%)가 제3 진단 이동이다.
+정답명이 직접 나온
 525건에서는 moved가 32건(6.1%; suggestion 3, third diagnosis 29)에 그쳤다.
 따라서 moved 현상과 제3 진단 이동은 explicit-gold 행이 만든 결과가 아니며,
 오히려 정답명이 직접 주어지면 wrong note의 영향이 크게 약해진다.
@@ -1057,6 +1060,13 @@ direct 30.0%에서 CoT 49.1%로 높아지지만 분모가 다른 조건부 비�
 신호 비용을 본다.
 
 ## Slide 21. Figure 3 - 내부 궤적과 용량-반응
+
+**분모 전환을 먼저 밝힌다.** Figure 2의 primary behavior는 explicit gold-name을
+제외한 clean 1,204건이지만, Figure 3·4의 activation 분석은 canonical-eligible
+전체 1,729건(moved 319)을 쓴다. 따라서 Slide 18의 moved 287과 아래 행동군
+`1,410+230+89=1,729`는 같은 분모가 아니다. 전체 eligible 결과에서 moved의
+90.0%가 clean에서 발생했다는 민감도 분석을 함께 제시하되, clean-only trajectory를
+이미 측정한 것처럼 말하지 않는다.
 
 **그림 아래에 Table 2a를 축약 없이 둔다.**
 
