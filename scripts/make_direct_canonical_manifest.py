@@ -247,6 +247,21 @@ def write_summary(path: Path, rows: list[dict[str, Any]], failures: int) -> None
     )
     duplicate_counts = Counter(row["input_digest"] for row in rows)
     duplicate_rows = sum(count for count in duplicate_counts.values() if count > 1)
+    patient_pdds: dict[str, set[str]] = {}
+    patient_categories: dict[str, set[str]] = {}
+    patient_row_counts: Counter[str] = Counter()
+    for row in rows:
+        patient = row["patient_group"]
+        patient_row_counts[patient] += 1
+        patient_categories.setdefault(patient, set()).add(row["disease_category"])
+        if row["canonical_pdd"]:
+            patient_pdds.setdefault(patient, set()).add(row["canonical_pdd"])
+    multi_pdd_patients = {
+        patient for patient, labels in patient_pdds.items() if len(labels) > 1
+    }
+    multi_category_patients = {
+        patient for patient, labels in patient_categories.items() if len(labels) > 1
+    }
     deductions = [item for row in rows for item in row["gold_deductions"]]
     exact_grounded = sum(item["observation_exact_in_note"] for item in deductions)
     exact_in_annotated_section = sum(
@@ -264,6 +279,8 @@ def write_summary(path: Path, rows: list[dict[str, Any]], failures: int) -> None
         f"- parse failures: **{failures}**",
         f"- patient groups: **{len({row['patient_group'] for row in rows})}**",
         f"- rows with unparsed patient ID: **{sum(not row['patient_id_parsed'] for row in rows)}**",
+        f"- patient groups spanning multiple resolved PDDs: **{len(multi_pdd_patients)}** ({sum(patient_row_counts[p] for p in multi_pdd_patients)} rows)",
+        f"- patient groups spanning multiple disease categories: **{len(multi_category_patients)}** ({sum(patient_row_counts[p] for p in multi_category_patients)} rows)",
         f"- folder/root conflicts: **{sum(row['folder_root_conflict'] for row in rows)}**",
         f"- canonical PDD resolved: **{sum(row['canonical_pdd_resolved'] for row in rows)}/{len(rows)}**",
         f"- unresolved canonical PDD: **{sum(not row['canonical_pdd_resolved'] for row in rows)}**",
