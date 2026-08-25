@@ -44,7 +44,7 @@ cross-fitted probe는 all/silent AUROC `.9280/.9840`, 강한 LLM CoT monitor는
 | "소견서가 내부 상태에도 비용을 준다" | final paired Δ: 유지 −.007, 제3 진단 −.055, 제안 채택 −.195 | ○ | DDXPlus L32, landmark별 별도 probe. CI/추세 검정 보강 대기 |
 | "한 번의 실행에서 찾아낸다" | 진단 내 층화 AUROC: AV 판독 **.7506/.8302**, probe **.9280/.9840** (전체/침묵) | ○ | AV가 최강이라는 주장은 하지 않음 |
 | "활성값 의존 자연어 계기로 서술한다" | 검증 배터리(스왑 .993 · 암기 .000 · 오염 .007 · heldout cue .751) | ○ | 계측·탐색 범위. 임상의용 효용은 별도 주장 |
-| "임상의가 읽을 인터페이스로 유용하다" | reader-trust 중간 ΔAUROC **−.0921 [−.135,−.046]** | **✕(현재 어댑터)** | 2,546/2,896; shuffled 통제와 전수 완료 대기 |
+| "임상의가 읽을 인터페이스로 유용하다" | reader-trust 전수 ΔAUROC **−.0935 [−.130,−.059]** | **✕(현재 어댑터)** | 2,896/2,896; shuffled에서 case alignment +.2856이지만 순효과 −.0946 |
 | "되먹여 되돌린다" | canonical moved .0031 → r5 .6293 / r6 .8318, r5−r4 +22.4%p | ○ | **조건부**. 무선별 재실행은 순손해. 선별과 결합해야 이득 |
 | "자연어이기 때문에 되돌린다" | 전체 correct/correct p=1.000; moved에서 라벨 7:0, p=.016(보정 미달) | **✕** | 지렛대는 내용 적중률. 형식 우위 주장 금지 |
 
@@ -166,8 +166,9 @@ cross-fitted linear probe를 주 계기로 측정한다.
 - 2-2. **남는 문제 ①: 서술하지 못한다.** 분류 헤드의 출력은 클래스명
   하나이고 "왜"에 해당하는 근거 슬롯이 없다. 필요한 실험: 같은 벡터에서
   probe argmax와 AV 판독(결론+근거)을 나란히 놓고 **사람이 읽어** 비교.
-  → reader-trust 중간 결과에서 현재 판독은 no-account보다 나쁘다
-  (ΔAUROC −.0921); 전수 완료와 shuffled 통제가 남아 있다.
+  → reader-trust 전수 결과에서 현재 판독은 no-account보다 나쁘다
+  (ΔAUROC −.0935). Shuffled 통제는 판독의 case alignment는 실재함을
+  보이지만(real .7347 vs shuffled .4491), 오경보가 그 이득을 압도한다.
 - 2-3. **남는 문제 ②: 열린 어휘에서 정의되지 않는다.** 필요한 실험: 같은
   개입을 실제 증례(MCR)에서 재현하고, 그 코퍼스에서 클래스 정의가 불가함을
   보인다. → **완료**: MCR 1,543건에서 개입 효과가 **DDXPlus보다 강하게**
@@ -857,12 +858,14 @@ analysis script를 공개하고 canonical rescore 파일만 본문 수치에 사
 
 | 번호 | 내용 | 절 |
 |---|---|---|
-| Table 1 | 코퍼스별 4조건 개입 정확도 | 4.1 |
+| Table 1 | 코퍼스별 개입 효과크기 분해·non-overlap 재현 | 4.1 |
 | Table 2a | **기전: 최종 토큰 p(정답), 행동 그룹별 대조** | 4.2 |
 | Table 2b | 단일 실행 소견서 영향 판별 AUROC (채널별, all/silent 분리) | 4.2 |
 | Table 3 | 교정 사다리 | 4.3 |
 | Appendix Table A1 | AV 계기 검증 배터리 | Appendix A |
 
+Figure 2(a)가 네 arm 원시 정확도를 담고, Table 1은 neutral insertion,
+wrong-note total, suggestion-specific, correct-note cost를 pp로 분해한다.
 Table 1의 moved destination은 Figure 2(b)로 흡수한다. wording/source
 ablation과 Table 3의 r7 common-cohort, content-matched, deployment-policy,
 MCR 확장은 Appendix A2–A7로 보낸다. Appendix Table A1의 answer-position
@@ -1146,10 +1149,10 @@ Appendix A1을 참조한다.
 추가 회복 기여가 **검출되지 않았음**을 명시 · 최초 MCR 결론 판독은 train/val의
 88%가 source-wrong activation과 gold target을 짝지은 misalignment로 무효 ·
 source-aligned MCR 결론의 답 필드는 derangement를 통과했지만 절대 일치율이 낮음 · 근거
-접지 실패 · reader-trust 중간 결과는 현재 판독에 부정적.
+접지 실패 · reader-trust 전수 결과는 현재 판독에 부정적.
 
-**Future work**: MCR wrong-note 내부 추출과 교정 · reader-trust 완주와 shuffled
-통제 · 외부 판정자 설명 품질 · logit lens와 학습 프로브를 같은 케이스에
+**Future work**: MCR wrong-note 내부 추출과 교정 · reader-trust 임상 전문가 재현
+· 외부 판정자 설명 품질 · logit lens와 학습 프로브를 같은 케이스에
 겹쳐 그려 "override = 미표면화"를 한 그림으로(AAAI'26과의 직접 대화) ·
 조기 경보 신호(소견 위치에서 이미 낮은 상태) · 타 도메인 이식.
 
@@ -1170,7 +1173,7 @@ source-aligned MCR 결론의 답 필드는 derangement를 통과했지만 절대
 | Conclusion | **즉시** |
 
 **초안 집필은 가능하지만 정본 표는 아직 닫히지 않았다.** 남은 실측은
-① Table 2a Δ 값 반영, ② reader-trust 완주와 shuffled 통제,
+① Table 2a Δ 값 반영, ② reader-trust 임상 전문가 재현,
 ③ MCR wrong-note 내부 추출·교정, ④ 동일 판정자의 no-CoT 모니터
 대조다. 집필 순서는 §0.3.
 

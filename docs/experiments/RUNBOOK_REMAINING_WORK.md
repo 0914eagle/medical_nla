@@ -27,7 +27,7 @@ READY 또는 없는 경로를 정확히 찍고, corpus-300 provenance 모순에�
 | 2 | MCR 판독 derangement | **GPU 항목의 게이트.** `.2643`이 사례 특이적이 아니면 MCR 내부 분기 전체가 무의미해진다 |
 | 3 | wording 4종 + CoT canonical 재채점 | 이 행들은 아직 생성 시점 매처를 달고 있다 |
 | 4 | Figure 5 `64.1%` 재집계 | 분석기는 이미 canonical, 낡은 것은 그것이 group by 하는 사다리 파일이다 |
-| 5 | reader-trust dedupe·채점 + shuffled 케이스 생성 | 중간값 −.0839가 최종값이 되려면 전수와 통제가 필요하다 |
+| 5 | ~~reader-trust dedupe·채점 + shuffled 케이스 생성~~ | **완료** — 전수 −.0935, shuffled case-alignment 통제 완료 |
 
 **1번의 숨은 절반**: 아카이브에 이미 non-overlap 3,319 실행이 있다(`docs/
 archive/paper_tables_worklog_2026-08-23.md`). 그 실행이 "둘 다 오답" 칸을

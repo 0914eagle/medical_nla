@@ -888,23 +888,35 @@ epoch, L32는 3 epoch이어서 layer와 training exposure가 섞여 있다. 안�
 
 ## Slide 18. RQ1 행동 결과 - referral note가 실제로 답을 바꾸는가
 
-**화면에는 Table 1과 Figure 2(a)를 그대로 넣는다.**
+**화면에는 Figure 2(a)를 먼저 넣고, Table 1은 같은 정확도를
+반복하지 않는 효과크기 분해표로 넣는다.** Figure 2는 직관, Table 1은
+neutral insertion cost와 suggestion-specific cost, non-overlap 재현을 담당한다.
 
-| Corpus | n | No note | Neutral | Wrong | Correct |
+| Cohort | n | Neutral cost (pp) | Wrong total cost (pp) | Suggestion-specific cost (pp) | Correct-note cost (pp) |
 |---|---:|---:|---:|---:|---:|
-| DDXPlus main | 1,220 | **.9869** | .9377 | **.7566** | .9246 |
-| DDXPlus independent | 2,192 | **.9749** | .9279 | **.7682** | .9101 |
-| MedCaseReasoning | 1,543 | **.9410** | .8879 | **.6721** | .8179 |
+| DDXPlus main | 1,220 | 4.92 | 23.03 | **18.11** | 6.23 |
+| DDXPlus non-overlap | 2,192 | 4.70 | 20.67 | **15.97** | 6.48 |
+| MedCaseReasoning | 1,543 | 5.31 | 26.89 | **21.58** | 12.31 |
 
-표를 읽을 때 각 행에서 `No note→Wrong`과 `Neutral→Wrong`을 차례로 본다.
-전자는 total cost, 후자는 문장 삽입을 제외한 suggestion-specific cost다.
+표는 Figure 2(a)의 원시 정확도를 반복하지 않고 차이만 보여준다.
+Wrong total cost는 `No note−Wrong`, neutral cost는 `No note−Neutral`,
+suggestion-specific cost는 `Neutral−Wrong`이다. 즉 suggestion-specific 열이 단순히
+문장을 추가한 비용을 넘어서 틀린 진단 제안 내용이 추가로 만든
+비용이다.
+
+**Paired bootstrap CI 설명.** 같은 환자가 네 arm에 모두 등장하므로 환자를
+다시 뽑을 때도 네 조건의 정오를 하나의 묶음으로 함께 뽑는다. 각
+재표본에서 `No note−Wrong` 같은 차이를 다시 계산하고, 그 분포의
+2.5%와 97.5%를 95% CI로 쓴다. 같은 환자의 네 조건을 따로 뽑지 않는
+이유는 케이스 난이도를 공유하는 짝 구조를 보존하기 위해서다. 현재
+표는 점추정치이며 CI는 추가 계산 전이다.
 
 Main DDXPlus clean 1,220건의 정확도는 none `.9869`, neutral `.9377`, wrong
 `.7566`, correct `.9246`이다. Wrong note의 총 비용은 `23.03pp`, neutral insertion
 비용은 `4.92pp`, suggestion-specific 비용은 `18.11pp`다. 총 비용은 neutral
 비용의 4.68배다.
 
-주 실행과 base ID가 겹치지 않는 independent replication clean 2,192건에서는
+주 실행과 base ID가 겹치지 않는 non-overlapping replication clean 2,192건에서는
 `.9749/.9279/.7682/.9101`이다. Suggestion-specific 비용은 `15.97pp`, 총 비용은
 neutral의 4.40배다. MCR source-correct 1,543건에서는 `.9410/.8879/.6721/.8179`,
 suggestion-specific 비용 `21.58pp`, neutral 대비 총 비용 5.06배다.
@@ -1378,7 +1390,8 @@ prompt를 일부러 잘못 짝지어 correct pairing의 추가 정보를 측정�
 
 Figure 1은 데이터에서 four-arm prompt를 만들고 source output, activation probe,
 natural-language readout, correction으로 이어지는 전체 파이프라인을 그린다.
-Table 1과 Figure 2는 네 arm의 행동 효과와 moved의 suggestion/third-diagnosis
+Table 1은 네 arm을 pp 효과크기로 분해하고 non-overlap 재현을 보여주며,
+Figure 2는 원시 행동 정확도와 moved의 suggestion/third-diagnosis
 분해를 보여준다. Figure 3와 Table 2a는 trajectory, Table 2b와 Figure 4(a)는
 single-run channel AUROC를 보여준다. Table 3와 Figure 4(b)는 correction ladder의
 main comparison만 둔다. AV instrument validation과 layer-position map은

@@ -19,7 +19,7 @@
 
 | First appearance | Asset | 역할 |
 |---|---|---|
-| §4.1 | **Table 1 · Figure 2** | four-arm 행동 효과와 moved destination |
+| §4.1 | **Table 1 · Figure 2** | 효과크기 분해·재현과 four-arm 행동/moved destination |
 | §4.2 | **Table 2a · Figure 3** | wrong note 아래 내부 진단 궤적 |
 | §4.2 | **Table 2b · Figure 4(a)** | 단일 실행 moved 탐지와 채널 비교 |
 | §4.3 | **Table 3 · Figure 4(b)** | 조건부 교정과 전체-집단 trade-off |
@@ -290,20 +290,45 @@ held-out 821행에서 판독은 gold보다 모델의 실제 답과 더 자주 �
 
 ---
 
-## Table 1 — Intervention accuracy (§4.1)
+## Table 1 — Intervention effect decomposition and replication (§4.1)
 
-행 = 코퍼스, 열 = 조건. 지표는 정확도 하나. 케이스 수·낙폭은 본문.
+Figure 2(a)가 네 arm의 원시 정확도를 이미 인쇄하므로, 본문 표는 같은
+숫자를 반복하지 않고 인과 해석에 필요한 비용을 분해한다. 모든 숫자 열의
+단위는 percentage points (pp)다. `Non-overlapping replication`은 같은
+DDXPlus·같은 모델·같은 protocol이지만 main cohort와 base ID가 겹치지
+않는 별도 사례 표본이다. 외부 데이터셋 재현으로 부르지 않는다.
 
-**Table 1.** Accuracy by arm on a cohort originally selected as source-correct
-under the generation-time matcher and then rescored with the canonical
-word-boundary matcher. Finding-position activations are bit-identical across
-arms by construction. Canonical no-note accuracy can therefore be below 1.
+**Table 1.** Decomposition of the referral-note intervention. Raw arm
+accuracies are shown in Figure 2(a). Neutral insertion cost is
+`Acc(no note) - Acc(neutral)`; wrong-note total cost is
+`Acc(no note) - Acc(wrong)`; suggestion-specific cost is
+`Acc(neutral) - Acc(wrong)`; and correct-note cost is
+`Acc(no note) - Acc(correct)`. Cohorts were originally selected as
+source-correct under the generation-time matcher and rescored with the
+canonical word-boundary matcher, so canonical no-note accuracy can be below 1.
 
-| Corpus | n | No note | Neutral | Wrong | Correct |
+| Cohort | n | Neutral insertion cost (pp) | Wrong-note total cost (pp) | Suggestion-specific cost (pp) | Correct-note cost (pp) |
 |---|---:|---:|---:|---:|---:|
-| DDXPlus | 1,220 | **.9869** | **.9377** | **.7566** | **.9246** |
-| DDXPlus, independent replication | 2,192 | **.9749** | **.9279** | **.7682** | **.9101** |
-| MedCaseReasoning | 1,543ᵉ | **.9410** | **.8879** | **.6721** | **.8179** |
+| DDXPlus, main | 1,220 | 4.92 | 23.03 | **18.11** | 6.23 |
+| DDXPlus, non-overlapping replication | 2,192 | 4.70 | 20.67 | **15.97** | 6.48 |
+| MedCaseReasoning | 1,543ᵉ | 5.31 | 26.89 | **21.58** | 12.31 |
+
+*The corresponding total-cost/neutral-cost ratios are 4.68×, 4.40×, and
+5.06×. Ratios are kept in the caption rather than mixed with pp-valued table
+columns. Exact arm accuracies remain printed in Figure 2(a) and in the
+canonical results ledger. Paired case-bootstrap intervals for the pp
+differences are a pending statistical addition and are not imputed here.*
+
+**Paired bootstrap CI가 무엇인가.** 같은 환자가 no-note·neutral·wrong·correct
+네 조건에 반복 등장하므로 관측치는 독립이 아니다. 예를 들어 wrong-note
+total cost의 구간은 환자 ID를 복원 추출할 때 해당 환자의
+`(no-note 정오, wrong-note 정오)` 쌍을 함께 복제하고, 각 bootstrap
+표본에서 `Acc(no note)-Acc(wrong)`을 다시 계산해 2.5% 및 97.5%
+percentile로 95% CI를 만든다. 조건별 행을 따로 재표집하면 같은
+환자의 쉽고 어려움을 깨뜨려 분산을 틀리게 추정하므로 그렇게 하지
+않는다. CI가 0 pp를 배제하면 관측된 비용의 부호가 사례 재표집에
+견고하다고 말할 수 있다. 현재 표는 점추정치만 보고하며 CI를 아직
+계산했다고 가정하지 않는다.
 
 ᵉ **모집단을 본문에 밝힌다 (08-24).** 1,543은 MCR 12,620건 중 소스 모델이
 소견서 없이 맞힌 전부다 — **정확도 0.122**. 이 행은 "MCR의 12%"가 아니라
@@ -325,7 +350,7 @@ suggestion-specific effect is 18.11 pp (4.68× total-cost ratio). A correct note
 still costs 6.23 pp, showing an intrusion cost independent of suggestion
 direction.*
 
-**두 번째 행은 독립 행동 재현이다 (08-24).** corpus-300에서 주 실행의
+**두 번째 행은 case-non-overlapping 행동 재현이다 (08-24).** corpus-300에서 주 실행의
 1,676개 base id를 제거한 뒤 남은 미관측 3,319건 중 clean 2,192건만 쓴다.
 오답 정확도 `.7682`는 중복을 포함한 clean 3,343건의 `.7670`과 0.12%p만
 다르고, 전체/위약 비용 비는 4.40×다. 따라서 효과가 주 실행과 겹친 사례에
@@ -649,7 +674,7 @@ advantage from this table.*
 |---|---|---|
 | Closed label set, training labels available | Supervised probe | 4.3, 4.4 |
 | Open diagnosis space | Source-aligned answer readout is case-specific after derangement; accuracy and grounded evidence remain weak | 4.1, limitation |
-| Clinician-facing grounds required | Do not deploy the current readout; reader-trust is negative and shuffled control remains | 4.1, limitation |
+| Clinician-facing grounds required | Do not deploy the current readout; reader-trust is negative despite a positive case-alignment effect under the completed shuffled control | 4.1, limitation |
 | Self-correction by re-asking | Neither — avoid | 4.4 |
 
 ---
@@ -659,8 +684,10 @@ advantage from this table.*
 - **Figure 1 — Experimental design.** 동일 vignette에 no/neutral/wrong/correct
   note를 붙이는 인과 대조, causal masking, activation readout, probe, second-pass
   correction을 한 흐름도로 보인다. 숫자표를 반복하지 않는다.
-- **Figure 2 — Behavioral intervention.** (a) Table 1의 네 조건 정확도를
-  코퍼스별로 보이고, (b) moved 답의 행방을 `to suggestion` 대 `third
+- **Figure 2 — Behavioral intervention.** (a) 네 조건의 원시 정확도를
+  코퍼스별로 보이고, Table 1은 그 값을 neutral insertion·wrong-note
+  total·suggestion-specific·correct-note cost로 분해한다. (b) moved 답의
+  행방을 `to suggestion` 대 `third
   diagnosis` stacked bar로 보인다. (a)는 gold가 chart에 없는 clean cohort,
   (b)는 canonical 전체 source-correct cohort이므로 각 패널에 n을 따로 쓴다.
 - **Figure 3 — Internal trajectory.** 절대 decoded signal, no-note 대비 paired

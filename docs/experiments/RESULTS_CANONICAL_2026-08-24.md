@@ -363,7 +363,7 @@ Table 2b MCR 칸, MCR r5를 진행할 근거가 선다. 반면 **근거 필드(c
 gap +.025 · 반복 70%로 통과하지 못했으므로 표에 넣지 않는다.** 열린 것은
 답 필드 하나다.
 
-### reader-trust — no_account 기준선이 붙은 정본 (진행 2,546/2,896)
+### reader-trust — no_account 기준선이 붙은 중간 감사 (2,546/2,896; 아래 전수 정본으로 대체)
 
 `judge_reader_trust_deduped.jsonl` × `ddxplus_reader_trust_cases_v2.jsonl`,
 조인 **2,546/2,546**. (앞선 "no_account 없음"은 옛 케이스 파일을 붙인
@@ -846,8 +846,8 @@ Pericarditis).
 | 항목 | 자원 | 상태 |
 |---|---|---|
 | no-CoT arm 판정 (CoT 순수 기여 분리) | codex ~4h | **빌더 완성** (`--no-cot`) |
-| reader-trust 완주 | codex | 2,546/2,896 |
-| reader-trust `shuffled` 통제 | codex | 케이스 빌더 완성 |
+| reader-trust 완주 | codex | **완료 — 2,896/2,896** |
+| reader-trust `shuffled` 통제 | codex | **완료 — 721×7 arm** |
 | MCR readout derangement 통제 | CPU | **완료 — 답 필드 통과, 근거 필드 실패** |
 | wording 4종 canonical 재채점 | CPU | **완료** |
 | CoT 이중성 canonical 재채점 | CPU | **완료** |

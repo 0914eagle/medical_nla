@@ -15,6 +15,9 @@
 | A2 | **Appendix Figure A2** | 한 사례에서 chart/note/CoT/output/internal channels가 어떻게 어긋나는가 | 부록, 수작업 case panel |
 
 본문 표는 Table 1 행동, Table 2a 궤적, Table 2b 탐지, Table 3 교정 순서다.
+Figure 2(a)가 네 arm의 원시 정확도를 담고, Table 1은 그를 pp 비용으로
+분해하여 효과크기와 non-overlap 재현을 담당한다. 두 자산은 같은
+열을 반복하지 않는다.
 AV validation은 Appendix Table A1이다. Discussion의 도구 선택표는 번호를 주지
 않고 산문으로 축약한다.
 
@@ -155,9 +158,9 @@ output-head likelihood가 끝나면 canonical JSON과 표를 먼저 갱신한 �
 
 ## 7. 아직 그림에 넣지 않는 것
 
-- **Reader-trust**는 2,546/2,896 중간 결과이고 shuffled control이 남아 있어
-  본문 Figure 4에 합치지 않는다. 완료 후 Appendix table 또는 별도 figure 여부를
-  다시 결정한다.
+- **Reader-trust**는 2,896/2,896과 shuffled control까지 완료됐다. 다만
+  Figure 4의 single-run detector와 다른 외부 독자 효용 과제이므로 그 패널에
+  섞지 않고 Appendix table 또는 별도 자산으로 보고한다.
 - **MCR internal trajectory/correction**은 현재 DDXPlus 기전 그림에 섞지 않는다.
 - **AV MCR supporting cues**는 grounding gate를 통과하지 못했으므로 성공 그림으로
   만들지 않는다.
