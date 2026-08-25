@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-NODE_RE = re.compile(r"\$(Input|Cause|Intermedia)_(\d+)$")
+NODE_RE = re.compile(r"\$(Input|Cause|Intermedia)_?(\d+)$")
 INPUT_RE = re.compile(r"^input(\d+)$", re.IGNORECASE)
 PATIENT_RE = re.compile(r"^(.+?)-DS-", re.IGNORECASE)
 
@@ -454,7 +454,9 @@ def audit_data_list(samples_root: Path, data_list_path: Path) -> dict[str, Any]:
             f"{listed_pdd} -> {root_pdd}": count
             for (listed_pdd, root_pdd), count in root_pdd_mismatches.most_common()
         },
-        "listed_pdd_vs_root_mismatches": sum(root_pdd_mismatches.values()),
+        "listed_pdd_vs_root_mismatches": (
+            sum(root_pdd_mismatches.values()) if matched else None
+        ),
     }
 
 
@@ -533,7 +535,7 @@ def markdown_summary(result: dict[str, Any]) -> str:
                 f"- amendment counts: `{data_list['amendment_counts']}`",
                 f"- path category label mappings: `{data_list['path_category_mismatch_pairs']}`",
                 f"- path PDD mismatches: `{data_list['path_pdd_mismatch_pairs']}`",
-                f"- listed PDD vs annotation-root mismatches: **{data_list['listed_pdd_vs_root_mismatches']}**",
+                f"- listed PDD vs annotation-root mismatches: **{data_list['listed_pdd_vs_root_mismatches'] if data_list['listed_pdd_vs_root_mismatches'] is not None else 'N/A (no row identity)'}**",
                 f"- listed PDD -> annotation-root mappings: `{data_list['listed_pdd_vs_root_mismatch_pairs']}`",
                 "",
                 "When directory groups align but basename overlap is zero, the restricted release has renamed files. The public data list remains valid for aggregate vocabulary and counts, but its row-level amendment flags cannot be joined by path.",
