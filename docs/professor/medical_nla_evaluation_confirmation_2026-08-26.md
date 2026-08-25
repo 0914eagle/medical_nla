@@ -774,9 +774,10 @@ E0 data/evaluator audit
 7. 폴더/data-list PDD와 annotation chain root가 다른 43건은 공식 evaluator 재현에서는
    root를 사용한다. 동시에 이 43건을 제외한 결과를 sensitivity analysis로 보고해
    행정 라벨과 annotation 불일치에 결론이 의존하지 않는지 확인한다.
-8. restricted archive에 없는 `Gastritis` KG는 공식 공개 저장소의 파일과 나머지
-   24개 KG의 semantic hash를 비교한 뒤 보완한다. 출처와 commit hash를 evaluator
-   manifest에 기록한다.
+8. restricted KG 24개와 공식 공개 KG 25개를 비교한 결과 공통 24개 중 7개만
+   canonical JSON hash가 같고 17개는 내용이 달랐다. 따라서 공개 `Gastritis` KG를
+   restricted release에 섞지 않는다. Sample annotation만 필요한 주 설명 평가는 KG
+   없이 수행하고, KG 의존 실험은 restricted 24개와 Gastritis 제외를 명시한다.
 
 **완료 조건**: split manifest, schema validator, evaluator version/prompt hash, sample
 reproduction report가 모두 저장된다.

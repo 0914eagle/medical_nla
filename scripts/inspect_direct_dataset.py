@@ -268,9 +268,18 @@ def compare_kg_roots(release_root: Path, reference_root: Path) -> dict[str, Any]
 
 def normalize_data_root(value: str) -> str:
     parts = [part for part in value.replace("\\", "/").split("/") if part not in {"", "."}]
-    if parts and parts[0].casefold() == "samples":
-        parts = parts[1:]
     return "/".join(parts)
+
+
+def data_root_candidates(value: str) -> list[str]:
+    normalized = normalize_data_root(value)
+    parts = normalized.split("/") if normalized else []
+    candidates = [normalized]
+    if parts and parts[0].casefold() == "samples":
+        candidates.append("/".join(parts[1:]))
+    else:
+        candidates.append(f"samples/{normalized}")
+    return list(dict.fromkeys(candidate for candidate in candidates if candidate))
 
 
 def audit_data_list(samples_root: Path, data_list_path: Path) -> dict[str, Any]:
@@ -288,6 +297,7 @@ def audit_data_list(samples_root: Path, data_list_path: Path) -> dict[str, Any]:
         for path in samples_root.rglob("*.json")
     }
     listed_paths: Counter[str] = Counter()
+    matched_release_paths: set[str] = set()
     categories: Counter[str] = Counter()
     pdd_pairs: Counter[tuple[str, str]] = Counter()
     amended: Counter[str] = Counter()
@@ -298,19 +308,28 @@ def audit_data_list(samples_root: Path, data_list_path: Path) -> dict[str, Any]:
     invalid_matched_json = 0
 
     for row in rows:
-        relative = normalize_data_root(row["Data Root"])
-        listed_paths[relative] += 1
+        listed_relative = normalize_data_root(row["Data Root"])
+        listed_paths[listed_relative] += 1
         listed_category = row["Disease Category"].strip()
         listed_pdd = row["PDD"].strip()
         categories[listed_category] += 1
         pdd_pairs[(listed_category, listed_pdd)] += 1
         amended[row["Whether Amended"].strip() or "<empty>"] += 1
 
-        path = release_paths.get(relative)
+        matched_relative = next(
+            (
+                candidate
+                for candidate in data_root_candidates(row["Data Root"])
+                if candidate in release_paths
+            ),
+            None,
+        )
+        path = release_paths.get(matched_relative) if matched_relative else None
         if path is None:
             continue
         matched += 1
-        parts = Path(relative).parts
+        matched_release_paths.add(matched_relative)
+        parts = Path(matched_relative).parts
         if len(parts) >= 4:
             path_category, path_pdd = parts[-3], parts[-2]
         elif len(parts) == 3:
@@ -344,11 +363,14 @@ def audit_data_list(samples_root: Path, data_list_path: Path) -> dict[str, Any]:
         "duplicate_data_roots": sum(count - 1 for count in duplicate_roots),
         "matched_release_files": matched,
         "listed_paths_missing_from_release": sum(
-            count for path, count in listed_paths.items() if path not in release_paths
+            1
+            for row in rows
+            if not any(
+                candidate in release_paths
+                for candidate in data_root_candidates(row["Data Root"])
+            )
         ),
-        "release_files_missing_from_list": sum(
-            1 for path in release_paths if path not in listed_paths
-        ),
+        "release_files_missing_from_list": len(set(release_paths) - matched_release_paths),
         "invalid_matched_json": invalid_matched_json,
         "disease_categories": len(categories),
         "category_counts": dict(categories.most_common()),

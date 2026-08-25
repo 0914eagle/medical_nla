@@ -54,8 +54,10 @@ Aggregate audit와 공식 공개 `data_list.csv` 대조에서 다음을 확인�
   포함된다. 공식 evaluator의 `Accdiag`는 annotation chain root를 사용하므로 이를
   정본 재현 기준으로 따르되, 43건 제외 민감도 결과를 함께 보고한다.
 - restricted KG archive에는 `Gastritis`가 빠져 24개지만 공식 GitHub KG에는
-  `Gastritis.json`을 포함한 25개가 있다. 나머지 KG의 semantic hash를 비교한 뒤
-  공식 공개 파일로 보완하고 provenance를 기록한다.
+  `Gastritis.json`을 포함한 25개가 있다. 그러나 공통 24개 중 canonical JSON hash가
+  일치한 것은 7개뿐이고 17개는 내용이 달라 두 release를 섞지 않는다. 주 설명 평가는
+  sample annotation만으로 수행하고, KG가 필요한 별도 실험에서는 restricted 24개만
+  사용해 Gastritis를 제외하거나 KG 버전을 별도 조건으로 명시한다.
 - data list에서 73개 note가 amended로 표시된다. 원문 span grounding 평가는
   amended 여부를 보존하고 별도 sensitivity analysis를 낸다.
 
@@ -204,9 +206,9 @@ taxonomy, MCR OOD 사례, seed sensitivity를 둔다.
 
 이 단계의 산출물은 raw note가 아닌 aggregate JSON/Markdown이어야 한다.
 
-현재 1--5의 aggregate 감사는 완료되었다. 남은 E0 작업은 공개 data list와 511개
-파일의 전수 조인, 4개 미파싱 환자 행의 안전한 그룹화, 공식 loader/evaluator 재현,
-KG 24/25 provenance 확인, split manifest 생성이다.
+현재 1--5의 aggregate 감사와 KG provenance 비교는 완료되었다. 남은 E0 작업은 공개
+data list와 511개 파일의 전수 조인, 4개 미파싱 환자 행의 안전한 그룹화, 공식
+loader/evaluator 재현, split manifest 생성이다.
 
 ### E0의 결정 게이트
 
