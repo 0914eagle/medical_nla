@@ -9,18 +9,6 @@
 > 보존하는지, 실제 activation에 사례 특이적으로 연결되는지, 자연어 편집을 다시
 > 내부 상태로 되돌릴 수 있는지를 단계적으로 검증한다.
 
-교수님께 확인받을 결정은 다섯 가지다.
-
-1. 설명 품질의 주 벤치마크로 **DiReCT**를 사용한다.
-2. DDXPlus는 설명 품질의 임상 정답지가 아니라 **통제·반사실·patching 실험대**로 사용한다.
-3. CoT와 Medical-NLA는 DiReCT의 task·출력 구조·공식 evaluator를 재현할 수 있을
-   때에만 기존 `Accdiag`, `Obs*`, `Exp*` 지표로 비교한다.
-4. 주 activation은 답을 생성한 뒤가 아니라 **답 진단명 직전 상태**에서 뽑는다.
-5. LLM-as-a-judge는 정답을 만드는 도구가 아니라, 전문가 gold와 생성 설명 사이의
-   의미 대응을 판정하는 **reference-based semantic matcher**로만 사용한다.
-
-이 다섯 가지가 승인되기 전에는 새 SFT target이나 text-patching target을 확정하지 않는다.
-
 ---
 
 ## 1. 연구 질문과 평가 층
