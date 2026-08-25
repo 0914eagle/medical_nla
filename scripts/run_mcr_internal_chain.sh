@@ -34,6 +34,9 @@ RUN_NAME="mcr_hint_positions_L${LAYER}"
 MANIFEST="$ART/activations/$RUN_NAME/layer${LAYER}/last_token/manifest.jsonl"
 READ_OUT="$RES/readout_mcr_hint_final_L${LAYER}.jsonl"
 
+STEPS="${STEPS:-1 2}"
+wants() { case " $STEPS " in *" $1 "*) return 0;; *) return 1;; esac; }
+
 say() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$MAIN"; }
 step() {
   local what="$1"; shift
@@ -41,7 +44,19 @@ step() {
   if "$@" >>"$MAIN" 2>&1; then say "   ok"; else say "   FAILED: $what"; return 1; fi
 }
 
+# One copy at a time. Two of these write the same ladder outputs and put two
+# 12B models on the same two cards; the second one does not fail loudly, it
+# interleaves. Started as exactly that mistake.
+LOCK="$ART/logs/mcr_internal_chain.lock"
+if ! ( set -o noclobber; echo "$$" > "$LOCK" ) 2>/dev/null; then
+  echo "REFUSED: another chain holds $LOCK (pid $(cat "$LOCK" 2>/dev/null))."
+  echo "  If no process is alive, remove the lock and rerun."
+  exit 1
+fi
+trap 'rm -f "$LOCK"' EXIT
+
 say "log: $MAIN"
+say "steps: $STEPS   rungs: ${RUNGS:-3 4}"
 
 if ! python scripts/check_gpu_setup.py --config configs/default.yaml \
      --require-free-gb 20 >>"$MAIN" 2>&1; then
@@ -50,16 +65,31 @@ if ! python scripts/check_gpu_setup.py --config configs/default.yaml \
   exit 1
 fi
 
-# ------------------------------------------------------------- stage 1: r3/r4
-say "STAGE 1 -- MCR ladder r3/r4 (no new activations)"
-if bash scripts/run_mcr_ladder.sh >>"$MAIN" 2>&1; then
+# ------------------------------------------------------------- stage 1: ladder
+if wants 1; then
+say "STAGE 1 -- MCR ladder, rungs ${RUNGS:-3 4}"
+# Default to 3 and 4 here, NOT run_mcr_ladder's own "3 4 7". Rung 7 feeds the
+# model its own chain, which first needs a CoT pass over every wrong-arm case;
+# MCR case reports are long enough that this ran for six hours and blocked the
+# extraction behind it. DDXPlus already answered what r7 asks -- self-chain
+# feedback recovers .1236 of moved cases -- so it does not go in front of the
+# work the derangement gate just cleared. Ask for it explicitly with RUNGS.
+if RUNGS="${RUNGS:-3 4}" bash scripts/run_mcr_ladder.sh >>"$MAIN" 2>&1; then
   say "STAGE 1 ok"
 else
   say "STAGE 1 FAILED -- see $MAIN. Continuing to the extraction, which does"
   say "  not depend on it."
 fi
+else
+  say "STAGE 1 skipped (STEPS=$STEPS)"
+fi
 
 # --------------------------------------------------- stage 2: wrong-note r5
+if ! wants 2; then
+  say "STAGE 2 skipped (STEPS=$STEPS)"
+  say "ALL DONE"
+  exit 0
+fi
 say "STAGE 2 -- wrong-note activations for r5"
 [ -s "$CASES" ] || { say "missing $CASES"; exit 1; }
 
