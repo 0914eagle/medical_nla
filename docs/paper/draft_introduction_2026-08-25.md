@@ -167,15 +167,15 @@ the same internal trajectory claim.
 > competing diagnoses and test correction under the same causal label.
 
 이 정의가 중요한 이유는 moved case가 suggestion-copy case와 같지 않기 때문이다.
-DDXPlus의 moved 321건 중 230건(71.7%)은 suggestion이 아니라 제3 진단으로
+DDXPlus primary behavior cohort의 moved 319건 중 230건(72.1%)은 suggestion이 아니라 제3 진단으로
 이동한다. 따라서 answer가 suggestion과 같은지 검사하는 output-only rule로는
 대부분의 인과 영향을 탐지할 수 없다.
 
 이 결과는 presentation이 정답 진단명을 직접 명명한 사례가 만든 artifact도 아니다.
-Moved 321건 중 289건(90.0%)은 explicit gold name이 없는 clean subset에서
-발생했고, 이 subset에서도 201/289(69.6%)가 suggestion이 아닌 제3 진단으로
-이동했다. Explicit-gold subset의 moved rate는 32/527(6.1%)로 clean의
-289/1,220(23.7%)보다 낮았다. 즉 정답명이 직접 주어지면 wrong-note 영향은
+Moved 319건 중 287건(90.0%)은 explicit gold name이 없는 clean subset에서
+발생했고, 이 subset에서도 201/287(70.0%)가 suggestion이 아닌 제3 진단으로
+이동했다. Explicit-gold subset의 moved rate는 32/525(6.1%)로 clean의
+287/1,204(23.8%)보다 낮았다. 즉 정답명이 직접 주어지면 wrong-note 영향은
 약해지지만, 핵심 이동 구조는 정답명을 노출하지 않은 사례에서 그대로 남는다.
 
 ## 원문 확인용 출처 지도

@@ -1,10 +1,11 @@
 """Figure 2 -- behavioral effect of the referral-note intervention.
 
-Panel (a) draws four-arm accuracy for the clean population whose chart does
-not name the gold diagnosis. Panel (b) decomposes all causally moved answers
-into moves to the note's suggestion and moves to a third diagnosis. The two
+Panel (a) draws intervention-arm accuracy for the clean population whose chart
+does not name the gold diagnosis. Panel (b) decomposes all causally affected
+cases into causal suggestion adoption and gold loss without suggestion
+adoption. The two
 panels intentionally use different populations: the accuracy comparison
-excludes label-leaky prompts, whereas the canonical moved counts are defined
+excludes presentations that explicitly name the gold, whereas the canonical moved counts are defined
 on the full source-correct cohort. Both denominators are printed in the plot.
 
 Drawn from dump JSON rather than by re-scoring answers, so the plotted values
@@ -148,10 +149,12 @@ def main() -> None:
     suggestion = [dest["moved"]["to_suggestion"] for _, _, dest in clusters]
     third = [dest["moved"]["to_third_diagnosis"] for _, _, dest in clusters]
     totals = [dest["moved"]["n"] for _, _, dest in clusters]
-    ax_dest.bar(xs, suggestion, color="black", width=0.62, label="to suggestion")
+    ax_dest.bar(xs, suggestion, color="black", width=0.62,
+                label="adopted suggestion")
     ax_dest.bar(
         xs, third, bottom=suggestion, color="0.72", edgecolor="black",
-        linewidth=0.6, hatch="///", width=0.62, label="to third diagnosis",
+        linewidth=0.6, hatch="///", width=0.62,
+        label="lost gold; other diagnosis",
     )
     for x, to_hint, to_third, total in zip(xs, suggestion, third, totals):
         if to_hint:
@@ -166,11 +169,11 @@ def main() -> None:
         [f"{label}\n(n = {dest['n']:,})" for label, _, dest in clusters],
         fontsize=8,
     )
-    ax_dest.set_ylabel("causally moved answers", fontsize=8)
+    ax_dest.set_ylabel("causally affected cases", fontsize=8)
     ax_dest.tick_params(labelsize=7)
     ax_dest.spines[["top", "right"]].set_visible(False)
     ax_dest.legend(fontsize=6.2, frameon=False, loc="upper left")
-    ax_dest.set_title("(b) Where moved answers go", fontsize=8)
+    ax_dest.set_title("(b) Causally affected cases", fontsize=8)
 
     fig.subplots_adjust(left=0.08, right=0.99, top=0.74, bottom=0.20, wspace=0.32)
     fig.savefig(args.output, dpi=300, bbox_inches="tight")

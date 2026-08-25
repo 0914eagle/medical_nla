@@ -390,11 +390,14 @@ mention; hence wrong-arm errors are 318/1,729 and 426/1,452, while moved counts
 are 319 and 427. Do not describe every moved row as a correct-to-incorrect
 transition.*
 
-*The earlier fixed-cohort explicit-gold sensitivity was 289/321 moved cases
-from clean presentations. Its canonical-eligible replacement must be read from
-the new dump's `clean` and `leaky` moved blocks before citation; it is not
-inferred from the all-cohort total above. Here `gold_in_prompt` denotes an
-input-content stratum, not train-test leakage.*
+*DDXPlus sensitivity to an explicit gold name in the presentation.* Of the
+319 causally affected cases, 287/319 (90.0%) come from clean presentations
+that do not name the gold (287/1,204 affected: 86 adopted the suggestion and
+201 lost the gold for another diagnosis). The explicit-gold subset contributes
+32/525 cases (3 suggestion adoptions and 29 other diagnoses). The corresponding
+rates are 23.8% and 6.1%. Thus the effect is not driven by label-explicit
+presentations. Here `gold_in_prompt` denotes an input-content stratum, not
+train-test leakage.*
 
 **Appendix Table A2.** Speaker/wording variants, DDXPlus,
 n = 1,747 each.

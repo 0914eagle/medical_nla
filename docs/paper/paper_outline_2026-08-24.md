@@ -38,7 +38,7 @@ cross-fitted probe는 all/silent AUROC `.9280/.9840`, 강한 LLM CoT monitor는
 
 | 조항 | 지탱하는 측정 | 성립 | 범위 한계 |
 |---|---|:-:|---|
-| "의뢰 소견서의 의심 진단에 앵커링된다" | 오답 소견서 −23.03%p(DDX 1,220) · −26.89%p(MCR 1,543), 위약 대비 제안 고유 −18.11/−21.58%p | ○ | 두 코퍼스 재현. 개입 1종(문구 4종으로 보강) |
+| "의뢰 소견서의 의심 진단에 앵커링된다" | canonical-eligible 오답 소견서 −23.75%p(DDX 1,204) · −29.34%p(MCR 1,452), 위약 대비 제안 고유 −18.36/−22.73%p | ○ | 두 코퍼스 재현. 개입 1종(문구 4종으로 보강) |
 | "출력 이동과 제안의 내부 top-1은 자주 불일치한다" | moved 321건 중 제안이 한 번도 top-1이 아닌 **266건(82.9%)** | ○ | **DDXPlus 전용**, 닫힌 49-class probe. “정답 보존”과 동의어가 아님 |
 | "내부 궤적은 이질적이다" | gold top-1 throughout **151/321**, other top-1 without suggestion **115/321**, suggestion top-1 at least once **55/321** | ○ | 관측한 6개 위치와 한 레이어의 궤적. 연속 토큰 전체나 다른 레이어를 뜻하지 않음 |
 | "소견서가 내부 상태에도 비용을 준다" | final paired Δ: 유지 −.007, 제3 진단 −.055, 제안 채택 −.195 | ○ | DDXPlus L32, landmark별 별도 probe. CI/추세 검정 보강 대기 |
@@ -97,9 +97,9 @@ cross-fitted linear probe를 주 계기로 측정한다.
 > **잘못된 의뢰 소견서는 원래 정답이던 의료 LLM의 최종 진단을 얼마나
 > 움직이며, 출력 이동은 내부에서 디코드되는 제안 진단의 우세와 일치하는가?**
 
-- 행동 효과: DDXPlus clean 1,220에서 wrong-note 총 비용 `23.03pp`, neutral
-  대비 제안 고유 비용 `18.11pp`; MCR source-correct 1,543에서 총 비용
-  `26.89pp`, 제안 고유 `21.58pp`.
+- 행동 효과: DDXPlus canonical-eligible clean 1,204에서 wrong-note 총 비용
+  `23.75pp`, neutral 대비 제안 고유 비용 `18.36pp`; MCR canonical-eligible
+  1,452에서 총 비용 `29.34pp`, 제안 고유 `22.73pp`.
 - 내부 궤적: DDXPlus moved 321건 중 suggestion이 관측한 여섯 landmark에서
   한 번도 probe top-1이 아닌 사례가 266건(`82.9%`). 이 중 gold throughout는
   151건, suggestion이 아닌 다른 진단 경로는 115건이다.
@@ -171,8 +171,8 @@ cross-fitted linear probe를 주 계기로 측정한다.
   보이지만(real .7347 vs shuffled .4491), 오경보가 그 이득을 압도한다.
 - 2-3. **남는 문제 ②: 열린 어휘에서 정의되지 않는다.** 필요한 실험: 같은
   개입을 실제 증례(MCR)에서 재현하고, 그 코퍼스에서 클래스 정의가 불가함을
-  보인다. → **완료**: MCR 1,543건에서 개입 효과가 **DDXPlus보다 강하게**
-  재현(전체/위약 5.06배 vs 4.68배), 진단 6,934종·대부분 1회 등장.
+  보인다. → **완료**: canonical-eligible MCR 1,452건에서 개입 효과가 재현됐다
+  (총비용 29.34pp, neutral 대비 4.44배), 진단 6,934종·대부분 1회 등장.
 
 **문제 C — NLA는 서술 문제를 해결하지만, *언어화 모델이 자기 지식으로
 지어낼 수 있다*는 문제가 남는다.** 그래서 검증된 의료 NLA를 제시한다.
@@ -223,8 +223,8 @@ Results** / Conclusion. (초기 판단 "별도 Methods 없음"은 철회 — 도
 > — none, a neutral placebo, a plausible wrong suspicion, and the correct
 > one. The note follows the findings, so under causal masking the
 > activations at every finding position are bit-identical across arms. A
-> wrong suspicion costs 23.0 accuracy points on DDXPlus (n = 1,220) and
-> 26.9 on MedCaseReasoning case reports (n = 1,543); 18.1 and 21.6 points
+> wrong suspicion costs 23.75 accuracy points on DDXPlus (n = 1,204) and
+> 29.34 on MedCaseReasoning case reports (n = 1,452); 18.36 and 22.73 points
 > are specific to the suggestion rather than to inserting a sentence.
 > Rule-based chain-of-thought features are weak predictors of movement,
 > while a stronger LLM monitor reaches AUROC 0.723 overall and 0.683 on
@@ -468,14 +468,16 @@ NLA는 activation을 자연어로 풀어 고정 vocabulary 밖의 후보를 만�
 행동 효과는 DDXPlus와 MCR에서 재현하고, 내부 궤적은 DDXPlus에서
 cross-fitted probe와 검증된 AV로 측정한다. 배포형 탐지에서는 detector가 none
 반사실을 보지 않고 wrong run 하나만 받는다. 이 설계에서 wrong note는 DDXPlus
-정확도를 `23.03%p`, MCR을 `26.89%p` 낮추지만, DDXPlus moved 321건 중 266건에서
+정확도를 `23.75%p`, MCR을 `29.34%p` 낮춘다. 아직 canonical eligibility로
+재집계하지 않은 DDXPlus trajectory cohort의 moved 321건 중 266건에서
 suggestion은 관측한 어느 landmark에서도 probe top-1이 아니다.
 
 **문단 7 — 기여 5개 (08-25 실측으로 갱신):**
   1. **인과 테스트베드**: 소견서 4조건 개입 — 임상적으로 실재하는 교란,
      위약 대조, **cue 위치 활성값 불변이 가정이 아니라 설계로 보장**.
-     합성(DDXPlus 1,747)과 실제 증례(MCR 1,543) 양쪽에서 재현되며,
-     실제 증례에서 **더 강하다**(전체/위약 5.06배 vs 4.68배).
+     합성(DDXPlus canonical all 1,729/clean 1,204)과 실제 증례(MCR 1,452)
+     양쪽에서 재현된다(총비용 23.75pp vs 29.34pp; neutral 대비 비는
+     4.40배 vs 4.44배).
   2. **앵커링의 해부** (중심 기여): moved 321건 중 **266건(82.9%)**에서
      제안이 어느 랜드마크에서도 top-1이 아니다. 그중 gold throughout는
      151건이고 other top-1은 115건이다. 행동적 이동과 내부 제안 우세의
@@ -514,7 +516,7 @@ Related Work 직전 또는 끝에서 신규성을 다음처럼 한 문장으로 
 따라서 이 논문은 anchoring, probe, NLA 중 하나의 최초성을 주장하는 논문이
 아니다. `moved`라는 반사실적 사례 단위 정답지와 이를 중심으로 한
 **intervention → trajectory → single-run attribution → conditional correction**
-연결이 기여다. 특히 moved 321건 중 230건은 suggestion이 아닌 제3 진단으로
+연결이 기여다. Primary behavior cohort의 moved 319건 중 230건은 suggestion이 아닌 제3 진단으로
 이동하므로, 이 문제는 단순 hint-copy detection으로 환원되지 않는다.
 
 - **2.1 Clinical anchoring and misleading context**: 사람의 referral-letter
@@ -621,18 +623,20 @@ prefix 뒤에 reasoning instruction을 붙이고 최대 2,048 tokens를 허용�
 #### Direct-answer pool과 clean cohort
 
 Wrong note가 “원래 맞히던 답을 잃게 했는가”를 정의하려면 none condition에서
-먼저 정답이어야 한다. 따라서 4,900건 중 no-note direct answer가 정답인 1,747건을
-intervention pool로 고정한다. 이는 모델의 일반 정확도를 보고하는 표본이 아니라
+먼저 정답이어야 한다. Generation-time matcher가 선택한 1,747건 중 canonical
+matcher에서도 no-note 정답인 **1,729건**을 primary intervention pool로 고정한다.
+이는 모델의 일반 정확도를 보고하는 표본이 아니라
 **paired causal susceptibility**를 측정하기 위한 조건부 모집단이다.
 
 가족력 등에서 gold diagnosis 문자열이 presentation에 직접 나타난 행은
-`gold_in_prompt`로 표시한다. Main clean behavior table은 이를 제외한 1,220건을
-사용하고, 전체 1,747건은 moved 분해·trajectory·detection에 사용한다. 독립
+`gold_in_prompt`로 표시한다. Main clean behavior table은 이를 제외한 1,204건을
+사용하고, 전체 1,729건은 primary moved 분해에 사용한다. 현재
+trajectory·detection은 재집계 전 fixed cohort 1,747건을 사용한다. 독립
 확장은 진단당 300건에서 구축하되 주 실행과 겹치는 base ID를 제외해 보고한다.
 `gold_in_prompt`는 train-test leakage가 아니라 **explicit gold-name in the
-presentation** 층화 변수다. 전체 moved 321건 중 289건(90.0%)이 clean에서
-발생했고, clean에서도 201/289(69.6%)가 제3 진단으로 이동했다. Explicit-gold
-527건에서는 32건(6.1%)만 moved되어 clean 289/1,220(23.7%)보다 낮았다.
+presentation** 층화 변수다. 전체 moved 319건 중 287건(90.0%)이 clean에서
+발생했고, clean에서도 201/287(70.0%)가 제3 진단으로 이동했다. Explicit-gold
+525건에서는 32건(6.1%)만 moved되어 clean 287/1,204(23.8%)보다 낮았다.
 
 MCR에서도 동일하게 no-note source-correct 사례만 causal behavior population으로
 사용한다. 평가 가능한 전체에서 선택된 조건부 모집단이라는 점과 낮은 source
@@ -939,8 +943,8 @@ Appendix A1을 참조한다.
 
 출발 질문: **교란이 실재하는가, 설명은 그것을 말하는가.**
 
-- **P1 4조건 정확도** (clean 1,220, canonical matcher): **.9869 / .9377 /
-  .7566 / .9246** (none/neutral/wrong/correct).
+- **P1 4조건 정확도** (canonical-eligible clean 1,204): no-note는 선정 조건으로
+  **1.0000**, neutral/wrong/correct는 **.9460/.7625/.9302**.
   ⚠️ **정답 조건 칸 오류 (08-24 감사)**: 여기 적혀 있던 .932(1,137건)는 이
   실행의 값이 아니다 — 1,747건 답 파일에 `correct` 조건이 아예 없고, .9313은
   corpus-300 전체 4,995건(누출 미필터)의 값이다. 이후 main correct arm은
@@ -950,13 +954,13 @@ Appendix A1을 참조한다.
   답 파일이 plausible_wrong 수정 이전 생성이라 정답을 부르는 "오답" 소견서
   15/1,747(0.86%)이 오답 조건 정확도를 올리는 쪽으로 남아 있다
   (`--exclude-collisions`가 반대쪽을 준다).
-- **P2 답 바뀜의 분해**: canonical **321/1,747(18.4%)** — 인과적 채택
-  **91**, 제3 진단/상실 **230**.
+- **P2 답 바뀜의 분해**: canonical primary **319/1,729(18.4%)** — 인과적 채택
+  **89**, 제3 진단/상실 **230**.
   **답만 봐서는 답 바뀜의 2/3(상실형)가 보이지 않는다**를 여기서 심어
   4.2의 침묵 부분집합을 예고. Catching-Rationalization이 각주에서
   "uncommon"이라며 제외한 부류가 우리에게는 다수라는 대비도 여기.
-- **P3 인과성 재확인**: 차트가 진단명을 이미 적은 케이스(n=527)에서 오답
-  조건 정확도가 .939로 남는다(안 적힌 1,220은 .760; 08-24 재집계 —
+- **P3 인과성 재확인**: 차트가 진단명을 이미 적은 canonical-eligible 케이스
+  (n=525)에서 오답 조건 정확도가 .939로 남는다(안 적힌 1,204는 .7625 —
   이전에 적혀 있던 0.899는 구판 수치) — 효과는 정보 주입이 아니라
   **제안 추종**.
 - **P4 설명은 무엇을 하나**: 체인은 소견서를 96–98% **언급**하지만 인용·
@@ -1005,8 +1009,9 @@ Appendix A1을 참조한다.
     거의 못 한다(17/224 = 7.6%; 동료 107/305 = 35.1%, z=7.38).
   · **corpus-300** — 주 실행과 겹친 1,676건을 제외한 미관측 clean 2,192건에서
     `.9749/.9279/.7682/.9101`로 행동 효과를 독립 재현했다.
-  · **MCR 1,543 (실제 증례)** — canonical 4조건:
-    **.9410/.8879/.6721/.8179**. 답 바뀜 중 채택률은 **137/437=31.4%**.
+  · **MCR 1,452 (실제 증례)** — no-note=1 by selection,
+    neutral/wrong/correct **.9339/.7066/.8388**. 답 바뀜 중 채택률은
+    **127/427=29.7%**.
     제안 출처를 나누면 **그럴듯한
     제안이 설득을 2.3배 만든다**(41.2% vs 17.6%, z=5.26)면서 **흔드는 힘은
     구별되지 않는다**(z=1.75) — 해리의 두 번째 실증.
@@ -1085,7 +1090,7 @@ Appendix A1을 참조한다.
 - **P3 부서짐의 방향(항복률)**: 부서진 답이 제안으로 간 비율 r3 0.450 /
   r4 **.6410** / r5 .4940. ⚠️ **08-25 정정** — 이를 "첫 패스의 몇 배"라고
   쓰면 **조건부를 무조건부로 나눈 것**이다. 같은 규칙의 짝은 "소견서가 답을
-  바꾼 케이스 중 제안으로 간 비율"의 canonical 값 **91/321=.283**이다.
+  바꾼 케이스 중 제안으로 간 비율"의 primary behavior 값 **89/319=.279**다.
   canonical 첫 패스 항복률은 `.3209`다. **r4가 최악(.6410)이고 r5는 r4보다
   14.7%p 낮다(.4940)** — 절대 최저는 r3(.4507)이다.
 - **P4 무엇이 지렛대인가 — r4/r5/r6 분해**:

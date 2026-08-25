@@ -34,9 +34,10 @@ AV validation은 Appendix Table A1이다. Discussion의 도구 선택표는 번�
   MCR **127/300**이다.
 
 DDXPlus canonical moved는 **319/1,729**이고 그중 suggestion 채택 89, 제3 진단
-이동 230이다. Clean/explicit-gold 민감도 분해는 새 dump의 subgroup moved
-block을 확인한 뒤 캡션에 넣는다. 이전 fixed-cohort 분해(289/321 대 32/527)를
-새 primary 분해처럼 재사용하지 않는다.
+이동 230이다. Clean/explicit-gold 분해는 `287/1,204`(suggestion 86, other
+diagnosis 201) 대 `32/525`(suggestion 3, other diagnosis 29)다. 즉 moved의
+287/319(90.0%)이 clean에서 발생하고 clean에서도 other-diagnosis 이동이
+201/287(70.0%)다.
 
 **중요:** (a)와 (b)는 분모가 다르다. 코드 기본값이 각각 `clean`과 `all`이며,
 각 패널 x축에 n을 따로 인쇄한다. 두 패널 n을 같은 모집단처럼 설명하지 않는다.
@@ -77,8 +78,9 @@ cohort를 감사 목적으로 재현할 때만 두 옵션을 생략한다.
 `.9460/.7625/.9302`; MCR `n=1,452`에서 `.9339/.7066/.8388`. Figure 2(b)는
 DDXPlus `319=89+230`, MCR `427=127+300`을 표시해야 한다.
 Moved는 `lost_gold OR causally_adopted_suggestion`이므로 각 코퍼스의 1건처럼
-gold를 유지한 채 suggestion을 추가한 사례도 포함한다. 패널 제목과 캡션은
-“all answers became wrong”이 아니라 **causally affected/moved**로 쓴다.
+gold를 유지한 채 suggestion을 추가한 사례도 포함한다. 따라서 panel (b)는
+**Composition of causally affected cases**로 제목을 붙이고, 범례는
+`adopted suggestion` 대 `lost gold; other diagnosis`로 쓴다.
 
 ## 3. Figure 3 — Internal trajectory
 

@@ -208,24 +208,25 @@ CoT 모니터(#1)와 같은 판정자이므로 두 결과는 같은 채점자 �
 |---:|---:|---:|---:|
 | 1.0000 | .9468 | .8161 | .9370 |
 
-### Explicit-gold-name 민감도 분석 — fixed-cohort audit
+### Explicit-gold-name 민감도 분석 — canonical primary
 
-아래 값은 이전 1,747 fixed cohort의 감사값이며, 새 1,729 primary의 subgroup
-dump를 확인하기 전에는 primary 민감도 분석으로 인용하지 않는다.
 `gold_in_prompt`는 train-test leakage가 아니라 presentation에 정답 진단명 또는
-alias가 직접 등장하는지를 표시한다. 전체 moved 321건의 분해는 다음과 같다.
+alias가 직접 등장하는지를 표시한다. 전체 moved 319건의 분해는 다음과 같다.
 
 | DDXPlus subset | n | moved | moved rate | to suggestion | to third diagnosis |
 |---|---:|---:|---:|---:|---:|
-| clean, gold name absent | 1,220 | **289** | **.2369** | 88 | **201** |
-| explicit gold name present | 527 | **32** | **.0607** | 3 | **29** |
-| all | 1,747 | **321** | **.1837** | 91 | **230** |
+| clean, gold name absent | 1,204 | **287** | **.2384** | 86 | **201** |
+| explicit gold name present | 525 | **32** | **.0610** | 3 | **29** |
+| all | 1,729 | **319** | **.1845** | 89 | **230** |
 
-Moved의 289/321(90.0%)이 clean subset에서 발생하고, clean moved 중
-201/289(69.6%)가 제3 진단 이동이다. 따라서 전체 moved 결과는 explicit-gold
+Moved의 287/319(90.0%)이 clean subset에서 발생하고, clean moved 중
+201/287(70.0%)가 제3 진단 이동이다. 따라서 전체 moved 결과는 explicit-gold
 행에 의해 만들어지지 않았다. 반대로 explicit-gold subset의 moved rate가
 6.1%로 낮아, presentation이 정답을 직접 명명할 때 wrong note의 영향이
 약해지는 이질성이 관측된다.
+
+이전 fixed cohort에서는 clean 289/1,220, explicit-gold 32/527, 전체 321/1,747로
+같은 구조가 나왔다. 이 값은 matcher 변경 민감도 감사로만 보존한다.
 
 ### MedCaseReasoning, canonical-eligible n=1,452
 
