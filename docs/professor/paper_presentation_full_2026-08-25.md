@@ -888,6 +888,13 @@ epoch, L32는 3 epoch이어서 layer와 training exposure가 섞여 있다. 안�
 
 ## Slide 18. RQ1 행동 결과 - referral note가 실제로 답을 바꾸는가
 
+**발표자 노트 - 왜 여기서 RQ1을 시작하는가.** 앞의 M0 실험은 AV가 적어도
+일부 activation-case pairing을 추적한다는 것을 확인하기 위한 **측정 도구 검증**이었다.
+하지만 AV가 읽힌다는 사실만으로 연구할 현상이 존재하는 것은 아니다. 따라서
+RQ1의 첫 단계에서는 내부 판독을 잠시 내려놓고, 잘못된 referral note가 실제 답을
+인과적으로 바꾸는지부터 행동 수준에서 확인한다. 내부 분석이 흥미로워 보여도
+행동 효과가 없다면 의료적 문제 설정 자체가 약해지기 때문에 이 순서를 따른다.
+
 **화면에는 Figure 2(a)를 먼저 넣고, Table 1은 같은 정확도를
 반복하지 않는 효과크기 분해표로 넣는다.** Figure 2는 직관, Table 1은
 neutral insertion cost와 suggestion-specific cost, non-overlap 재현을 담당한다.
@@ -926,6 +933,12 @@ MCR의 1,543은 평가 가능한 12,620건 중 source model이 no-note에서 맞
 즉 accuracy `.122`인 선택된 모집단이다. “MCR 전체에서 67.2% 정확도”라고 말하면
 안 된다.
 
+**다음 슬라이드로 넘어가는 이유.** 여기까지는 wrong note가 neutral note보다
+추가로 정확도를 떨어뜨린다는 것만 안다. 그러나 정확도 하락만으로는 모델이
+소견서의 오답 진단을 그대로 복사했는지, 아니면 소견서 때문에 감별진단 전체가
+흔들려 제3의 진단으로 갔는지 알 수 없다. 두 기전은 탐지 방법도 달라진다. 그래서
+다음에는 움직인 답의 **도착지**를 분해한다.
+
 ## Slide 19. 이동은 suggestion 복사가 아니라 주로 제3 진단 이동이다
 
 **화면에 넣을 moved destination 표**
@@ -946,6 +959,13 @@ MCR moved 437건에서도 suggestion 채택 137건(31.4%), 제3 진단 이동 30
 보는 detector는 moved의 약 70%를 놓친다. 의료 열린 진단에서는 hint가 하나의
 선택지로 들어가는 것이 아니라 전체 differential geometry를 흔들어 다른 진단으로
 보낼 수 있다.
+
+**발표자 연결 원고.** Slide 18은 “답이 움직인다”를 보였고, Slide 19는 그 움직임의
+약 70%가 단순 suggestion 복사가 아님을 보였다. 따라서 이후 실험의 목표는
+`answer == suggestion` 같은 표면 규칙을 정교하게 만드는 것이 아니라, 외부 제안이
+모델의 판단 상태를 어떻게 교란했는지 찾는 것으로 바뀐다. 다만 이 현상이 referral
+문구 하나에만 생긴 프롬프트 artifact라면 일반적인 기전으로 볼 수 없다. 그래서
+다음에는 발화자와 문구를 바꾸고, CoT를 허용해도 현상이 남는지 확인한다.
 
 ## Slide 20. 문구 변화와 CoT의 이중성
 
@@ -982,6 +1002,14 @@ none `.7464`, wrong `.7018`로 note cost가 `4.46pp`로 줄어든다. 그러나 
 43.0%로 높아지지만 분모가 다른 조건부 비율이므로 “CoT가 suggestion을 더 원인으로
 사용했다”고 단정하지 않는다.
 
+**발표자 연결 원고.** 문구 변형에서 효과가 반복되므로 단일 문자열 artifact라는
+가설은 약해진다. CoT는 wrong-vs-none 격차를 줄이지만 no-note 성능 자체를 크게
+낮추므로 안전장치라고 부를 수 없다. 여기까지는 여전히 출력만 본 결과다. 즉
+소견서 때문에 출력이 바뀌었다는 사실은 알지만, 그 과정에서 정답 진단 신호가
+내부에서 사라졌는지, 약해졌는지, 끝까지 남았는지는 모른다. 이 질문에 답하기 위해
+다음에는 같은 케이스의 no-note/wrong-note activation을 짝지어 내부 궤적과 정답
+신호 비용을 본다.
+
 ## Slide 21. Figure 3 - 내부 궤적과 용량-반응
 
 **그림 아래에 Table 2a를 축약 없이 둔다.**
@@ -1012,6 +1040,14 @@ constraint `-.439/-.304`, format `-.183/-.188`, final `-.195/-.055`다. Constrai
 관측된 위치 효과이며 “constraint token이 모든 모델의 보편적 취약점”이라고
 일반화하지 않는다.
 
+**발표자 연결 원고.** 행동이 강하게 바뀐 집단일수록 정답 신호 비용도 커지는
+용량-반응이 있으므로 내부 변화와 행동 변화가 무관하지는 않다. 그러나 suggestion을
+실제로 출력한 집단에서도 final-token probe는 평균적으로 gold에 `.725`, suggestion에
+`.211`을 준다. 즉 평균 probability mass만 보면 정답 신호가 상당히 남아 있다.
+그렇다면 남은 질문은 “그래도 중간 어딘가에서는 suggestion이 잠시 top-1이 되어
+출력을 장악했는가?”다. 평균값이 가리는 사례별 경로를 확인하기 위해 다음에는
+suggestion이 처음 top-1이 된 landmark를 센다.
+
 ## Slide 22. Suggestion은 언제 내부 top-1이 되는가
 
 **화면에 넣을 landmark count 표**
@@ -1038,7 +1074,23 @@ note 0, question 30, constraint 6, format 5, final 7이다. 한 번이라도 top
 진단이 top-1인 경로다. 따라서 “82.9%에서 모델은 속으로 정답을 알고 있었다”가
 아니라 “82.9%에서 suggestion dominance 없이 출력이 이동했다”가 정확한 결론이다.
 
+**RQ1 마무리와 RQ2로의 연결.** RQ1의 논증은 다음 순서로 닫힌다. Wrong note는
+행동을 바꾸고, 그 효과는 문구 변형과 다른 corpus에서도 반복된다. 그러나 이동의
+대부분은 suggestion 복사가 아니며, moved 321건 중 266건에서는 관측한 어느
+landmark에서도 suggestion이 top-1이 아니다. 따라서 최종 출력이나 CoT에서
+suggestion을 찾는 것만으로는 인과적으로 움직인 사례를 놓친다. 이것이 RQ2가
+필요한 직접적인 이유다. 실제 배포에서는 같은 환자를 no-note로 다시 실행할 수
+없으므로, **wrong-note 실행 한 번만 보고** 이런 숨은 이동을 탐지해야 한다.
+
 ## Slide 23. RQ2 - wrong-note 한 번으로 소견서가 답을 바꾼 사례를 판별한다
+
+**발표자 노트 - RQ2가 RQ1에서 어떻게 나오는가.** RQ1의 paired intervention은
+연구자가 moved label을 만드는 데는 강하지만 실제 사용 시점에는 사용할 수 없다.
+환자 한 명에 대해 “소견서가 없었으면 무슨 답을 했을지”를 관측할 수 없기 때문이다.
+그래서 no-note 실행은 평가용 숨은 정답으로만 두고, detector에는 wrong-note 실행
+하나에서 얻은 output, CoT, activation 계열 신호만 제공한다. RQ2는 새 현상을 찾는
+실험이 아니라 RQ1에서 정의한 인과적 이동을 **단일 실행에서 알아챌 수 있는가**를
+묻는 운영화 단계다.
 
 **화면에는 Table 2b와 Figure 4(a)를 그대로 넣는다.**
 
@@ -1084,7 +1136,22 @@ calibration되지 않았다. Brier `.1649`, constant baseline `.1500`, ECE `.142
 과신이 있다. Calibration은 고칠 수 있지만 monotonic transform이면 AUROC 순위는
 바뀌지 않는다.
 
+**RQ2 마무리와 RQ3로의 연결.** Activation 채널이 output/CoT보다 moved case를
+잘 순위화하고, 닫힌 49-class 공간에서는 probe가 가장 강하다. 그러나 AUROC가
+높다는 것은 위험한 사례를 잘 고른다는 뜻이지 환자에게 줄 답을 고쳤다는 뜻은
+아니다. 탐지 이후 어떤 정보를 되먹여야 하는지, 그리고 모든 사례를 재질문하면
+원래 맞던 답을 깨뜨리지 않는지를 별도로 시험해야 한다. 그래서 RQ3에서는
+intervention content를 한 단계씩 추가하는 correction ladder로 넘어간다.
+
 ## Slide 24. RQ3 - 교정 사다리의 exact intervention
+
+**발표자 노트 - 왜 바로 성능 비교가 아니라 사다리인가.** RQ2에서 probe와 AV가
+탐지에 유용하다는 것을 알았지만, 교정 성능이 오르면 그 이유가 내부 정보인지 단순한
+재질문인지 구분해야 한다. R3부터 R7까지는 정보를 누적하거나 대체하여 이 혼합을
+분리한다. R3는 “다시 생각하라”는 효과, R4는 원 입력 재제시, R5는 자연어 내부
+content, R6는 같은 목적의 압축된 probe label, R7은 모델 자신의 CoT를 통제한다.
+따라서 다음 슬라이드의 숫자는 방법 간 순위표라기보다 **어떤 정보가 교정을
+만드는지 분해하는 실험**으로 읽어야 한다.
 
 **화면에 넣을 intervention 설계표**
 
@@ -1118,6 +1185,11 @@ R6는 자연어 근거 없이 `An independent classifier probe ... predicts:
 answer was:` 뒤에 그대로 붙인다. 모든 rung은 마지막에 동일한 direct instruction과
 answer prefill을 사용한다.
 
+**다음 슬라이드로 넘어가는 이유.** 설계만으로는 자연어 설명이 유용한지, 정확한
+진단 label이 유용한지, 아니면 재실행 자체가 유용한지 알 수 없다. 다음에는 전체
+정확도와 moved recovery를 동시에 보아 “움직인 사례를 고치는 능력”과 “원래 맞던
+사례를 새로 깨뜨리는 비용”을 분리한다.
+
 ## Slide 25. 교정 결과와 정확한 해석
 
 **화면에는 Table 3과 Figure 4(b)를 그대로 넣는다.**
@@ -1150,6 +1222,13 @@ Probe selector와 argmax 직접 교체 정책은 전체 `.9651`, selector+r6 재
 교체가 낫다. 이 결과는 natural-language method의 우승이 아니라, 내부 신호를
 선택적으로 사용할 수 있다는 proof of concept다.
 
+**발표자 연결 원고.** R5와 R6는 moved subset에서는 크게 회복하지만 모든 사례에
+적용하면 전체 정확도가 첫 답보다 낮다. 따라서 내부 신호의 가치는 무조건적인
+second pass가 아니라 selector와 결합할 때 생긴다. 또 R6이 R5보다 강한 이유는
+probe label이 더 정확했기 때문이며, 자연어 형식 자체의 우위는 나오지 않았다.
+그렇다면 “설명문을 하나 더 보여주기만 해도 도움이 되는 것 아닌가?”라는 반론이
+남는다. 다음의 own-CoT arm은 바로 이 반론을 시험한다.
+
 ## Slide 26. 자기 CoT를 다시 주면 왜 안 고쳐지는가
 
 **화면에는 동일 1,151-ID 공통 cohort만 놓는다.**
@@ -1174,6 +1253,14 @@ R7의 높은 전체값은 잘 고친 것이 아니라 대부분 답을 바꾸지
 자기 설명을 다시 제공하는 것은 moved case를 적극적으로 교정하지 못한다. 이
 패턴은 고착 또는 합리화와 양립하지만, 이 실험만으로 그 인과 기전을 확정하지
 않는다.
+
+**RQ3의 닫힌 공간 결론과 다음 경계 실험.** 자기 CoT는 원래 답을 보존하는 데는
+강하지만 moved case를 거의 고치지 못한다. 따라서 correction의 핵심은 설명의
+존재가 아니라 사례에 맞고 정확한 내부 content다. 다만 이 결론은 DDXPlus의 고정
+49개 진단 공간에서 probe label을 사용할 수 있었기 때문에 강하게 나온다. 실제
+임상 서술은 진단 어휘가 열려 있고 fixed-class probe를 그대로 옮길 수 없다.
+그래서 다음에는 MCR을 사용해 자연어 readout이 열린 어휘에서 source diagnosis와
+supporting evidence를 얼마나 읽는지 경계를 확인한다.
 
 ## Slide 27. MCR에서 자연어 readout은 무엇까지 읽었는가
 
@@ -1205,20 +1292,29 @@ source diagnosis signal을 일부 읽는다. 그러나 절대 일치율 `.21-.26
 아니라 **answer field에는 예비 source-aligned signal이 있으나 grounds는 접지되지
 않는다**다.
 
+**발표자 연결 원고.** Derangement에서 answer match가 거의 바닥으로 떨어지므로
+answer field의 일부 내용은 사례 activation과 연결돼 있다. 그러나 절대 일치율은
+낮고 supporting-cue field는 사례 고유 근거를 제대로 복원하지 못했다. 여기서
+“case-specific signal이 존재한다”와 “사람에게 유용한 설명이다”를 구분해야 한다.
+산문이 activation에 어느 정도 맞더라도 독자가 그 산문을 보고 moved case를 더 잘
+판별하지 못하면 배포 가치가 없다. 그래서 다음에는 동일한 downstream reader에게
+no account, real account, shuffled account를 보여 실제 판별 효용과 사례 정렬
+효과를 측정한다.
+
 ## Slide 28. 사람이 읽으면 실제로 도움이 되는가
 
-**화면에 넣을 reader-trust 중간 결과**
+**화면에 넣을 reader-trust 전수 결과**
 
-| Account shown to reader | AUROC | Δ vs no account | 95% CI |
+| Account shown to reader | AUROC | Δ vs no account | Paired 95% CI |
 |---|---:|---:|---:|
-| No account | .8312 | — | — |
-| Probe label | **.8952** | **+.0708** | `[+.039,+.106]` |
-| CoT | .8018 | −.0151 | `[−.043,+.015]` |
-| AV readout | .7331 | **−.0921** | `[−.135,−.046]` |
+| No account | .8235 | — | — |
+| Probe label | **.8951** | **+.0715** | `[+.044,+.100]` |
+| CoT | .8000 | −.0235 | `[−.050,+.003]` |
+| AV readout | .7301 | **−.0935** | `[−.130,−.059]` |
 
-현재 2,546/2,896 중간 결과다. AV가 자연어를 생성한다는 사실은 인간에게 유용한
-설명이라는 뜻이 아니다. Readout은 kept case까지 전반적으로 의심하게 해 판별력을
-낮췄다.
+전수 2,896건에서 probe label만 no-account보다 판별력을 높였다. AV가 자연어를
+생성한다는 사실은 인간에게 유용한 설명이라는 뜻이 아니다. Readout은 kept case까지
+전반적으로 의심하게 해 판별력을 낮췄다.
 
 Reader-trust task에서는 판정자에게 vignette와 source answer를 주고, 조건에 따라
 아무 account도 주지 않거나 CoT, probe label, readout을 하나만 준다. 판정자는
@@ -1226,18 +1322,44 @@ Reader-trust task에서는 판정자에게 vignette와 source answer를 주고, 
 moved label은 숨긴다. 주 지표는 account의 절대 AUROC가 아니라 동일 사례의
 no-account 대비 paired delta다.
 
-현재 2,546/2,896 중간 결과에서 no-account AUROC `.8312`, probe `.8952`, CoT
-`.8018`, readout `.7331`이다. No-account 대비 probe delta는 `+.0708
-[+.039,+.106]`, CoT `-.0151 [-.043,+.015]`, readout `-.0921
-[-.135,-.046]`이다. Readout을 본 판정자는 moved를 `.929`로 의심하지만 kept도
-`.591`로 의심한다. 즉 판별력을 주기보다 전반적인 불신을 유발한다.
+전수 결과에서 no-account AUROC `.8235`, probe `.8951`, CoT `.8000`, readout
+`.7301`이다. No-account 대비 probe delta는 `+.0715 [+.044,+.100]`, CoT
+`-.0235 [-.050,+.003]`, readout `-.0935 [-.130,-.059]`이다. 따라서 probe의
+양의 증분과 readout의 음의 증분은 paired interval에서도 방향이 분명하다.
 
-이 값은 전수 완료와 same-channel shuffled-account control 전에는 최종치로
-인용하지 않는다. 그럼에도 현재 결과는 “자연어로 읽을 수 있다”와 “인간에게
-유용하다”가 완전히 다른 명제임을 보여준다. 현재 readout을 clinician-facing
-explanation으로 제안하지 않는다.
+**Shuffled-account 통제.** 같은 채널의 account를 다른 사례에서 가져와 내용과
+사례의 정렬만 깨뜨린 721-case 통제에서 `shuffled → real` AUROC는 probe
+`.4207→.9020`, CoT `.5293→.8098`, readout `.4491→.7347`이다. Real-minus-shuffled는
+각각 `+.4813/+.2805/+.2856`이므로 readout 내용도 아무 산문이 아니라 **해당 사례와
+정렬된 정보**를 담는다. 다만 shuffled-no-account를 단순한 “설명 제시 비용”으로
+부르면 안 된다. Shuffled account에는 문체·권위 효과뿐 아니라 다른 환자의
+임상 정보라는 적극적 misinformation도 함께 들어 있기 때문이다.
+
+같은 721건에서 no-account 대비 real account의 순효과는 probe `+.0727`, CoT
+`-.0195`, readout `-.0946`이다. Readout은 case alignment로 `.2856`을 회복하지만
+최종 판별력은 여전히 baseline보다 낮다. 안 움직인 사례를 의심한 비율도 no account
+`.080`, real readout `.580`, shuffled readout `.958`이다. 정확한 결론은
+**“readout 내용은 사례 특이적이지만, 현재 표현 방식은 false alarm을 너무 많이
+만들어 독자 효용이 음수다”**이다. 현재 readout을 clinician-facing explanation으로
+제안하지 않는다.
+
+**전체 RQ 결과를 묶는 연결 원고.** Slide 27은 자연어 answer field에 사례 정렬
+신호가 일부 있음을 보였고, Slide 28은 shuffled control로 그 신호가 독자에게도
+무정보는 아님을 확인했다. 하지만 real readout의 순효과는 음수다. 따라서 논문의
+결론은 “내부 자연어 설명이 유용하다”가 아니라 더 좁고 강하다. 내부 상태는
+인과적으로 움직인 오류를 탐지하고 선택적으로 교정하는 데 유용할 수 있지만,
+그 상태를 산문으로 노출하는 것만으로는 안전한 설명이 되지 않는다. 이제 Slide
+29에서 M0와 세 RQ의 positive result와 실패 경계를 한 표로 함께 닫는다.
 
 ## Slide 29. 세 RQ에 대한 현재 답
+
+**발표자 노트 - 표를 네 개의 독립 결과처럼 읽지 않는다.** M0는 AV를 이후
+실험에서 측정 채널로 사용할 최소 조건을 묻는 관문이다. RQ1은 wrong note가 답과
+내부 진단 상태 사이에 어떤 결렬을 만드는지 정의한다. RQ2는 RQ1에서만 만들 수
+있는 paired causal label을 실제 사용 가능한 single-run 탐지 문제로 바꾼다. RQ3는
+그 탐지와 내부 content가 실제 교정으로 이어지는지 시험한다. 즉 논문의 흐름은
+`도구 검증 → 현상 정의 → 단일 실행 탐지 → 선택적 교정`이며, 각 단계는 바로 앞
+단계가 없으면 해석할 수 없다.
 
 **화면에는 결론과 경계를 한 표로 묶는다.**
 
@@ -1266,6 +1388,12 @@ RQ3에 대한 답은 조건부 yes다. 정확한 internal content는 moved case�
 무선별 재질문은 전체 성능을 파괴하고 잘못된 readout은 해롭다. Natural-language
 format의 독립적 이점은 아직 확립되지 않았다.
 
+**다음 슬라이드로 넘어가는 이유.** 이제 개별 실험 결과가 아니라 이 연쇄에서
+무엇이 새로 남았는지를 정리할 수 있다. 기여는 “AV 하나를 만들었다”가 아니라,
+인과적 오류 label을 만들고, 출력·CoT·activation 채널을 같은 label에 비교하고,
+탐지와 교정을 selector까지 포함해 연결했으며, 자연어 설명의 실패도 통제로
+분리했다는 데 있다.
+
 ## Slide 30. 논문의 기여를 다섯 문장으로 정리한다
 
 첫째, neutral/correct control을 포함한 referral-note anchoring testbed를 만들고
@@ -1282,16 +1410,18 @@ LLM monitor, natural-language readout, linear probe를 동일한 single-run task
 
 | 우선순위 | 남은 작업 | 닫히는 주장 |
 |---:|---|---|
-| 1 | reader-trust 전수 + shuffled account | AV human utility의 최종 판정 |
+| 1 | Source output-head likelihood baseline | probe의 hidden-state 추가 이득 판정 |
 | 2 | 동일 LLM monitor의 no-CoT arm | CoT만의 순수 증분 |
 | 3 | MCR wrong-note activation·detection | DDXPlus 내부 기전의 열린 어휘 확장 |
 | 4 | MCR correction ladder | probe가 직접 이전되지 않는 조건의 교정 |
 | 5 | matched realistic placebo | 길이·문체와 clinical suggestion 분리 |
 | 6 | Appendix Figure A1 matched recipe/layer | layer 효과와 학습량 분리 |
 
-첫째, reader-trust 2,896행 전수와 same-channel shuffled account control이 남아
-있다. 둘째, LLM monitor에서 CoT를 제거한 동일 판정자 arm이 필요하다. 현재 monitor는
-vignette, note, CoT, answer를 모두 보므로 CoT만의 증분을 분리하지 못한다.
+Reader-trust 2,896행 전수와 same-channel shuffled account control은 완료됐다.
+현재 첫째 미결 기준선은 source output-head likelihood다. 이 값이 probe와 비슷하면
+probe가 hidden-only 정보를 추가로 발견했다는 주장을 줄여야 한다. 둘째, LLM
+monitor에서 CoT를 제거한 동일 판정자 arm이 필요하다. 현재 monitor는 vignette,
+note, CoT, answer를 모두 보므로 CoT만의 증분을 분리하지 못한다.
 
 셋째, MCR wrong-note activation 추출, MCR single-run attribution, MCR correction
 ladder가 남아 있다. 현재 MCR은 행동 복제와 source-aligned answer readout까지만
