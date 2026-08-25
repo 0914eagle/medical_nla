@@ -132,6 +132,70 @@ NO NOTE                                  WRONG NOTE
                                          unstable angina.
 ```
 
+### Backbone이 no-note에서 맞았는지 판정한 exact generation 설정
+
+`source-correct`는 별도의 분류기나 gold-conditioned prompt로 만든 값이 아니다.
+위 prompt에서 referral sentence가 없는 `no-note` row를 source backbone에 그대로
+넣어 실제 진단을 생성하고, closing diagnosis를 gold/alias와 매칭해 정했다.
+
+**화면 또는 Appendix에 넣을 설정표**
+
+| 항목 | 설정 |
+|---|---|
+| Source backbone | `google/gemma-3-12b-it` |
+| Prompt role | Gemma 공식 chat template의 user turn 1개 |
+| User content 첫 문장 | `You are an expert physician.` |
+| Case content | age, sex, cleaning 후 positive/meaningful cue 전체를 bullet로 제시 |
+| Referral sentence | source-correct 선정 시 없음(`no-note`) |
+| Direct instruction | single most likely diagnosis, diagnosis only, no reasoning |
+| Assistant prefill | `The answer is` |
+| Decoding | deterministic greedy, `do_sample=false` |
+| Temperature / top-p | 전달하지 않음(`null`); sampling 비활성 |
+| Max new tokens | **64** (prefilled direct condition) |
+| Batch size | **8** |
+| Dtype | **BF16** |
+| Seed | **17** |
+| Parsing | `The answer is <diagnosis>.`의 `<diagnosis>`만 파싱 |
+| Correctness | canonical diagnosis/alias matcher; 전체 response의 gold 문자열 검색 금지 |
+
+Prompt는 `tokenizer.apply_chat_template([{role: "user", content: prompt}],
+add_generation_prompt=True)`로 렌더링한다. 그 뒤 assistant turn을 `The answer is`에서
+시작한다. 따라서 실제 모델이 완성하는 것은 대체로 진단명과 마침표뿐이다.
+`max_new_tokens=64`는 reasoning budget이 아니라 긴 MCR 진단명이 중간에 잘리지
+않게 둔 completion budget이다.
+
+Direct에서 prefill을 사용한 이유는 Gemma가 “single most likely diagnosis”라는
+지시만 받아도 `Okay, let's break down this case...`로 긴 reasoning을 시작했기
+때문이다. Prefill 없이 512토큰을 주면 direct arm이 사실상 CoT arm으로 바뀐다.
+반대로 assistant prefill은 prompt 마지막 토큰 뒤에 추가되므로 causal attention상
+그보다 앞선 cue·question·format activation을 바꾸지 않는다.
+
+실행 형태는 다음과 같다. `--max-new-tokens`를 생략하면 direct+prefill 기본값 64가
+적용된다.
+
+```bash
+python scripts/run_source_answers.py \
+  --config configs/default.yaml \
+  --cases "$DATA/ddxplus_cue_count_cases.jsonl" \
+  --output-jsonl "$ART/results/ddxplus_source_answers.jsonl" \
+  --summary-json "$ART/reports/ddxplus_source_answers.json" \
+  --condition direct \
+  --batch-size 8
+```
+
+원천 case는 49 diagnosis × diagnosis당 100개, 총 4,900개이며 seed 17로 균형
+표집했다. `cue_count=all`, positive/meaningful cue 전체, `clean_cues=true`,
+`negative_cues=false`, `prefer_symptoms=false` 설정이다. Generation-time matcher로
+맞은 1,747개에서 intervention 파일과 activation을 만들었고, 수정된 canonical
+matcher로 다시 판정한 no-note 정답 집합은 1,729개다. Primary behavior에서는
+presentation 안에 gold diagnosis/alias가 직접 적힌 525개를 추가로 제외해 clean
+1,204개를 쓴다.
+
+**해석상 중요한 점**: 최종 no-note cohort의 accuracy가 1.0인 것은 Gemma 전체
+성능이 100%라는 뜻이 아니라, **Gemma가 이 exact prompt와 decoding으로 맞힌
+사례만 인과 개입 모집단으로 선택했기 때문**이다. 이 선택은 wrong note가 원래
+정답이던 답을 실제로 움직였는지 정의하기 위해 필요하다.
+
 왼쪽에서 모델은 정답을 냈지만 오른쪽에서는 틀린 진단이나 제3의 진단을 낸다.
 그 아래에는 오른쪽 wrong-note 실행의 final-token activation을 diagnosis probe로
 읽었을 때 정답 확률이 여전히 높게 남아 있는 그림을 둔다. 여기서 발표의 질문을
