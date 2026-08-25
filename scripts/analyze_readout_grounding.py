@@ -191,13 +191,47 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--readouts", nargs="+", required=True,
                         help="run_nla output(s); each file reported separately.")
+    parser.add_argument(
+        "--variant", nargs="*", default=[],
+        help="Keep only these hint_variant arms. A position-row extraction "
+        "writes a final row per arm, so a readout file over one holds each "
+        "case once per arm and pooling them averages a run with the note and "
+        "a run without it.",
+    )
+    parser.add_argument(
+        "--by-variant", action="store_true",
+        help="Report each arm separately instead of pooling them.",
+    )
     args = parser.parse_args()
 
     for path in args.readouts:
         rows = [r for r in read_jsonl(path) if r.get("prompt")]
+        if args.variant:
+            rows = [
+                r for r in rows
+                if not str(r.get("hint_variant") or "")
+                or str(r.get("hint_variant")) in args.variant
+            ]
         if len(rows) < 2:
             print(f"{path}: needs at least two rows to build the control")
             continue
+
+        groups = {str(r.get("hint_variant") or "") for r in rows}
+        if args.by_variant and len(groups) > 1:
+            for arm in sorted(groups):
+                subset = [r for r in rows if str(r.get("hint_variant") or "") == arm]
+                if len(subset) >= 2:
+                    report(f"{Path(path).name}  [arm={arm or 'none given'}]", subset)
+            continue
+        if len(groups) > 1:
+            counts = "  ".join(
+                f"{a or '(none given)'} "
+                f"{sum(1 for r in rows if str(r.get('hint_variant') or '') == a):,}"
+                for a in sorted(groups)
+            )
+            print(f"\n⚠ {Path(path).name} holds more than one arm: {counts}")
+            print("  The numbers below pool them. Use --by-variant to split, or "
+                  "--variant wrong\n  to pick the one the claim is about.")
         report(Path(path).name, rows)
 
     print("\nThe control column is the reading. A gap near zero means the cues "

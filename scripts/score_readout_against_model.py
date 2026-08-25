@@ -74,26 +74,51 @@ def main() -> None:
         "--seed", type=int, default=17,
         help="Seed for the derangement control's pairing.",
     )
+    parser.add_argument(
+        "--variant", nargs="*", default=[],
+        help="Keep only these hint_variant arms (e.g. wrong). A position-row "
+        "extraction writes a final row for EVERY arm, so a readout file over "
+        "one carries each case twice and the two halves answer different "
+        "questions. Pooling them reports the average of a run with the note "
+        "and a run without it as though it were one measurement.",
+    )
     args = parser.parse_args()
 
+    # Keyed by (base_id, arm) as well as by base_id alone. A readout taken at
+    # the wrong-arm final token has to be scored against what the model said IN
+    # THAT ARM -- the no-note answer is a different run of the same patient, and
+    # joining to it scores the readout against a conclusion the state it read
+    # never held. The base_id-only key stays for readouts that carry no arm,
+    # like the conclusion task.
     said: dict[str, dict] = {}
+    said_arm: dict[tuple[str, str], dict] = {}
     for path in args.answers:
         for row in read_jsonl(path):
             base_id = str(row.get("base_id") or row.get("id") or "")
-            if base_id:
-                said[base_id] = row
+            if not base_id:
+                continue
+            said.setdefault(base_id, row)
+            variant = str(row.get("hint_variant") or "")
+            if variant:
+                said_arm[(base_id, variant)] = row
 
     rows = []
     unparsed = unjoined = 0
+    arms: Counter[str] = Counter()
     for row in read_jsonl(args.readouts):
+        variant = str(row.get("hint_variant") or "")
+        if args.variant and variant and variant not in args.variant:
+            continue
         read = readout_answer(str(row.get("nla_output") or ""))
         if not read:
             unparsed += 1
             continue
-        source = said.get(str(row.get("base_id") or ""))
+        base_id = str(row.get("base_id") or "")
+        source = said_arm.get((base_id, variant)) or said.get(base_id)
         if source is None:
             unjoined += 1
             continue
+        arms[variant or "(no arm)"] += 1
         gold = str(row.get("diagnosis_name") or "")
         aliases = [str(a) for a in (row.get("diagnosis_aliases") or [])]
         model = str(source.get("answer") or "").strip()
@@ -106,6 +131,7 @@ def main() -> None:
             "source_correct": bool(source.get("source_correct")),
             "gold": gold,
             "model": model,
+            "matched_arm": (base_id, variant) in said_arm,
         })
 
     if not rows:
@@ -132,6 +158,21 @@ def main() -> None:
     floor_model = Counter(r["model"] for r in rows).most_common(1)[0][1] / len(rows)
 
     print(f"rows {len(rows):,}   no <answer> {unparsed:,}   unjoined {unjoined:,}")
+    if len(arms) > 1:
+        listed = "  ".join(f"{name} {n:,}" for name, n in arms.most_common())
+        print(f"\n  ⚠ THIS FILE HOLDS MORE THAN ONE ARM: {listed}")
+        print("    Every number below is those arms averaged together. Rerun "
+              "with --variant wrong\n    (or whichever arm the claim is about) "
+              "before quoting anything.")
+    elif arms:
+        print(f"  arm: {next(iter(arms))}")
+    matched_arm = sum(
+        1 for r in rows if r.get("matched_arm")
+    )
+    if arms and matched_arm < len(rows):
+        print(f"  ⚠ {len(rows) - matched_arm:,} rows fell back to a "
+              f"base_id-only join, so they were scored against an answer from "
+              f"a\n    different arm of the same case.")
     print(f"\n  {'population':<22}{'n':>7}{'vs gold':>10}{'vs model':>11}"
           f"{'deranged':>11}{'gap':>9}")
     groups = [
