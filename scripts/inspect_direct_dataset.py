@@ -282,6 +282,24 @@ def data_root_candidates(value: str) -> list[str]:
     return list(dict.fromkeys(candidate for candidate in candidates if candidate))
 
 
+def resolve_release_path(value: str, release_paths: dict[str, Path]) -> str | None:
+    candidates = data_root_candidates(value)
+    for candidate in candidates:
+        if candidate in release_paths:
+            return candidate
+
+    suffix_matches = {
+        release_relative
+        for release_relative in release_paths
+        for candidate in candidates
+        if release_relative.endswith(f"/{candidate}")
+        or candidate.endswith(f"/{release_relative}")
+    }
+    if len(suffix_matches) == 1:
+        return next(iter(suffix_matches))
+    return None
+
+
 def audit_data_list(samples_root: Path, data_list_path: Path) -> dict[str, Any]:
     with data_list_path.open(encoding="utf-8-sig", newline="") as f:
         rows = list(csv.DictReader(f))
@@ -316,14 +334,7 @@ def audit_data_list(samples_root: Path, data_list_path: Path) -> dict[str, Any]:
         pdd_pairs[(listed_category, listed_pdd)] += 1
         amended[row["Whether Amended"].strip() or "<empty>"] += 1
 
-        matched_relative = next(
-            (
-                candidate
-                for candidate in data_root_candidates(row["Data Root"])
-                if candidate in release_paths
-            ),
-            None,
-        )
+        matched_relative = resolve_release_path(row["Data Root"], release_paths)
         path = release_paths.get(matched_relative) if matched_relative else None
         if path is None:
             continue
@@ -365,10 +376,7 @@ def audit_data_list(samples_root: Path, data_list_path: Path) -> dict[str, Any]:
         "listed_paths_missing_from_release": sum(
             1
             for row in rows
-            if not any(
-                candidate in release_paths
-                for candidate in data_root_candidates(row["Data Root"])
-            )
+            if resolve_release_path(row["Data Root"], release_paths) is None
         ),
         "release_files_missing_from_list": len(set(release_paths) - matched_release_paths),
         "invalid_matched_json": invalid_matched_json,
