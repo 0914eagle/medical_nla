@@ -520,18 +520,20 @@ prompt와 source answer를 생성한 prompt가 달랐다. 이 세 문제는 초�
 | 단계 | n | 왜 줄었는가 | 이후 용도 |
 |---|---:|---|---|
 | 균형 표집 | 4,900 | 49 diagnoses × 100 | source baseline·activation pool |
-| no-note source-correct | 1,747 | 개입 전 정답이어야 causal loss 정의 가능 | moved·trajectory·detection |
-| explicit gold-name 행 제외 | 1,220 | presentation에 정답명·alias가 직접 나온 527행 제외 | main clean behavior table |
+| generation-time source-correct | 1,747 | 최초 matcher로 개입 파일·activation 선정 | trajectory·detection fixed cohort |
+| canonical no-note-correct | **1,729** | 수정 matcher로 eligibility 재적용 | primary behavior 전체 |
+| explicit gold-name 행 제외 | **1,204** | 위 1,729에서 정답명·alias가 직접 나온 525행 제외 | primary clean behavior·wording·CoT |
 
-`1,747`과 `1,220`은 서로 다른 실험의 분모다. 행동 주표는 1,220이고,
-trajectory와 single-run attribution은 1,747 전체를 쓴다.
+`1,729/1,204`는 canonical primary behavior 분모이고, `1,747/1,220`은 기존
+generation-time fixed-cohort 분모다. 행동 주표와 wording/CoT는 1,204를 쓰고,
+이미 추출된 trajectory와 single-run attribution은 1,747 전체를 쓴다.
 
 **Canonical primary 재집계 결정.** 위 1,747/1,220은 generation-time matcher로
 선정한 fixed cohort의 provenance 수치다. 논문 primary는 canonical matcher에서도
 no-note가 정답인 전체 1,729건과 clean 1,204건으로 다시 제한한다. 이 primary
 cohort에서는 no-note accuracy가 1.0 by construction이므로 결과 그림에서 none
-막대는 생략하고 1.0 기준선만 둔다. 기존 fixed-cohort 수치는 appendix audit로
-보존한다. 아래 결과표의 neutral/wrong/correct와 moved 수치는 재집계 후 교체한다.
+막대는 생략하고 1.0 기준선만 둔다. 기존 fixed-cohort 수치는 appendix audit와
+아직 재추출하지 않은 trajectory/detection 분석의 provenance로 보존한다.
 
 현재 논문용 DDXPlus prompt는 3-cue 파일럿이 아니라 cleaning 후 남은
 positive/meaningful cue 전체를 bullet로 넣는다. Exact skeleton은 다음과 같다.
@@ -560,8 +562,10 @@ Age와 sex는 진단 정보이므로 presentation head에 넣지만 cue target�
 49개 diagnosis마다 seed 17로 100개씩, 총 4,900개를 균형 샘플링했다. Source
 Gemma가 no-note에서 맞힌 사례만 intervention population으로 사용한다. 이는
 wrong note가 원래 정답을 실제로 움직였는지 정의하려면 먼저 정답이어야 하기
-때문이다. 이 조건을 통과한 사례는 1,747개였고, gold diagnosis 또는 alias가
-presentation에 문자 그대로 등장한 527개를 제외한 main clean cohort는 1,220개다.
+때문이다. Generation-time 조건을 통과한 사례는 1,747개였다. Canonical
+matcher로 eligibility를 다시 적용하면 1,729개이고, 이 중 gold diagnosis 또는
+alias가 presentation에 문자 그대로 등장한 525개를 제외한 primary clean
+cohort는 1,204개다.
 이를 `gold string leakage`라고 부르면 train-test leakage로 오해하기 쉬우므로
 발표와 본문에서는 **explicit gold-name in presentation**이라고 부른다.
 
@@ -656,8 +660,9 @@ limitations에 밝힌다.
 Slide 13은 DDXPlus와 MCR에서 plausible wrong suggestion을 실제로 어떻게 만드는지
 설명했다. 이제 입력 구성이 끝났으므로, 같은 사례의 no-note와 wrong-note 실행을
 비교해 **어떤 변화를 소견서가 유발한 사건이라고 부를지** 정의해야 한다. 이 label을
-정하지 않으면 이후의 moved 321건, suggestion 채택 91건, silent subset과 탐지
-AUROC가 무엇을 뜻하는지 설명할 수 없다. 따라서 흐름은 다음과 같다.
+정하지 않으면 primary behavior의 moved 319건과, 기존 activation fixed cohort의
+moved 321건·silent subset·탐지 AUROC가 각각 무엇을 뜻하는지 설명할 수 없다.
+따라서 흐름은 다음과 같다.
 
 ```text
 개입 구성(Slides 12–13)
@@ -891,13 +896,14 @@ RQ1의 첫 단계에서는 내부 판독을 잠시 내려놓고, 잘못된 refer
 
 **화면에는 Figure 2(a)를 먼저 넣고, Table 1은 같은 정확도를
 반복하지 않는 효과크기 분해표로 넣는다.** Figure 2는 직관, Table 1은
-neutral insertion cost와 suggestion-specific cost, non-overlap 재현을 담당한다.
+neutral insertion cost와 suggestion-specific cost, 두 코퍼스 재현을 담당한다.
+Non-overlap DDXPlus는 canonical eligibility refresh 전이라 Appendix 감사값으로
+분리한다.
 
 | Cohort | n | Neutral cost (pp) | Wrong total cost (pp) | Suggestion-specific cost (pp) | Correct-note cost (pp) |
 |---|---:|---:|---:|---:|---:|
-| DDXPlus main | 1,220 | 4.92 | 23.03 | **18.11** | 6.23 |
-| DDXPlus non-overlap | 2,192 | 4.70 | 20.67 | **15.97** | 6.48 |
-| MedCaseReasoning | 1,543 | 5.31 | 26.89 | **21.58** | 12.31 |
+| DDXPlus main | **1,204** | **5.40** | **23.75** | **18.36** | **6.98** |
+| MedCaseReasoning | **1,452** | **6.61** | **29.34** | **22.73** | **16.12** |
 
 표는 Figure 2(a)의 원시 정확도를 반복하지 않고 차이만 보여준다.
 Wrong total cost는 `No note−Wrong`, neutral cost는 `No note−Neutral`,
@@ -912,19 +918,22 @@ suggestion-specific cost는 `Neutral−Wrong`이다. 즉 suggestion-specific 열
 이유는 케이스 난이도를 공유하는 짝 구조를 보존하기 위해서다. 현재
 표는 점추정치이며 CI는 추가 계산 전이다.
 
-Main DDXPlus clean 1,220건의 정확도는 none `.9869`, neutral `.9377`, wrong
-`.7566`, correct `.9246`이다. Wrong note의 총 비용은 `23.03pp`, neutral insertion
-비용은 `4.92pp`, suggestion-specific 비용은 `18.11pp`다. 총 비용은 neutral
-비용의 4.68배다.
+Main DDXPlus clean 1,204건은 canonical no-note correctness로 다시 제한했으므로
+none이 `1.0000` by construction이고, neutral/wrong/correct는
+`.9460/.7625/.9302`다. Wrong note 총 비용은 `23.75pp`, neutral insertion
+비용은 `5.40pp`, suggestion-specific 비용은 `18.36pp`이며 총 비용은 neutral
+비용의 4.40배다.
 
-주 실행과 base ID가 겹치지 않는 non-overlapping replication clean 2,192건에서는
-`.9749/.9279/.7682/.9101`이다. Suggestion-specific 비용은 `15.97pp`, 총 비용은
-neutral의 4.40배다. MCR source-correct 1,543건에서는 `.9410/.8879/.6721/.8179`,
-suggestion-specific 비용 `21.58pp`, neutral 대비 총 비용 5.06배다.
+주 실행과 base ID가 겹치지 않는 non-overlapping replication의 clean 2,192건
+값은 아직 generation-time fixed-cohort 감사값이므로 본문 primary 표에서 뺐다.
+MCR canonical-eligible 1,452건은 none `1.0000`, neutral/wrong/correct
+`.9339/.7066/.8388`, suggestion-specific 비용 `22.73pp`, 총 비용/neutral 비용
+4.44배다.
 
 따라서 행동 효과는 합성 DDXPlus와 실제 case-report 언어에서 재현된다. 다만
-MCR의 1,543은 평가 가능한 12,620건 중 source model이 no-note에서 맞힌 사례,
-즉 accuracy `.122`인 선택된 모집단이다. “MCR 전체에서 67.2% 정확도”라고 말하면
+MCR의 primary 1,452는 평가 가능한 12,620건 중 canonical matcher에서도 source
+model이 no-note에서 맞힌 사례(11.5%)다. 최초 matcher 선정은 1,543건이었으며
+그 값은 fixed-cohort 감사에만 남긴다. “MCR 전체에서 70.7% 정확도”라고 말하면
 안 된다.
 
 **다음 슬라이드로 넘어가는 이유.** 여기까지는 wrong note가 neutral note보다
@@ -939,20 +948,21 @@ MCR의 1,543은 평가 가능한 12,620건 중 source model이 no-note에서 맞
 
 | Corpus | Moved | To suggestion | To third diagnosis |
 |---|---:|---:|---:|
-| DDXPlus | 321 | 91 (28.3%) | **230 (71.7%)** |
-| MCR | 437 | 137 (31.4%) | **300 (68.6%)** |
+| DDXPlus | **319** | 89 (27.9%) | **230 (72.1%)** |
+| MCR | **427** | 127 (29.7%) | **300 (70.3%)** |
 
 두 corpus 모두 약 70%가 suggestion 복사가 아니다. 이 때문에 “answer가 note의
 진단명을 그대로 말했는가”만 보는 출력 휴리스틱은 구조적으로 대부분을 놓친다.
 
-DDXPlus 1,747건 중 canonical moved는 321건이다. Suggestion을 인과적으로 채택한
-경우는 91건(28.3%), suggestion이 아닌 제3 진단으로 이동한 경우는 230건(71.7%)이다.
-MCR moved 437건에서도 suggestion 채택 137건(31.4%), 제3 진단 이동 300건(68.6%)이다.
+DDXPlus canonical-eligible 전체 1,729건 중 moved는 319건이다. Suggestion을
+인과적으로 채택한 경우는 89건(27.9%), suggestion이 아닌 제3 진단으로 이동한
+경우는 230건(72.1%)이다. MCR canonical-eligible 1,452건의 moved 427건 중
+suggestion 채택은 127건(29.7%), 제3 진단 이동은 300건(70.3%)이다.
 
-**Explicit-gold 민감도 분석.** DDXPlus moved 321건 중 289건(90.0%)은 정답명이
-presentation에 없는 clean 1,220건에서 나왔다. Clean moved rate는 289/1,220
-`=23.7%`이고, 그중 201/289(69.6%)가 제3 진단 이동이다. 정답명이 직접 나온
-527건에서는 moved가 32건(6.1%; suggestion 3, third diagnosis 29)에 그쳤다.
+**Explicit-gold 민감도 분석.** DDXPlus moved 319건 중 287건(90.0%)은 정답명이
+presentation에 없는 clean 1,204건에서 나왔다. Clean moved rate는 287/1,204
+`=23.8%`이고, 그중 201/287(70.0%)가 제3 진단 이동이다. 정답명이 직접 나온
+525건에서는 moved가 32건(6.1%; suggestion 3, third diagnosis 29)에 그쳤다.
 따라서 moved 현상과 제3 진단 이동은 explicit-gold 행이 만든 결과가 아니며,
 오히려 정답명이 직접 주어지면 wrong note의 영향이 크게 약해진다.
 
@@ -991,42 +1001,48 @@ chain에서 gold 문자열을 찾지 않고 closing diagnosis만 사용한다. �
 
 ## Slide 20. 문구 변화와 CoT의 이중성
 
-**화면 왼쪽: wording robustness**
+**화면 왼쪽: wording robustness — 동일 clean 1,204건**
 
-| Wrong-note voice | Accuracy | Moved | To suggestion |
-|---|---:|---:|---:|
-| Referral | .8117 | 321 | 91 |
-| Colleague | .8168 | 308 | 104 |
-| Patient | .8672 | 220 | 12 |
-| Realistic multi-sentence | .7481 | 436 | 237 |
+| Wrong-note voice | No note | Wrong | Cost | Moved | To suggestion |
+|---|---:|---:|---:|---:|---:|
+| Referral | 1.0000 | .7625 | 23.75 pp | 287 | 86 |
+| Colleague | .9950 | .7757 | 21.93 pp | 266 | 99 |
+| Patient | .9925 | .8480 | 14.45 pp | 179 | 9 |
+| Realistic multi-sentence | .9917 | .6877 | 30.40 pp | 376 | 219 |
 
 **화면 오른쪽: direct와 CoT**
 
-| Generation | No note | Wrong | Note cost |
+| Generation | No note | Wrong | Paired drop |
 |---|---:|---:|---:|
-| Direct | .9897 | .8117 | −17.80 pp |
-| CoT | .7464 | .7018 | −4.46 pp |
+| Direct | 1.0000 | .7625 | 23.75 pp |
+| CoT | .7068 | .6628 | 4.40 pp |
 
-CoT에서는 arm 간 gap이 작아지지만 전체 정확도 자체도 낮다. 따라서 “CoT가
-anchoring을 줄였다”와 “CoT가 더 안전하다”는 같은 문장이 아니다.
+CoT에서는 arm 간 gap이 작다. 다만 이 코호트는 Direct no-note 정답으로
+선정됐으므로 CoT no-note의 낮은 절대값을 일반 정확도 비용으로 읽을 수 없다.
+따라서 “이 선택 집합에서 anchoring gap이 작다”와 “CoT가 더 안전하다”는
+같은 문장이 아니다.
 
 Referral/colleague/patient/realistic wording에서 wrong-note accuracy는 각각
-`.8117/.8168/.8672/.7481`, moved는 321/308/220/436, suggestion adoption은
-91/104/12/237이다. Effect가 특정 한 문장에만 의존하지는 않지만 realistic arm은
+`.7625/.7757/.8480/.6877`, moved는 287/266/179/376, suggestion adoption은
+86/99/9/219이다. 네 조건은 동일한 1,204 base ID를 쓴다. 다만 no-note 생성물이
+파일별로 달라 baseline이 최대 0.83pp 흔들리므로 문구 비교는 각 파일의 paired
+cost를 기준으로 읽는다. Effect가 특정 한 문장에만 의존하지는 않지만 realistic arm은
 길이와 clinical register도 함께 바뀌므로 matched placebo 없이 현실성이 원인이라고
 말할 수 없다.
 
-Direct에서는 none `.9897`, wrong `.8117`로 note cost가 `17.80pp`다. CoT에서는
-none `.7464`, wrong `.7018`로 note cost가 `4.46pp`로 줄어든다. 그러나 CoT 자체가
-전체 direct accuracy `.9007`을 `.7241`로 `17.66pp` 낮추고, direct 정답 747개를
-깨면서 오답 130개만 구한다. 따라서 CoT는 anchoring gap을 줄여도 좋은 방어법이
-아니다. 답이 움직인 집단에서 suggestion adoption 비율도 direct 28.3%에서 CoT
-43.0%로 높아지지만 분모가 다른 조건부 비율이므로 “CoT가 suggestion을 더 원인으로
-사용했다”고 단정하지 않는다.
+Direct에서는 none `1.0000`, wrong `.7625`로 note cost가 `23.75pp`다. 같은
+ID의 CoT에서는 none `.7068`, wrong `.6628`로 arm 간 cost가 `4.40pp`로 줄어든다.
+그러나 코호트를 Direct no-note 정답으로 골랐으므로 Direct와 CoT의 baseline
+차이는 일반 정확도 비교가 아니다. 편향 없는 320건 비교에서는 direct .3375,
+CoT .3187, exact p=.50로 차이를 검출하지 못했다. 이는 동등성 검정이 아니므로
+두 방식이 같다고 확정하지 않는다. 답이 움직인 집단에서 suggestion adoption 비율도
+direct 30.0%에서 CoT 49.1%로 높아지지만 분모가 다른 조건부 비율이므로
+“CoT가 suggestion을 더 원인으로 사용했다”고 단정하지 않는다.
 
 **발표자 연결 원고.** 문구 변형에서 효과가 반복되므로 단일 문자열 artifact라는
-가설은 약해진다. CoT는 wrong-vs-none 격차를 줄이지만 no-note 성능 자체를 크게
-낮추므로 안전장치라고 부를 수 없다. 여기까지는 여전히 출력만 본 결과다. 즉
+가설은 약해진다. CoT는 선택 집합의 wrong-vs-none 격차를 줄이지만 편향 없는
+표본에서 우월성이 없고, moved 중 채택도 남으므로 안전장치라고 부를 수 없다.
+여기까지는 여전히 출력만 본 결과다. 즉
 소견서 때문에 출력이 바뀌었다는 사실은 알지만, 그 과정에서 정답 진단 신호가
 내부에서 사라졌는지, 약해졌는지, 끝까지 남았는지는 모른다. 이 질문에 답하기 위해
 다음에는 같은 케이스의 no-note/wrong-note activation을 짝지어 내부 궤적과 정답

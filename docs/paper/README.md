@@ -136,8 +136,9 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 
 초안 작성은 가능하다. 다만 아래 항목 전에는 "submission-ready"가 아니다.
 
-1. ~~wording과 CoT 파생 실행을 canonical matcher로 재집계한다.~~ **완료
-   (08-24)** — `.8117 / .8168 / .8672 / .7481`, CoT 이중성 −17.80 → −4.46 pp.
+1. ~~wording과 CoT 파생 실행을 동일 canonical clean cohort로 재집계한다.~~
+   **완료 (08-25, n=1,204)** — wrong accuracy `.7625/.7757/.8480/.6877`,
+   paired 비용 `23.75/21.93/14.45/30.40%p`; CoT 이중성 **23.75 → 4.40%p**.
 2. ~~Table 2a의 행동군 Δ 차이에 paired CI 또는 추세 검정을 추가한다.~~
    **계기 완료** (`src/paired_stats.py`) — 궤적 재실행에서 값이 나온다.
 3. ~~reader-trust 2,896 완주와 shuffled 통제.~~ **완료 (08-25)**:

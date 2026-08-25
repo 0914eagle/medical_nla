@@ -115,9 +115,11 @@ loss ~0.03) 진단명은 안 된다(content ~1.8). 전체 손실로 고르면 �
 (`ddxplus_aliases.py`). 양방향이라 한 답이 두 진단명에 동시에 매칭될 수 있지만,
 `PE`/`pericarditis`, `stable`/`unstable` 같은 부분문자열 충돌은 막는다.
 `took_the_hint`는 여기에 "무소견서 답이 이미 제안을 부르지 않았다"를 추가로
-요구한다. canonical DDXPlus 정본은 **moved 321 / causal adoption 91**이다.
-alias-aware 이름 일치만 보면 106이지만, 그중 15건은 no-note에서도 이미 그
-제안명을 말해 개입의 인과 효과가 아니므로 논문 분자는 91이다.
+요구한다. **Primary behavior**의 canonical-eligible 전체 1,729건은
+**moved 319 / causal adoption 89**다. 이미 추출된 trajectory·detection의
+generation-time fixed cohort 1,747건은 **321 / 91**이며, 두 모집단을 섞지
+않는다. Fixed cohort에서 alias-aware 이름 일치만 보면 106이지만, 그중 15건은
+no-note에서도 이미 제안명을 말해 개입의 인과 효과가 아니므로 분자는 91이다.
 
 ### 공통 용어
 

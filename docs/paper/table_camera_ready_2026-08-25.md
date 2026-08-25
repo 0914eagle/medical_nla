@@ -399,15 +399,39 @@ rates are 23.8% and 6.1%. Thus the effect is not driven by label-explicit
 presentations. Here `gold_in_prompt` denotes an input-content stratum, not
 train-test leakage.*
 
-**Appendix Table A2.** Speaker/wording variants, DDXPlus,
-n = 1,747 each.
+**Appendix Table A2.** Speaker/wording variants on the same Direct-defined
+canonical-clean DDXPlus IDs, n = 1,204 each.
 
-| Wording | Accuracy | Moved | Adopted |
-|---|---:|---:|---:|
-| Referral note (one line) | **.8117** | 321 | 91 |
-| Colleague | **.8168** | 308 | 104 |
-| Patient | **.8672** | 220 | 12 |
-| Realistic multi-sentence note | **.7481** | **436** | **237** |
+| Wording | No note | Wrong note | Paired cost (pp) | Moved | Adopted |
+|---|---:|---:|---:|---:|---:|
+| Referral note (one line) | **1.0000** | **.7625** | **23.75** | 287 | 86 |
+| Colleague | .9950 | **.7757** | 21.93 | 266 | 99 |
+| Patient | .9925 | **.8480** | 14.45 | 179 | 9 |
+| Realistic multi-sentence note | .9917 | **.6877** | **30.40** | **376** | **219** |
+
+*All rows use the 1,204 base IDs selected by canonical Direct no-note
+correctness and `gold_in_prompt=false`. The no-note generations were produced
+in separate files and differ by at most 0.83 pp, so wording comparisons report
+the paired no-note-minus-wrong-note cost rather than comparing wrong-arm
+accuracy alone. The realistic note also changes length and register; without a
+length-matched neutral note, its additional cost is not identified as a pure
+realism effect.*
+
+**Appendix Table A2b.** Direct versus chain-of-thought generation on the same
+1,204 Direct-defined canonical-clean IDs.
+
+| Generation | No note | Wrong note | Paired cost (pp) | Moved | Adopted |
+|---|---:|---:|---:|---:|---:|
+| Direct | **1.0000** | **.7625** | **23.75** | 287 | 86 |
+| Chain of thought | .7068 | .6628 | **4.40** | 220 | 108 |
+
+*Eligibility depends on Direct no-note correctness, not CoT correctness.
+Therefore Direct no-note accuracy is 1.0 by construction, whereas CoT no-note
+accuracy need not be. The 23.75-to-4.40 pp reduction is an arm-gap comparison
+within each generation mode, not evidence that CoT has higher general
+diagnostic accuracy. In an unselected paired sample of 320 cases, Direct
+(.3375) and CoT (.3187) did not differ detectably (exact p=.50); this was not
+an equivalence test.*
 
 **Appendix Table A3.** Suggestion source on
 MedCaseReasoning: the model's own confusions vs. a cue-similar neighbour's
