@@ -11,7 +11,7 @@
 ## 왜 이 실험이 논문에서 가장 무거운가
 
 과거 집계에서 AV 판독이 프로브에게 정면 대결에서 이기는 자리가 없었다
-(canonical AV 침묵 .8302; canonical probe .9840),
+(canonical AV 침묵 .8319; canonical probe .9881),
 교정 .6293 대 .8318, 되먹임 내용 정확도 .5047 대 .8567).
 판독이 차별화될 수 있는 후보는 **고정 클래스 목록 없이 근거와 결론을 문장으로
 내는 열린 어휘 설정**이다. 그러나 open-vocabulary retrieval/probe baseline과의

@@ -27,7 +27,7 @@ READY 또는 없는 경로를 정확히 찍고, corpus-300 provenance 모순에�
 | 2 | MCR 판독 derangement | **GPU 항목의 게이트.** `.2643`이 사례 특이적이 아니면 MCR 내부 분기 전체가 무의미해진다 |
 | 3 | wording 4종 + CoT canonical 재채점 | 이 행들은 아직 생성 시점 매처를 달고 있다 |
 | 4 | Figure 5 `64.1%` 재집계 | 분석기는 이미 canonical, 낡은 것은 그것이 group by 하는 사다리 파일이다 |
-| 5 | reader-trust dedupe·채점 + shuffled 케이스 생성 | 중간값 −.0839가 최종값이 되려면 전수와 통제가 필요하다 |
+| 5 | ~~reader-trust dedupe·채점 + shuffled 케이스 생성~~ | **완료** — canonical controlled readout Δ −.0998, shuffled case-alignment 통제 완료 |
 
 **1번의 숨은 절반**: 아카이브에 이미 non-overlap 3,319 실행이 있다(`docs/
 archive/paper_tables_worklog_2026-08-23.md`). 그 실행이 "둘 다 오답" 칸을
@@ -66,7 +66,8 @@ dry-run 견적은 3층 합계 **약 $0.09**다. 결과는 손라벨을 덮어쓰
 Table 2b의 생성문과 hidden-state probe 사이에 실제 final-logit 기준선이 빠져 있다.
 이 값 없이는 probe가 final output distribution에 이미 있는 uncertainty를 다시 읽은
 것인지, output head보다 이른 representation에서 추가 정보를 얻은 것인지 구분할
-수 없다. [실험 17](17-output-head-likelihood.md)의 wrong-arm 1,747행만 실행한다.
+수 없다. [실험 17](17-output-head-likelihood.md)의 canonical-eligible wrong-arm
+1,729행만 실행한다.
 
 결과는 `RESULTS_CANONICAL`에 먼저 기록한 뒤 Table 2b의 `▢` 행을 채운다. 과거
 all-cue source-error logprob AUROC는 label과 모집단이 다르므로 가져오지 않는다.
@@ -80,7 +81,7 @@ activation이 필요한 것은 r5뿐이고, r6은 현재 고정-class 설계에�
 안 된다. Table 4d의 절반은 2번 결과와 무관하게 오늘 채울 수 있다.
 
 이 항목이 끝내 들어오지 않아도 논문은 선다 — `docs/paper/README.md`의 주장
-경계("82.9% 기전 해부는 DDXPlus만")와 게이트 4번의 대안 조항("본문 주장을
+경계("82.1% 기전 해부는 DDXPlus만")와 게이트 4번의 대안 조항("본문 주장을
 행동 복제까지만 제한한다")이 이미 그 실패 모드를 덮는다. 나머지 항목에는
 그런 대안이 없다.
 

@@ -31,6 +31,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.analyze_hint_effect import (
+    group_by_case,
+    require_canonical_no_note_correct,
+)
 from src.jsonl import read_jsonl
 
 
@@ -103,6 +107,21 @@ def main() -> None:
         "-- the channel and the label live here and there is nothing to "
         "compare without them.",
     )
+    parser.add_argument(
+        "--eligibility-answers",
+        nargs="+",
+        help="Canonically rescored intervention answers used to define the "
+        "eligible base IDs.",
+    )
+    parser.add_argument(
+        "--eligibility-cases",
+        help="Optional hint case file for eligibility answers predating carried arms.",
+    )
+    parser.add_argument(
+        "--require-canonical-no-note-correct",
+        action="store_true",
+        help="Keep only judged cases whose no-note answer is canonically correct.",
+    )
     args = parser.parse_args()
 
     rows = list(read_jsonl(args.judgements))
@@ -125,6 +144,23 @@ def main() -> None:
             "pooled into one unlabelled bucket and the AUROC would be "
             "undefined. Pass --cases to join the channel and the label back."
         )
+    if args.require_canonical_no_note_correct:
+        if not args.eligibility_answers:
+            parser.error(
+                "--require-canonical-no-note-correct requires --eligibility-answers"
+            )
+        eligibility_cases = group_by_case(
+            args.eligibility_answers, args.eligibility_cases
+        )
+        eligible = set(require_canonical_no_note_correct(eligibility_cases))
+        before = len(rows)
+        rows = [r for r in rows if str(r.get("base_id") or "") in eligible]
+        print(
+            f"[cohort] canonical no-note eligible judgements: "
+            f"{len(rows):,}/{before:,} rows over {len(eligible):,} base IDs"
+        )
+        if not rows:
+            raise SystemExit("no reader-trust rows remain in the canonical cohort")
     by_channel: dict[str, list[tuple[float, bool]]] = defaultdict(list)
     by_case: dict[str, dict[str, tuple[float, bool]]] = defaultdict(dict)
     doubt_rate: dict[tuple[str, bool], list[bool]] = defaultdict(list)

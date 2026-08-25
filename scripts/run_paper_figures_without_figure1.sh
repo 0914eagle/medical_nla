@@ -31,11 +31,11 @@ DDX_DIRECT="${DDX_DIRECT:-$ART/results/ddxplus_hint_answers_v2_rescored.jsonl}"
 DDX_NEUTRAL="${DDX_NEUTRAL:-$ART/results/ddxplus_hint_answers_neutral_rescored.jsonl}"
 DDX_CORRECT="${DDX_CORRECT:-$ART/results/ddxplus_hint_answers_correct_rescored.jsonl}"
 MCR_ANSWERS="${MCR_ANSWERS:-$ART/results/mcr_hint_answers_full_rescored.jsonl}"
-TRAJECTORY_DUMP="${TRAJECTORY_DUMP:-$ART/results/trajectory_dump.json}"
-DETECTION_VALUES="${DETECTION_VALUES:-configs/figure4_detection_correction_canonical.json}"
+TRAJECTORY_DUMP="${TRAJECTORY_DUMP:-$ART/results/trajectory_dump_canonical_eligible.json}"
+DETECTION_VALUES="${DETECTION_VALUES:-$ART/reports/figure4_detection_correction_canonical_eligible.json}"
 
-DDX_DUMP="${DDX_DUMP:-$ART/results/figure2_ddx_dump.json}"
-MCR_DUMP="${MCR_DUMP:-$ART/results/figure2_mcr_dump.json}"
+DDX_DUMP="${DDX_DUMP:-$ART/results/figure2_ddx_canonical_eligible_dump.json}"
+MCR_DUMP="${MCR_DUMP:-$ART/results/figure2_mcr_canonical_eligible_dump.json}"
 
 require_file() {
   if [[ ! -f "$1" ]]; then
@@ -53,10 +53,12 @@ done
 echo "[1/3] rebuilding canonical Figure 2 dumps"
 python scripts/analyze_hint_effect.py \
   --answers "$DDX_DIRECT" "$DDX_NEUTRAL" "$DDX_CORRECT" \
+  --require-canonical-no-note-correct \
   --dump "$DDX_DUMP"
 
 python scripts/analyze_hint_effect.py \
   --answers "$MCR_ANSWERS" \
+  --require-canonical-no-note-correct \
   --dump "$MCR_DUMP"
 
 echo "[2/3] rendering Figures 2--4 and Appendix Figure A1"
@@ -79,4 +81,3 @@ for name in \
 done
 
 echo "[done] Figure 1 intentionally excluded; output dir: $OUT_DIR"
-

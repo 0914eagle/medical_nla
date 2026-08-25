@@ -3,7 +3,7 @@
 **질문**: 의뢰 소견서 한 줄이 진단을 바꾸는가. 바꾼다면 그것이 **제안 때문**인가
 **문장이 늘어서**인가.
 
-**상태**: ✅ 주 실행 four-arm canonical 완료.
+**상태**: ✅ canonical no-note-eligible primary 재집계 완료 (08-25).
 
 ---
 
@@ -51,16 +51,33 @@
 
 ## 표본
 
-- 케이스: **1,747**, `--correct-only` — 소견서 없이 **이미 맞힌** 케이스만.
-  원래 틀린 답은 소견서가 움직였다고 보일 수 없다.
-- Table 1 집계는 clean **n=1,220** (`gold_in_prompt=false`만 집계)
+- Generation-time matcher로 선택한 원 코호트는 **1,747**였고, canonical matcher로
+  no-note correctness를 다시 요구한 primary는 **1,729**다. 원래 틀린 답은
+  소견서가 움직였다고 보일 수 없으므로 primary에서는 제외한다.
+- Table 1 primary 집계는 clean **n=1,204** (`gold_in_prompt=false`만 집계)
+- 이전 1,747/1,220 값은 matcher 변경 민감도를 보이는 fixed-cohort audit다.
 - `gold_in_prompt` 플래그: 차트가 정답 진단명을 그대로 적은 케이스(가족력
   항목 등)는 생성물에서는 **버리지 않고 표시만** 하지만, clean Table 1에서는
   제외한다. 별도 층화 분석에는 유지한다. 단어 경계로 매칭한다 —
   단순 포함 검사는 "PE"(폐색전증 별칭)를 "the posterior as-**pe**-ct of the
   ankle" 안에서 찾아냈고, 표시된 34건 중 21건이 그 한 충돌이었다.
 
-## 결과 (Table 1)
+## Primary 결과 (Table 1, 08-25)
+
+Canonical matcher에서도 no-note 정답인 사례만 남긴다. 따라서 no-note 정확도는
+1.0 by construction이며 Figure 2(a)에서는 막대를 생략한다.
+
+| 코퍼스 | n | 위약 | **오답** | 정답 |
+|---|---:|---:|---:|---:|
+| DDXPlus clean | **1,204** | **.9460** | **.7625** | **.9302** |
+
+- 오답 소견서 총 비용 **23.75%p**, 위약 비용 **5.40%p**
+- 제안 고유 효과 **18.36%p**, 총 비용/위약 비용 **4.40×**
+- 정답 소견서도 **6.98%p**를 깎는다.
+- 전체 canonical-eligible `n=1,729`에서 moved **319**, 제안 채택 **89**,
+  제3 진단 이동 **230**이다.
+
+## Fixed-cohort 감사값 (이전 Table 1)
 
 | 코퍼스 | n | 소견서 없음 | 위약 | **오답** | 정답 |
 |---|---:|---:|---:|---:|---:|
@@ -83,7 +100,7 @@
 canonical no-note 정확도가 1이 아니다. `cases answered correctly with no note`
 대신 `originally selected as source-correct, canonically rescored`라고 쓴다.
 
-## 행동 분해 (canonical moved = 321)
+## 행동 분해 (fixed-cohort audit, moved = 321)
 
 | | n |
 |---|---:|
@@ -108,8 +125,13 @@ neutral/correct를 재실행하고 canonical matcher로 채점해 **.9377/.9246*
 2. `neutral → wrong`은 삽입 비용을 뺀 **오답 제안 고유 효과**다.
 3. `none → correct`도 하락하므로, 소견서는 정답 방향이어도 무조건 도움이 되는
    장치가 아니다.
-4. Figure 2(b)의 `91/230` 분해는 설득과 불안정화를 구분한다. 오답 출력 대부분은
+4. Figure 2(b)의 clean `86/201` 분해는 제안 채택과 그 밖의 gold 상실을 구분한다. 오답 출력 대부분은
    제안 복사가 아니라 제3 진단으로의 붕괴다.
+5. 전체 eligible 민감도 moved 319건은 clean 287건(86 suggestion, 201 third diagnosis)과
+   explicit-gold 32건(3 suggestion, 29 third diagnosis)으로 나뉜다. 따라서
+   moved의 90.0%가 clean에서 발생하고, clean에서도 제3 진단 이동이 70.0%다.
+   `gold_in_prompt`는 train-test leakage가 아니라 presentation이 정답명 또는
+   alias를 직접 포함하는지를 표시하는 층화 변수다.
 
 **말하면 안 되는 것**: corpus-300은 원 실행의 초집합이며 base ID가 겹친다.
 `independent replication`이라고 쓰지 않고 **3× larger run**이라고 부른다.

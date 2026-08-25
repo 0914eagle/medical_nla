@@ -46,10 +46,10 @@ lens를 추가한다면 별도 행으로 표시해야 한다.
 
 ## 평가 label과 모집단
 
-- 모집단: canonical DDXPlus no-note source-correct cases, `n=1,747`
+- 모집단: canonical DDXPlus no-note source-correct cases, `n=1,729`
 - 입력: 각 사례의 **wrong-note run 하나만**
 - 정답 label: 같은 사례의 no-note/wrong-note pair로 사후 정의한 `moved`
-- silent: wrong answer가 suggestion 이름을 말하지 않는 `n=1,641`
+- silent: wrong answer가 suggestion 이름을 말하지 않는 `n=1,628`
 - 주 지표: diagnosis-stratified AUROC, all/silent
 
 No-note arm은 label 생성에만 사용하며 likelihood detector에는 주지 않는다.
@@ -115,4 +115,3 @@ python scripts/evaluate_output_head_attribution.py \
 - ▢ GPU likelihood 실행
 - ▢ Table 2b all/silent 값 반영
 - ▢ raw full-sequence 및 calibrated sensitivity
-

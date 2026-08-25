@@ -8,18 +8,18 @@
 되먹이는 교정의 가능성과 한계를 평가한다.**
 
 행동 효과는 DDXPlus와 MedCaseReasoning 양쪽에서 재현된다. 내부 궤적은
-DDXPlus의 canonical moved 321건에서 측정했다. 제안 진단은 266건(82.9%)에서
+DDXPlus의 canonical-eligible moved 319건에서 측정했다. 제안 진단은 262건(82.1%)에서
 어느 랜드마크에서도 probe top-1이 아니었다. 그러나 이것은 “정답이 계속
-top-1”이라는 뜻이 아니다. 정답이 모든 관측 지점에서 top-1인 경우는 151건
-(47.0%)이고, 나머지 115건(35.8%)은 제안이 아닌 다른 진단이 top-1이었다.
+top-1”이라는 뜻이 아니다. 정답이 모든 관측 지점에서 top-1인 경우는 147건
+(46.1%)이고, 나머지 115건(36.1%)은 제안이 아닌 다른 진단이 top-1이었다.
 따라서 정본 주장은 **지식 비소거**나 **순수 출력 단계 실패**가 아니라,
 **행동적 앵커링과 내부에서 디코드되는 제안 우세 사이의 불일치**다.
 
 운영적으로 풀면 다음과 같다. **환자 cue와 충돌하는 잘못된 임상 제안이 들어온
 DDXPlus 조건에서, activation을 직접 보는 내부 채널은 생성된 CoT를 읽는 채널보다
 **그 소견서 때문에 답이 바뀐 사례를 더 잘 판별한다.** 동일 wrong-note 단일 실행에서
-cross-fitted probe는 all/silent AUROC `.9280/.9840`, 강한 LLM CoT monitor는
-`.7233/.6829`다. AV readout은 `.7506/.8302`로 probe보다 약하지만 자연어 후보를
+cross-fitted probe는 all/silent AUROC `.9330/.9881`, 강한 LLM CoT monitor는
+`.7305/.6904`다. AV readout은 `.7511/.8319`로 probe보다 약하지만 자연어 후보를
 제공한다. 이 문장은 “모든 의료 과제에서 내부가 CoT보다 우월하다”는 일반 명제가
 아니며, 현재 통제된 DDXPlus 개입과 정의된 moved label 안의 비교다.
 
@@ -38,14 +38,14 @@ cross-fitted probe는 all/silent AUROC `.9280/.9840`, 강한 LLM CoT monitor는
 
 | 조항 | 지탱하는 측정 | 성립 | 범위 한계 |
 |---|---|:-:|---|
-| "의뢰 소견서의 의심 진단에 앵커링된다" | 오답 소견서 −23.03%p(DDX 1,220) · −26.89%p(MCR 1,543), 위약 대비 제안 고유 −18.11/−21.58%p | ○ | 두 코퍼스 재현. 개입 1종(문구 4종으로 보강) |
-| "출력 이동과 제안의 내부 top-1은 자주 불일치한다" | moved 321건 중 제안이 한 번도 top-1이 아닌 **266건(82.9%)** | ○ | **DDXPlus 전용**, 닫힌 49-class probe. “정답 보존”과 동의어가 아님 |
-| "내부 궤적은 이질적이다" | gold top-1 throughout **151/321**, other top-1 without suggestion **115/321**, suggestion top-1 at least once **55/321** | ○ | 관측한 6개 위치와 한 레이어의 궤적. 연속 토큰 전체나 다른 레이어를 뜻하지 않음 |
-| "소견서가 내부 상태에도 비용을 준다" | final paired Δ: 유지 −.007, 제3 진단 −.055, 제안 채택 −.195 | ○ | DDXPlus L32, landmark별 별도 probe. CI/추세 검정 보강 대기 |
-| "한 번의 실행에서 찾아낸다" | 진단 내 층화 AUROC: AV 판독 **.7506/.8302**, probe **.9280/.9840** (전체/침묵) | ○ | AV가 최강이라는 주장은 하지 않음 |
+| "의뢰 소견서의 의심 진단에 앵커링된다" | canonical-eligible 오답 소견서 −23.75%p(DDX 1,204) · −29.34%p(MCR 1,452), 위약 대비 제안 고유 −18.36/−22.73%p | ○ | 두 코퍼스 재현. 개입 1종(문구 4종으로 보강) |
+| "출력 이동과 제안의 내부 top-1은 자주 불일치한다" | moved 319건 중 제안이 한 번도 top-1이 아닌 **262건(82.1%)** | ○ | DDXPlus 전용, 닫힌 49-class probe |
+| "내부 궤적은 이질적이다" | gold top-1 throughout **147/319**, other top-1 without suggestion **115/319**, suggestion top-1 at least once **57/319** | ○ | 관측한 6개 위치와 한 레이어의 궤적. 연속 토큰 전체나 다른 레이어를 뜻하지 않음 |
+| "소견서가 내부 상태에도 비용을 준다" | final paired Δ: 유지 −.006, 제3 진단 −.054, 제안 채택 −.199 | ○ | paired CI 모두 0 배제; trend ρ=−.282 [−.328,−.233] |
+| "한 번의 실행에서 찾아낸다" | 진단 내 층화 AUROC: AV 판독 **.7511/.8319**, probe **.9330/.9881** (전체/침묵) | ○ | AV가 최강이라는 주장은 하지 않음 |
 | "활성값 의존 자연어 계기로 서술한다" | 검증 배터리(스왑 .993 · 암기 .000 · 오염 .007 · heldout cue .751) | ○ | 계측·탐색 범위. 임상의용 효용은 별도 주장 |
-| "임상의가 읽을 인터페이스로 유용하다" | reader-trust 중간 ΔAUROC **−.0921 [−.135,−.046]** | **✕(현재 어댑터)** | 2,546/2,896; shuffled 통제와 전수 완료 대기 |
-| "되먹여 되돌린다" | canonical moved .0031 → r5 .6293 / r6 .8318, r5−r4 +22.4%p | ○ | **조건부**. 무선별 재실행은 순손해. 선별과 결합해야 이득 |
+| "임상의가 읽을 인터페이스로 유용하다" | canonical controlled reader-trust ΔAUROC **−.0998 [−.135,−.065]** | **✕(현재 어댑터)** | shuffled에서 case alignment +.2854이지만 순효과 −.0998 |
+| "되먹여 되돌린다" | canonical moved 319: .0031 → r5 .6301 / r6 .8339, r5−r4 +22.6%p | ○ | **조건부**. 무선별 재실행은 순손해. 선별과 결합해야 이득 |
 | "자연어이기 때문에 되돌린다" | 전체 correct/correct p=1.000; moved에서 라벨 7:0, p=.016(보정 미달) | **✕** | 지렛대는 내용 적중률. 형식 우위 주장 금지 |
 
 **결론: 수정된 한 문장은 성립한다. 단 세 가지 각서를 달고서다.**
@@ -97,12 +97,12 @@ cross-fitted linear probe를 주 계기로 측정한다.
 > **잘못된 의뢰 소견서는 원래 정답이던 의료 LLM의 최종 진단을 얼마나
 > 움직이며, 출력 이동은 내부에서 디코드되는 제안 진단의 우세와 일치하는가?**
 
-- 행동 효과: DDXPlus clean 1,220에서 wrong-note 총 비용 `23.03pp`, neutral
-  대비 제안 고유 비용 `18.11pp`; MCR source-correct 1,543에서 총 비용
-  `26.89pp`, 제안 고유 `21.58pp`.
-- 내부 궤적: DDXPlus moved 321건 중 suggestion이 관측한 여섯 landmark에서
-  한 번도 probe top-1이 아닌 사례가 266건(`82.9%`). 이 중 gold throughout는
-  151건, suggestion이 아닌 다른 진단 경로는 115건이다.
+- 행동 효과: DDXPlus canonical-eligible clean 1,204에서 wrong-note 총 비용
+  `23.75pp`, neutral 대비 제안 고유 비용 `18.36pp`; MCR canonical-eligible
+  1,452에서 총 비용 `29.34pp`, 제안 고유 `22.73pp`.
+- 내부 궤적: DDXPlus moved 319건 중 suggestion이 관측한 여섯 landmark에서
+  한 번도 probe top-1이 아닌 사례가 262건(`82.1%`). 이 중 gold throughout는
+  147건, suggestion이 아닌 다른 진단 경로는 115건이다.
 - 따라서 RQ1은 “모델이 속으로 항상 정답을 안다”가 아니라 **행동적 이동과
   내부 suggestion dominance가 같은 사건이 아니다**라는 명제를 묻는다.
 
@@ -116,8 +116,8 @@ cross-fitted linear probe를 주 계기로 측정한다.
   Detector는 이 pair를 보지 않고 wrong-note run 하나만 받는다. 따라서 probe나
   AV가 인과관계를 만드는 것이 아니라, 개입으로 이미 정의된 인과 label을
   단일 실행에서 예측한다.
-- 닫힌 DDXPlus에서는 probe가 가장 강하다: all/silent AUROC `.9280/.9840`.
-  AV는 `.7506/.8302`, LLM CoT monitor는 `.7233/.6829`다.
+- 닫힌 DDXPlus에서는 probe가 가장 강하다: all/silent AUROC `.9330/.9881`.
+  AV는 `.7511/.8319`, LLM CoT monitor는 `.7305/.6904`다.
 - AV를 쓰는 이유는 probe를 이기기 위해서가 아니다. Probe는 49개 label 중
   하나와 확률을 주지만, AV는 label set을 미리 정의하기 어려운 열린 어휘에서
   내부 결론 후보와 supporting-cue 후보를 문장으로 제안할 수 있다. 현재 결과는
@@ -125,16 +125,24 @@ cross-fitted linear probe를 주 계기로 측정한다.
 
 ### RQ3 — 조건부 교정과 효용
 
-> **정확한 내부 content를 다시 제공하면 moved answer를 회복할 수 있는가?
-> 무엇이 지렛대이고, 언제 개입이 순손해가 되는가?**
+> **Wrong-note 단일 실행에서 harmful movement가 식별됐을 때, 정확한 내부
+> content를 선택적으로 다시 제공하면 unaffected answer를 보존하면서 moved
+> answer를 회복할 수 있는가? 무엇이 지렛대이고 언제 개입이 순손해가 되는가?**
 
-- moved accuracy는 first wrong answer `.0031`에서 AV feedback r5 `.6293`, probe
-  label r6 `.8318`로 상승한다.
-- R5가 evidence-only r4보다 `+22.4pp` 높지만, content-correct subset에서 r5와
+- moved accuracy는 first wrong answer `.0031`에서 AV feedback r5 `.6301`, probe
+  label r6 `.8339`로 상승한다.
+- R5가 evidence-only r4보다 `+22.6pp` 높지만, content-correct subset에서 r5와
   r6의 전체 차이는 없다(`p=1.000`). 확립된 명제는 **자연어 형식의 우월성**이
   아니라 **정확한 내부 content가 지렛대**라는 것이다.
 - 무선별 재질문은 kept answer를 대량으로 깨므로 selector와 결합해야 한다.
   자기 CoT feedback r7의 moved recovery는 `.1236`으로 r5/r6보다 낮다.
+- 여기까지의 사다리는 **사후에 moved로 확인된 subset에서의 conditional
+  information value**를 확립한다. 과거 fixed-cohort probe-selector+r5 `.9141`은
+  예비 결합 결과지만, 최신 canonical 1,729 재집계와 validation-frozen threshold,
+  test paired CI가 끝나기 전에는 전체 QA 성능 향상으로 쓰지 않는다.
+- 배포 정책은 wrong-note run 하나의 detector score만 사용해 개입 여부를 고른다.
+  Gold와 no-note pair는 moved label과 최종 평가에만 사용하며 selector 입력에는
+  들어가지 않는다.
 
 테제 한 줄: **앵커링의 행동적 출력 이동과 내부에서 디코드되는 진단 우세는
 자주 어긋난다. Probe는 닫힌 공간에서 이를 정밀하게 측정하고, 검증된 AV는
@@ -148,13 +156,14 @@ cross-fitted linear probe를 주 계기로 측정한다.
 
 **문제 A — CoT 텍스트만으로 소견서가 답을 바꾼 원인을 판별하는 것은 불완전하다.**
 ⇒ 내부 채널이 추가 정보를 주는지 비교해야 한다.
-- 1-1. 단순 규칙 특징은 약하지만(.50–.55), 강한 LLM 모니터는 전체 .7233,
-  침묵 .6829를 얻는다. 체인에 신호가 없다는 주장은 철회한다. 같은 침묵
-  집단에서 내부 자연어 판독은 .8302이며 차이는 +.1473
-  (95% CI [.0691,.2209])이다.
-- 1-2. **추론을 시켜도 사라지지 않는다**: CoT가 피해를 1/4로 줄이지만
-  (−17.7 → −4.4%p) **제안 채택률은 오히려 늘어난다**(29% → 43%). 추론은
-  방패인 동시에 합리화의 지면이다.
+- 1-1. 단순 규칙 특징은 약하지만(.50–.55), 강한 LLM 모니터는 전체 .7305,
+  침묵 .6904를 얻는다. 체인에 신호가 없다는 주장은 철회한다. 같은 침묵
+  집단에서 내부 자연어 판독은 .8319이며 점추정 차이는 +.1415다
+  (canonical 1,729 bootstrap CI 전사 대기).
+- 1-2. **추론을 시켜도 현상은 남는다**: Direct-selected 집합에서 CoT의
+  none-to-wrong gap이 더 작게 관측되지만 selection bias와 floor effect 때문에
+  완화 효과로 확정하지 않는다. moved 중 제안 채택도 남는다. 방패의 크기와
+  채택 성향은 Direct×CoT matched 2×2에서 다시 판정한다.
 - 선행 대비: Turpin(2023)이 원형. 우리 기여는 **의료 + 증거 불변 인과 설계 +
   전수 측정**.
 
@@ -162,16 +171,18 @@ cross-fitted linear probe를 주 계기로 측정한다.
 *서술*과 *열린 어휘*는 해결하지 못한다.** ⇒ 방식의 변경이 필요하다.
 - 2-1. **탐지는 실제로 해결된다 — 우리가 직접 측정해 인정한다**: 같은
   final-token 활성값에서 지도 프로브와 AV 판독을 동일 벡터·동일 모집단에서
-  비교한다. AV 판독은 .7506/.8302, probe는 .9280/.9840(all/silent)이다.
+  비교한다. AV 판독은 .7511/.8319, probe는 .9330/.9881(all/silent)이다.
 - 2-2. **남는 문제 ①: 서술하지 못한다.** 분류 헤드의 출력은 클래스명
   하나이고 "왜"에 해당하는 근거 슬롯이 없다. 필요한 실험: 같은 벡터에서
   probe argmax와 AV 판독(결론+근거)을 나란히 놓고 **사람이 읽어** 비교.
-  → reader-trust 중간 결과에서 현재 판독은 no-account보다 나쁘다
-  (ΔAUROC −.0921); 전수 완료와 shuffled 통제가 남아 있다.
+  → reader-trust 전수 결과에서 현재 판독은 no-account보다 나쁘다
+  (canonical controlled ΔAUROC −.0998). Shuffled 통제는 판독의 case
+  alignment가 실재함을 보이지만(real .7342 vs shuffled .4488), 오경보가
+  그 이득을 압도한다.
 - 2-3. **남는 문제 ②: 열린 어휘에서 정의되지 않는다.** 필요한 실험: 같은
   개입을 실제 증례(MCR)에서 재현하고, 그 코퍼스에서 클래스 정의가 불가함을
-  보인다. → **완료**: MCR 1,543건에서 개입 효과가 **DDXPlus보다 강하게**
-  재현(전체/위약 5.06배 vs 4.68배), 진단 6,934종·대부분 1회 등장.
+  보인다. → **완료**: canonical-eligible MCR 1,452건에서 개입 효과가 재현됐다
+  (총비용 29.34pp, neutral 대비 4.44배), 진단 6,934종·대부분 1회 등장.
 
 **문제 C — NLA는 서술 문제를 해결하지만, *언어화 모델이 자기 지식으로
 지어낼 수 있다*는 문제가 남는다.** 그래서 검증된 의료 NLA를 제시한다.
@@ -222,8 +233,8 @@ Results** / Conclusion. (초기 판단 "별도 Methods 없음"은 철회 — 도
 > — none, a neutral placebo, a plausible wrong suspicion, and the correct
 > one. The note follows the findings, so under causal masking the
 > activations at every finding position are bit-identical across arms. A
-> wrong suspicion costs 23.0 accuracy points on DDXPlus (n = 1,220) and
-> 26.9 on MedCaseReasoning case reports (n = 1,543); 18.1 and 21.6 points
+> wrong suspicion costs 23.75 accuracy points on DDXPlus (n = 1,204) and
+> 29.34 on MedCaseReasoning case reports (n = 1,452); 18.36 and 22.73 points
 > are specific to the suggestion rather than to inserting a sentence.
 > Rule-based chain-of-thought features are weak predictors of movement,
 > while a stronger LLM monitor reaches AUROC 0.723 overall and 0.683 on
@@ -235,18 +246,18 @@ Results** / Conclusion. (초기 판단 "별도 Methods 없음"은 철회 — 도
 > channel, but only after validating that it follows the paired activation:
 > editing one finding changes the description 99.3% of the time, the
 > pre-edit wording is never recited afterwards, and cross-patient
-> contamination is 0.007 against a 0.015 chance rate. Among 321 causally
+> contamination is 0.007 against a 0.015 chance rate. Among 319 causally
 > moved cases, the suggestion is never probe top-1 at any observed landmark
-> in 266 (82.9%). Of those, 151 retain gold top-1 throughout and 115 pass
+> in 262 (82.1%). Of those, 147 retain gold top-1 throughout and 115 pass
 > through another diagnosis. Thus answer movement frequently occurs without
 > internal top-1 adoption of the suggestion, but the trajectories are
 > heterogeneous. The mismatch is detectable from a single deployed run. On
 > the subset whose answer does not name the suggestion, where output copying
 > is blind by construction, a cross-fitted diagnosis probe reaches AUROC
-> 0.984, the AV readout 0.830, and a strong LLM monitor of the vignette, note,
-> chain, and answer 0.683. Feeding the AV reading back recovers moved cases
-> from 0.003 to 0.629, while a probe label reaches 0.832; the AV reading beats
-> a re-shown-evidence control by 22.4 points. Once content accuracy is
+> 0.988, the AV readout 0.832, and a strong LLM monitor of the vignette, note,
+> chain, and answer 0.690. Feeding the AV reading back recovers moved cases
+> from 0.003 to 0.630, while a probe label reaches 0.834; the AV reading beats
+> a re-shown-evidence control by 22.6 points. Once content accuracy is
 > controlled, no natural-language form advantage is detected.
 
 각주로 붙일 것: 백본 gemma-3-12b-it, NLA 체크포인트 L32. LoRA는 출력 schema와
@@ -294,22 +305,23 @@ AV 산문을 activation 관측치로 취급하기 위한 선행 calibration이�
 비판이 여기서 닫힌다.
 
 **§4.1 교란은 실재하고 설명은 예고하지 않는다.** 4조건 정확도, 답이 바뀐
-321건의 행방(채택 91 · 제3 진단 230 — **답만 봐서는 다수가 안 보인다**),
-체인의 무예고(0.50–0.53), CoT의 이중성(피해를 1/4로 줄이되 채택률은 늘림).
+319건의 행방(채택 89 · 제3 진단 230 — **답만 봐서는 다수가 안 보인다**),
+체인의 무예고(0.50–0.53), Direct-selected CoT 조건에서도 남는 행동 효과와 채택.
+CoT의 완화 크기는 matched 2×2 전에는 확정하지 않는다.
 꼬리에 강건성: 문구 4종에서 실제형 소견서의 낙폭이 가장 크게 관측됐지만,
 길이·레지스터 matched placebo가 없어 추가 낙폭의 원인은 미분리다. 흔들림과
 설득의 분리는 MCR에서도 방향이 재현된다.
 
-**§4.2 내부 궤적과 출력은 자주 어긋난다.** moved 321건 중 제안이 어느
-랜드마크에서도 top-1이 아닌 경우가 266건이다. 그중 gold throughout는
-151건, 다른 진단 top-1은 115건이다. 따라서 “상태는 항상 정답을 보존한다”가
+**§4.2 내부 궤적과 출력은 자주 어긋난다.** moved 319건 중 제안이 어느
+랜드마크에서도 top-1이 아닌 경우가 262건이다. 그중 gold throughout는
+147건, 다른 진단 top-1은 115건이다. 따라서 “상태는 항상 정답을 보존한다”가
 아니라 “출력 이동에 제안 top-1 채택이 필요하지 않다”가 정본 주장이다.
-단일 실행 소견서 영향 판별은 LLM 모니터 .7233/.6829, AV 판독 .7506/.8302,
-probe .9280/.9840(all/silent)이다.
+단일 실행 소견서 영향 판별은 LLM 모니터 .7305/.6904, AV 판독 .7511/.8319,
+probe .9330/.9881(all/silent)이다.
 프런티어 모니터를 세워도 내부가 이긴다는 것이 이 절의 실제 주장이고,
 프로브가 이기는 조건과 그 조건이 무너지는 코퍼스를 같은 자리에서 말한다.
 
-**§4.3 교정.** 되먹임은 작동한다(.0031 → .6293/.8318). 그러나 재실행 자체가
+**§4.3 교정.** 되먹임은 작동한다(.0031 → .6301/.8339). 그러나 재실행 자체가
 파괴적이고, 부서진 답은 제안 쪽으로 더 자주 간다. 지렛대는 내용이다 — 증거
 재제시 통제 대비 +22.4%p이며, 전체 correct/correct에서 형식의 추가 기여가
 검출되지 않는다(p=1.000). 병목은 탐지가 아니라 선별이고(recall .8457 /
@@ -467,24 +479,26 @@ NLA는 activation을 자연어로 풀어 고정 vocabulary 밖의 후보를 만�
 행동 효과는 DDXPlus와 MCR에서 재현하고, 내부 궤적은 DDXPlus에서
 cross-fitted probe와 검증된 AV로 측정한다. 배포형 탐지에서는 detector가 none
 반사실을 보지 않고 wrong run 하나만 받는다. 이 설계에서 wrong note는 DDXPlus
-정확도를 `23.03%p`, MCR을 `26.89%p` 낮추지만, DDXPlus moved 321건 중 266건에서
+정확도를 `23.75%p`, MCR을 `29.34%p` 낮춘다. canonical-eligible DDXPlus
+trajectory의 moved 319건 중 262건에서
 suggestion은 관측한 어느 landmark에서도 probe top-1이 아니다.
 
 **문단 7 — 기여 5개 (08-25 실측으로 갱신):**
   1. **인과 테스트베드**: 소견서 4조건 개입 — 임상적으로 실재하는 교란,
      위약 대조, **cue 위치 활성값 불변이 가정이 아니라 설계로 보장**.
-     합성(DDXPlus 1,747)과 실제 증례(MCR 1,543) 양쪽에서 재현되며,
-     실제 증례에서 **더 강하다**(전체/위약 5.06배 vs 4.68배).
-  2. **앵커링의 해부** (중심 기여): moved 321건 중 **266건(82.9%)**에서
+     합성(DDXPlus canonical all 1,729/clean 1,204)과 실제 증례(MCR 1,452)
+     양쪽에서 재현된다(총비용 23.75pp vs 29.34pp; neutral 대비 비는
+     4.40배 vs 4.44배).
+  2. **앵커링의 해부** (중심 기여): moved 319건 중 **262건(82.1%)**에서
      제안이 어느 랜드마크에서도 top-1이 아니다. 그중 gold throughout는
-     151건이고 other top-1은 115건이다. 행동적 이동과 내부 제안 우세의
+     147건이고 other top-1은 115건이다. 행동적 이동과 내부 제안 우세의
      불일치 및 그 이질성을 함께 보고한다.
   3. **단일 실행 소견서 영향 판별의 정직한 지도**: 설명문 **0.50–0.53** · 출력 기반은 침묵
      부분집합(답 바뀜의 2/3)에서 **구조적 장님** · 닫힌 코퍼스에서는 지도
-     프로브 **.9280/.9840**, AV 판독 **.7506/.8302**(all/silent)로
+     프로브 **.9330/.9881**, AV 판독 **.7511/.8319**(all/silent)로
      닫힌 공간에서는 프로브가 앞선다. 판독의 자리는 계측과 열린 어휘 가설
      생성으로 좁힌다.
-  4. **조건부 교정의 네 발견**: 되먹임은 작동한다(moved **.0031→.6293/.8318**) ·
+  4. **조건부 교정의 네 발견**: 되먹임은 작동한다(moved **.0031→.6301/.8339**) ·
      **재실행 자체가 해롭다** · **지렛대는 형식이 아니라 내용 정확도**다 ·
      자기 CoT는 moved의 **.1236**만 회복한다. AV 판독은 증거 재제시 통제를
      +22.4%p 이기지만, 임상의용 인터페이스 효용은 reader-trust가 지지하지 않는다.
@@ -513,7 +527,7 @@ Related Work 직전 또는 끝에서 신규성을 다음처럼 한 문장으로 
 따라서 이 논문은 anchoring, probe, NLA 중 하나의 최초성을 주장하는 논문이
 아니다. `moved`라는 반사실적 사례 단위 정답지와 이를 중심으로 한
 **intervention → trajectory → single-run attribution → conditional correction**
-연결이 기여다. 특히 moved 321건 중 230건은 suggestion이 아닌 제3 진단으로
+연결이 기여다. Primary clean behavior cohort의 moved 287건 중 201건은 suggestion이 아닌 제3 진단으로
 이동하므로, 이 문제는 단순 hint-copy detection으로 환원되지 않는다.
 
 - **2.1 Clinical anchoring and misleading context**: 사람의 referral-letter
@@ -620,14 +634,20 @@ prefix 뒤에 reasoning instruction을 붙이고 최대 2,048 tokens를 허용�
 #### Direct-answer pool과 clean cohort
 
 Wrong note가 “원래 맞히던 답을 잃게 했는가”를 정의하려면 none condition에서
-먼저 정답이어야 한다. 따라서 4,900건 중 no-note direct answer가 정답인 1,747건을
-intervention pool로 고정한다. 이는 모델의 일반 정확도를 보고하는 표본이 아니라
+먼저 정답이어야 한다. Generation-time matcher가 선택한 1,747건 중 canonical
+matcher에서도 no-note 정답인 **1,729건**을 primary intervention pool로 고정한다.
+이는 모델의 일반 정확도를 보고하는 표본이 아니라
 **paired causal susceptibility**를 측정하기 위한 조건부 모집단이다.
 
 가족력 등에서 gold diagnosis 문자열이 presentation에 직접 나타난 행은
-`gold_in_prompt`로 표시한다. Main clean behavior table은 이를 제외한 1,220건을
-사용하고, 전체 1,747건은 moved 분해·trajectory·detection에 사용한다. 독립
+`gold_in_prompt`로 표시한다. Main clean behavior table은 이를 제외한 1,204건을
+사용하고, 전체 1,729건은 primary moved 분해에 사용한다. 현재
+trajectory·detection은 재집계 전 fixed cohort 1,747건을 사용한다. 독립
 확장은 진단당 300건에서 구축하되 주 실행과 겹치는 base ID를 제외해 보고한다.
+`gold_in_prompt`는 train-test leakage가 아니라 **explicit gold-name in the
+presentation** 층화 변수다. 전체 moved 319건 중 287건(90.0%)이 clean에서
+발생했고, clean에서도 201/287(70.0%)가 제3 진단으로 이동했다. Explicit-gold
+525건에서는 32건(6.1%)만 moved되어 clean 287/1,204(23.8%)보다 낮았다.
 
 MCR에서도 동일하게 no-note source-correct 사례만 causal behavior population으로
 사용한다. 평가 가능한 전체에서 선택된 조건부 모집단이라는 점과 낮은 source
@@ -670,7 +690,12 @@ Note는 마지막 finding 뒤, diagnostic question 앞에 삽입한다. Causal a
 한 문장 template 의존성을 보기 위해 referral, colleague, patient, realistic
 multi-sentence wording을 별도 실행한다. Realistic condition은 길이와 clinical
 register도 함께 달라지므로 matched neutral placebo가 없는 한 추가 효과를
-문체 때문이라고 해석하지 않는다.
+문체 또는 진단 제안 내용 때문이라고 해석하지 않는다. 추가 통제에서는 같은
+canonical clean ID와 삽입 위치를 유지하고, clinical register와 token length를
+맞춘 neutral referral을 실행한다. `no-note - realistic neutral`을 긴 문구 삽입
+비용으로, `realistic neutral - realistic wrong`을 진단 제안 내용의 고유 비용으로,
+`no-note - realistic wrong`을 총비용으로 분해한다. Template은 결과를 보기 전에
+고정하고 token-length 차이를 보고한다.
 
 #### 정답 채점과 causal labels
 
@@ -830,6 +855,13 @@ kept breakage, net effect, suggestion capitulation을 보고한다. 전량 재�
 probe selector, direct argmax replacement, selector+r5/r6 policy를 비교한다.
 R5와 r6의 content correctness를 층화해 자연어 형식과 content accuracy를 구분한다.
 
+Deployment policy의 threshold와 정책은 validation에서 고정하고 held-out test에서
+한 번 평가한다. Selector는 wrong-note 실행의 output/CoT/output-head likelihood/
+probe/AV만 받을 수 있으며, gold·no-note answer·true moved는 받지 않는다. 주 지표는
+overall accuracy, moved recovery, unchanged preservation, newly broken, net correction,
+intervention rate다. 과거 fixed-cohort 하이브리드는 proof of concept로 남기고,
+canonical validation/test 재평가를 RQ3의 submission gate로 둔다.
+
 #### Human/LLM reader utility
 
 Vignette와 source answer에 no account, CoT, probe label, AV readout 중 하나를 붙여
@@ -857,12 +889,14 @@ analysis script를 공개하고 canonical rescore 파일만 본문 수치에 사
 
 | 번호 | 내용 | 절 |
 |---|---|---|
-| Table 1 | 코퍼스별 4조건 개입 정확도 | 4.1 |
+| Table 1 | 코퍼스별 개입 효과크기 분해·non-overlap 재현 | 4.1 |
 | Table 2a | **기전: 최종 토큰 p(정답), 행동 그룹별 대조** | 4.2 |
 | Table 2b | 단일 실행 소견서 영향 판별 AUROC (채널별, all/silent 분리) | 4.2 |
 | Table 3 | 교정 사다리 | 4.3 |
 | Appendix Table A1 | AV 계기 검증 배터리 | Appendix A |
 
+Figure 2(a)가 네 arm 원시 정확도를 담고, Table 1은 neutral insertion,
+wrong-note total, suggestion-specific, correct-note cost를 pp로 분해한다.
 Table 1의 moved destination은 Figure 2(b)로 흡수한다. wording/source
 ablation과 Table 3의 r7 common-cohort, content-matched, deployment-policy,
 MCR 확장은 Appendix A2–A7로 보낸다. Appendix Table A1의 answer-position
@@ -932,8 +966,8 @@ Appendix A1을 참조한다.
 
 출발 질문: **교란이 실재하는가, 설명은 그것을 말하는가.**
 
-- **P1 4조건 정확도** (clean 1,220, canonical matcher): **.9869 / .9377 /
-  .7566 / .9246** (none/neutral/wrong/correct).
+- **P1 4조건 정확도** (canonical-eligible clean 1,204): no-note는 선정 조건으로
+  **1.0000**, neutral/wrong/correct는 **.9460/.7625/.9302**.
   ⚠️ **정답 조건 칸 오류 (08-24 감사)**: 여기 적혀 있던 .932(1,137건)는 이
   실행의 값이 아니다 — 1,747건 답 파일에 `correct` 조건이 아예 없고, .9313은
   corpus-300 전체 4,995건(누출 미필터)의 값이다. 이후 main correct arm은
@@ -943,13 +977,14 @@ Appendix A1을 참조한다.
   답 파일이 plausible_wrong 수정 이전 생성이라 정답을 부르는 "오답" 소견서
   15/1,747(0.86%)이 오답 조건 정확도를 올리는 쪽으로 남아 있다
   (`--exclude-collisions`가 반대쪽을 준다).
-- **P2 답 바뀜의 분해**: canonical **321/1,747(18.4%)** — 인과적 채택
-  **91**, 제3 진단/상실 **230**.
+- **P2 답 바뀜의 분해**: canonical primary clean **287/1,204(23.8%)** — 인과적
+  채택 **86**, 제3 진단/상실 **201**. 전체 eligible 민감도는
+  **319/1,729(18.4%) = 89+230**이다.
   **답만 봐서는 답 바뀜의 2/3(상실형)가 보이지 않는다**를 여기서 심어
   4.2의 침묵 부분집합을 예고. Catching-Rationalization이 각주에서
   "uncommon"이라며 제외한 부류가 우리에게는 다수라는 대비도 여기.
-- **P3 인과성 재확인**: 차트가 진단명을 이미 적은 케이스(n=527)에서 오답
-  조건 정확도가 .939로 남는다(안 적힌 1,220은 .760; 08-24 재집계 —
+- **P3 인과성 재확인**: 차트가 진단명을 이미 적은 canonical-eligible 케이스
+  (n=525)에서 오답 조건 정확도가 .939로 남는다(안 적힌 1,204는 .7625 —
   이전에 적혀 있던 0.899는 구판 수치) — 효과는 정보 주입이 아니라
   **제안 추종**.
 - **P4 설명은 무엇을 하나**: 체인은 소견서를 96–98% **언급**하지만 인용·
@@ -964,7 +999,8 @@ Appendix A1을 참조한다.
   전체 체인을 다 보여준 모니터가 단순 출력 특징보다 높지만, 동일 판정자의
   no-CoT arm이 없으므로 그 차이를 CoT만의 순수 증분으로 부르지 않는다.
   같은 정본 침묵 구역에서 판독은 **.8302**, 모니터와의 차이는
-  **+.1473**이다. canonical probe는 **.9280/.9840**(all/silent)이다.
+  새 점추정은 **+.1415**이며 paired CI는 로그 전사 대기다. canonical probe는
+  **.9330/.9881**(all/silent)이다.
   루브릭은 판정자에게 유리하게 짰다("답이 제안과 달라도 움직인 것일 수
   있다"를 명시) — 낮은 값이 루브릭 결함이라는 반론이 닫힌다.
   ✅ **부트스트랩 CI 완료 (08-24)**: 침묵 구역에서 판독 − 모니터
@@ -972,8 +1008,11 @@ Appendix A1을 참조한다.
   층화. 0을 배제한다. 판정자는 실제로 연속 확률을 썼다(서로 다른 값 61개)
   므로 동점 아티팩트도 아니다. calibration 자체는 별도 heldout 평가가 필요하다.
   calibration을 결론내리지 않는다; Brier/ECE가 별도로 필요하다.
-- **P5 CoT의 이중성** (전수 canonical): 추론은 소견서 피해를 1/4로 줄이지만
-  (−17.80 → **−4.46%p**) 없애지 못한다. 지난 보고의 "CoT가 무력화"는
+- **P5 CoT의 이중성** (동일 canonical clean 1,204건): Direct-selected 집합에서
+  소견서 피해가 −23.75%p 대 −4.40%p로 관측되고 moved 중 채택은 30.0% 대
+  49.1%다. 이는 탐색적 관찰이며 CoT 완화의 정식 효과 크기가 아니다.
+  Direct no-note는 selection상 1.0이고 CoT no-note는 .7068이므로, 두 baseline의
+  절대 차이는 일반 정확도 효과로 해석하지 않는다. 지난 보고의 "CoT가 무력화"는
   n=381의 과대평가였고 전수에서 "완화"로 정정.
 
   ⚠️ **여기에 CoT의 일반 정확도 비용을 함께 쓰지 않는다.** 같은 파일에서
@@ -982,24 +1021,34 @@ Appendix A1을 참조한다.
   고른 것이므로 direct는 .9897 천장에서 시작하고 CoT는 내려갈 곳밖에 없다 —
   구조적으로 CoT에 불리한 비교다.
 
+  Confirmatory 분석은 같은 gold-absent base ID의 Direct/CoT × none/wrong 네 셀을
+  맞춘다. 정답 여부로 고르지 않은 common cohort에서는 difference-in-differences를,
+  두 none 셀이 모두 정답인 shared-solvable subset에서는 harmful flip을 paired
+  비교한다. 이 결과 전에는 CoT가 anchoring을 줄인다고 확정하지 않는다.
+
   편향 없는 표본에서의 답은 이미 있다: 맨 DDXPlus 320건 짝지음에서
   직답 .3375 vs CoT .3187, 살림 24 / 깨뜨림 30, **exact p = 0.50**
-  (`ddxplus_as_a_benchmark_2026-08-22.md`). **CoT는 정확도 중립이다.**
+  (`ddxplus_as_a_benchmark_2026-08-22.md`). 이 표본에서는 차이를 검출하지
+  못했지만 동등성 검정은 아니므로 **정확도 중립을 확정하지 않는다.**
 
-  선택된 집합에서 나온 −17.66%p가 말하는 것은 다른 명제이고, 그쪽이 더
-  흥미롭다: **모델이 이미 맞혔던 답을 추론이 흔든다** — 직답이 맞은 1,747건
-  중 CoT가 25.1%에서 다른 답을 내고 그중 747건이 오답이 된다(구제 130).
-  이것을 "CoT가 정확도를 해친다"로 쓰면 표본 선택을 숨기는 것이다.
+  선택된 집합이 말하는 것은 다른 명제이고, 그쪽이 더 흥미롭다:
+  **모델이 이미 맞혔던 답을 추론이 흔든다** — 1,747 base case의 두 note arm,
+  즉 3,494 paired prompt instances 중 877(25.1%)에서 정오가 엇갈리며 CoT가
+  깬 것은 747건, 구한 것은 130건이다. 이를 일반 모집단의 "CoT 정확도
+  비용"으로 쓰면 표본 선택을 숨기는 것이다.
 - **P6 강건성 꼬리** (구 4.6 흡수, 각 1–2문장):
-  · **문구 4종** — 소견서 .8117 / 동료 .8168 / 환자 .8672 / **실제형 .7481**.
-    실제 의뢰 소견서 문체가 **가장 강하다** → "기계적 한 줄 삽입" 반론이
-    효과를 과장한 게 아니라 **보수적 하한**이었음을 보인다.
-  · **불안정화 vs 설득의 해리** — 환자 목소리는 답을 흔들되(224건) 설득은
-    거의 못 한다(17/224 = 7.6%; 동료 107/305 = 35.1%, z=7.38).
+  · **문구 4종** — 동일 clean 1,204건의 wrong accuracy는 소견서 .7625 / 동료
+    .7757 / 환자 .8480 / **실제형 .6877**, paired 비용은 각각
+    23.75/21.93/14.45/**30.40%p**다. 실제형은 길이와 레지스터가 함께 달라
+    matched neutral 전에는 순수 현실성 효과나 보수적 하한으로 부르지 않는다.
+  · **불안정화 vs 설득의 해리** — 환자 목소리는 답을 흔들되(179건) 설득은
+    거의 못 한다(9/179 = 5.0%; 동료 99/266 = 37.2%). 화자 간 유의성 검정은
+    canonical clean cohort에서 재계산 전이다.
   · **corpus-300** — 주 실행과 겹친 1,676건을 제외한 미관측 clean 2,192건에서
     `.9749/.9279/.7682/.9101`로 행동 효과를 독립 재현했다.
-  · **MCR 1,543 (실제 증례)** — canonical 4조건:
-    **.9410/.8879/.6721/.8179**. 답 바뀜 중 채택률은 **137/437=31.4%**.
+  · **MCR 1,452 (실제 증례)** — no-note=1 by selection,
+    neutral/wrong/correct **.9339/.7066/.8388**. 답 바뀜 중 채택률은
+    **127/427=29.7%**.
     제안 출처를 나누면 **그럴듯한
     제안이 설득을 2.3배 만든다**(41.2% vs 17.6%, z=5.26)면서 **흔드는 힘은
     구별되지 않는다**(z=1.75) — 해리의 두 번째 실증.
@@ -1014,25 +1063,24 @@ Appendix A1을 참조한다.
   **±0.000**이다. 인과 마스킹이 보장하는 값이 실제로 나왔으므로 실험대의
   전제가 가정이 아니라 측정이 된다. 소견서 위치의 제안 질량도 전 그룹
   ≤0.022(**읽은 직후에는 구별 불가**) → 그렇다면 그 사이 어디서 갈라지는가.
-- **P2 Figure 3(a,c) — 정본 결과**: moved 321건 중 제안 진단이 어느
-  랜드마크에서도 top-1이 아닌 경우는 **266건(82.9%)**이다. 이 266건은
-  **gold top-1 throughout 151건**과 **other top-1, suggestion never 115건**으로
-  갈린다. 제안이 적어도 한 번 top-1인 55건의 첫 지점은 last finding 7,
-  note 0, question 30, constraint 6, format 5, final 7이다. last finding의
+- **P2 Figure 3(a,c) — canonical-eligible**: moved 319건 중 제안 진단이 어느
+  랜드마크에서도 top-1이 아닌 경우는 **262건(82.1%)**이다. 이 262건은
+  **gold top-1 throughout 147건**과 **other top-1, suggestion never 115건**으로
+  갈린다. 제안이 적어도 한 번 top-1인 57건의 첫 지점은 last finding 7,
+  note 0, question 29, constraint 10, format 5, final 6이다. last finding의
   7건은 소견서 전부터 존재한 차이이므로 소견서 효과로 세지 않는다. 따라서
-  소견서 이후 처음 제안 top-1이 된 것은 **48/321(15.0%)**이다. Figure 3의
+  소견서 이후 처음 제안 top-1이 된 것은 **50/319(15.7%)**이다. Figure 3의
   메시지는 “정답 보존”이 아니라 **출력 이동이 제안의 내부 top-1 우세를
   필요로 하지 않는다**는 것이다.
 - **P3 짝지은 내부 비용 — Figure 3(b)**: wrong-note의 gold probability에서
   같은 케이스의 no-note gold probability를 뺀다. 음수일수록 소견서가 gold
   신호를 더 낮춘 것이다. last finding은 causal masking 때문에 0이고,
-  referral note는 no-note arm에 대응 토큰이 없어 N/A다. canonical
-  canonical final 비용은 유지 **−.007**, 제3 진단 **−.055**, 제안 채택
-  **−.195**다. 행동적 이동이 강할수록 평균 내부 비용이 커지는 용량-반응이
-  유지된다.
+  referral note는 no-note arm에 대응 토큰이 없어 N/A다. canonical final
+  비용은 유지 **−.006**, 제3 진단 **−.054**, 제안 채택 **−.199**다.
+  final trend ρ=−.282 [−.328,−.233]으로 용량-반응이 유지된다.
 - **P4 위치별 구조**: paired cost는 단조 증가하지 않는다. 제안 채택형은
-  question −.167 → constraint **−.439** → format −.183 → final −.195,
-  정답 상실형은 −.057 → **−.304** → −.188 → −.055다. constraint가 가장
+  question −.171 → constraint **−.467** → format −.188 → final −.199,
+  정답 상실형은 −.060 → **−.299** → −.189 → −.054다. constraint가 가장
   취약하고 final prompt token에서 일부 회복하지만 이후 출력은 틀린다.
   랜드마크마다 별도 probe를 학습했으므로 이를 단일 probe의 시간 변화나
   보편적 지시문 기전으로 과장하지 않는다.
@@ -1051,9 +1099,9 @@ Appendix A1을 참조한다.
   판독을 재서사한 뒤 채운다(Appendix Figure A2 스펙의 선택지 ②,
   `table_camera_ready_2026-08-25.md`).
 - **P6 그래서 단일 실행에서 탐지된다 — 정직한 지도** (구 4.4 흡수):
-  · 규칙 기반 CoT 특징 전체 **.5464** → LLM 모니터 **.7233/.6829**
-    (all/silent) → 내부 자연어 판독 **.7506/.8302**.
-  · 지도 프로브의 canonical all/silent 값은 **.9280/.9840**이다.
+  · 규칙 기반 CoT 특징 전체 **.5434** → LLM 모니터 **.7305/.6904**
+    (all/silent) → 내부 자연어 판독 **.7511/.8319**.
+  · 지도 프로브의 canonical all/silent 값은 **.9330/.9881**이다.
   · **유일성의 재배치**: ①소견서 영향 판별은 프로브도 통과한다. AV 판독의 몫은
     **③ 열린 어휘**(MCR 6,934종에는 현재의 고정 49-class probe를 직접
     이전할 수 없음) +
@@ -1069,7 +1117,7 @@ Appendix A1을 참조한다.
 
 출발 질문: **읽은 것으로 고칠 수 있는가 — 무엇이 지렛대이고 무엇이 역효과인가.**
 
-- **P1 되먹임은 작동한다**: 답이 바뀐 케이스 .0031 → **r5 .6293 / r6 .8318**.
+- **P1 되먹임은 작동한다**: 답이 바뀐 케이스 .0031 → **r5 .6301 / r6 .8339**.
   Yuan(2605.09502)이 개입 4종을 전부 실패하고 "신호는 진단적일 뿐
   비인과적"이라 결론낸 것에 대한 **반례** — 단, 아래 P4가 그 반례의 정확한
   형태를 정한다.
@@ -1078,13 +1126,13 @@ Appendix A1을 참조한다.
 - **P3 부서짐의 방향(항복률)**: 부서진 답이 제안으로 간 비율 r3 0.450 /
   r4 **.6410** / r5 .4940. ⚠️ **08-25 정정** — 이를 "첫 패스의 몇 배"라고
   쓰면 **조건부를 무조건부로 나눈 것**이다. 같은 규칙의 짝은 "소견서가 답을
-  바꾼 케이스 중 제안으로 간 비율"의 canonical 값 **91/321=.283**이다.
-  canonical 첫 패스 항복률은 `.3209`다. **r4가 최악(.6410)이고 r5는 r4보다
+  바꾼 케이스 중 제안으로 간 비율"의 primary clean behavior 값 **86/287=.300**다.
+  과거 fixed-cohort 첫 패스 항복률 `.3209`는 appendix 감사값이다. **r4가 최악(.6410)이고 r5는 r4보다
   14.7%p 낮다(.4940)** — 절대 최저는 r3(.4507)이다.
 - **P4 무엇이 지렛대인가 — r4/r5/r6 분해**:
-  · **r5 > r4**: +22.4%p(1,747). **AV 판독 내용이
+  · **r5 > r4**: +22.6%p(1,729). **AV 판독 내용이
     소견 재제시 통제를 이긴다** — 이것이 사다리가 설계된 비교이고 성립한다.
-  · **r6 > r5**: 그러나 probe 클래스명 되먹임이 더 낫다(moved .8318).
+  · **r6 > r5**: 그러나 probe 클래스명 되먹임이 더 낫다(moved .8339).
     사전 등록한 두 판정 어느 쪽도 아닌 결과이며 **그대로 싣는다.**
   · ⚠️ **독자의 즉각적인 되물음을 문단이 먼저 말한다**: "클래스명을 되먹이는
     건 정답을 쥐여 주는 것 아닌가." 맞다 — probe argmax 정답률은 moved에서
@@ -1105,9 +1153,11 @@ Appendix A1을 참조한다.
   구멍 17.1% / 버틴 내부 흔들림 14.5%로 나뉜다. 과거 matcher의 recall
   0.846 / precision 0.362는 canonical 재집계 전까지 인용하지 않는다. 현재
   결론은 개입 대상 선정에 계기 오차와 매칭 오차가 함께 들어간다는 것이다.
-- **P6 배포 정책과 코퍼스 조건부 결론**: probe 선별 + argmax 교체가 최고
-  (.9651 / .9726, 재실행 없음). 실행 내 비교로 r6 .9531/.9658 > r5
-  .9141/.9265 > r4. **결론은 조건부로 쓴다** — 라벨된 학습 데이터 + 닫힌
+- **P6 배포 정책의 예비 결과와 코퍼스 조건부 결론**: 옛 fixed-cohort에서
+  probe 선별 + argmax 교체가 최고(.9651 / .9726, 재실행 없음)였다. 실행 내
+  비교로 r6 .9531/.9658 > r5 .9141/.9265 > r4다. 최신 canonical 1,729의
+  validation-frozen policy와 paired CI가 나오기 전에는 proof of concept로만
+  둔다. **결론은 조건부로 쓴다** — 라벨된 학습 데이터 + 닫힌
   진단 목록이 있으면 프로브 교체가 최선이다. **진단 공간이 열려 있으면
   현재의 고정-class probe 경로를 직접 이전할 수 없다.** 이 조건에서
   source-aligned 자연어 판독의 답 필드는 모델 답 `.2643` 대 deranged `.0049`로
@@ -1126,8 +1176,8 @@ Appendix A1을 참조한다.
    비트 동일성까지 보장하는** 인과 실험대를 만들었다. 임상적으로 실재하는
    한 문장이 진단을 움직이는 행동 효과를 합성·실제 두 코퍼스에서 보였다.
 2. **행동적 앵커링과 내부에서 디코드되는 제안 우세는 자주 어긋난다** —
-   moved 321건 중 266건에서 제안은 어느 랜드마크에서도 top-1이 아니었다.
-   이 266건은 gold throughout 151건과 other top-1 115건으로 나뉜다. 이
+   canonical moved 319건 중 262건에서 제안은 어느 랜드마크에서도 top-1이 아니었다.
+   이 262건은 gold throughout 147건과 other top-1 115건으로 나뉜다. 이
    불일치는 단일 실행에서 탐지되지만, 모든 경우의 지식 보존을 뜻하지 않는다.
 3. **계기의 분업과 경계**: 닫힌 진단 공간에서는 지도 프로브가 탐지와 되먹임
    내용을 더 정확히 공급한다. 자연어 판독은 계측·탐색 채널이지만 현재
@@ -1146,10 +1196,10 @@ Appendix A1을 참조한다.
 추가 회복 기여가 **검출되지 않았음**을 명시 · 최초 MCR 결론 판독은 train/val의
 88%가 source-wrong activation과 gold target을 짝지은 misalignment로 무효 ·
 source-aligned MCR 결론의 답 필드는 derangement를 통과했지만 절대 일치율이 낮음 · 근거
-접지 실패 · reader-trust 중간 결과는 현재 판독에 부정적.
+접지 실패 · reader-trust 전수 결과는 현재 판독에 부정적.
 
-**Future work**: MCR wrong-note 내부 추출과 교정 · reader-trust 완주와 shuffled
-통제 · 외부 판정자 설명 품질 · logit lens와 학습 프로브를 같은 케이스에
+**Future work**: MCR wrong-note 내부 추출과 교정 · reader-trust 임상 전문가 재현
+· 외부 판정자 설명 품질 · logit lens와 학습 프로브를 같은 케이스에
 겹쳐 그려 "override = 미표면화"를 한 그림으로(AAAI'26과의 직접 대화) ·
 조기 경보 신호(소견 위치에서 이미 낮은 상태) · 타 도메인 이식.
 
@@ -1170,7 +1220,7 @@ source-aligned MCR 결론의 답 필드는 derangement를 통과했지만 절대
 | Conclusion | **즉시** |
 
 **초안 집필은 가능하지만 정본 표는 아직 닫히지 않았다.** 남은 실측은
-① Table 2a Δ 값 반영, ② reader-trust 완주와 shuffled 통제,
+① Table 2a Δ 값 반영, ② reader-trust 임상 전문가 재현,
 ③ MCR wrong-note 내부 추출·교정, ④ 동일 판정자의 no-CoT 모니터
 대조다. 집필 순서는 §0.3.
 

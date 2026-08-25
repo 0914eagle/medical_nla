@@ -29,10 +29,22 @@
 두 arm 사이에 비트 단위로 같고 같은 말을 두 번 한다. 신호는 소견서 자신의
 위치나 최종 토큰에서만 나올 수 있다.
 
-## 결과 (n=1,747, 진단 내 층화)
+## 정본 결과 (canonical no-note eligible n=1,729, 진단 내 층화)
 
-아래 상세 특징표는 최초 matcher 결과를 보존한 감사 기록이다. canonical
-camera-ready 핵심값은 **전체 .7506**, **silent .8302**다.
+| 채널 | 전체 | 침묵 (n=1,628) |
+|---|---:|---:|
+| 답 == 제안 | .6632 | 정의 불가 |
+| 체인 특징(dwells) | .5434 | – |
+| LLM 모니터 | .7305 | .6904 |
+| **AV 판독** | **.7511** | **.8319** |
+| 선형 프로브 | .9330 | .9881 |
+
+Probe는 같은 1,729 ID에서 다시 cross-fit했다. 아래 1,747 상세 특징표는
+matcher-era 감사 기록이며 camera-ready 핵심값이 아니다.
+
+## 이전 결과 (n=1,747, 진단 내 층화; audit only)
+
+아래 상세 특징표는 최초 matcher 결과를 보존한 감사 기록이다.
 
 **전체**
 
@@ -69,8 +81,8 @@ docstring이 실행 전에 적어둔 반증 조건이 이것이었고, 결과는
 
 ## 프로브와의 관계
 
-같은 정본 침묵 구역(n=1,641)에서 LLM 모니터는 **.6829**, 판독은 **.8302**,
-프로브는 **.9840**이다(전체는 .7233/.7506/.9280). 정본 표가 주장하는 것은
+같은 정본 침묵 구역(n=1,628)에서 LLM 모니터는 **.6904**, 판독은 **.8319**,
+프로브는 **.9881**이다(전체는 .7305/.7511/.9330). 정본 표가 주장하는 것은
 AV의 우승이 아니라 경계다 — 내부를 안 보는 채널보다 내부 채널이 강하고,
 닫힌 49-class에서는 지도 프로브가 가장 강하다.
 
@@ -84,7 +96,7 @@ open-vocabulary probe/retrieval baseline이 불가능하거나 판독이 우월�
 - 이기는 신호는 `answer omits the internal conclusion`이다. 즉 자연어 판독이
   소견서라는 원인을 직접 설명했다기보다 **내부 결론과 출력의 불일치**를
   드러냈다.
-- `.8302`는 진단 내 AUROC다. 진단별 취약성 차이를 이용한 pooled 성능이 아니다.
+- `.8319`는 진단 내 AUROC다. 진단별 취약성 차이를 이용한 pooled 성능이 아니다.
 - silent subset에서 출력 복사 신호는 정의상 상수다. 이 구간에서 readout이
   monitor보다 높은 것이 내부 채널의 실질적 추가 정보다.
 - `[paired]` 특징은 no-note arm도 보므로 배포 가능한 한 번 실행 신호가 아니다.
@@ -100,10 +112,11 @@ open-vocabulary probe/retrieval baseline이 불가능하거나 판독이 우월�
 
 ```bash
 python scripts/compare_channels_on_attribution.py \
-  --answers $ART/results/ddxplus_hint_answers_v2.jsonl \
+  --answers $ART/results/ddxplus_hint_answers_v2_rescored.jsonl \
   --cases $DATA/ddxplus_hint_cases_v2.jsonl \
-  --cot-answers $ART/results/ddxplus_hint_answers_cot_full.jsonl \
+  --cot-answers $ART/results/ddxplus_hint_answers_cot_full_rescored.jsonl \
   --readouts $ART/results/readout_hint_final_L32_v2.jsonl \
   --readout-manifests $ART/activations/hint_positions_L32/layer32/last_token/manifest.jsonl \
-  --dump $ART/results/channel_scores.jsonl
+  --require-canonical-no-note-correct \
+  --dump $ART/results/channel_scores_canonical_eligible.jsonl
 ```

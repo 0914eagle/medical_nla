@@ -24,7 +24,11 @@ def main() -> None:
     parser.add_argument("--trajectory-dump", required=True, help="Canonical trajectory dump.")
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--readout-values", help="Optional Appendix Figure A1 values JSON.")
-    parser.add_argument("--detection-values", help="Optional Figure 4 values JSON.")
+    parser.add_argument(
+        "--detection-values",
+        required=True,
+        help="Canonical-eligible Figure 4 values JSON.",
+    )
     parser.add_argument("--format", choices=["png", "pdf"], default="png")
     args = parser.parse_args()
 
@@ -37,7 +41,8 @@ def main() -> None:
         sys.executable, str(root / "scripts/make_figure_intervention.py"),
         "--dumps", args.ddx_dump, args.mcr_dump,
         "--labels", "DDXPlus", "MedCaseReasoning",
-        "--accuracy-population", "clean", "--destination-population", "all",
+        "--accuracy-population", "clean", "--destination-population", "clean",
+        "--omit-no-note",
         "--output", str(out / f"figure2_behavior.{ext}"),
     )
     run(
@@ -48,9 +53,8 @@ def main() -> None:
     detection_cmd = [
         sys.executable, str(root / "scripts/make_figure_detection_correction.py"),
         "--output", str(out / f"figure4_detection_correction.{ext}"),
+        "--values", args.detection_values,
     ]
-    if args.detection_values:
-        detection_cmd.extend(["--values", args.detection_values])
     run(*detection_cmd)
 
     readout_cmd = [

@@ -8,23 +8,12 @@ on the moved subset. The contrast is the policy result: internal feedback can
 repair moved cases, but applying reconsideration indiscriminately damages the
 much larger kept population.
 
-Defaults are the canonical 2026-08-25 values. Pass --values after a rerun:
+Values must be supplied from the canonical-eligible reaggregation. The old
+matcher-era 1,747-case constants were removed so a bare plotting command
+cannot silently resurrect a deprecated population:
 
-    {
-      "detection": {
-        "channels": ["Answer heuristic", "Rule-based CoT", "LLM monitor",
-                     "AV readout", "Linear probe"],
-        "all": [0.6610, 0.5464, 0.7233, 0.7506, 0.9280],
-        "silent": [null, null, 0.6829, 0.8302, 0.9840],
-        "n_all": 1747,
-        "n_silent": 1641
-      },
-      "correction": {
-        "stages": ["First answer", "r3", "r4", "r5", "r6"],
-        "overall": [0.8117, 0.4173, 0.4139, 0.4098, 0.4568],
-        "moved": [0.0031, 0.4548, 0.4050, 0.6293, 0.8318]
-      }
-    }
+Use `build_canonical_figure4_values.py` to create this schema; do not hand-edit
+or copy values from an older summary.
 """
 
 from __future__ import annotations
@@ -33,28 +22,6 @@ import argparse
 import json
 from pathlib import Path
 from typing import Any
-
-
-DEFAULT: dict[str, Any] = {
-    "detection": {
-        "channels": [
-            "Answer heuristic",
-            "Rule-based CoT",
-            "LLM monitor",
-            "AV readout",
-            "Linear probe",
-        ],
-        "all": [0.6610, 0.5464, 0.7233, 0.7506, 0.9280],
-        "silent": [None, None, 0.6829, 0.8302, 0.9840],
-        "n_all": 1747,
-        "n_silent": 1641,
-    },
-    "correction": {
-        "stages": ["First answer", "r3", "r4", "r5", "r6"],
-        "overall": [0.8117, 0.4173, 0.4139, 0.4098, 0.4568],
-        "moved": [0.0031, 0.4548, 0.4050, 0.6293, 0.8318],
-    },
-}
 
 
 def validate(values: dict[str, Any]) -> None:
@@ -71,12 +38,14 @@ def validate(values: dict[str, Any]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True, help="Output .png or .pdf path.")
-    parser.add_argument("--values", help="Optional JSON overriding canonical values.")
+    parser.add_argument(
+        "--values",
+        required=True,
+        help="Canonical-eligible JSON from build_canonical_figure4_values.py.",
+    )
     args = parser.parse_args()
 
-    values = DEFAULT
-    if args.values:
-        values = json.loads(Path(args.values).read_text(encoding="utf-8"))
+    values = json.loads(Path(args.values).read_text(encoding="utf-8"))
     validate(values)
 
     import matplotlib

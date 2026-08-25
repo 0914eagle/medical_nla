@@ -41,7 +41,7 @@ layer map은 Appendix Table A1/Figure A1이다. 아래 실험 번호는 바뀌�
 | [11](11-channel-gap-bootstrap.md) | 채널 격차 신뢰구간 | 4.2 | ✅ canonical |
 | [12](12-correction-ladder.md) | 교정 사다리 r3–r7 (Table 3) | 4.3 | ✅ DDXPlus canonical; MCR 대기 |
 | [13](13-mcr-conclusion-adapter.md) | MCR 결론 어댑터 (열린 어휘) | Appendix/limitation | ✅ derangement 통과 08-24 |
-| [14](14-reader-trust.md) | 독자-신뢰 과제 | 4.2/limitation | 🔄 2,546/2,896 + shuffled 대기 |
+| [14](14-reader-trust.md) | 독자-신뢰 과제 | 4.2/limitation | ✅ 2,896/2,896 + shuffled 통제 |
 | [15](15-judge-infrastructure.md) | 외부 판정자 기반 | 공통 | ✅ |
 | [16](16-readout-semantic-judging.md) | 판독 의미 채점 — 손채점 vs 외부 판정자 | Appendix | ✅ 08-24, 238쌍 |
 | [17](17-output-head-likelihood.md) | Source output-head likelihood 기준선 | 4.2 | ▢ GPU 실행 |
@@ -115,9 +115,11 @@ loss ~0.03) 진단명은 안 된다(content ~1.8). 전체 손실로 고르면 �
 (`ddxplus_aliases.py`). 양방향이라 한 답이 두 진단명에 동시에 매칭될 수 있지만,
 `PE`/`pericarditis`, `stable`/`unstable` 같은 부분문자열 충돌은 막는다.
 `took_the_hint`는 여기에 "무소견서 답이 이미 제안을 부르지 않았다"를 추가로
-요구한다. canonical DDXPlus 정본은 **moved 321 / causal adoption 91**이다.
-alias-aware 이름 일치만 보면 106이지만, 그중 15건은 no-note에서도 이미 그
-제안명을 말해 개입의 인과 효과가 아니므로 논문 분자는 91이다.
+요구한다. **Primary behavior**의 canonical-eligible 전체 1,729건은
+**moved 319 / causal adoption 89**다. 이미 추출된 trajectory·detection의
+generation-time fixed cohort 1,747건은 **321 / 91**이며, 두 모집단을 섞지
+않는다. Fixed cohort에서 alias-aware 이름 일치만 보면 106이지만, 그중 15건은
+no-note에서도 이미 제안명을 말해 개입의 인과 효과가 아니므로 분자는 91이다.
 
 ### 공통 용어
 

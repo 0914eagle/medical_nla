@@ -29,6 +29,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.analyze_hint_effect import (
+    group_by_case,
+    require_canonical_no_note_correct,
+)
 from src.answer_matching import is_correct
 from src.ddxplus_aliases import aliases_for
 from src.jsonl import read_jsonl
@@ -373,6 +377,21 @@ def main() -> None:
         "difference between two case sets.",
     )
     parser.add_argument(
+        "--eligibility-answers",
+        nargs="+",
+        help="Canonically rescored intervention answers used to define the "
+        "eligible base IDs. Required with --require-canonical-no-note-correct.",
+    )
+    parser.add_argument(
+        "--eligibility-cases",
+        help="Optional hint case file for eligibility answers predating carried arms.",
+    )
+    parser.add_argument(
+        "--require-canonical-no-note-correct",
+        action="store_true",
+        help="Restrict every rung to cases whose no-note answer is canonically correct.",
+    )
+    parser.add_argument(
         "--exclude-from",
         nargs="+",
         default=[],
@@ -385,6 +404,24 @@ def main() -> None:
         "cases, which is what a second look is supposed to be.",
     )
     args = parser.parse_args()
+
+    eligible: set[str] | None = None
+    if args.require_canonical_no_note_correct:
+        if not args.eligibility_answers:
+            parser.error(
+                "--require-canonical-no-note-correct requires --eligibility-answers"
+            )
+        eligibility_cases = group_by_case(
+            args.eligibility_answers, args.eligibility_cases
+        )
+        eligible_cases = require_canonical_no_note_correct(eligibility_cases)
+        eligible = set(eligible_cases)
+        print(
+            f"[cohort] canonical no-note eligible: "
+            f"{len(eligible):,}/{len(eligibility_cases):,}"
+        )
+        if not eligible:
+            raise SystemExit("no canonically correct no-note cases remain")
 
     excluded: set[str] = set()
     for path in args.exclude_from:
@@ -404,6 +441,8 @@ def main() -> None:
     rung_rows: dict[Any, list[dict[str, Any]]] = {}
     for path in args.rungs:
         rows = list(read_jsonl(path))
+        if eligible is not None:
+            rows = [r for r in rows if str(r.get("base_id") or "") in eligible]
         if keep is not None:
             rows = [r for r in rows if str(r.get("base_id") or "") in keep]
         if excluded:

@@ -42,7 +42,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.analyze_hint_effect import Case, group_by_case
+from scripts.analyze_hint_effect import (
+    Case,
+    group_by_case,
+    require_canonical_no_note_correct,
+)
 from scripts.compare_channels_on_attribution import moved, report
 from src.answer_matching import is_correct
 from src.ddxplus_aliases import aliases_for
@@ -112,6 +116,12 @@ def main() -> None:
     )
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument(
+        "--require-canonical-no-note-correct",
+        action="store_true",
+        help="Restrict the population before fitting the cross-fitted probe to "
+        "cases whose no-note answer is canonically correct.",
+    )
+    parser.add_argument(
         "--dump",
         help="Write per-case probe verdicts (base_id, flag, argmax) to this "
         "jsonl, for joining with the correction-ladder results.",
@@ -121,6 +131,12 @@ def main() -> None:
     import torch
 
     cases = group_by_case(args.answers, args.cases)
+    if args.require_canonical_no_note_correct:
+        before = len(cases)
+        cases = require_canonical_no_note_correct(cases)
+        print(f"[cohort] canonical no-note eligible: {len(cases):,}/{before:,}")
+        if not cases:
+            raise SystemExit("no canonically correct no-note cases remain")
     paths = final_activation_paths(args.manifests)
 
     class_names = sorted(
@@ -216,11 +232,21 @@ def main() -> None:
         dump_rows.append(
             {
                 "base_id": base_id,
+                "diagnosis_name": gold,
+                "moved": bool(labels[-1]),
+                "answer_is_suggestion": not silent[-1],
                 "probe_flag": flag,
                 "probe_argmax": argmax_name,
                 "probe_p_answer": float(probs[i][answer_class])
                 if answer_class is not None
                 else 0.0,
+                "probe_disagreement_probability": features[
+                    "probe disagreement (1 - p of answer's class)"
+                ][-1],
+                "probe_low_confidence": features[
+                    "probe confidence (1 - max prob)"
+                ][-1],
+                "probe_entropy": entropy,
             }
         )
 

@@ -136,6 +136,23 @@ def arms_in(cases: dict[str, Case]) -> tuple[str, ...]:
     return tuple(variant for variant in VARIANTS if variant in present)
 
 
+def require_canonical_no_note_correct(cases: dict[str, Case]) -> dict[str, Case]:
+    """Keep only cases correct in the no-note arm under the stored scorer.
+
+    The intervention cohort was originally selected with the generation-time
+    matcher. After canonical rescoring, a small number of no-note rows are no
+    longer correct. The paper's causal estimand is loss among answers that are
+    correct without a note, so its primary analysis must re-apply that
+    eligibility rule after rescoring. Keeping this as an explicit option also
+    preserves the old fixed-cohort audit.
+    """
+    return {
+        case_id: arms
+        for case_id, arms in cases.items()
+        if bool(arms.get("none", {}).get("source_correct"))
+    }
+
+
 def answer_names(row: dict[str, Any], diagnosis: str | None) -> bool:
     """Whether this arm's answer is that diagnosis, aliases included."""
     name = str(diagnosis or "").strip()
@@ -215,7 +232,12 @@ def summarize_population(cases: dict[str, Case]) -> dict[str, Any]:
     return result
 
 
-def report(name: str, cases: dict[str, Case]) -> None:
+def report(
+    name: str,
+    cases: dict[str, Case],
+    *,
+    canonical_no_note_eligible: bool = False,
+) -> None:
     if not cases:
         print(f"\n{name}: no cases")
         return
@@ -229,13 +251,23 @@ def report(name: str, cases: dict[str, Case]) -> None:
                 f"   (reworded {stats['reworded']:.4f})"
             )
         print(line)
-    print(
+    note = (
         "  reworded counts any change of string, wording included, so it is an\n"
         "  upper bound on the note's reach and not an effect on the diagnosis.\n"
-        "  Under the canonical matcher, the correct arm may recover rows that\n"
-        "  were source-correct only under the generation-time matcher. Treat\n"
-        "  this as a fixed-cohort comparison, not a by-construction zero."
     )
+    if canonical_no_note_eligible:
+        note += (
+            "  This population requires canonical no-note correctness, so the\n"
+            "  no-note accuracy is 1.0 by construction. Compare each arm with\n"
+            "  that paired counterfactual baseline."
+        )
+    else:
+        note += (
+            "  Under the canonical matcher, the correct arm may recover rows that\n"
+            "  were source-correct only under the generation-time matcher. Treat\n"
+            "  this as a fixed-cohort comparison, not a by-construction zero."
+        )
+    print(note)
 
 
 def main() -> None:
@@ -257,6 +289,14 @@ def main() -> None:
         help="Drop cases whose 'wrong' suggestion names the gold under the "
         "scoring rule. They carry no intervention, and leaving them in "
         "biases every rate toward the null.",
+    )
+    parser.add_argument(
+        "--require-canonical-no-note-correct",
+        action="store_true",
+        help="Re-apply the no-note-correct eligibility rule after canonical "
+        "rescoring. This makes no-note accuracy 1.0 by construction and is "
+        "the paper's primary causal cohort; omit it only for the historical "
+        "fixed-cohort audit.",
     )
     parser.add_argument(
         "--dump",
@@ -338,11 +378,33 @@ def main() -> None:
         cases = {c: arms for c, arms in cases.items() if c not in set(collided)}
         print(f"  --exclude-collisions: {len(cases):,} cases remain")
 
+    if args.require_canonical_no_note_correct:
+        before = len(cases)
+        cases = require_canonical_no_note_correct(cases)
+        print(
+            "  --require-canonical-no-note-correct: "
+            f"{before:,} cases -> {len(cases):,}"
+        )
+        if not cases:
+            raise SystemExit("no canonically correct no-note cases remain")
+
     leaky = {c: arms for c, arms in cases.items() if arms["none"].get("gold_in_prompt")}
     clean = {c: arms for c, arms in cases.items() if not arms["none"].get("gold_in_prompt")}
-    report("all cases", cases)
-    report("chart does NOT name the gold", clean)
-    report("chart names the gold", leaky)
+    report(
+        "all cases",
+        cases,
+        canonical_no_note_eligible=args.require_canonical_no_note_correct,
+    )
+    report(
+        "chart does NOT name the gold",
+        clean,
+        canonical_no_note_eligible=args.require_canonical_no_note_correct,
+    )
+    report(
+        "chart names the gold",
+        leaky,
+        canonical_no_note_eligible=args.require_canonical_no_note_correct,
+    )
 
     if args.dump:
         import json
@@ -377,7 +439,11 @@ def main() -> None:
                 for c, arms in cases.items()
                 if str(arms.get("wrong", {}).get("suggestion_source") or "") == source
             }
-            report(f"suggestion from: {source}", subset)
+            report(
+                f"suggestion from: {source}",
+                subset,
+                canonical_no_note_eligible=args.require_canonical_no_note_correct,
+            )
 
     if "wrong" not in arms_in(cases):
         return

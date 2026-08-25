@@ -48,6 +48,7 @@ from scripts.analyze_hint_effect import (
     annotations_by_id,
     answer_names,
     group_by_case,
+    require_canonical_no_note_correct,
     lost_the_gold,
     took_the_hint,
 )
@@ -238,6 +239,12 @@ def main() -> None:
     )
     parser.add_argument("--cases", help="Hint case file, if the run predates carried arms.")
     parser.add_argument(
+        "--require-canonical-no-note-correct",
+        action="store_true",
+        help="Use only cases whose no-note answer is correct under the stored "
+        "canonical matcher before scoring any channel.",
+    )
+    parser.add_argument(
         "--cot-answers", nargs="+", help="Chain answers on the same cases, for the chain channel."
     )
     parser.add_argument(
@@ -264,6 +271,12 @@ def main() -> None:
     args = parser.parse_args()
 
     cases = group_by_case(args.answers, args.cases)
+    if args.require_canonical_no_note_correct:
+        before = len(cases)
+        cases = require_canonical_no_note_correct(cases)
+        print(f"[cohort] canonical no-note eligible: {len(cases):,}/{before:,}")
+        if not cases:
+            raise SystemExit("no canonically correct no-note cases remain")
     if args.restrict_diagnoses:
         wanted = {
             line.strip().lower()
