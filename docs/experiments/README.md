@@ -22,6 +22,9 @@ clean/eligible/silent 분모와 historical fixed cohort를 구분하고, 각 표
 어느 분모를 써야 하는지 고정한다.
 
 [`AUDIT_2026-08-24.md`](AUDIT_2026-08-24.md) — 인용 전 점검 목록과 채점기 수정 기록.
+[`RETRACTIONS.md`](RETRACTIONS.md) — 세웠다가 스스로 죽인 주장 전수. 계측
+붕괴와 해석 철회를 나눠 적고, 되풀이된 실패 방식 네 가지로 끝난다. 새 실험
+설계 전에 그 넷을 먼저 확인한다.
 
 **Camera-ready numbering (08-25):** 본문은 Table 1/Figure 2 행동, Table 2a/Figure 3
 궤적, Table 2b/Figure 4(a) 탐지, Table 3/Figure 4(b) 교정 순서다. AV 검증과
