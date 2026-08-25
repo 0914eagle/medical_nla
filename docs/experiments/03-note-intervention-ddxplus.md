@@ -3,7 +3,7 @@
 **질문**: 의뢰 소견서 한 줄이 진단을 바꾸는가. 바꾼다면 그것이 **제안 때문**인가
 **문장이 늘어서**인가.
 
-**상태**: ✅ 주 실행 four-arm canonical 완료.
+**상태**: ✅ canonical no-note-eligible primary 재집계 완료 (08-25).
 
 ---
 
@@ -51,16 +51,33 @@
 
 ## 표본
 
-- 케이스: **1,747**, `--correct-only` — 소견서 없이 **이미 맞힌** 케이스만.
-  원래 틀린 답은 소견서가 움직였다고 보일 수 없다.
-- Table 1 집계는 clean **n=1,220** (`gold_in_prompt=false`만 집계)
+- Generation-time matcher로 선택한 원 코호트는 **1,747**였고, canonical matcher로
+  no-note correctness를 다시 요구한 primary는 **1,729**다. 원래 틀린 답은
+  소견서가 움직였다고 보일 수 없으므로 primary에서는 제외한다.
+- Table 1 primary 집계는 clean **n=1,204** (`gold_in_prompt=false`만 집계)
+- 이전 1,747/1,220 값은 matcher 변경 민감도를 보이는 fixed-cohort audit다.
 - `gold_in_prompt` 플래그: 차트가 정답 진단명을 그대로 적은 케이스(가족력
   항목 등)는 생성물에서는 **버리지 않고 표시만** 하지만, clean Table 1에서는
   제외한다. 별도 층화 분석에는 유지한다. 단어 경계로 매칭한다 —
   단순 포함 검사는 "PE"(폐색전증 별칭)를 "the posterior as-**pe**-ct of the
   ankle" 안에서 찾아냈고, 표시된 34건 중 21건이 그 한 충돌이었다.
 
-## 결과 (Table 1)
+## Primary 결과 (Table 1, 08-25)
+
+Canonical matcher에서도 no-note 정답인 사례만 남긴다. 따라서 no-note 정확도는
+1.0 by construction이며 Figure 2(a)에서는 막대를 생략한다.
+
+| 코퍼스 | n | 위약 | **오답** | 정답 |
+|---|---:|---:|---:|---:|
+| DDXPlus clean | **1,204** | **.9460** | **.7625** | **.9302** |
+
+- 오답 소견서 총 비용 **23.75%p**, 위약 비용 **5.40%p**
+- 제안 고유 효과 **18.36%p**, 총 비용/위약 비용 **4.40×**
+- 정답 소견서도 **6.98%p**를 깎는다.
+- 전체 canonical-eligible `n=1,729`에서 moved **319**, 제안 채택 **89**,
+  제3 진단 이동 **230**이다.
+
+## Fixed-cohort 감사값 (이전 Table 1)
 
 | 코퍼스 | n | 소견서 없음 | 위약 | **오답** | 정답 |
 |---|---:|---:|---:|---:|---:|
@@ -83,7 +100,7 @@
 canonical no-note 정확도가 1이 아니다. `cases answered correctly with no note`
 대신 `originally selected as source-correct, canonically rescored`라고 쓴다.
 
-## 행동 분해 (canonical moved = 321)
+## 행동 분해 (fixed-cohort audit, moved = 321)
 
 | | n |
 |---|---:|

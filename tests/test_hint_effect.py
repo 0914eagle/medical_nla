@@ -6,6 +6,7 @@ import pytest
 
 from scripts.analyze_hint_effect import (
     group_by_case,
+    report,
     require_canonical_no_note_correct,
     summarize,
     summarize_population,
@@ -208,6 +209,20 @@ def test_canonical_no_note_filter_restores_the_causal_eligibility_rule(tmp_path)
     filtered = require_canonical_no_note_correct(cases)
 
     assert set(filtered) == {"eligible"}
+
+
+def test_report_explains_canonical_no_note_selection(tmp_path, capsys):
+    rows = arms(
+        "eligible", gold="Pneumonia", wrong="Bronchitis",
+        answers=("Pneumonia", "Bronchitis", "Pneumonia"),
+    )
+    cases = group_by_case(write(tmp_path, rows))
+
+    report("eligible", cases, canonical_no_note_eligible=True)
+
+    output = capsys.readouterr().out
+    assert "no-note accuracy is 1.0 by construction" in output
+    assert "fixed-cohort comparison" not in output
     assert summarize(filtered)["none"]["correct"] == 1.0
 
 

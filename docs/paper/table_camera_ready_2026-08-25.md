@@ -292,15 +292,16 @@ held-out 821행에서 판독은 gold보다 모델의 실제 답과 더 자주 �
 
 ## Table 1 — Intervention effect decomposition and replication (§4.1)
 
-> **Pending canonical eligibility refresh (08-25).** The values below are the
-> fixed cohorts selected by the generation-time matcher and canonically
-> rescored. The primary table will be recomputed after requiring canonical
-> no-note correctness (DDXPlus clean 1,204; non-overlap clean 2,137; MCR
-> 1,452). No-note accuracy will then be 1.0 by construction and will be omitted
-> from the displayed accuracy panel; these fixed-cohort values remain as an
-> appendix audit until the refresh is complete.
+> **Canonical eligibility refresh completed for the main DDXPlus and MCR
+> cohorts (08-25).** Primary rows now require canonical no-note correctness:
+> DDXPlus clean `n=1,204` and MCR `n=1,452`. No-note accuracy is therefore
+> 1.0 by construction and is omitted from Figure 2(a). The non-overlapping
+> DDXPlus row still awaits the same filter (`n=2,137` expected) and is left
+> blank rather than mixing cohort definitions. Older fixed-cohort values remain
+> appendix audit values.
 
-Figure 2(a)가 네 arm의 원시 정확도를 이미 인쇄하므로, 본문 표는 같은
+Figure 2(a)가 neutral/wrong/correct arm의 원시 정확도와 no-note=1 기준선을
+이미 인쇄하므로, 본문 표는 같은
 숫자를 반복하지 않고 인과 해석에 필요한 비용을 분해한다. 모든 숫자 열의
 단위는 percentage points (pp)다. `Non-overlapping replication`은 같은
 DDXPlus·같은 모델·같은 protocol이지만 main cohort와 base ID가 겹치지
@@ -308,21 +309,21 @@ DDXPlus·같은 모델·같은 protocol이지만 main cohort와 base ID가 겹�
 
 **Table 1.** Decomposition of the referral-note intervention. Raw arm
 accuracies are shown in Figure 2(a). Neutral insertion cost is
-`Acc(no note) - Acc(neutral)`; wrong-note total cost is
-`Acc(no note) - Acc(wrong)`; suggestion-specific cost is
+`1 - Acc(neutral)`; wrong-note total cost is
+`1 - Acc(wrong)`; suggestion-specific cost is
 `Acc(neutral) - Acc(wrong)`; and correct-note cost is
-`Acc(no note) - Acc(correct)`. Cohorts were originally selected as
-source-correct under the generation-time matcher and rescored with the
-canonical word-boundary matcher, so canonical no-note accuracy can be below 1.
+`1 - Acc(correct)`. Every primary row requires correctness under the canonical
+word-boundary matcher in the no-note condition.
 
 | Cohort | n | Neutral insertion cost (pp) | Wrong-note total cost (pp) | Suggestion-specific cost (pp) | Correct-note cost (pp) |
 |---|---:|---:|---:|---:|---:|
-| DDXPlus, main | 1,220 | 4.92 | 23.03 | **18.11** | 6.23 |
-| DDXPlus, non-overlapping replication | 2,192 | 4.70 | 20.67 | **15.97** | 6.48 |
-| MedCaseReasoning | 1,543ᵉ | 5.31 | 26.89 | **21.58** | 12.31 |
+| DDXPlus, main | **1,204** | **5.40** | **23.75** | **18.36** | **6.98** |
+| DDXPlus, non-overlapping replication | **2,137** | ▢ | ▢ | ▢ | ▢ |
+| MedCaseReasoning | **1,452**ᵉ | **6.61** | **29.34** | **22.73** | **16.12** |
 
-*The corresponding total-cost/neutral-cost ratios are 4.68×, 4.40×, and
-5.06×. Ratios are kept in the caption rather than mixed with pp-valued table
+*The corresponding total-cost/neutral-cost ratios are 4.40× for the main
+DDXPlus row and 4.44× for MedCaseReasoning; the non-overlapping row is pending
+canonical eligibility filtering. Ratios are kept in the caption rather than mixed with pp-valued table
 columns. Exact arm accuracies remain printed in Figure 2(a) and in the
 canonical results ledger. Paired case-bootstrap intervals for the pp
 differences are a pending statistical addition and are not imputed here.*
@@ -338,8 +339,10 @@ percentile로 95% CI를 만든다. 조건별 행을 따로 재표집하면 같�
 견고하다고 말할 수 있다. 현재 표는 점추정치만 보고하며 CI를 아직
 계산했다고 가정하지 않는다.
 
-ᵉ **모집단을 본문에 밝힌다 (08-24).** 1,543은 MCR 12,620건 중 소스 모델이
-소견서 없이 맞힌 전부다 — **정확도 0.122**. 이 행은 "MCR의 12%"가 아니라
+ᵉ **모집단을 본문에 밝힌다 (08-25).** 1,452는 MCR 12,620건 중 canonical
+matcher에서도 소스 모델이 소견서 없이 맞힌 사례다. Generation-time matcher로
+선정된 1,543건 중 91건이 canonical baseline eligibility에서 빠졌고, 전체
+12,620건 대비 canonical eligibility rate는 11.5%다. 이 행은
 "모델이 맞힐 수 있는 MCR"에 대한 결과이고, 그 조건은 DDXPlus 행과 같다
 (소견서로 답이 바뀌었음을 보이려면 원래 맞았어야 한다). 다만 절대 난이도는
 전혀 다르며 — DDXPlus 49클래스 대 MCR 6,934개 진단, 대부분 1회 등장 —
@@ -349,22 +352,23 @@ percentile로 95% CI를 만든다. 조건별 행을 따로 재표집하면 같�
 동일 fixed cohort에서 neutral/correct를 다시 실행·재채점해 `.9377/.9246`으로
 교체했다.
 
-*Under the canonical matcher, the wrong note costs 23.0 pp on the main
-DDXPlus run and 26.9 pp on MedCaseReasoning. In the non-overlapping DDXPlus
-replication it costs 20.67 pp against a 4.70 pp neutral cost: a 15.97 pp
-suggestion-specific effect and a 4.40× total-cost ratio. MCR's corresponding values are 21.58 pp
-and 5.06×. In the main DDXPlus run, the neutral cost is 4.92 pp and the
-suggestion-specific effect is 18.11 pp (4.68× total-cost ratio). A correct note
-still costs 6.23 pp, showing an intrusion cost independent of suggestion
-direction.*
+*After canonical baseline eligibility filtering, the wrong note costs 23.75 pp
+on the main DDXPlus run and 29.34 pp on MedCaseReasoning. The corresponding
+suggestion-specific effects are 18.36 and 22.73 pp, and the total-cost ratios
+relative to neutral insertion are 4.40× and 4.44×. A correct note still costs
+6.98 and 16.12 pp, showing an intrusion cost independent of suggestion
+direction. The non-overlapping DDXPlus replication is not compared until its
+canonical-eligible subset is recomputed.*
 
-**두 번째 행은 case-non-overlapping 행동 재현이다 (08-24).** corpus-300에서 주 실행의
+**두 번째 행의 fixed-cohort 감사값 (08-24).** corpus-300에서 주 실행의
 1,676개 base id를 제거한 뒤 남은 미관측 3,319건 중 clean 2,192건만 쓴다.
 오답 정확도 `.7682`는 중복을 포함한 clean 3,343건의 `.7670`과 0.12%p만
 다르고, 전체/위약 비용 비는 4.40×다. 따라서 효과가 주 실행과 겹친 사례에
 갇힌 결과가 아니다. 정답 소견서도 정확도를 6.48pp(.9749→.9101) 낮추며,
 MCR에서는 12.31pp(.9410→.8179) 낮춘다. 독립성 주장은 행동 효과에 한정하고,
-판독·프로브의 독립 재현까지 뜻하지 않는다.
+판독·프로브의 독립 재현까지 뜻하지 않는다. 다만 이 값은 아직 canonical
+no-note eligibility를 다시 적용하지 않은 fixed-cohort audit이며, Table 1의 빈
+primary row를 채우는 값으로 쓰지 않는다.
 
 **모든 DDXPlus 비율은 보수적 하한이다.** 답 파일이 `plausible_wrong`
 수정(d29b754) 이전에 생성되어, 오답 소견서가 정답을 부르는 케이스가
@@ -377,16 +381,19 @@ MCR에서는 12.31pp(.9410→.8179) 낮춘다. 독립성 주장은 행동 효과
 
 | Corpus | Moved | To the suggestion | To a third diagnosis |
 |---|---:|---:|---:|
-| DDXPlus | **321** | **91** | **230** |
-| MedCaseReasoning | **437** | **137** | **300** |
+| DDXPlus | **319** | **89** | **230** |
+| MedCaseReasoning | **427** | **127** | **300** |
 
-*DDXPlus sensitivity to an explicit gold name in the presentation.* Of the
-321 moved cases, 289/321 (90.0%) come from the clean subset that does not name
-the gold diagnosis (289/1,220 moved: 88 to the suggestion and 201 to a third
-diagnosis). The explicit-gold subset contributes 32/527 moved cases (3 to the
-suggestion and 29 to a third diagnosis). Thus the moved result is not driven
-by label-explicit prompts; the moved rate is lower when the presentation
-directly names the gold (6.1% versus 23.7%). Here `gold_in_prompt` denotes an
+*`Moved` is the union of losing the gold diagnosis and causally adopting the
+suggestion. In each corpus, one adopted-suggestion answer still retains a gold
+mention; hence wrong-arm errors are 318/1,729 and 426/1,452, while moved counts
+are 319 and 427. Do not describe every moved row as a correct-to-incorrect
+transition.*
+
+*The earlier fixed-cohort explicit-gold sensitivity was 289/321 moved cases
+from clean presentations. Its canonical-eligible replacement must be read from
+the new dump's `clean` and `leaky` moved blocks before citation; it is not
+inferred from the all-cohort total above. Here `gold_in_prompt` denotes an
 input-content stratum, not train-test leakage.*
 
 **Appendix Table A2.** Speaker/wording variants, DDXPlus,

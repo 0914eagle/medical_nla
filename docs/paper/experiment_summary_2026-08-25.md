@@ -1,9 +1,10 @@
 # 실험 전체 정리 (2026-08-25 기준)
 
-> **Primary cohort refresh pending.** Canonical matcher에서도 no-note 정답인
-> 사례만 남겨 DDXPlus 전체 1,729/clean 1,204, non-overlap clean 2,137, MCR
-> 1,452를 primary로 재집계한다. 아래 기존 수치는 완료 전까지 fixed-cohort audit로
-> 읽고 최종 인용하지 않는다.
+> **Primary behavior refresh completed for main DDXPlus and MCR (08-25).**
+> Canonical matcher에서도 no-note 정답인 DDXPlus 전체 1,729/clean 1,204와
+> MCR 1,452로 Figure 2 행동값을 재집계했다. Non-overlap clean 2,137과
+> trajectory/detection/correction/reader-trust 파생 분석은 아직 새 case ID로
+> 재계산해야 하며, 해당 기존 수치는 fixed-cohort audit로만 읽는다.
 
 한 장으로 보는 현황. 각 실험이 무엇을 보이는지 · 실측치 · 상태.
 상세 수치와 표 캡션은 `table_camera_ready_2026-08-25.md`. 문서 역할과
@@ -40,10 +41,10 @@
 
 | 실험 | 보이는 것 | 실측 | 상태 |
 |---|---|---|---|
-| 4조건 개입 (DDX 1,220 clean) | 소견서 한 줄이 답을 바꾼다 | **.9869/.9377/.7566/.9246** (none/neutral/wrong/correct); 오답 비용 **23.03%p** | ✅ |
+| 4조건 개입 (DDX 1,204 clean) | 소견서 한 줄이 답을 바꾼다 | none=1 by selection; neutral/wrong/correct **.9460/.7625/.9302**; 오답 비용 **23.75%p** | ✅ primary refresh |
 | 문구 변형 4종 | 화자를 갈아도 살아남는가 | canonical: 소견서 **.8117** / 동료 **.8168** / 환자 **.8672** / 실제형 **.7481** | ✅ |
-| corpus-300 independent replication | 미관측 표본에서도 같은 구조가 보이는가 | non-overlap clean n=2,192: **.9749/.9279/.7682/.9101** (none/neutral/wrong/correct), 제안 고유 비용 **15.97%p**, neutral의 **4.40배** | ✅ 행동 효과의 독립 재현 |
-| **MCR 1,543 (실제 증례)** | 합성 데이터 한정이 아니다 | **.9410/.8879/.6721/.8179**, 제안 고유 비용 **21.58%p**, neutral의 **5.06배** | ✅ 행동 재현·source-aligned 결론 판독; wrong-note 내부 영향 판별은 미실행 |
+| corpus-300 independent replication | 미관측 표본에서도 같은 구조가 보이는가 | canonical-eligible clean n=2,137 재집계 대기; fixed-cohort n=2,192 결과는 appendix audit | ▢ primary refresh |
+| **MCR 1,452 (실제 증례)** | 합성 데이터 한정이 아니다 | none=1 by selection; neutral/wrong/correct **.9339/.7066/.8388**, 제안 고유 비용 **22.73%p**, total/neutral **4.44배** | ✅ 행동 재현; wrong-note 내부 영향 판별은 미실행 |
 | CoT 전수 | 추론은 완화하나 소거하지 않는가 | canonical 소견서 비용 **−17.80 → −4.46%p** | ✅ |
 | CoT의 일반 정확도 비용 | 추론이 정확도를 해치는가 | **중립** — 비선택 표본 320건에서 .3375 vs .3187, p=0.50. 개입 파일의 −17.66%p는 **직답 정답 케이스만 고른 집합**이라 인용 금지 | ✅ 중립 |
 | CoT가 맞힌 답을 흔든다 | 선택 집합에서 무슨 일이 있나 | 직답 정답 1,747건 중 **25.1%**에서 답이 바뀌고 **747 오답 : 130 구제** | ✅ (선택 집합 명시 조건) |
@@ -110,13 +111,14 @@ thigh(R) 류)에 몰려 있어 표에는 값과 분해를 함께 싣는다.
 
 | | n | 무소견서 | 위약 | 오답 | 위약이 깎음 | 오답이 깎음(전체) | 제안 고유 몫 |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| DDXPlus clean | 1,220 | **1,204** | **1,144** | **923** | **60** | **281** | **221** |
-| DDXPlus independent clean | 2,192 | **2,137** | **2,034** | **1,684** | **103** | **453** | **350** |
-| MCR | 1,543 | **1,452** | **1,370** | **1,037** | **82** | **415** | **333** |
+| DDXPlus clean primary | **1,204** | **1,204** | **1,139** | **918** | **65** | **286** | **221** |
+| DDXPlus independent clean | **2,137** | **2,137** | ▢ | ▢ | ▢ | ▢ | ▢ |
+| MCR primary | **1,452** | **1,452** | **1,356** | **1,026** | **96** | **426** | **330** |
 
-DDXPlus main clean의 canonical neutral 값은 1,144/1,220이며, 제안 고유 비용은
-221/1,220이다. 독립 행은 corpus-300에서 주 실행의 1,676개 base id를 제거한
-미관측 clean 2,192건이다.
+DDXPlus primary clean의 neutral 정답은 1,139/1,204, wrong 정답은 918/1,204다.
+따라서 neutral insertion이 잃은 65건과 wrong note가 잃은 286건의 차이인
+221/1,204가 제안 고유 비용이다. 독립 행은 canonical eligibility 재집계 전까지
+fixed-cohort audit로만 남긴다.
 
 **나머지 주요 수치의 분자/분모**
 
@@ -126,10 +128,8 @@ DDXPlus main clean의 canonical neutral 값은 1,144/1,220이며, 제안 고유 
 | 설득 — 제안이 엉뚱할 때 (MCR) | 32 / 182 | 17.6% |
 | 설득 — 동료 화자 (DDX) | 107 / 305 | 35.1% |
 | 설득 — 환자 화자 (DDX) | 17 / 224 | 7.6% |
-| 답 바뀜 중 인과적 제안 채택 (DDX / MCR) | **91 / 321** · **137 / 437** | **28.3% · 31.4%** |
-| DDX moved 중 clean presentation | **289 / 321** | **90.0%** |
-| Clean / explicit-gold moved rate | **289 / 1,220** · **32 / 527** | **23.7% · 6.1%** |
-| Clean moved 중 제3 진단 이동 | **201 / 289** | **69.6%** |
+| 답 바뀜 중 인과적 제안 채택 (DDX / MCR) | **89 / 319** · **127 / 427** | **27.9% · 29.7%** |
+| DDX canonical clean / explicit-gold moved 분해 | 새 dump의 subgroup moved block 필요 | **인용 대기** |
 | 어느 랜드마크에서도 제안이 top-1이 아님 | **266 / 321** | **82.9%** |
 | 제안이 한 번도 top-1이 아니며 정답이 계속 top-1 | **151 / 321** | **47.0%** |
 | 제안이 한 번도 top-1이 아니며 다른 진단이 top-1 | **115 / 321** | **35.8%** |

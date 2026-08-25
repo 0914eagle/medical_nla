@@ -181,35 +181,37 @@ CoT 모니터(#1)와 같은 판정자이므로 두 결과는 같은 채점자 �
 
 ## 3. Table 1 · Figure 2 — 개입 정확도와 moved destination (§4.1)
 
-> **08-25 primary-cohort 결정.** 아래 1,747/1,220 수치는 generation-time
-> matcher로 선택한 fixed cohort를 canonical matcher로 재채점한 감사값이다.
-> 논문 primary는 canonical no-note-correct를 다시 요구해 전체 1,729, clean
-> 1,204로 재집계한다. 새 moved·arm 수치가 나오기 전까지 아래 값을 최종 primary로
-> 인용하지 않는다. 기존 값은 fixed-cohort sensitivity로 보존한다.
+> **08-25 primary-cohort 재집계 완료.** Canonical matcher에서도 no-note 정답인
+> 사례를 다시 요구해 DDXPlus 전체 1,729/clean 1,204, MCR 1,452로 Figure 2
+> 행동값을 갱신했다. 아래 새 값이 primary다. Generation-time fixed cohort의
+> 1,747/1,220 및 MCR 1,543 값은 sensitivity audit로 보존한다. 궤적·탐지·교정
+> 파생 분석은 새 case ID 재계산 전까지 여전히 fixed-cohort audit다.
 
 `analyze_hint_effect.py`, 재채점 파일.
 
-### DDXPlus, clean n=1,220 (차트가 정답을 적지 않은 케이스)
+### DDXPlus, canonical-eligible clean n=1,204
 
 | 조건 | 정확도 |
 |---|---:|
-| 소견서 없음 | **.9869** |
-| 위약 | **.9377** |
-| **오답** | **.7566** |
-| 정답 | **.9246** |
+| 소견서 없음 | **1.0000** (선정 조건; 그림에서는 생략) |
+| 위약 | **.9460** |
+| **오답** | **.7625** |
+| 정답 | **.9302** |
 
-- 오답 비용 **23.03%p** · 위약 비용 **4.92%p** → **4.68배**
-- 제안 고유 효과 **18.11%p**
-- **정답을 부르는 소견서도 6.23%p를 깎는다** — 침입 비용은 제안 방향과 무관
+- 오답 비용 **23.75%p** · 위약 비용 **5.40%p** → **4.40배**
+- 제안 고유 효과 **18.36%p**
+- **정답을 부르는 소견서도 6.98%p를 깎는다** — 침입 비용은 제안 방향과 무관
 
-### DDXPlus, 전체 n=1,747
+### DDXPlus, canonical-eligible 전체 n=1,729
 
 | 없음 | 위약 | 오답 | 정답 |
 |---:|---:|---:|---:|
-| .9897 | .9405 | .8117 | .9330 |
+| 1.0000 | .9468 | .8161 | .9370 |
 
-### Explicit-gold-name 민감도 분석
+### Explicit-gold-name 민감도 분석 — fixed-cohort audit
 
+아래 값은 이전 1,747 fixed cohort의 감사값이며, 새 1,729 primary의 subgroup
+dump를 확인하기 전에는 primary 민감도 분석으로 인용하지 않는다.
 `gold_in_prompt`는 train-test leakage가 아니라 presentation에 정답 진단명 또는
 alias가 직접 등장하는지를 표시한다. 전체 moved 321건의 분해는 다음과 같다.
 
@@ -225,15 +227,32 @@ Moved의 289/321(90.0%)이 clean subset에서 발생하고, clean moved 중
 6.1%로 낮아, presentation이 정답을 직접 명명할 때 wrong note의 영향이
 약해지는 이질성이 관측된다.
 
-### MedCaseReasoning, n=1,543
+### MedCaseReasoning, canonical-eligible n=1,452
 
 | 없음 | 위약 | 오답 | 정답 |
 |---:|---:|---:|---:|
-| **.9410** | **.8879** | **.6721** | **.8179** |
+| **1.0000** | **.9339** | **.7066** | **.8388** |
 
-- 오답 비용 **26.89%p** · 위약 **5.31%p** → **5.06배**, 제안 고유 **21.58%p**
-- 모집단: MCR 12,620건 중 소스 모델이 맞힌 **1,543건 = 정확도 .122**
-- 제안 출처별: confusion n=849 (오답 .6490), neighbor n=694 (.7003)
+- 오답 비용 **29.34%p** · 위약 **6.61%p** → **4.44배**, 제안 고유 **22.73%p**
+- 모집단: generation-time source-correct 1,543건 중 canonical matcher에서도
+  no-note 정답인 **1,452건**
+- 제안 출처별: confusion n=789 (오답 .6882), neighbor n=663 (.7285)
+
+### Canonical moved destination
+
+| Corpus | n | moved | to suggestion | to third diagnosis |
+|---|---:|---:|---:|---:|
+| DDXPlus | 1,729 | **319** | **89** | **230** |
+| MedCaseReasoning | 1,452 | **427** | **127** | **300** |
+
+DDXPlus moved의 72.1%(230/319), MCR moved의 70.3%(300/427)는 제안명을
+복사하지 않고 제3 진단으로 이동한다. 따라서 출력에서 suggestion 문자열만
+찾는 규칙은 moved 원인의 대부분을 놓친다.
+
+`moved = lost_gold OR causally_adopted_suggestion`이다. 각 코퍼스에서 1건은
+gold를 유지하면서 suggestion도 새로 언급했기 때문에 wrong-arm 오답은
+DDXPlus 318건/MCR 426건이지만 moved는 319/427이다. 따라서 moved 전부를
+“정답에서 오답으로 바뀐 사례”라고 부르지 않는다.
 
 ### corpus-300, clean n=3,343
 

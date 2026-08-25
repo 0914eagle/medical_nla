@@ -1,10 +1,10 @@
 # 논문 문서 안내 — 현재 정본
 
-> **08-25 재집계 진행 중.** No-note correctness를 canonical matcher로 다시
-> 적용하기로 결정했다. 현재 문서의 DDXPlus 1,747/1,220, MCR 1,543 기반 행동·
-> moved·trajectory·detection·correction 수치는 generation-time fixed cohort의
-> 감사값이다. Primary 수치는 canonical no-note-correct cohort로 CPU 재집계한 뒤
-> 교체한다. 재집계 완료 전에는 기존 수치를 최종치로 인용하지 않는다.
+> **08-25 행동 재집계 완료, 파생 분석 진행 중.** Canonical no-note correctness를
+> 다시 요구한 DDXPlus 전체 1,729/clean 1,204와 MCR 1,452에서 Figure 2 행동값을
+> 갱신했다. Non-overlap replication과 trajectory/detection/correction/reader-trust는
+> 아직 새 case ID로 다시 계산해야 한다. 그 파생 결과의 1,747/321 및 1,543/437
+> 수치는 완료 전까지 generation-time fixed-cohort 감사값으로만 인용한다.
 
 이 폴더의 논문 서사는 **현상 우선**이다. 주인공은 NLA 자체가 아니라,
 의뢰 소견서의 의심 진단이 의료 LLM의 출력은 바꾸지만 내부 정답 신호를
@@ -59,8 +59,8 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 
 | 주장 | 현재 근거 | 주장 가능한 범위 |
 |---|---|---|
-| 오답 소견서가 진단을 움직인다 | DDXPlus main −23.03 pp; 3× larger run −21.30 pp; MCR −26.89 pp | 행동 효과는 두 코퍼스 |
-| moved 결과는 explicit-gold 행이 만든 것이 아니다 | DDXPlus moved 321 중 clean **289(90.0%)**; clean moved 중 third diagnosis **201/289(69.6%)** | `gold_in_prompt`는 input-content 층화이지 train-test leakage가 아님 |
+| 오답 소견서가 진단을 움직인다 | canonical-eligible DDXPlus main **−23.75 pp**; MCR **−29.34 pp** | 행동 효과는 두 코퍼스; non-overlap primary refresh 대기 |
+| moved의 다수는 제안 복사가 아니다 | DDXPlus **230/319(72.1%)**, MCR **300/427(70.3%)**가 제3 진단으로 이동 | clean/explicit-gold canonical 분해는 새 dump 확인 대기 |
 | corpus-300은 이제 독립 재현이다 | 주 실행 id를 뺀 **미관측 3,319**(clean 2,192)에서 오답 조건 **.7682** vs 초집합 .7670 — 0.12 pp 차 | 행동 효과에 한정; 사다리도 r5−r4 +15.94 pp로 재현 |
 | suggestion이 내부 top-1을 대개 차지하지 못한다 | moved 321건 중 266건(82.9%)에서 suggestion이 어느 landmark에서도 top-1이 아님 | 그중 gold throughout 151, third-diagnosis path 115 |
 | 소견서는 내부 gold signal을 행동별로 다르게 낮춘다 | final Δ: 유지 **−.007**, 제3 진단 **−.055**, 제안 채택 **−.195** | DDXPlus, 49-class cross-fit probe |

@@ -232,7 +232,12 @@ def summarize_population(cases: dict[str, Case]) -> dict[str, Any]:
     return result
 
 
-def report(name: str, cases: dict[str, Case]) -> None:
+def report(
+    name: str,
+    cases: dict[str, Case],
+    *,
+    canonical_no_note_eligible: bool = False,
+) -> None:
     if not cases:
         print(f"\n{name}: no cases")
         return
@@ -246,13 +251,23 @@ def report(name: str, cases: dict[str, Case]) -> None:
                 f"   (reworded {stats['reworded']:.4f})"
             )
         print(line)
-    print(
+    note = (
         "  reworded counts any change of string, wording included, so it is an\n"
         "  upper bound on the note's reach and not an effect on the diagnosis.\n"
-        "  Under the canonical matcher, the correct arm may recover rows that\n"
-        "  were source-correct only under the generation-time matcher. Treat\n"
-        "  this as a fixed-cohort comparison, not a by-construction zero."
     )
+    if canonical_no_note_eligible:
+        note += (
+            "  This population requires canonical no-note correctness, so the\n"
+            "  no-note accuracy is 1.0 by construction. Compare each arm with\n"
+            "  that paired counterfactual baseline."
+        )
+    else:
+        note += (
+            "  Under the canonical matcher, the correct arm may recover rows that\n"
+            "  were source-correct only under the generation-time matcher. Treat\n"
+            "  this as a fixed-cohort comparison, not a by-construction zero."
+        )
+    print(note)
 
 
 def main() -> None:
@@ -375,9 +390,21 @@ def main() -> None:
 
     leaky = {c: arms for c, arms in cases.items() if arms["none"].get("gold_in_prompt")}
     clean = {c: arms for c, arms in cases.items() if not arms["none"].get("gold_in_prompt")}
-    report("all cases", cases)
-    report("chart does NOT name the gold", clean)
-    report("chart names the gold", leaky)
+    report(
+        "all cases",
+        cases,
+        canonical_no_note_eligible=args.require_canonical_no_note_correct,
+    )
+    report(
+        "chart does NOT name the gold",
+        clean,
+        canonical_no_note_eligible=args.require_canonical_no_note_correct,
+    )
+    report(
+        "chart names the gold",
+        leaky,
+        canonical_no_note_eligible=args.require_canonical_no_note_correct,
+    )
 
     if args.dump:
         import json
@@ -412,7 +439,11 @@ def main() -> None:
                 for c, arms in cases.items()
                 if str(arms.get("wrong", {}).get("suggestion_source") or "") == source
             }
-            report(f"suggestion from: {source}", subset)
+            report(
+                f"suggestion from: {source}",
+                subset,
+                canonical_no_note_eligible=args.require_canonical_no_note_correct,
+            )
 
     if "wrong" not in arms_in(cases):
         return

@@ -64,12 +64,21 @@ if rescore "$C300_RAW" "$C300_RES"; then
   note "full corpus-300 (this is the .9800/.9306/.7670/.9180 row)"
   run python scripts/analyze_hint_effect.py --answers "$C300_RES" \
       --dump "$REPORTS/hint_effect_c300.json"
+  note "full corpus-300, canonical no-note-eligible primary sensitivity"
+  run python scripts/analyze_hint_effect.py --answers "$C300_RES" \
+      --require-canonical-no-note-correct \
+      --dump "$REPORTS/hint_effect_c300_canonical_eligible.json"
   if have "$MAIN_RES"; then
     note "non-overlap only -- corpus-300 holds 1,676 of the main run's 1,747"
     note "cases, so only the remainder is a second look at anything."
     run python scripts/analyze_hint_effect.py --answers "$C300_RES" \
         --exclude-from "$MAIN_RES" \
         --dump "$REPORTS/hint_effect_c300_nonoverlap.json"
+    note "non-overlap only, canonical no-note-eligible primary replication"
+    run python scripts/analyze_hint_effect.py --answers "$C300_RES" \
+        --exclude-from "$MAIN_RES" \
+        --require-canonical-no-note-correct \
+        --dump "$REPORTS/hint_effect_c300_nonoverlap_canonical_eligible.json"
   fi
 fi
 # The ladder half of the same question. The archived non-overlap run found the

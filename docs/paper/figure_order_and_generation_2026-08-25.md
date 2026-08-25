@@ -25,17 +25,18 @@ AV validation은 Appendix Table A1이다. Discussion의 도구 선택표는 번�
 
 생성 코드: `scripts/make_figure_intervention.py`.
 
-- **(a) four-arm accuracy**: no/neutral/wrong/correct referral note. Gold가 chart에
+- **(a) three displayed intervention arms**: neutral/wrong/correct referral note.
+  No-note는 canonical eligibility 선정 조건이라 1.0 기준선으로만 표시한다. Gold가 chart에
   노출되지 않은 `clean` cohort를 쓴다. Wrong만 낮고 neutral은 덜 낮아야 단순
   문장 삽입 비용이 아니라 suggestion-specific effect로 읽을 수 있다.
-- **(b) moved destination**: 전체 source-correct cohort에서 causally moved된 답을
-  suggestion 채택과 제3 진단 이동으로 나눈다. DDXPlus 91/230, MCR 137/300이다.
+- **(b) moved destination**: 전체 canonical no-note-correct cohort에서 causally
+  moved된 답을 suggestion 채택과 제3 진단 이동으로 나눈다. DDXPlus **89/230**,
+  MCR **127/300**이다.
 
-DDXPlus moved 321건의 explicit-gold 민감도 분해는 clean `289/1,220`
-(suggestion 88, third diagnosis 201) 대 explicit-gold `32/527`
-(suggestion 3, third diagnosis 29)이다. 즉 moved의 289/321(90.0%)이 clean에서
-발생하고 clean에서도 제3 진단 이동이 201/289(69.6%)다. Figure 2(b)는 정본
-전체 321건을 유지하고 이 분해는 캡션에 적는다.
+DDXPlus canonical moved는 **319/1,729**이고 그중 suggestion 채택 89, 제3 진단
+이동 230이다. Clean/explicit-gold 민감도 분해는 새 dump의 subgroup moved
+block을 확인한 뒤 캡션에 넣는다. 이전 fixed-cohort 분해(289/321 대 32/527)를
+새 primary 분해처럼 재사용하지 않는다.
 
 **중요:** (a)와 (b)는 분모가 다르다. 코드 기본값이 각각 `clean`과 `all`이며,
 각 패널 x축에 n을 따로 인쇄한다. 두 패널 n을 같은 모집단처럼 설명하지 않는다.
@@ -71,6 +72,13 @@ python scripts/make_figure_intervention.py \
 none 막대를 반복하지 않는다. `--omit-no-note`는 1.0 기준선을 대신 그리고, dump의
 none accuracy가 실제로 1.0이 아니면 오류로 중단한다. 기존 generation-time fixed
 cohort를 감사 목적으로 재현할 때만 두 옵션을 생략한다.
+
+**현재 primary 패널 값**: DDXPlus clean `n=1,204`에서 neutral/wrong/correct
+`.9460/.7625/.9302`; MCR `n=1,452`에서 `.9339/.7066/.8388`. Figure 2(b)는
+DDXPlus `319=89+230`, MCR `427=127+300`을 표시해야 한다.
+Moved는 `lost_gold OR causally_adopted_suggestion`이므로 각 코퍼스의 1건처럼
+gold를 유지한 채 suggestion을 추가한 사례도 포함한다. 패널 제목과 캡션은
+“all answers became wrong”이 아니라 **causally affected/moved**로 쓴다.
 
 ## 3. Figure 3 — Internal trajectory
 
