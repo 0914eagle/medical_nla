@@ -38,6 +38,10 @@ def normalize_text(value: str) -> str:
     return " ".join(value.casefold().split())
 
 
+def clean_label(value: str) -> str:
+    return " ".join(value.split())
+
+
 def strip_node_suffix(key: str) -> str:
     return NODE_RE.sub("", key).strip()
 
@@ -57,7 +61,7 @@ def read_official_vocab(path: Path | None) -> tuple[dict[str, str], set[str]]:
     pdds = sorted({row["PDD"].strip() for row in rows if row.get("PDD", "").strip()})
     by_casefold: dict[str, str] = {}
     for pdd in pdds:
-        key = pdd.casefold()
+        key = normalize_text(pdd)
         if key in by_casefold and by_casefold[key] != pdd:
             raise ValueError(f"Ambiguous case-insensitive PDD labels: {by_casefold[key]!r}, {pdd!r}")
         by_casefold[key] = pdd
@@ -97,7 +101,7 @@ def extract_annotation(
     if len(root_keys) != 1:
         raise ValueError(f"Expected one annotation root, found {len(root_keys)}")
 
-    annotation_root = strip_node_suffix(root_keys[0])
+    annotation_root = clean_label(strip_node_suffix(root_keys[0]))
     chain_preorder: list[str] = []
     deductions: list[dict[str, Any]] = []
     node_count = 0
@@ -109,6 +113,8 @@ def extract_annotation(
             raise ValueError(f"Annotation key has no node suffix: {key!r}")
         node_count += 1
         content = strip_node_suffix(key)
+        if kind == "Intermedia":
+            content = clean_label(content)
         if kind == "Intermedia":
             chain_preorder.append(content)
         if kind == "Input":
@@ -181,7 +187,11 @@ def build_row(
     annotation_root, chain, deductions, node_count = extract_annotation(
         payload, note_sections
     )
-    canonical_pdd = official_pdds.get(annotation_root.casefold()) if official_pdds else annotation_root
+    canonical_pdd = (
+        official_pdds.get(normalize_text(annotation_root))
+        if official_pdds
+        else annotation_root
+    )
 
     patient_match = PATIENT_RE.match(path.stem)
     patient_group = (
@@ -226,6 +236,15 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 
 def write_summary(path: Path, rows: list[dict[str, Any]], failures: int) -> None:
     canonical_counts = Counter(row["canonical_pdd"] or "<unresolved>" for row in rows)
+    unresolved_counts = Counter(
+        (
+            row["disease_category"],
+            row["folder_pdd"] or "<none>",
+            row["annotation_root_diagnosis"],
+        )
+        for row in rows
+        if not row["canonical_pdd_resolved"]
+    )
     duplicate_counts = Counter(row["input_digest"] for row in rows)
     duplicate_rows = sum(count for count in duplicate_counts.values() if count > 1)
     deductions = [item for row in rows for item in row["gold_deductions"]]
@@ -262,6 +281,20 @@ def write_summary(path: Path, rows: list[dict[str, Any]], failures: int) -> None
         "|---|---:|",
     ]
     lines.extend(f"| {label} | {count} |" for label, count in canonical_counts.most_common())
+    if unresolved_counts:
+        lines.extend(
+            [
+                "",
+                "## Unresolved Annotation Roots",
+                "",
+                "| category | folder PDD | annotation root | n |",
+                "|---|---|---|---:|",
+            ]
+        )
+        lines.extend(
+            f"| {category} | {folder_pdd} | {root} | {count} |"
+            for (category, folder_pdd, root), count in unresolved_counts.most_common()
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
