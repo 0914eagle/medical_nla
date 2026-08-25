@@ -19,5 +19,10 @@ reports/
 *.safetensors
 *.bin
 *.ckpt
+*.rar
+
+# Restricted clinical datasets must remain outside version control.
+data/direct_restricted/
+datasets/direct_restricted/
 
 .DS_Store
