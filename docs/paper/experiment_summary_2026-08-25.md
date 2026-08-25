@@ -46,7 +46,7 @@
 | 문구 변형 4종 | 화자를 갈아도 살아남는가 | 동일 clean 1,204건의 wrong accuracy: 소견서 **.7625** / 동료 **.7757** / 환자 **.8480** / 실제형 **.6877**; paired 비용 23.75/21.93/14.45/30.40%p | ✅ primary refresh |
 | corpus-300 independent replication | 미관측 표본에서도 같은 구조가 보이는가 | canonical-eligible clean n=2,137 재집계 대기; fixed-cohort n=2,192 결과는 appendix audit | ▢ primary refresh |
 | **MCR 1,452 (실제 증례)** | 합성 데이터 한정이 아니다 | none=1 by selection; neutral/wrong/correct **.9339/.7066/.8388**, 제안 고유 비용 **22.73%p**, total/neutral **4.44배** | ✅ 행동 재현; wrong-note 내부 영향 판별은 미실행 |
-| CoT 전수 | 추론은 완화하나 소거하지 않는가 | 동일 clean 1,204 ID에서 소견서 비용 **−23.75 → −4.40%p**; Direct no-note=1 by selection, CoT no-note=.7068 | ✅ primary refresh |
+| CoT 전수 | 추론 조건에서도 효과가 남는가 | Direct-selected clean 1,204 ID에서 소견서 비용 **−23.75 vs −4.40%p**; Direct no-note=1 by selection, CoT no-note=.7068. CoT 완화의 정식 비교가 아니라 탐색적 관찰 | ⚠️ matched 2×2 대기 |
 | CoT의 일반 정확도 비용 | 추론이 정확도를 해치는가 | 비선택 표본 320건에서 .3375 vs .3187, exact p=.50로 차이를 검출하지 못함. 동등성 증명은 아니며, 개입 파일의 baseline 차이는 **직답 정답 케이스만 고른 집합**이라 일반 정확도 효과로 인용 금지 | ✅ 차이 미검출 |
 | CoT가 맞힌 답을 흔든다 | 선택 집합에서 무슨 일이 있나 | 1,747 base case × 2 note arms = 3,494 paired prompt instances 중 정오 불일치 **877(25.1%)**; CoT가 깬 747 : 구한 130 | ✅ (단위 명시) |
 | 체인의 소견서 영향 판별 (전수) | 규칙 기반 채점기 3종 | **0.50–0.53** (동전 던지기) | ✅ |

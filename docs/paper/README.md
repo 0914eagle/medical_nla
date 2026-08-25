@@ -138,7 +138,8 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 
 1. ~~wording과 CoT 파생 실행을 동일 canonical clean cohort로 재집계한다.~~
    **완료 (08-25, n=1,204)** — wrong accuracy `.7625/.7757/.8480/.6877`,
-   paired 비용 `23.75/21.93/14.45/30.40%p`; CoT 이중성 **23.75 → 4.40%p**.
+   paired 비용 `23.75/21.93/14.45/30.40%p`; Direct-selected CoT gap은
+   **4.40%p**이나 matched 2×2 전에는 완화 효과로 해석하지 않는다.
 2. ~~Table 2a의 행동군 Δ 차이에 paired CI 또는 추세 검정을 추가한다.~~
    **계기 완료** (`src/paired_stats.py`) — 궤적 재실행에서 값이 나온다.
 3. ~~reader-trust 2,896 완주와 shuffled 통제.~~ **canonical 재집계 완료 (08-25)**:
@@ -175,6 +176,11 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
     제안이 함께 바뀐 총효과다. 같은 길이와 레지스터의 neutral referral note를
     paired 비교하기 전에는 짧은 referral 대비 추가 6.65%p를 현실성 또는 제안
     내용의 독립 효과로 쓰지 않는다.
+13. **Direct×CoT matched 2×2 비교를 실행한다.** 현재 1,204건은 Direct-none 정답으로
+    선정되어 `23.75%p vs 4.40%p`가 selection bias와 floor effect를 포함한다.
+    정답 여부로 고르지 않은 공통 cohort에서 difference-in-differences를, 두
+    no-note가 모두 정답인 shared-solvable subset에서 harmful flip을 paired
+    비교하기 전에는 CoT가 anchoring을 완화한다고 확정하지 않는다.
 
 전체 의존관계와 Overleaf 이전 순서는
 [`submission_roadmap_to_overleaf_2026-08-25.md`](submission_roadmap_to_overleaf_2026-08-25.md)를

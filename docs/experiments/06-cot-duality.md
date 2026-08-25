@@ -2,8 +2,10 @@
 
 **질문**: 추론을 시키면 앵커링이 막히는가.
 
-**상태**: ✅ 전수 생성 및 canonical matcher 재집계 완료. 이전 보고의
-"CoT가 무력화"는 n=381의 과대평가였고, 전수 정본에서는 "완화"로 정정됐다.
+**상태**: ⚠️ Direct-selected cohort의 탐색적 재집계 완료. 이전 보고의
+"CoT가 무력화"는 n=381의 과대평가였지만, 현재 1,204건만으로는 CoT가
+anchoring을 완화한다고 정식 비교할 수 없다. Direct/CoT 2×2 matched 비교가 남아
+있다.
 
 ---
 
@@ -34,14 +36,21 @@ arm 간 차이를 만들 수 없다.
 | moved | 287 | 220 |
 | 제안 채택률, moved 중 | 30.0% | **49.1%** |
 
-## 읽는 법
+## 읽는 법 — 탐색적 관찰
 
-**추론은 arm 간 피해를 약 1/5로 줄이지만 없애지 못한다.** 그리고 **채택률은 오히려
-늘어난다** — 답이 덜 바뀌는데, 바뀔 때는 제안 쪽으로 더 자주 간다.
+이 Direct-selected 집합에서는 CoT의 none-to-wrong gap이 4.40%p로 Direct의
+23.75%p보다 작게 관측됐다. 그러나 이것만으로 **추론이 피해를 약 1/5로 줄인다**고
+말할 수 없다. Direct no-note 정답으로 사례를 골랐기 때문에 Direct는 1.0에서
+시작하지만 CoT는 이미 .7068이고, CoT에는 wrong note가 추가로 망가뜨릴 여지가
+작은 floor effect가 생길 수 있다.
 
-추론은 **방패인 동시에 합리화의 지면**이다. 이 이중성이 §4.2가 CoT를 해법으로
-제시하지 않는 이유이고, [07](07-chain-attribution-rule-based.md)·[08](08-cot-llm-monitor.md)이
-"그 지면에 원인이 적히는가"를 따로 묻는 이유다.
+채택률도 Direct 30.0%, CoT 49.1%로 관측됐지만 moved 분모가 서로 다르다. 따라서
+현재 결과는 `CoT 조건에서도 anchoring과 suggestion adoption이 남는다`는
+탐색적 관찰이지, CoT가 더 강건하거나 더 순응적이라는 정식 비교가 아니다.
+
+CoT가 **방패인 동시에 합리화의 지면일 가능성**은 남지만, 방패의 크기는 아래
+confirmatory experiment 전에는 확정하지 않는다. [07](07-chain-attribution-rule-based.md)·
+[08](08-cot-llm-monitor.md)은 별도로 "그 지면에 원인이 적히는가"를 묻는다.
 
 **Table/Figure에서의 역할**: 이 결과는 CoT가 정답을 보장하는지 묻는 표가
 아니라, 같은 오답 소견서 개입의 행동 효과가 응답 모드에 따라 어떻게 달라지는지
@@ -99,3 +108,45 @@ CoT는 내려갈 곳밖에 없다.
   다시 기록한다.~~ **완료 (08-25: −23.75 → −4.40%p, n=1,204)**
 - ~~CoT 문구 효과와 decoding 변동 분리~~ **완료** — 위 「재현 조건」이
   greedy·deterministic임을 명시한다.
+- ▢ **Direct × CoT matched 2×2 confirmatory experiment**를 실행한다.
+
+### Confirmatory 2×2 설계
+
+같은 base ID에 다음 네 출력을 모두 요구한다.
+
+| generation | no note | wrong note |
+|---|---|---|
+| Direct | Direct-none | Direct-wrong |
+| CoT | CoT-none | CoT-wrong |
+
+환자 presentation, source checkpoint, chat template, wrong-note 문장, answer format,
+greedy decoding은 동일하게 두고 instruction과 CoT token budget만 사전 정의대로
+다르게 한다. CoT가 budget 안에 closing answer를 내지 못한 `answer_forced` 사례는
+표시하고, 제외/포함 민감도 분석을 함께 보고한다.
+
+두 모집단은 서로 다른 질문에 답한다.
+
+1. **Unbiased common cohort**: gold가 prompt에 직접 없고 네 셀이 모두 정상
+   파싱되며 같은 base ID를 갖는 사례. 정답 여부로 선정하지 않는다. 여기서 네 셀의
+   accuracy와 difference-in-differences를 계산한다.
+2. **Shared-solvable cohort**: Direct-none과 CoT-none이 모두 정답인 교집합.
+   두 방법 모두 no-note accuracy가 1.0이므로 wrong note 뒤 harmful flip rate를
+   직접 비교한다.
+
+주 interaction은 다음과 같다.
+
+```text
+Direct effect = Acc(Direct-wrong) - Acc(Direct-none)
+CoT effect    = Acc(CoT-wrong)    - Acc(CoT-none)
+Interaction   = CoT effect - Direct effect
+```
+
+양의 interaction은 CoT에서 note-induced accuracy loss가 더 작다는 뜻이다. 같은
+사례를 네 번 쓰므로 case-level paired bootstrap 95% CI와 paired permutation test를
+사용한다. No-note/wrong-note accuracy, harmful flip, suggestion adoption,
+third-diagnosis movement, newly corrected, answer-forced rate를 모두 같은 공통
+cohort에서 보고한다.
+
+먼저 기존 출력에서 네 셀이 겹치는 전체 gold-absent 공통 cohort를 재분석한다.
+기존 unbiased 320건은 코드와 통계 검증용 예비 분석으로만 쓰고, coverage가 부족한
+셀만 새 GPU 생성으로 보완한다.

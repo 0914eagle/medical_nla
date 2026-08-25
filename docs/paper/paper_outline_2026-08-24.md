@@ -160,9 +160,10 @@ cross-fitted linear probe를 주 계기로 측정한다.
   침묵 .6904를 얻는다. 체인에 신호가 없다는 주장은 철회한다. 같은 침묵
   집단에서 내부 자연어 판독은 .8319이며 점추정 차이는 +.1415다
   (canonical 1,729 bootstrap CI 전사 대기).
-- 1-2. **추론을 시켜도 사라지지 않는다**: CoT가 피해를 1/4로 줄이지만
-  (−17.7 → −4.4%p) **제안 채택률은 오히려 늘어난다**(29% → 43%). 추론은
-  방패인 동시에 합리화의 지면이다.
+- 1-2. **추론을 시켜도 현상은 남는다**: Direct-selected 집합에서 CoT의
+  none-to-wrong gap이 더 작게 관측되지만 selection bias와 floor effect 때문에
+  완화 효과로 확정하지 않는다. moved 중 제안 채택도 남는다. 방패의 크기와
+  채택 성향은 Direct×CoT matched 2×2에서 다시 판정한다.
 - 선행 대비: Turpin(2023)이 원형. 우리 기여는 **의료 + 증거 불변 인과 설계 +
   전수 측정**.
 
@@ -305,7 +306,8 @@ AV 산문을 activation 관측치로 취급하기 위한 선행 calibration이�
 
 **§4.1 교란은 실재하고 설명은 예고하지 않는다.** 4조건 정확도, 답이 바뀐
 319건의 행방(채택 89 · 제3 진단 230 — **답만 봐서는 다수가 안 보인다**),
-체인의 무예고(0.50–0.53), CoT의 이중성(피해를 1/4로 줄이되 채택률은 늘림).
+체인의 무예고(0.50–0.53), Direct-selected CoT 조건에서도 남는 행동 효과와 채택.
+CoT의 완화 크기는 matched 2×2 전에는 확정하지 않는다.
 꼬리에 강건성: 문구 4종에서 실제형 소견서의 낙폭이 가장 크게 관측됐지만,
 길이·레지스터 matched placebo가 없어 추가 낙폭의 원인은 미분리다. 흔들림과
 설득의 분리는 MCR에서도 방향이 재현된다.
@@ -1006,8 +1008,9 @@ Appendix A1을 참조한다.
   층화. 0을 배제한다. 판정자는 실제로 연속 확률을 썼다(서로 다른 값 61개)
   므로 동점 아티팩트도 아니다. calibration 자체는 별도 heldout 평가가 필요하다.
   calibration을 결론내리지 않는다; Brier/ECE가 별도로 필요하다.
-- **P5 CoT의 이중성** (동일 canonical clean 1,204건): 추론은 arm 간
-  소견서 피해를 약 1/5로 줄이지만 (−23.75 → **−4.40%p**) 없애지 못한다.
+- **P5 CoT의 이중성** (동일 canonical clean 1,204건): Direct-selected 집합에서
+  소견서 피해가 −23.75%p 대 −4.40%p로 관측되고 moved 중 채택은 30.0% 대
+  49.1%다. 이는 탐색적 관찰이며 CoT 완화의 정식 효과 크기가 아니다.
   Direct no-note는 selection상 1.0이고 CoT no-note는 .7068이므로, 두 baseline의
   절대 차이는 일반 정확도 효과로 해석하지 않는다. 지난 보고의 "CoT가 무력화"는
   n=381의 과대평가였고 전수에서 "완화"로 정정.
@@ -1017,6 +1020,11 @@ Appendix A1을 참조한다.
   맞힌 케이스만 골라 만든 집합**이다(4,900 → 1,747). 종속변수로 표본을
   고른 것이므로 direct는 .9897 천장에서 시작하고 CoT는 내려갈 곳밖에 없다 —
   구조적으로 CoT에 불리한 비교다.
+
+  Confirmatory 분석은 같은 gold-absent base ID의 Direct/CoT × none/wrong 네 셀을
+  맞춘다. 정답 여부로 고르지 않은 common cohort에서는 difference-in-differences를,
+  두 none 셀이 모두 정답인 shared-solvable subset에서는 harmful flip을 paired
+  비교한다. 이 결과 전에는 CoT가 anchoring을 줄인다고 확정하지 않는다.
 
   편향 없는 표본에서의 답은 이미 있다: 맨 DDXPlus 320건 짝지음에서
   직답 .3375 vs CoT .3187, 살림 24 / 깨뜨림 30, **exact p = 0.50**

@@ -225,6 +225,21 @@ MCR에서 r5가 r4를 이기면 open-vocabulary correction의 의미가 커진�
 
 ### P1-4. Robustness controls
 
+#### Direct × CoT matched 2×2
+
+현재 canonical clean 1,204건은 Direct-none 정답으로 선정되어 Direct baseline은
+1.0이지만 CoT baseline은 .7068이다. 따라서 23.75%p 대 4.40%p만으로 CoT가
+anchoring을 줄인다고 결론 내리지 않는다.
+
+같은 gold-absent base ID에서 Direct/CoT × no-note/wrong-note 네 셀을 맞춘다.
+정답 여부로 선정하지 않은 common cohort에서는 네 accuracy와
+`[CoT wrong-CoT none] - [Direct wrong-Direct none]` interaction을 보고한다.
+Direct-none과 CoT-none이 모두 정답인 shared-solvable subset에서는 harmful flip,
+suggestion adoption, third-diagnosis movement, newly corrected를 비교한다.
+Case-level paired bootstrap CI와 paired permutation test를 사용하며,
+`answer_forced` 포함/제외 민감도 분석을 붙인다. 기존 출력의 공통 coverage를 먼저
+확인하고 누락 셀만 생성한다.
+
 #### Realistic matched-neutral control
 
 현재 realistic wrong arm은 canonical clean 1,204건에서 no-note `.9917`, wrong

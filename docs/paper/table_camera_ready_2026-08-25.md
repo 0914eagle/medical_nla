@@ -433,11 +433,13 @@ realism effect.*
 
 *Eligibility depends on Direct no-note correctness, not CoT correctness.
 Therefore Direct no-note accuracy is 1.0 by construction, whereas CoT no-note
-accuracy need not be. The 23.75-to-4.40 pp reduction is an arm-gap comparison
-within each generation mode, not evidence that CoT has higher general
-diagnostic accuracy. In an unselected paired sample of 320 cases, Direct
+accuracy need not be. The 23.75-versus-4.40 pp values are exploratory
+within-mode gaps on a Direct-selected cohort; they do not establish that CoT
+reduces anchoring because selection bias and a CoT floor effect remain. In an
+unselected paired sample of 320 cases, Direct
 (.3375) and CoT (.3187) did not differ detectably (exact p=.50); this was not
-an equivalence test.*
+an equivalence test. A matched Direct/CoT × no-note/wrong-note analysis is
+pending.*
 
 **Appendix Table A3.** Suggestion source on
 MedCaseReasoning: the model's own confusions vs. a cue-similar neighbour's

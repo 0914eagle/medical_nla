@@ -112,7 +112,7 @@ MCR을 쓰게 되면: Wu et al. **MedCaseReasoning**, arXiv:2505.11733 (Stanford
 | 논문 | 한 줄 요약 | 우리와의 관계 |
 |------|-----------|--------------|
 | ★ **Schmidgall et al. BiasMedQA** (npj Digital Medicine 2024) | USMLE 1,273문항에 자기진단·최신성·확증 등 7개 임상 인지 편향을 주입; GPT-4는 견디고 Llama 2 계열은 크게 하락; 완화 프롬프트 3종은 부분 회복 | **의료에서 우리와 가장 가까운 실험.** 전부 행동 수준: 정확도 하락만 잰다. 우리가 더한 것: ① 인과 설계(같은 케이스 4조건, 위약 대조, 오답/정답 분리) ② **내부 AV 판독에 의한 사례 단위 탐지**(silent AUROC .8319) ③ 탐지 기반 선택적 교정(사다리). 그들이 "편향에 약하다"에서 멈춘 곳에서 우리는 "어느 케이스가 지금 답이 바뀌었는지"를 사례 단위로 순위화한다 |
-| **"LLM Reasoning Does Not Protect Against Clinical Cognitive Biases"** (medRxiv 2025, BiasMedQA 사용) | 추론(reasoning) 모델도 임상 인지 편향에 취약 | 우리 CoT 이중 결과(완화하지만 귀속 못함)와 나란히 인용 |
+| **"LLM Reasoning Does Not Protect Against Clinical Cognitive Biases"** (medRxiv 2025, BiasMedQA 사용) | 추론(reasoning) 모델도 임상 인지 편향에 취약 | 우리 Direct-selected CoT 조건에서도 효과가 남는 탐색 결과와 나란히 인용; 완화 크기는 matched 2×2 대기 |
 | **Mahajan et al.** (npj Digital Medicine 2025) | 임상 LLM의 인지 편향 관점 논문; 자가회귀 처리에서 anchoring이 어떻게 생기는지; 추론 트레이스를 감사 고리로 쓰자고 제안 | AI in Medicine 독자용 프레이밍에 최적. 강한 LLM 모니터도 체인에서 유의한 신호를 읽지만(.7305/.6904), 내부 판독(.7511/.8319)과 프로브(.9330/.9881)가 더 강하다는 정량 비교를 더함 |
 | **arXiv:2503.22746** (2025) | 의료 질의에서 사용자 발화 요인(강한 표현, 오정보 등)에 대한 LLM 민감성 | 환자-화자 wording 변형의 근거 인용 |
 | **SycoEval-EM** (arXiv:2601.16529, 2026) | 응급 시뮬레이션 대화에서 의료 시코펀시 평가 | 의료 시코펀시가 활발한 주제라는 근거; 행동 수준 |

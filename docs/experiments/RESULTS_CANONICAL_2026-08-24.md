@@ -334,7 +334,9 @@ DDXPlus clean 286건/MCR 426건이지만 moved는 287/427이다. 전체 eligible
 | 직접 (n=1,204) | **1.0000** | **.7625** | **23.75%p** | 287 | 86 |
 | CoT (같은 ID) | **.7068** | **.6628** | **4.40%p** | 220 | 108 |
 
-- CoT는 arm 간 비용을 **23.75 → 4.40%p**로 줄이지만 없애지 못한다.
+- Direct-selected 집합에서 CoT의 arm 간 비용이 **4.40%p**로 Direct의
+  **23.75%p**보다 작게 관측됐다. Selection bias와 floor effect가 있으므로
+  matched 2×2 전에는 CoT의 완화 효과로 해석하지 않는다.
 - moved 중 채택은 direct 30.0%, CoT 49.1%다. 서로 다른 moved 모집단의
   조건부 비율이므로 CoT가 제안을 더 인과적으로 사용했다고 단정하지 않는다.
 - CoT correctness는 eligibility에 쓰지 않았으므로 CoT no-note가 1.0이 아닌
@@ -342,6 +344,7 @@ DDXPlus clean 286건/MCR 426건이지만 moved는 287/427이다. 전체 eligible
 
 ⚠️ **Primary의 direct 1.0000 vs CoT .7068을 "CoT가 정확도를 해친다"로
 쓰지 않는다.** 이 1,204건은 직답 no-note가 맞힌 케이스만 골라 만든 집합이다.
+같은 이유로 23.75%p 대 4.40%p를 "CoT가 anchoring을 줄인다"고도 쓰지 않는다.
 종속변수로 표본을 골랐으므로 direct는 1.0에서 시작하고 CoT는 내려갈 곳밖에
 없다. 일반 정확도 비교로 인용하면 표본 선택을 숨기는 것이 된다.
 

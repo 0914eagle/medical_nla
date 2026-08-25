@@ -1136,8 +1136,26 @@ CoT .3187, exact p=.50로 차이를 검출하지 못했다. 이는 동등성 검
 direct 30.0%에서 CoT 49.1%로 높아지지만 분모가 다른 조건부 비율이므로
 “CoT가 suggestion을 더 원인으로 사용했다”고 단정하지 않는다.
 
+**따라서 Slide 20의 CoT 숫자는 탐색적 관찰로 남기고, 다음 2×2 matched 실험을
+추가한다.** 같은 base ID마다 `Direct-none`, `Direct-wrong`, `CoT-none`,
+`CoT-wrong`을 모두 생성한다. presentation, checkpoint, chat template, note 문장,
+answer parser, greedy decoding을 같게 하고 Direct/CoT instruction과 사전 정의한
+token budget만 다르게 한다.
+
+분석은 두 개로 나눈다. 첫째, 정답 여부로 고르지 않고 gold-name leakage가 없으며
+네 셀이 모두 파싱되는 **unbiased common cohort**에서 네 정확도와
+difference-in-differences를 계산한다. 둘째, Direct-none과 CoT-none이 모두 정답인
+**shared-solvable cohort**에서 harmful flip rate를 비교한다. interaction은
+`[CoT(wrong)-CoT(none)] - [Direct(wrong)-Direct(none)]`이며 case-level paired
+bootstrap CI와 paired permutation test를 사용한다. Harmful flip, suggestion
+adoption, third-diagnosis movement, newly corrected, `answer_forced` rate도 같은
+공통 분모에서 보고한다. 이 결과 전에는 다음 문장만 사용한다.
+
+> On the Direct-selected cohort, CoT showed a smaller within-method
+> none-to-wrong gap, but this does not establish that CoT is more robust.
+
 **발표자 연결 원고.** 문구 변형에서 효과가 반복되므로 단일 문자열 artifact라는
-가설은 약해진다. CoT는 선택 집합의 wrong-vs-none 격차를 줄이지만 편향 없는
+가설은 약해진다. CoT는 선택 집합에서 wrong-vs-none 격차가 작게 관측되지만 편향 없는
 표본에서 우월성이 없고, moved 중 채택도 남으므로 안전장치라고 부를 수 없다.
 여기까지는 여전히 출력만 본 결과다. 즉
 소견서 때문에 출력이 바뀌었다는 사실은 알지만, 그 과정에서 정답 진단 신호가
@@ -1618,7 +1636,8 @@ LLM monitor, natural-language readout, linear probe를 동일한 single-run task
 | 3 | 동일 LLM monitor의 no-CoT arm | CoT만의 순수 증분 |
 | 4 | MCR wrong-note activation·detection | DDXPlus 내부 기전의 열린 어휘 확장 |
 | 5 | MCR correction ladder | probe가 직접 이전되지 않는 조건의 교정 |
-| 6 | realistic matched-neutral·matched layer control | 문체·길이·학습량 교란 분리 |
+| 6 | Direct×CoT matched 2×2 | selection bias 없이 CoT의 anchoring 완화 여부 판정 |
+| 7 | realistic matched-neutral·matched layer control | 문체·길이·학습량 교란 분리 |
 
 Reader-trust 2,896행 전수와 same-channel shuffled account control은 완료됐다.
 현재 첫째 제출 게이트는 detector-gated correction이다. Selector는 wrong-note run
@@ -1647,6 +1666,13 @@ canonical clean 1,204건에서 고정된 realistic neutral과 realistic wrong을
 suggestion adoption, third-diagnosis 이동, paired bootstrap CI와 McNemar test를
 보고한다. 이 통제가 끝나기 전에는 30.40%p를 현실적 referral 형식의 독립 효과로
 발표하지 않는다.
+
+Direct×CoT 실험은 기존 1,204건 결과를 폐기하는 것이 아니라 그 결과의 해석
+범위를 정하는 confirmatory 분석이다. 먼저 저장된 출력에서 네 셀이 모두 있는
+gold-absent 공통 ID를 조인하고, unbiased common cohort의 interaction과
+shared-solvable cohort의 harmful flip 차이를 계산한다. 누락된 셀이 있을 때만 GPU로
+추가 생성한다. 이 실험 전에는 CoT를 anchoring 완화책 또는 위험 요인으로 확정하지
+않는다.
 
 외부 semantic judge 238쌍 전수는 완료됐으며 파싱 실패는 0건이다. 따라서 이
 항목은 더 이상 미결 과제가 아니고, 손채점과 외부 판정을 보조 감사로 함께 보고한다.
