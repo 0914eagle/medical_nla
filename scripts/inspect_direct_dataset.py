@@ -14,7 +14,7 @@ from typing import Any, Iterable
 
 NODE_RE = re.compile(r"\$(Input|Cause|Intermedia)_(\d+)$")
 INPUT_RE = re.compile(r"^input(\d+)$", re.IGNORECASE)
-PATIENT_RE = re.compile(r"^(\d+)-")
+PATIENT_RE = re.compile(r"^(.+?)-DS-", re.IGNORECASE)
 
 
 def read_json(path: Path) -> Any:
@@ -93,9 +93,11 @@ def audit_samples(samples_root: Path) -> dict[str, Any]:
     file_hashes: Counter[str] = Counter()
     input_hashes: Counter[str] = Counter()
     patient_counts: Counter[str] = Counter()
+    unparsed_patient_rows = 0
     invalid_json = 0
     non_dict_rows = 0
     path_root_pdd_mismatch = 0
+    path_root_pdd_mismatch_pairs: Counter[tuple[str, str]] = Counter()
 
     for path in files:
         relative = path.relative_to(samples_root)
@@ -106,6 +108,8 @@ def audit_samples(samples_root: Path) -> dict[str, Any]:
         patient_match = PATIENT_RE.match(path.stem)
         if patient_match:
             patient_counts[digest_bytes(patient_match.group(1).encode())] += 1
+        else:
+            unparsed_patient_rows += 1
 
         try:
             row = json.loads(raw)
@@ -128,6 +132,7 @@ def audit_samples(samples_root: Path) -> dict[str, Any]:
             root_pdd = strip_node_suffix(root_keys[0])
             if path_pdd.casefold() != root_pdd.casefold():
                 path_root_pdd_mismatch += 1
+                path_root_pdd_mismatch_pairs[(path_pdd, root_pdd)] += 1
 
         inputs: list[str] = []
         for key, value in row.items():
@@ -170,6 +175,10 @@ def audit_samples(samples_root: Path) -> dict[str, Any]:
         "pdd_count_summary": summarize_numbers(pdd_pairs.values()),
         "root_key_counts": dict(sorted(root_key_counts.items())),
         "path_root_pdd_mismatch": path_root_pdd_mismatch,
+        "path_root_pdd_mismatch_pairs": {
+            f"{path_pdd} -> {root_pdd}": count
+            for (path_pdd, root_pdd), count in path_root_pdd_mismatch_pairs.most_common()
+        },
         "node_type_counts": dict(node_type_counts.most_common()),
         "nodes_per_note": summarize_numbers(node_counts_per_note),
         "input_field_presence": dict(sorted(input_field_presence.items())),
@@ -180,6 +189,7 @@ def audit_samples(samples_root: Path) -> dict[str, Any]:
         "input_text_duplicates": duplicate_summary(input_hashes),
         "patient_id_groups": {
             "parsed_rows": sum(patient_counts.values()),
+            "unparsed_rows": unparsed_patient_rows,
             "unique_hashed_patients": len(patient_counts),
             "repeated_patient_groups": len(repeated_patients),
             "rows_from_repeated_patients": sum(repeated_patients),
@@ -211,6 +221,7 @@ def audit_kg(kg_root: Path) -> dict[str, Any]:
 
     return {
         "json_files": len(files),
+        "category_names": sorted(path.stem for path in files),
         "invalid_json": invalid_json,
         "diagnostic_key_present": diagnostic_present,
         "knowledge_key_present": knowledge_present,
@@ -233,6 +244,7 @@ def markdown_summary(result: dict[str, Any]) -> str:
         f"- invalid sample JSON: **{samples['invalid_json']}**",
         f"- disease categories: **{samples['disease_categories']}**",
         f"- category/PDD pairs: **{samples['pdd_pairs']}**",
+        f"- PDD-pair count summary: `{samples['pdd_count_summary']}`",
         f"- path depths: `{samples['path_depths']}`",
         "",
         "## Structure",
@@ -243,6 +255,7 @@ def markdown_summary(result: dict[str, Any]) -> str:
         f"- input field presence: `{samples['input_field_presence']}`",
         f"- empty input fields: `{samples['input_field_empty']}`",
         f"- path/root PDD mismatches: **{samples['path_root_pdd_mismatch']}**",
+        f"- mismatch label pairs: `{samples['path_root_pdd_mismatch_pairs']}`",
         "",
         "## Leakage And Duplication Audit",
         "",
@@ -266,6 +279,8 @@ def markdown_summary(result: dict[str, Any]) -> str:
             f"- `diagnostic` key present: **{kg['diagnostic_key_present']}/{kg['json_files']}**",
             f"- `knowledge` key present: **{kg['knowledge_key_present']}/{kg['json_files']}**",
             f"- top-level key sets: `{kg['top_key_sets']}`",
+            f"- sample-only categories: `{result['category_alignment']['sample_only']}`",
+            f"- KG-only categories: `{result['category_alignment']['kg_only']}`",
             "",
         ]
     )
@@ -284,6 +299,13 @@ def main() -> None:
     result = {
         "samples": audit_samples(args.samples_root),
         "knowledge_graphs": audit_kg(args.kg_root),
+    }
+    sample_categories = set(result["samples"]["category_counts"])
+    kg_categories = set(result["knowledge_graphs"]["category_names"])
+    result["category_alignment"] = {
+        "matched": sorted(sample_categories & kg_categories),
+        "sample_only": sorted(sample_categories - kg_categories),
+        "kg_only": sorted(kg_categories - sample_categories),
     }
     if result["samples"]["json_files"] != args.expected_notes:
         result["warning"] = (
