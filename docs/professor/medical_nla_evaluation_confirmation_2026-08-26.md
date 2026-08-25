@@ -758,7 +758,9 @@ E0 data/evaluator audit
 
 ### E0. 데이터와 evaluator 감사
 
-1. DiReCT의 511 note, 25 disease category, 65 PDD 분포를 로컬에서 재집계한다.
+1. DiReCT의 511 note, 25 disease category, 공식 data list의 61 PDD 분포를
+   로컬에서 재집계한다. 경로 기반 최초 감사에서 나온 62는 3-depth 경로의 PDD를
+   annotation root로 추정한 값이므로 정본 수치로 사용하지 않는다.
 2. 동일 환자, note, PDD alias가 train/test에 겹치지 않는지 확인한다.
 3. 기본안은 PDD-disjoint split이고, 표본이 너무 작으면 disease-category-disjoint는
    secondary stress test로 둔다. Split은 seed와 ID 목록을 파일로 고정한다.
@@ -769,6 +771,12 @@ E0 data/evaluator audit
 6. Amended observation이 들어간 case는 flag를 보존하고, 원 note에 실제 span이 있는
    사례만의 sensitivity 결과를 별도로 낸다. 의사가 plausible observation을 보충한
    사례는 text-grounding과 같은 것으로 세면 안 된다.
+7. 폴더/data-list PDD와 annotation chain root가 다른 43건은 공식 evaluator 재현에서는
+   root를 사용한다. 동시에 이 43건을 제외한 결과를 sensitivity analysis로 보고해
+   행정 라벨과 annotation 불일치에 결론이 의존하지 않는지 확인한다.
+8. restricted archive에 없는 `Gastritis` KG는 공식 공개 저장소의 파일과 나머지
+   24개 KG의 semantic hash를 비교한 뒤 보완한다. 출처와 commit hash를 evaluator
+   manifest에 기록한다.
 
 **완료 조건**: split manifest, schema validator, evaluator version/prompt hash, sample
 reproduction report가 모두 저장된다.

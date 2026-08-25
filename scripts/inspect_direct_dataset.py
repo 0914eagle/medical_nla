@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import re
@@ -229,6 +230,111 @@ def audit_kg(kg_root: Path) -> dict[str, Any]:
     }
 
 
+def normalize_data_root(value: str) -> str:
+    parts = [part for part in value.replace("\\", "/").split("/") if part not in {"", "."}]
+    if parts and parts[0].casefold() == "samples":
+        parts = parts[1:]
+    return "/".join(parts)
+
+
+def audit_data_list(samples_root: Path, data_list_path: Path) -> dict[str, Any]:
+    with data_list_path.open(encoding="utf-8-sig", newline="") as f:
+        rows = list(csv.DictReader(f))
+
+    required = {"Disease Category", "PDD", "Data Root", "Whether Amended"}
+    fields = set(rows[0]) if rows else set()
+    missing_fields = sorted(required - fields)
+    if missing_fields:
+        raise ValueError(f"Data list is missing required columns: {missing_fields}")
+
+    release_paths = {
+        path.relative_to(samples_root).as_posix(): path
+        for path in samples_root.rglob("*.json")
+    }
+    listed_paths: Counter[str] = Counter()
+    categories: Counter[str] = Counter()
+    pdd_pairs: Counter[tuple[str, str]] = Counter()
+    amended: Counter[str] = Counter()
+    path_category_mismatches: Counter[tuple[str, str]] = Counter()
+    path_pdd_mismatches: Counter[tuple[str, str]] = Counter()
+    root_pdd_mismatches: Counter[tuple[str, str]] = Counter()
+    matched = 0
+    invalid_matched_json = 0
+
+    for row in rows:
+        relative = normalize_data_root(row["Data Root"])
+        listed_paths[relative] += 1
+        listed_category = row["Disease Category"].strip()
+        listed_pdd = row["PDD"].strip()
+        categories[listed_category] += 1
+        pdd_pairs[(listed_category, listed_pdd)] += 1
+        amended[row["Whether Amended"].strip() or "<empty>"] += 1
+
+        path = release_paths.get(relative)
+        if path is None:
+            continue
+        matched += 1
+        parts = Path(relative).parts
+        if len(parts) >= 4:
+            path_category, path_pdd = parts[-3], parts[-2]
+        elif len(parts) == 3:
+            path_category, path_pdd = parts[-2], None
+        else:
+            path_category, path_pdd = None, None
+
+        if path_category and path_category.casefold() != listed_category.casefold():
+            path_category_mismatches[(path_category, listed_category)] += 1
+        if path_pdd and path_pdd.casefold() != listed_pdd.casefold():
+            path_pdd_mismatches[(path_pdd, listed_pdd)] += 1
+
+        try:
+            payload = read_json(path)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            invalid_matched_json += 1
+            continue
+        if not isinstance(payload, dict):
+            invalid_matched_json += 1
+            continue
+        root_keys = [key for key in payload if not INPUT_RE.fullmatch(str(key))]
+        if len(root_keys) == 1:
+            root_pdd = strip_node_suffix(root_keys[0])
+            if root_pdd.casefold() != listed_pdd.casefold():
+                root_pdd_mismatches[(listed_pdd, root_pdd)] += 1
+
+    duplicate_roots = [count for count in listed_paths.values() if count > 1]
+    return {
+        "rows": len(rows),
+        "unique_data_roots": len(listed_paths),
+        "duplicate_data_roots": sum(count - 1 for count in duplicate_roots),
+        "matched_release_files": matched,
+        "listed_paths_missing_from_release": sum(
+            count for path, count in listed_paths.items() if path not in release_paths
+        ),
+        "release_files_missing_from_list": sum(
+            1 for path in release_paths if path not in listed_paths
+        ),
+        "invalid_matched_json": invalid_matched_json,
+        "disease_categories": len(categories),
+        "category_counts": dict(categories.most_common()),
+        "pdd_pairs": len(pdd_pairs),
+        "pdd_count_summary": summarize_numbers(pdd_pairs.values()),
+        "amendment_counts": dict(amended.most_common()),
+        "path_category_mismatch_pairs": {
+            f"{path_category} -> {listed_category}": count
+            for (path_category, listed_category), count in path_category_mismatches.most_common()
+        },
+        "path_pdd_mismatch_pairs": {
+            f"{path_pdd} -> {listed_pdd}": count
+            for (path_pdd, listed_pdd), count in path_pdd_mismatches.most_common()
+        },
+        "listed_pdd_vs_root_mismatch_pairs": {
+            f"{listed_pdd} -> {root_pdd}": count
+            for (listed_pdd, root_pdd), count in root_pdd_mismatches.most_common()
+        },
+        "listed_pdd_vs_root_mismatches": sum(root_pdd_mismatches.values()),
+    }
+
+
 def markdown_summary(result: dict[str, Any]) -> str:
     samples = result["samples"]
     kg = result["knowledge_graphs"]
@@ -284,6 +390,28 @@ def markdown_summary(result: dict[str, Any]) -> str:
             "",
         ]
     )
+    data_list = result.get("official_data_list")
+    if data_list:
+        lines.extend(
+            [
+                "## Official Data List Alignment",
+                "",
+                f"- rows / unique roots: **{data_list['rows']} / {data_list['unique_data_roots']}**",
+                f"- matched release files: **{data_list['matched_release_files']}**",
+                f"- listed paths missing from release: **{data_list['listed_paths_missing_from_release']}**",
+                f"- release files missing from list: **{data_list['release_files_missing_from_list']}**",
+                f"- disease categories / category-PDD pairs: **{data_list['disease_categories']} / {data_list['pdd_pairs']}**",
+                f"- PDD-pair count summary: `{data_list['pdd_count_summary']}`",
+                f"- amendment counts: `{data_list['amendment_counts']}`",
+                f"- path category label mappings: `{data_list['path_category_mismatch_pairs']}`",
+                f"- path PDD mismatches: `{data_list['path_pdd_mismatch_pairs']}`",
+                f"- listed PDD vs annotation-root mismatches: **{data_list['listed_pdd_vs_root_mismatches']}**",
+                f"- listed PDD -> annotation-root mappings: `{data_list['listed_pdd_vs_root_mismatch_pairs']}`",
+                "",
+                "The official evaluator derives diagnosis accuracy from the annotation chain root, not the folder label. Report a sensitivity analysis excluding list/root mismatches.",
+                "",
+            ]
+        )
     return "\n".join(lines)
 
 
@@ -293,6 +421,11 @@ def main() -> None:
     parser.add_argument("--kg-root", required=True, type=Path)
     parser.add_argument("--output-json", required=True, type=Path)
     parser.add_argument("--summary-md", required=True, type=Path)
+    parser.add_argument(
+        "--data-list",
+        type=Path,
+        help="Optional public DiReCT data_list.csv used for aggregate release alignment.",
+    )
     parser.add_argument("--expected-notes", type=int, default=511)
     args = parser.parse_args()
 
@@ -307,6 +440,8 @@ def main() -> None:
         "sample_only": sorted(sample_categories - kg_categories),
         "kg_only": sorted(kg_categories - sample_categories),
     }
+    if args.data_list:
+        result["official_data_list"] = audit_data_list(args.samples_root, args.data_list)
     if result["samples"]["json_files"] != args.expected_notes:
         result["warning"] = (
             f"Expected {args.expected_notes} sample JSON files, found "

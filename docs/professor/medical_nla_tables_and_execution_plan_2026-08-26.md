@@ -36,6 +36,29 @@ DiReCT는 clinical alignment를 측정하고, DDXPlus는 activation grounding을
   `Intermedia`(diagnosis)이며, `deduction_assemble()`가
   `(observation, rationale, diagnosis)` 구조를 만든다.
 
+Aggregate audit와 공식 공개 `data_list.csv` 대조에서 다음을 확인했다.
+
+- sample JSON은 511/511 모두 유효하고, 각 파일에 진단 root가 하나씩 있다.
+- 공식 data list는 25 disease category와 61 PDD를 포함한다. 경로만으로 PDD를
+  추정한 최초 감사의 62개는 3-depth 경로에서 annotation root를 대신 사용해 생긴
+  값이므로 정본 PDD 수로 인용하지 않는다.
+- PDD별 표본 수는 1--41개, 중앙값 5개로 불균형하다. 따라서 단순 row-random
+  split이나 PDD별 균등 성능 주장은 부적절하다.
+- 507개 파일에서 환자 그룹을 파싱했고, 31개 환자 그룹의 70개 note가 반복된다.
+  나머지 4개도 split 전에 별도 그룹 ID를 부여해야 하며 patient-disjoint split이
+  필수다.
+- 완전 동일 JSON/input-text 중복은 한 그룹, 두 행이다. 두 행은 제거하거나 반드시
+  같은 split에 둔다.
+- 폴더 PDD와 annotation root가 다른 파일이 43개다. 단순 복수형뿐 아니라
+  `STEMI -> NSTE-ACS`, `Hypothyroidism -> Hyperthyroidism`처럼 의미가 다른 경우도
+  포함된다. 공식 evaluator의 `Accdiag`는 annotation chain root를 사용하므로 이를
+  정본 재현 기준으로 따르되, 43건 제외 민감도 결과를 함께 보고한다.
+- restricted KG archive에는 `Gastritis`가 빠져 24개지만 공식 GitHub KG에는
+  `Gastritis.json`을 포함한 25개가 있다. 나머지 KG의 semantic hash를 비교한 뒤
+  공식 공개 파일로 보완하고 provenance를 기록한다.
+- data list에서 73개 note가 amended로 표시된다. 원문 span grounding 평가는
+  amended 여부를 보존하고 별도 sensitivity analysis를 낸다.
+
 ### 제한 데이터 취급
 
 DiReCT는 PhysioNet Restricted Health Data License 1.5.0 대상이다.
@@ -180,6 +203,10 @@ taxonomy, MCR OOD 사례, seed sensitivity를 둔다.
 8. patient/PDD leakage가 없는 split 후보 작성
 
 이 단계의 산출물은 raw note가 아닌 aggregate JSON/Markdown이어야 한다.
+
+현재 1--5의 aggregate 감사는 완료되었다. 남은 E0 작업은 공개 data list와 511개
+파일의 전수 조인, 4개 미파싱 환자 행의 안전한 그룹화, 공식 loader/evaluator 재현,
+KG 24/25 provenance 확인, split manifest 생성이다.
 
 ### E0의 결정 게이트
 
