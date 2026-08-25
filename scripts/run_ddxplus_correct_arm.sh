@@ -64,14 +64,14 @@ if [ -s "$OUT" ]; then say "skip (exists: $(wc -l < "$OUT") rows)"; else
     >>"$MAIN" 2>&1 || { say "FAILED"; exit 1; }
 fi
 
-say "ALL DONE. Re-dump Table 2 / Figure 3 with all four arms (CPU):"
+say "ALL DONE. Re-dump Table 1 / Figure 2 with all four arms (CPU):"
 say "  python scripts/analyze_hint_effect.py \\"
 say "    --answers $ART/results/ddxplus_hint_answers_v2.jsonl \\"
 say "              $ART/results/ddxplus_hint_answers_neutral.jsonl \\"
 say "              $OUT \\"
-say "    --dump $ART/results/fig3_ddx.json"
+say "    --dump $ART/results/figure2_ddx_dump.json"
 say "  python scripts/make_figure_intervention.py \\"
-say "    --dumps $ART/results/fig3_ddx.json $ART/results/fig3_mcr.json \\"
+say "    --dumps $ART/results/figure2_ddx_dump.json $ART/results/figure2_mcr_dump.json \\"
 say "    --labels DDXPlus MedCaseReasoning \\"
-say "    --output $ART/results/figure3_intervention.pdf"
+say "    --output $ART/results/figure2_behavior.pdf"
 say "The [warn] about a missing correct arm should be gone."

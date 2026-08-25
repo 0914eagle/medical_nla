@@ -75,3 +75,58 @@ def test_limiting_the_run_must_not_narrow_the_candidate_set():
     assert len({row["diagnosis_id"] for row in limited}) == 5
     # The candidate set is the file's, not the sample's.
     assert len(collect_candidates(rows)) == 5
+
+
+def test_external_candidate_file_is_deduplicated(tmp_path):
+    import json
+
+    import pytest
+
+    pytest.importorskip("torch")
+    from scripts.score_source_diagnosis_logprobs import read_candidates
+
+    path = tmp_path / "candidates.jsonl"
+    rows = [
+        {"diagnosis_id": "pneumonia", "diagnosis_name": "Pneumonia"},
+        {"diagnosis_id": "pneumonia", "diagnosis_name": "Pneumonia"},
+        {"diagnosis_id": "pulmonary_embolism", "diagnosis_name": "Pulmonary embolism"},
+    ]
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    candidates = read_candidates(str(path), [])
+    assert [row["diagnosis_id"] for row in candidates] == [
+        "pneumonia",
+        "pulmonary_embolism",
+    ]
+
+
+def test_output_head_features_use_wrong_run_only():
+    from scripts.evaluate_output_head_attribution import output_head_features
+
+    case = {
+        "none": {"diagnosis_name": "Pneumonia", "answer": "Pneumonia"},
+        "wrong": {
+            "answer": "Pneumonia",
+            "hint_diagnosis_name": "Pulmonary embolism",
+        },
+    }
+    row = {
+        "id": "case__wrong",
+        "num_candidates": 2,
+        "top_candidates": [
+            {
+                "diagnosis_id": "pulmonary_embolism",
+                "diagnosis_name": "Pulmonary embolism",
+                "first_token_logprob": -0.1,
+            },
+            {
+                "diagnosis_id": "pneumonia",
+                "diagnosis_name": "Pneumonia",
+                "first_token_logprob": -2.0,
+            },
+        ],
+    }
+    features = output_head_features(case, row, "first_token_logprob")
+    assert features["output-head top1 is suggestion"] == 1.0
+    assert features["output-head top1 disagrees with generated answer"] == 1.0
+    assert features["output-head probability of suggestion"] > 0.8
+    assert features["[analysis only] suggestion minus gold probability"] > 0.0

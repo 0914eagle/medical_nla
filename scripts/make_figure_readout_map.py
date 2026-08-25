@@ -1,4 +1,4 @@
-"""Figure 2 -- layer sweeps at cue and final-prompt-token positions.
+"""Appendix Figure A1 -- AV layer sweeps at cue and final-prompt positions.
 
 The two sweeps are deliberately drawn as separate panels. They use the same
 lexical recall family, but not the same training recipe or held-out axis:

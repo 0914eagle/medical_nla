@@ -4,126 +4,112 @@
 \section{Related Work}
 \label{sec:related}
 
-\subsection{Explainability of Medical LLMs}
-\label{sec:related-explainability}
+\subsection{Clinical Anchoring and Misleading Context}
+\label{sec:related-anchoring}
 
-As large language models enter clinical decision support, accuracy alone is
-not the bar they must clear. Beyond being correct, a deployed model must be
-inspectable: hallucination, biased outputs, opaque provenance, and
-performance drift are recognized safety concerns
-\cite{wang2024safety, asgari2025hallucination, ethics2025review, chen2023drift},
-and both clinicians and regulators increasingly require an account of
-\emph{why} a model answered as it did before its answers can be trusted
-\cite{clinicalcode2025, clinicalreasoningfails2026}. For diagnosis the
-requirement is concrete, because clinically real context routinely moves
-answers: a referring physician's suspicion, a colleague's remark, a
-patient's worry. In human diagnosticians this failure has a name ---
-anchoring, a recognized contributor to diagnostic error
-\cite{croskerry2003} --- and it enters LLM workflows through the same
-channels \cite{mahajan2025bias}.
+Diagnostic reasoning rarely begins from an unframed case. Referral letters
+can carry a provisional diagnosis from an upstream clinician, and controlled
+human studies show that such suggestions can narrow the differential or
+anchor subsequent judgments \cite{spaanjaars2015referral, staal2022referral}.
+This motivates our intervention as a clinically plausible
+\emph{referral-mediated} anchoring scenario. It does not imply that every
+referral contains a diagnosis or that every clinical model is deployed in
+this workflow.
 
-Explainability in medical AI has so far meant two families of methods. For
-predictive models, post-hoc input attribution dominates --- SHAP, LIME, and
-saliency maps assign importance to input features
-\cite{lundberg2017shap, ribeiro2016lime, xaihealthcare2026}, with concept
-bottlenecks providing clinician-vocabulary intermediates in imaging
-\cite{cbm2026}. These methods presuppose a scalar output and many perturbed
-reruns, and do not transfer cleanly to free-text diagnosis. For generative
-LLMs, the de facto explanation is instead the model's own chain of thought:
-a fluent, clinician-readable self-narration, prominent enough that auditing
-the reasoning trace has been proposed as the safety mechanism for clinical
-deployment \cite{mahajan2025bias}.
+Medical-LLM robustness work has already established the behavioral problem.
+BiasMedQA injects clinically motivated cognitive-bias statements into USMLE
+questions \cite{schmidgall2024biasmedqa}. MED-STRESS studies abandonment of
+initially correct diagnoses under escalating multi-turn pressure
+\cite{xiao2026medstress}, while MedMisBench measures large accuracy drops
+under misleading clinical context \cite{zhou2026medmisbench}. Narrative
+Anchoring holds clinical facts fixed while varying sociolinguistic register
+\cite{singh2026narrative}. These studies show that benchmark knowledge does
+not guarantee resilience to context; the average behavioral drop is
+therefore not our novelty.
 
-Self-narration, however, is unfaithful precisely where an audit needs it.
-In the general domain, features that demonstrably move a model's answer go
-unmentioned in its reasoning \cite{turpin2023say, lanham2023measuring}, and
-disclosure remains rare in reasoning-tuned models \cite{chen2025reasoning}.
-The medical evidence is now direct: injected clinical cognitive biases
-degrade diagnostic accuracy while the accompanying explanations do not
-disclose them \cite{schmidgall2024biasmedqa, reasoningnoprotect2025}; under
-causal ablation and hint injection, chain-of-thought steps do not causally
-drive the predictions of closed-source medical assistants, and injected
-suggestions are absorbed without acknowledgment \cite{faithfulplausible2025};
-structured re-grading finds individual reasoning steps decorative ---
-removable without changing the answer \cite{clinicalgraphs2026}.
+Our question begins after that drop. We use a within-case,
+placebo-controlled four-arm intervention in which the patient findings are
+fixed and only the referral sentence varies. This separates sentence
+insertion from the content-specific cost of a wrong suggestion, yields a
+per-case counterfactual label for whether the answer moved, and lets us ask
+where gold, suggested, and third-diagnosis signals go inside the model. We
+replicate the behavioral effect in case-report language, but claim the
+internal mechanism only on the controlled DDXPlus testbed.
 
-Both available forms of explanation therefore fail at the question a
-diagnostic audit must answer --- \emph{what caused this answer} --- the
-attribution family by construction, the self-narration family empirically.
-We rebuild the clinically real intervention behind this evidence in a
-causally controlled form --- a placebo-controlled four-arm design whose
-evidence representations are bit-identical across arms, yielding a per-case
-ground truth for which answers the note actually moved --- confirm on it
-that the reasoning trace cannot support the proposed audit (attribution at
-chance; Section~\ref{sec:results-intervention}), and then go inside the
-model.
+\subsection{Chain-of-Thought Faithfulness and Internal--Output Dissociation}
+\label{sec:related-dissociation}
 
-\subsection{Reading LLM Internals: From Probes to Natural-Language Readouts}
+Generated reasoning is useful behaviorally but is not automatically a causal
+record of how an answer was produced. Turpin et al. show that features that
+move answers can go unmentioned while a model rationalizes the biased answer
+\cite{turpin2023say}. Lanham et al. intervene on reasoning traces and find
+that dependence on CoT varies across tasks and models
+\cite{lanham2023measuring}. In medicine, Afolabi et al. use causal ablation,
+positional perturbation, and hint injection on closed-source assistants and
+find that external suggestions can be incorporated without acknowledgment
+\cite{afolabi2026faithful}. These results motivate comparing CoT with an
+internal channel; they do not justify assuming that CoT contains no signal.
+We therefore evaluate both rule-based features and a strong LLM monitor.
+
+The closest single-run attribution study is \emph{Catching Rationalization}
+\cite{mirtaheri2026rationalization}. In general-domain multiple-choice tasks,
+pre-generation probes match a full-CoT LLM monitor and post-generation probes
+outperform it. Our causal label differs: their hint points to a listed option,
+whereas most moved outputs in our open-diagnosis setting go to a third
+diagnosis rather than copy the suggestion. We ask whether one wrong-note run
+identifies cases that a hidden no-note counterfactual shows were causally
+moved, including a subset where output copying is blind by construction.
+
+Medical studies also show that activation content can exceed what a model
+states. Fraile Navarro et al. use the same released Gemma-3-12B NLA and
+layer-32 activations to localize a triage output-format failure
+\cite{frailenavarro2026internal}. Tayebi Arasteh recovers evidence grades from
+hidden states when the stated grades are near chance
+\cite{tayebi2026evidence}. Basu et al. report strong clinical-risk probe
+performance despite substantially lower output sensitivity
+\cite{basu2026risk}. These are direct precedents, not gaps we claim to fill.
+We differ by studying final diagnosis under a referral-note intervention,
+resolving gold/suggestion/other trajectories at prompt landmarks, and
+connecting case-level causal attribution to a controlled correction ladder.
+
+\subsection{Reading and Acting on Activations}
 \label{sec:related-internals}
 
-Instruments for reading model internals are mature. Linear probes recover
-task variables from hidden states but answer only the question they were
-trained on \cite{belinkov2022probing}; logit- and tuned-lens methods decode
-token distributions from intermediate layers
-\cite{nostalgebraist2020logitlens, belrose2023tunedlens}; sparse
-autoencoders decompose activations into dictionaries of pre-learned
-features \cite{cunningham2023sae, bricken2023monosemanticity}. All deliver
-flags or fixed concepts. A younger line verbalizes instead: Patchscopes,
-SelfIE, and LatentQA prompt a model to describe hidden representations in
-open-ended language
-\cite{ghandeharioun2024patchscopes, chen2024selfie, pan2024latentqa}, and
-natural-language autoencoders (NLA) train an activation-to-text verbalizer
-with a reconstruction objective \cite{anthropic2026nla} --- the instrument
-we build on. Verbalization invites a sharp criticism: the description may
-reflect the verbalizer's own parametric knowledge rather than the target
-activation \cite{li2026privileged}. Our instrument battery ---
-counterfactual swap tracking, memorization and shuffle controls, cross-case
-specificity --- is designed as a direct answer
-(Section~\ref{sec:results-instrument}).
+Linear probes recover prespecified variables from hidden states but establish
+decodability rather than causal use \cite{belinkov2022probing}. Logit and tuned
+lenses decode token distributions \cite{belrose2023tunedlens}, while sparse
+autoencoders decompose activations into learned feature dictionaries
+\cite{cunningham2023sae, bricken2023monosemanticity}. These tools suit closed
+questions and are our primary quantitative instrument on DDXPlus.
 
-In the general domain, these instruments have recently produced results
-that anticipate pieces of ours. Activation probes detect the influence of
-an injected hint that the chain-of-thought rationalizes away
-\cite{rationalization2026}; user opinions suppress a model's learned
-knowledge in late layers while the knowledge itself survives
-\cite{truthoverridden2026}; hidden states predict reasoning errors that
-verbalized confidence does not admit, though steering and self-correction
-interventions built on such signals fail \cite{yuan2026hidden}; and correct
-answers recoverable from hidden states coexist with wrong chains
-\cite{mehrafarin2026hidden}. These findings are non-medical, their signals
-are probes, patches, or graph distances rather than readable statements,
-and they end at detection --- the one attempted continuation into
-correction reports failure.
+Natural-language readouts instead aim to express open-ended activation
+content. Patchscopes, SelfIE, and LatentQA decode hidden representations into
+text \cite{ghandeharioun2024patchscopes, chen2024selfie,
+pan2024latentqa}. Natural Language Autoencoders jointly train an activation
+verbalizer and reconstructor through a natural-language bottleneck
+\cite{anthropic2026nla}. NLAs can surface unverbalized content and support
+hypothesis generation, but their authors also report confabulation. More
+generally, Li et al. show that activation-verbalization benchmarks can often
+be solved without target-model internals and that descriptions may reflect
+the verbalizer's parametric knowledge \cite{li2026privileged}. We therefore
+do not infer faithfulness from fluent text or SFT loss. Our activation
+verbalizer is admitted as a measurement only after matched-versus-shuffled,
+swap, heldout-content, memorization, and cross-case-contamination controls.
+Even then, we report it as a complementary open-vocabulary channel, not a
+replacement for the stronger supervised probe or a validated
+clinician-facing explanation.
 
-Medical work has moved beyond localization. Fraile Navarro et al. use the
-same Gemma-3-12B NLA checkpoint and layer-32 activations to show that
-clinical content can survive a triage output-format failure and to predict
-case-level flips \cite{frailenavarro2026internal}. Tayebi Arasteh et al.
-likewise recover evidence grades from hidden states when the model's
-verbalized grade is near chance \cite{tayebi2026evidence}. These are direct
-convergence results, not gaps we claim to fill. Their tasks are acuity
-formatting and evidence grading rather than diagnosis; neither causally
-isolates a referral-note suggestion, verifies the natural-language readout
-as an activation-dependent instrument, or tests a controlled correction
-ladder. Probes and sparse autoencoders also localize clinical knowledge and
-features \cite{adrprobing2025, alignmentresistant2025, jmirsae2026, ehrsae2026}.
-
-We chain these pieces, in medicine, on the causal testbed of
-Section~\ref{sec:related-explainability}: a verified natural-language
-readout attributes which cases the note moved from a single deployed run
-(Section~\ref{sec:results-attribution}, with the supervised-probe upper
-bound reported alongside); a positional trajectory shows that anchoring is
-a rift between a preserved internal state and the emitted answer, not an
-overwriting of the state (Section~\ref{sec:results-mechanism}); the readout
-renders that internal state as a statement a clinician can read
-(Section~\ref{sec:results-mechanism}); and feeding the statement back
-recovers the moved cases where re-showing the evidence does not,
-net-positive once paired with a precise selector
-(Section~\ref{sec:results-correction}). We separately replicate the
-behavioural anchoring effect on real case reports whose open diagnosis
-vocabulary does not admit the same fixed-class probe. Internal-state and
-correction claims on those case reports require separate experiments rather
-than following from that behavioural replication.
+Finally, decodability does not guarantee controllability. Selective
+re-prompting can use internal error signals while limiting disruption to
+correct outputs \cite{sun2025selective}. In contrast, recent work reports
+gaps between successful detection and activation-level correction
+\cite{basu2026risk, vankadaru2026hallucination, liu2026decodability}. We test a
+different deployment path: leave source-model weights and activations
+untouched, externalize a decoded content candidate, and feed it back as text.
+Our result supports only a conditional claim: accurate content can recover
+moved answers, but indiscriminate re-prompting damages correct ones, and no
+independent advantage of natural-language form remains after content
+accuracy is controlled.
 
 % ---------------------------------------------------------------------------
 % \cite key -> paper mapping (fill refs.bib from this list; delete when done)
@@ -136,6 +122,17 @@ than following from that behavioural replication.
 % clinicalreasoningfails2026 Why LLMs' Clinical Reasoning Fails. medRxiv 2026.01.26.26344845
 % frailenavarro2026internal  Internal Representation, Not Clinical Knowledge. arXiv:2605.29889
 % tayebi2026evidence         Internal-verbalized evidence-grade dissociation. arXiv:2606.29034
+% basu2026risk               Clinical risk probe and knowledge-action gap. arXiv:2603.18353
+% spaanjaars2015referral     Referral diagnosis and anchoring. DOI:10.1027/1015-5759/a000235
+% staal2022referral          Referral information and diagnostic reasoning. BMC Med Educ 2022
+% xiao2026medstress          MED-STRESS. arXiv:2605.23932
+% zhou2026medmisbench        MedMisBench. arXiv:2606.12291
+% singh2026narrative         Narrative Anchoring. arXiv:2607.27384
+% afolabi2026faithful        Faithful or Just Plausible? arXiv:2603.13988
+% mirtaheri2026rationalization Catching Rationalization. arXiv:2603.17199
+% sun2025selective           Selective reprompting with internal error probes. arXiv:2507.12379
+% vankadaru2026hallucination Medical hallucination detection/control gap. arXiv:2607.00158
+% liu2026decodability        Decodability-control gap. arXiv:2605.05715
 % croskerry2003             The importance of cognitive errors in diagnosis... Acad Med 2003
 % mahajan2025bias           Cognitive bias in clinical LLMs. npj Digit Med 8:428 (2025)
 % lundberg2017shap          A unified approach to interpreting model predictions (SHAP). NeurIPS 2017, arXiv:1705.07874

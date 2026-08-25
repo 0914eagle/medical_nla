@@ -1,8 +1,8 @@
-# 09 — 프로브: 탐지 · 궤적 · 용량반응 (Table 3)
+# 09 — 프로브: 탐지 · 궤적 · 용량반응 (Table 2a · Figure 3)
 
 **질문**: 답이 바뀐 케이스에서 **내부 상태는 무엇을 하고 있는가.**
 
-**상태**: ✅ canonical trajectory와 Table 3 전사 완료 (`moved=321`).
+**상태**: ✅ canonical trajectory와 Table 2a 전사 완료 (`moved=321`).
 DDXPlus 전용이며 MCR 내부 기전은 현재 **미측정**이다.
 
 ---
@@ -29,7 +29,7 @@ DDXPlus 전용이며 MCR 내부 기전은 현재 **미측정**이다.
 값), 그 이후 공유 landmark의 차이는 소견서의 **내부 비용**이다. note token은
 no-note arm에 대응 위치가 없으므로 paired cost가 `N/A`다.
 
-## 결과 (Table 3, 최종 토큰에서 프로브가 정답에 주는 확률)
+## 결과 (Table 2a, 최종 토큰에서 프로브가 정답에 주는 확률)
 
 | 오답 소견서 하 행동 | n | 소견서 있음 | 소견서 없음 | Δ |
 |---|---:|---:|---:|---:|
@@ -42,7 +42,7 @@ canonical 그룹에서도 내부 비용은 답 유지 < 제3 진단 < 제안 채
 
 ## 읽는 법
 
-**Figure 4(a)**는 wrong-note arm에서 프로브가 정답에 주는 평균 확률을 행동별로
+**Figure 3(a)**는 wrong-note arm에서 프로브가 정답에 주는 평균 확률을 행동별로
 그린다. 답 유지 > 제3 진단 > 제안 채택 순으로 gold signal이 약해지지만,
 최종 토큰에서도 세 집단 모두 평균 정답 신호가 남는다. 이것은 집단 평균이며
 각 사례에서 gold가 top-1이라는 뜻은 아니다.
@@ -55,7 +55,7 @@ canonical 그룹에서도 내부 비용은 답 유지 < 제3 진단 < 제안 채
 calibration이나 모델의 실제 next-token 확률로 해석하지 않는다. 둘 다
 49-way probe가 디코드한 집단 평균 확률이다.
 
-**Figure 4(b)**는 같은 사례의 `p_wrong(gold) - p_none(gold)`다. 0이면 소견서가
+**Figure 3(b)**는 같은 사례의 `p_wrong(gold) - p_none(gold)`다. 0이면 소견서가
 내부 정답 신호를 움직이지 않았고, 음수가 클수록 비용이 크다. 마지막 finding의
 0은 causal masking sanity check이고 referral-note 위치는 paired counterpart가
 없어 `N/A`다. 비용은 읽기 순서에 따라 단조 증가하지 않는다. constraint에서
@@ -78,7 +78,7 @@ canonical paired cost의 핵심 지점은 다음과 같다.
 gold signal의 회복은 올바른 출력에 **충분하지 않았다**. 이를 “회복 신호가
 출력 경로에 전달되지 않았다”는 인과 주장으로 확대하지는 않는다.
 
-**Figure 4(c), canonical 321건**:
+**Figure 3(c), canonical 321건**:
 
 | 첫 suggestion top-1 지점 또는 경로 | n | moved 중 비율 |
 |---|---:|---:|
@@ -108,7 +108,7 @@ note landmark에서 gold-label probe가 준 `p(suggestion)`은 세 집단 모두
 
 핵심은 `never suggestion top-1 = gold throughout`가 아니라는 것이다. 266건 중
 151건만 gold가 모든 관측 landmark에서 top-1이고, 115건은 제3 진단이 top-1인
-적이 있다. Figure 4의 stacked bar가 이 둘을 분리한다.
+적이 있다. Figure 3의 stacked bar가 이 둘을 분리한다.
 
 **한 문장 해석**: 오답 소견서는 내부 gold signal을 행동 결과에 비례해
 약화시키지만, 출력이 바뀐 대부분의 사례에서 suggestion이 관측 landmark의
@@ -143,7 +143,7 @@ baseline과 함께 실제로 측정하기 전에는 자연어 채널의 필요�
 ## 남은 것
 
 - ✅ canonical final `p_gold/cf_p_gold/Δ`와 채택형 `p(suggestion)=.211` 전사.
-- ▢ Table 3의 세 Δ 차이에 대한 paired bootstrap CI 또는 추세 검정을 추가한다.
+- ▢ Table 2a의 세 Δ 차이에 대한 paired bootstrap CI 또는 추세 검정을 추가한다.
 - ▢ constraint 최대값이 landmark별 probe calibration 차이인지 확인하려면
   각 위치 probe의 heldout 성능·calibration을 함께 보고한다.
 - ▢ suggestion 표상 부재를 주장하려면 hint-label probe/retrieval 대조를 추가한다.

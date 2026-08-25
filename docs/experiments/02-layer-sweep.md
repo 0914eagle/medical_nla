@@ -61,9 +61,9 @@ L32로 고정했다."*
 생성돼 있어(진단명을 대지 말라는 블록 안에서 진단명을 대고 있다) 비교가
 성립하지 않았다.
 
-## Figure 2를 읽는 법
+## Appendix Figure A1을 읽는 법
 
-Figure 2는 하나의 position ablation이 아니라 **서로 다른 두 layer sweep을
+Appendix Figure A1은 하나의 position ablation이 아니라 **서로 다른 두 layer sweep을
 나란히 둔 그림**이다.
 
 - **(a) Cue-token reader, held-out cue strings**: cue 위치별 판독을 학습하고
@@ -84,7 +84,7 @@ adapter·같은 split·같은 target으로 통제된 ablation이 별도로 필�
 
 ## 남은 것
 
-- Figure 2 캡션에 `different recipes and held-out axes; compare within panels`
+- Appendix Figure A1 캡션에 `different recipes and held-out axes; compare within panels`
   를 명시한다.
 - 현재 그림 숫자는 lexical scorer다. 보류 중인 외부 의미 판정 결과와 같은
   값처럼 섞지 않는다.

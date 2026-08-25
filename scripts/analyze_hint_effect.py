@@ -196,6 +196,25 @@ def summarize(cases: dict[str, Case]) -> dict[str, dict[str, float]]:
     return out
 
 
+def summarize_population(cases: dict[str, Case]) -> dict[str, Any]:
+    """Return every aggregate needed by the intervention table and figure."""
+    result: dict[str, Any] = {"n": len(cases), "arms": summarize(cases)}
+    if "wrong" not in arms_in(cases):
+        return result
+
+    to_suggestion = sum(took_the_hint(case, "wrong") for case in cases.values())
+    moved = sum(
+        took_the_hint(case, "wrong") or lost_the_gold(case, "wrong")
+        for case in cases.values()
+    )
+    result["moved"] = {
+        "n": moved,
+        "to_suggestion": to_suggestion,
+        "to_third_diagnosis": moved - to_suggestion,
+    }
+    return result
+
+
 def report(name: str, cases: dict[str, Case]) -> None:
     if not cases:
         print(f"\n{name}: no cases")
@@ -241,7 +260,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--dump",
-        help="Write the per-population arm accuracies as JSON, for "
+        help="Write per-population arm accuracies and moved destinations as JSON, for "
         "make_figure_intervention.py. The figure is drawn from this file, so "
         "the plotted values are the reported values by construction.",
     )
@@ -329,7 +348,7 @@ def main() -> None:
         import json
 
         dump = {
-            name: {"n": len(pop), "arms": summarize(pop)}
+            name: summarize_population(pop)
             for name, pop in (("all", cases), ("clean", clean), ("leaky", leaky))
             if pop
         }

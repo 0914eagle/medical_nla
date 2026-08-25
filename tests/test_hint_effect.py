@@ -4,7 +4,12 @@ import json
 
 import pytest
 
-from scripts.analyze_hint_effect import group_by_case, summarize, took_the_hint
+from scripts.analyze_hint_effect import (
+    group_by_case,
+    summarize,
+    summarize_population,
+    took_the_hint,
+)
 
 
 from scripts.make_ddxplus_cue_count_cases import make_prompt
@@ -106,6 +111,28 @@ def test_drifting_to_a_third_diagnosis_is_a_change_but_not_anchoring(tmp_path):
     assert stats["reworded"] == 1.0
     assert stats["lost"] == 1.0
     assert stats["took"] == 0.0
+
+
+def test_dump_summary_separates_suggestion_from_third_diagnosis(tmp_path):
+    adopted = arms(
+        "adopted", gold="Pneumonia", wrong="Bronchitis",
+        answers=("Pneumonia", "Bronchitis", "Pneumonia"),
+    )
+    third = arms(
+        "third", gold="Pneumonia", wrong="Bronchitis",
+        answers=("Pneumonia", "Tuberculosis", "Pneumonia"),
+    )
+    kept = arms(
+        "kept", gold="Pneumonia", wrong="Bronchitis",
+        answers=("Pneumonia", "Pneumonia", "Pneumonia"),
+    )
+    summary = summarize_population(group_by_case(write(tmp_path, adopted + third + kept)))
+    assert summary["n"] == 3
+    assert summary["moved"] == {
+        "n": 2,
+        "to_suggestion": 1,
+        "to_third_diagnosis": 1,
+    }
 
 
 def test_saying_the_same_diagnosis_at_greater_length_is_not_an_effect(tmp_path):

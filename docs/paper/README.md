@@ -11,13 +11,24 @@
 
 1. `experiment_summary_2026-08-25.md` — 실험별 질문, 실측, 상태를 한 번에 본다.
 2. `paper_outline_2026-08-24.md` — 논문 테제와 절별 서사를 본다.
-3. `table_camera_ready_2026-08-25.md` — 현재 표의 수치와 캡션을 확인한다.
-4. `prior_work_2026-08-24.md` — 신규성의 범위와 가장 가까운 선행을 확인한다.
-5. `draft_related_work_2026-08-24.md` / `related_work.tex` — 실제 Related Work 원고.
+3. `draft_introduction_2026-08-25.md` — 영어 Introduction 초안, H/RQ, 원문 출처 지도를 본다.
+4. `table_camera_ready_2026-08-25.md` — 현재 표의 수치와 캡션을 확인한다.
+5. `figure_order_and_generation_2026-08-25.md` — 그림 순서·생성 명령·해석 경계를 확인한다.
+6. `prior_work_2026-08-24.md` — 신규성의 범위와 가장 가까운 선행을 확인한다.
+7. `draft_related_work_2026-08-24.md` / `related_work.tex` — 실제 Related Work 원고.
 
 `related_work_2026-08-23.md`는 문헌 조사 원장이고, `reading_*.md`는 최근접
 논문의 정독 노트다. `judge_jobs_2026-08-24.md`는 외부 판정자 실험의 실행
 대기열이다.
+
+## Camera-ready asset order
+
+본문은 **Figure 1 설계 → Table 1/Figure 2 행동 → Table 2a/Figure 3 궤적 →
+Table 2b/Figure 4(a) 탐지 → Table 3/Figure 4(b) 교정** 순서다. AV 계기 검증과
+layer map은 핵심 인과 주장의 전제가 아니라 AV 채널에만 필요한 측정 관문이므로
+**Appendix Table A1/Figure A1**로 이동한다. Myocarditis case study는 Appendix
+Figure A2다. 과거 실험 문서에 남은 Table 1/Figure 2 표기는 legacy numbering이며,
+현재 번호의 정본은 `table_camera_ready_2026-08-25.md`다.
 
 ## 현재 논문의 한 문장
 
@@ -120,7 +131,7 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 
 1. ~~wording과 CoT 파생 실행을 canonical matcher로 재집계한다.~~ **완료
    (08-24)** — `.8117 / .8168 / .8672 / .7481`, CoT 이중성 −17.80 → −4.46 pp.
-2. ~~Table 3a의 행동군 Δ 차이에 paired CI 또는 추세 검정을 추가한다.~~
+2. ~~Table 2a의 행동군 Δ 차이에 paired CI 또는 추세 검정을 추가한다.~~
    **계기 완료** (`src/paired_stats.py`) — 궤적 재실행에서 값이 나온다.
 3. ~~reader-trust 2,896 완주와 shuffled 통제.~~ **완료 (08-25)**:
    readout **−.0935 [−.130,−.059]**, probe **+.0715**, CoT 0 포함.
@@ -139,9 +150,12 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
    vignette/note/answer 접근 때문인지 분리한다. (`--no-cot` 빌더 완료)
 7. Related Work의 최신 논문 서지·게재 상태와 정확한 인용 문장을 원문으로
    재확인한다.
-8. Figure 5의 `64.1%`를 **`.591`**로 교체한다 (canonical 재집계 완료).
+8. Appendix Figure A2의 옛 `64.1%`를 **`.591`**로 교체한다 (canonical 재집계 완료).
 9. corpus-300을 "독립 재현 아님"에서 **독립 재현**으로 승격한 서술로
    본문·표·outline을 맞춘다 (미관측 3,319에서 재현 확인).
+10. **Source output-head likelihood 기준선**을 canonical wrong-note 1,747건에서
+    실행한다. 생성문과 hidden-state probe 사이의 필수 비교이며, 과거 source-error
+    logprob 결과로 대체하지 않는다.
 
 ## 갱신 규칙
 
