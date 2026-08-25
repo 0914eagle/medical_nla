@@ -17,7 +17,7 @@ top-1”이라는 뜻이 아니다. 정답이 모든 관측 지점에서 top-1�
 
 운영적으로 풀면 다음과 같다. **환자 cue와 충돌하는 잘못된 임상 제안이 들어온
 DDXPlus 조건에서, activation을 직접 보는 내부 채널은 생성된 CoT를 읽는 채널보다
-note-caused answer movement를 더 잘 귀속한다.** 동일 wrong-note 단일 실행에서
+**그 소견서 때문에 답이 바뀐 사례를 더 잘 판별한다.** 동일 wrong-note 단일 실행에서
 cross-fitted probe는 all/silent AUROC `.9280/.9840`, 강한 LLM CoT monitor는
 `.7233/.6829`다. AV readout은 `.7506/.8302`로 probe보다 약하지만 자연어 후보를
 제공한다. 이 문장은 “모든 의료 과제에서 내부가 CoT보다 우월하다”는 일반 명제가
@@ -106,14 +106,16 @@ cross-fitted linear probe를 주 계기로 측정한다.
 - 따라서 RQ1은 “모델이 속으로 항상 정답을 안다”가 아니라 **행동적 이동과
   내부 suggestion dominance가 같은 사건이 아니다**라는 명제를 묻는다.
 
-### RQ2 — 단일 실행 영향 귀속과 채널 비교
+### RQ2 — 단일 실행 소견서 영향 판별과 채널 비교
 
-> **반사실 none arm을 보지 않고 wrong-note 실행 한 번만으로, 어떤 사례가
-> note 때문에 움직였는지 탐지할 수 있는가? 출력·CoT·probe·AV는 각각 무엇을
-> 추가하는가?**
+> **같은 사례에서 referral sentence만 제거한 no-note 기준 실행을 detector에게
+> 보여주지 않고, wrong-note 실행 한 번만으로 어떤 답이 그 소견서 때문에
+> 바뀌었는지 판별할 수 있는가? 출력·CoT·probe·AV는 각각 무엇을 추가하는가?**
 
-- Ground-truth `moved`는 실험자가 none/wrong pair로 만들지만 detector에게는
-  wrong run만 준다.
+- Ground-truth `moved`는 실험자가 같은 사례의 no-note/wrong-note pair로 만든다.
+  Detector는 이 pair를 보지 않고 wrong-note run 하나만 받는다. 따라서 probe나
+  AV가 인과관계를 만드는 것이 아니라, 개입으로 이미 정의된 인과 label을
+  단일 실행에서 예측한다.
 - 닫힌 DDXPlus에서는 probe가 가장 강하다: all/silent AUROC `.9280/.9840`.
   AV는 `.7506/.8302`, LLM CoT monitor는 `.7233/.6829`다.
 - AV를 쓰는 이유는 probe를 이기기 위해서가 아니다. Probe는 49개 label 중
@@ -144,7 +146,7 @@ cross-fitted linear probe를 주 계기로 측정한다.
 이 절은 위의 H1–H3와 별도인 새 가설 목록이 아니다. 왜 output/CoT 외에 내부
 채널을 추가했고, 왜 probe와 AV를 함께 유지하는지를 기록한 측정 선택의 근거다.
 
-**문제 A — CoT 텍스트만으로 인과 귀속하는 것은 불완전하다.**
+**문제 A — CoT 텍스트만으로 소견서가 답을 바꾼 원인을 판별하는 것은 불완전하다.**
 ⇒ 내부 채널이 추가 정보를 주는지 비교해야 한다.
 - 1-1. 단순 규칙 특징은 약하지만(.50–.55), 강한 LLM 모니터는 전체 .7233,
   침묵 .6829를 얻는다. 체인에 신호가 없다는 주장은 철회한다. 같은 침묵
@@ -265,7 +267,7 @@ Results** / Conclusion. (초기 판단 "별도 Methods 없음"은 철회 — 도
 "무엇이 이 답을 만들었나"에 실패한다. 내부를 읽는 도구는 프로브·렌즈·SAE에서
 자연어 판독(Patchscopes/SelfIE/LatentQA/NLA)으로 왔고, 마지막 비판이
 Li et al.의 "언어화 모델의 지식일 수 있다"이다. 의료 진단에서 개별 사례의
-원인을 자연어로 귀속한 선행은 없다.
+답이 바뀐 원인을 사례별 자연어로 판별한 선행은 없다.
 
 **§3 Methodology.** 데이터 둘의 분업(DDXPlus = 통제된 인과·닫힌 진단 공간,
 MCR = 실제 임상 언어·열린 진단 공간)을 먼저 설명한다. 다음으로 환자 소견은
@@ -302,7 +304,7 @@ AV 산문을 activation 관측치로 취급하기 위한 선행 calibration이�
 랜드마크에서도 top-1이 아닌 경우가 266건이다. 그중 gold throughout는
 151건, 다른 진단 top-1은 115건이다. 따라서 “상태는 항상 정답을 보존한다”가
 아니라 “출력 이동에 제안 top-1 채택이 필요하지 않다”가 정본 주장이다.
-단일 실행 영향 귀속은 LLM 모니터 .7233/.6829, AV 판독 .7506/.8302,
+단일 실행 소견서 영향 판별은 LLM 모니터 .7233/.6829, AV 판독 .7506/.8302,
 probe .9280/.9840(all/silent)이다.
 프런티어 모니터를 세워도 내부가 이긴다는 것이 이 절의 실제 주장이고,
 프로브가 이기는 조건과 그 조건이 무너지는 코퍼스를 같은 자리에서 말한다.
@@ -335,7 +337,7 @@ precision .3615), 허위 경보의 68.4%가 어댑터 오독이다. 자기 CoT r
 
 **임무**: 임상적으로 실재하는 잠정 진단이 downstream 판단을 좁힐 수 있다는
 문제에서 출발해, `행동적 출력 이동 != 내부 suggestion dominance`라는 대전제를
-세우고, 이를 측정·단일 실행 영향 귀속·조건부 교정하는 세 RQ로 도달한다. 자연어 AV는
+세우고, 이를 측정·단일 실행 소견서 영향 판별·조건부 교정하는 세 RQ로 도달한다. 자연어 AV는
 이 현상의 유일한 증거도 주인공도 아니다. 닫힌 진단 공간에서는 cross-fitted
 probe가 주 정량 계기이고, AV는 activation-dependent 자연어 후보를 제공하는 보조
 계기다.
@@ -362,9 +364,9 @@ suggestion`이다. `no-note`는 findings가 없는 조건이 아니라 이 추�
 - **H1 — dissociation**: wrong note가 답을 바꿔도 suggestion이 관측한 activation의
   top-1 diagnosis가 되지 않을 수 있다. Gold가 유지되는 경로와 제3 진단으로
   이동하는 경로를 모두 허용한다.
-- **H2 — single-run attribution**: 반사실 none arm을 detector에게 주지 않아도,
-  wrong-note 실행의 내부 채널은 output/CoT 채널보다 **그 note가 답을 움직였는지**
-  더 잘 귀속할 수 있다.
+- **H2 — single-run note-influence detection**: 같은 사례에서 referral sentence만
+  제거한 no-note 기준 실행을 detector에게 주지 않아도, wrong-note 실행의 내부
+  채널은 output/CoT 채널보다 **그 note 때문에 답이 바뀐 사례를 더 잘 판별할 수 있다.**
 - **H3 — conditional correction**: 정확한 내부 content는 moved answer 교정에
   유용하지만, 무선별 재실행과 부정확한 판독은 kept answer를 파괴한다. 이득은
   자연어 형식 자체보다 content 정확도와 selector에 의해 결정된다.
@@ -374,7 +376,7 @@ suggestion`이다. `no-note`는 findings가 없는 조건이 아니라 이 추�
 - **RQ1 (현상·궤적)**: wrong referral note는 진단 행동을 얼마나 움직이며,
   moved case에서 gold·suggestion·other diagnosis의 decodable signal은 prompt
   landmark를 따라 어떻게 변하는가?
-- **RQ2 (단일 실행 영향 귀속)**: wrong-note 실행 한 번의 output, CoT, LLM
+- **RQ2 (단일 실행 소견서 영향 판별)**: wrong-note 실행 한 번의 output, CoT, LLM
   monitor, probe, AV 중 무엇이 숨겨진 no-note 반사실이 정의한 **note-caused
   answer movement**를 가장 잘 식별하는가? 답이 suggestion을 말하지 않는
   canonical silent subset에서도 가능한가?
@@ -422,7 +424,7 @@ Lanham et al.은 CoT 개입에 대한 의존도가 모델·과제별로 크게 �
 의료에서도 Afolabi et al.은 causal ablation과 hint injection으로 외부 제안이
 인정 없이 흡수될 수 있음을 보고했다. 다만 이것이 “CoT에 신호가 없다”는 뜻은
 아니다. 우리 강한 LLM monitor는 유의한 신호를 읽는다. 정확한 문제는
-**self-report만으로 원인을 완전히 귀속할 수 없고, 추가 내부 채널의 증분을 직접
+**self-report만으로 소견서가 답을 바꾼 원인을 완전히 판별할 수 없고, 추가 내부 채널의 증분을 직접
 비교해야 한다**는 것이다.
 
 - [Turpin et al., NeurIPS 2023](https://arxiv.org/abs/2305.04388)
@@ -477,7 +479,7 @@ suggestion은 관측한 어느 landmark에서도 probe top-1이 아니다.
      제안이 어느 랜드마크에서도 top-1이 아니다. 그중 gold throughout는
      151건이고 other top-1은 115건이다. 행동적 이동과 내부 제안 우세의
      불일치 및 그 이질성을 함께 보고한다.
-  3. **단일 실행 영향 귀속의 정직한 지도**: 설명문 **0.50–0.53** · 출력 기반은 침묵
+  3. **단일 실행 소견서 영향 판별의 정직한 지도**: 설명문 **0.50–0.53** · 출력 기반은 침묵
      부분집합(답 바뀜의 2/3)에서 **구조적 장님** · 닫힌 코퍼스에서는 지도
      프로브 **.9280/.9840**, AV 판독 **.7506/.8302**(all/silent)로
      닫힌 공간에서는 프로브가 앞선다. 판독의 자리는 계측과 열린 어휘 가설
@@ -492,7 +494,7 @@ suggestion은 관측한 어느 landmark에서도 probe top-1이 아니다.
      reader utility는 실패했다. 즉 AV를 우월한 detector가 아니라 검증이 필요한
      자연어·가설 생성 채널로 위치시킨다.
 - 마지막에 로드맵 한 줄: §2는 위 네 선행 흐름과 남은 교차점을 정리하고, §3은
-  인과 테스트베드와 계기를 정의하며, §4는 행동→궤적→단일 실행 영향 귀속→교정
+  인과 테스트베드와 계기를 정의하며, §4는 행동→궤적→단일 실행 영향 판별→교정
   순으로 답한다.
 
 ## 2. Related Work (확정 3절)
@@ -522,7 +524,7 @@ Related Work 직전 또는 끝에서 신규성을 다음처럼 한 문장으로 
 - **2.2 CoT faithfulness and internal-output dissociation**: Turpin·Lanham·Afolabi
   → Catching Rationalization → Fraile Navarro·Tayebi Arasteh·Basu. 결론은
   “CoT가 완전한 원인 기록이 아니며 내부가 출력을 초과할 수 있다는 것도
-  알려져 있다.” 우리의 차이는 **진단 제안의 인과 귀속**, 위치 궤적, silent
+  알려져 있다.” 우리의 차이는 **진단 제안이 답을 바꾼 사례의 원인 판별**, 위치 궤적, silent
   subset, single-run moved label이다.
 - **2.3 Reading and acting on activations**: probe·lens·SAE → Patchscopes·SelfIE·
   LatentQA·NLA → Li et al.의 privileged-information 비판 → Sun et al.의 selective
@@ -541,7 +543,7 @@ Related Work 직전 또는 끝에서 신규성을 다음처럼 한 문장으로 
 2. wrong note의 내용만 바꾸는 인과 개입과 `moved` 정답지를 어떻게 만드는가(3.2).
 3. 출력·CoT·probe·AV가 각각 무엇을 읽고, AV가 증거로 쓰이기 전에 어떤
    측정 관문을 통과해야 하는가(3.3).
-4. 이 계기들로 행동 효과, 위치 궤적, 단일 실행 영향 귀속, 교정을 어떻게 평가하는가(3.4).
+4. 이 계기들로 행동 효과, 위치 궤적, 단일 실행 소견서 영향 판별, 교정을 어떻게 평가하는가(3.4).
 
 **AV를 쓰는 이유는 probe보다 정확해서가 아니다.** 닫힌 DDXPlus 49-class에서는
 지도 probe가 더 강하고 이를 주 정량 계기로 사용한다. AV는 고정 label head가
@@ -668,7 +670,7 @@ Note는 마지막 finding 뒤, diagnostic question 앞에 삽입한다. Causal a
 한 문장 template 의존성을 보기 위해 referral, colleague, patient, realistic
 multi-sentence wording을 별도 실행한다. Realistic condition은 길이와 clinical
 register도 함께 달라지므로 matched neutral placebo가 없는 한 추가 효과를
-문체에 귀속하지 않는다.
+문체 때문이라고 해석하지 않는다.
 
 #### 정답 채점과 causal labels
 
@@ -857,7 +859,7 @@ analysis script를 공개하고 canonical rescore 파일만 본문 수치에 사
 |---|---|---|
 | Table 1 | 코퍼스별 4조건 개입 정확도 | 4.1 |
 | Table 2a | **기전: 최종 토큰 p(정답), 행동 그룹별 대조** | 4.2 |
-| Table 2b | 단일 실행 귀속 AUROC (채널별, all/silent 분리) | 4.2 |
+| Table 2b | 단일 실행 소견서 영향 판별 AUROC (채널별, all/silent 분리) | 4.2 |
 | Table 3 | 교정 사다리 | 4.3 |
 | Appendix Table A1 | AV 계기 검증 배터리 | Appendix A |
 
@@ -957,7 +959,7 @@ Appendix A1을 참조한다.
   ✅ **LLM 모니터 기준선 완료 (08-24, gpt-5.6-sol, 1,747/1,747 파싱)**:
   같은 체인에서 **.7233 / 정본 침묵 .6829**(별도 정의 .6930). 규칙 기반
   0.53과의 차이가 크므로
-  **"체인은 귀속 신호를 담지 않는다"는 문장을 철회한다** — 우리 채점기가
+  **"체인은 소견서 영향 판별 신호를 담지 않는다"는 문장을 철회한다** — 우리 채점기가
   약한 부분이었다. 대신 이 절이 말하는 것은 정량적 경계다: 프런티어 독자에게
   전체 체인을 다 보여준 모니터가 단순 출력 특징보다 높지만, 동일 판정자의
   no-CoT arm이 없으므로 그 차이를 CoT만의 순수 증분으로 부르지 않는다.
@@ -1052,7 +1054,7 @@ Appendix A1을 참조한다.
   · 규칙 기반 CoT 특징 전체 **.5464** → LLM 모니터 **.7233/.6829**
     (all/silent) → 내부 자연어 판독 **.7506/.8302**.
   · 지도 프로브의 canonical all/silent 값은 **.9280/.9840**이다.
-  · **유일성의 재배치**: ①귀속은 프로브도 통과한다. AV 판독의 몫은
+  · **유일성의 재배치**: ①소견서 영향 판별은 프로브도 통과한다. AV 판독의 몫은
     **③ 열린 어휘**(MCR 6,934종에는 현재의 고정 49-class probe를 직접
     이전할 수 없음) +
     **자연어 후보 의미의 탐색** + **다중 위치 국소화**다. MCR 근거 접지와
@@ -1137,7 +1139,7 @@ Appendix A1을 참조한다.
 · 되먹임 채널 선택 기준은 표현이 아니라 **내용의 적중률** · 규제 관점 한 줄.
 
 **Limitations (정직 목록)**: 단일 백본(공개 NLA 생태계 제약) · 주 코퍼스가
-합성 + 라벨 결정성(오답 예측 불성립, 프로브 우위의 조건) · **체인은 귀속
+합성 + 라벨 결정성(오답 예측 불성립, 프로브 우위의 조건) · **체인은 소견서 영향 판별
 신호를 담는다 — 규칙 기반 .5464가 아니라 동일 모집단 LLM 모니터 .6829가
 정직한 값이고, 우리 주장은 "없다"가 아니라 "판독보다 14.7%p 적다"이다** · 답 채점은 여전히
 규칙 기반 매칭 · 다중비교 · 개입 1종(문구 4종으로 보강) · 자연어 형식의

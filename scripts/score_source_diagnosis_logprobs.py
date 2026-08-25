@@ -76,13 +76,17 @@ def read_candidates(path: str | None, rows: list[dict[str, Any]]) -> list[dict[s
     if path is None:
         candidates = collect_candidates(rows)
     else:
-        candidates = []
+        by_id: dict[str, str] = {}
         for row in read_jsonl(path):
             diagnosis_name = str(row.get("diagnosis_name") or row.get("name") or "").strip()
             if not diagnosis_name:
                 raise ValueError(f"Candidate row lacks diagnosis_name/name: {row}")
             diagnosis_id = str(row.get("diagnosis_id") or normalize_candidate_id(diagnosis_name))
-            candidates.append({"diagnosis_id": diagnosis_id, "diagnosis_name": diagnosis_name})
+            by_id.setdefault(diagnosis_id, diagnosis_name)
+        candidates = [
+            {"diagnosis_id": diagnosis_id, "diagnosis_name": diagnosis_name}
+            for diagnosis_id, diagnosis_name in sorted(by_id.items())
+        ]
     if not candidates:
         raise ValueError("No candidates found.")
     return candidates
@@ -293,6 +297,15 @@ def main() -> None:
     )
     parser.add_argument("--candidate-batch-size", type=int, default=8)
     parser.add_argument(
+        "--hint-variant",
+        default=None,
+        help=(
+            "Only score rows with this hint_variant. Candidates are still "
+            "collected from the complete input before filtering, so selecting "
+            "the wrong-note arm does not shrink the diagnosis choice set."
+        ),
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -317,9 +330,9 @@ def main() -> None:
     cfg = load_config(args.config)
     cache_dir = cfg["paths"].get("cache_dir")
     model_cfg = cfg["source_model"]
-    rows = list(read_jsonl(args.input))
-    rows = [row for row in rows if row.get("prompt") and row.get("diagnosis_id")]
-    if not rows:
+    all_rows = list(read_jsonl(args.input))
+    all_rows = [row for row in all_rows if row.get("prompt") and row.get("diagnosis_id")]
+    if not all_rows:
         raise ValueError("No input rows with prompt and diagnosis_id found.")
 
     # Candidates come from the whole file, before any limit. Deriving them from
@@ -327,7 +340,17 @@ def main() -> None:
     # case file is grouped by diagnosis at a hundred cases each, so --limit 200
     # left two labels, and a two-way choice scored top1 200/200 and mrr 1.0000
     # against a source model that answers these cases at 0.3724.
-    candidates = read_candidates(args.candidates_jsonl, rows)
+    candidates = read_candidates(args.candidates_jsonl, all_rows)
+    rows = all_rows
+    if args.hint_variant is not None:
+        rows = [row for row in rows if str(row.get("hint_variant") or "") == args.hint_variant]
+        if not rows:
+            raise ValueError(f"No rows with hint_variant={args.hint_variant!r} found.")
+        print(
+            f"[filter] hint_variant={args.hint_variant}: {len(rows):,} of "
+            f"{len(all_rows):,} rows; {len(candidates)} candidates retained",
+            flush=True,
+        )
     if args.limit is not None and len(rows) > args.limit:
         # Sampled for the same reason: the front of a diagnosis-grouped file is
         # a corner of the label space, not a sample of it.
@@ -403,6 +426,7 @@ def main() -> None:
             "base_id": row.get("base_id", row["id"]),
             "prompt": row["prompt"],
             "variant": row.get("variant"),
+            "hint_variant": row.get("hint_variant"),
             "gold_diagnosis_id": gold_id,
             "gold_diagnosis_name": row.get("diagnosis_name") or candidate_by_id[gold_id]["diagnosis_name"],
             "completion_prefix": args.completion_prefix,

@@ -34,16 +34,17 @@ layer map은 Appendix Table A1/Figure A1이다. 아래 실험 번호는 바뀌�
 | [04](04-note-intervention-mcr.md) | 의뢰 소견서 개입 — MedCaseReasoning | 4.1 | ✅ |
 | [05](05-wording-variants.md) | 문구 4종 (화자 교체) | 4.2 | ✅ canonical 08-24 |
 | [06](06-cot-duality.md) | CoT의 이중성 | 4.2 | ✅ canonical 08-24 |
-| [07](07-chain-attribution-rule-based.md) | 체인 귀속 — 규칙 기반 3종 | 4.2 | 🔶 silent/CI 동기화 |
-| [08](08-cot-llm-monitor.md) | 체인 귀속 — LLM 모니터 | 4.2 | ✅ 08-24 |
+| [07](07-chain-attribution-rule-based.md) | 체인에서 소견서 유발 이동 판별 — 규칙 기반 3종 | 4.2 | 🔶 silent/CI 동기화 |
+| [08](08-cot-llm-monitor.md) | 체인에서 소견서 유발 이동 판별 — LLM 모니터 | 4.2 | ✅ 08-24 |
 | [09](09-probe-detection-trajectory.md) | 프로브: 탐지·궤적·용량반응 (Table 2a/Figure 3) | 4.2 | ✅ canonical 표·궤적 |
-| [10](10-readout-attribution.md) | 판독 귀속 (Table 2b) | 4.2 | ✅ canonical |
+| [10](10-readout-attribution.md) | 판독으로 소견서 유발 이동 판별 (Table 2b) | 4.2 | ✅ canonical |
 | [11](11-channel-gap-bootstrap.md) | 채널 격차 신뢰구간 | 4.2 | ✅ canonical |
 | [12](12-correction-ladder.md) | 교정 사다리 r3–r7 (Table 3) | 4.3 | ✅ DDXPlus canonical; MCR 대기 |
 | [13](13-mcr-conclusion-adapter.md) | MCR 결론 어댑터 (열린 어휘) | Appendix/limitation | ✅ derangement 통과 08-24 |
 | [14](14-reader-trust.md) | 독자-신뢰 과제 | 4.2/limitation | 🔄 2,546/2,896 + shuffled 대기 |
 | [15](15-judge-infrastructure.md) | 외부 판정자 기반 | 공통 | ✅ |
 | [16](16-readout-semantic-judging.md) | 판독 의미 채점 — 손채점 vs 외부 판정자 | Appendix | ✅ 08-24, 238쌍 |
+| [17](17-output-head-likelihood.md) | Source output-head likelihood 기준선 | 4.2 | ▢ GPU 실행 |
 
 인용 전에는 [문서 감사 기록](AUDIT_2026-08-24.md)의 미해결 항목을 확인한다.
 

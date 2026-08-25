@@ -97,7 +97,7 @@ LaTeX 포함)과 인용 지도는 repo에 완료. 테제: **오답 임상 제안
 | Figure 5·4 작도 | 데이터 완비, matplotlib 스크립트만 |
 | 판정자 채점 (체인 태도·거짓 기각률·매칭 2차) | 스크립트 반나절, GPU 소요 적음 |
 | MCR correct-조건 판정자 재채점 | 위 판정자 패스에 포함 |
-| lens/likelihood 그레이박스 기준선 | ~2h, 선택 |
+| source output-head likelihood 그레이박스 기준선 | ~2h, **필수** — final logits와 probe 사이의 증분 확인 |
 | **초안 집필** | **막는 실험 없음 — 즉시 착수 가능** |
 
 ## 5. 결정 요청 1건

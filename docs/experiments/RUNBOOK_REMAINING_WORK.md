@@ -61,7 +61,17 @@ dry-run 견적은 3층 합계 **약 $0.09**다. 결과는 손라벨을 덮어쓰
 `.7233`에서 이 값을 빼야 체인 자체의 몫이 나온다. 지금 본문이 "CoT만의 순수
 증분으로 부르지 않는다"고 적어둔 것이 이 갈래가 없기 때문이다.
 
-## 9. GPU (며칠) — 2번 통과 후에만
+## 9. GPU (짧음) — source output-head likelihood
+
+Table 2b의 생성문과 hidden-state probe 사이에 실제 final-logit 기준선이 빠져 있다.
+이 값 없이는 probe가 final output distribution에 이미 있는 uncertainty를 다시 읽은
+것인지, output head보다 이른 representation에서 추가 정보를 얻은 것인지 구분할
+수 없다. [실험 17](17-output-head-likelihood.md)의 wrong-arm 1,747행만 실행한다.
+
+결과는 `RESULTS_CANONICAL`에 먼저 기록한 뒤 Table 2b의 `▢` 행을 채운다. 과거
+all-cue source-error logprob AUROC는 label과 모집단이 다르므로 가져오지 않는다.
+
+## 10. GPU (며칠) — 2번 통과 후에만
 
 MCR wrong-note activation 추출 → Table 3b MCR 칸 → MCR r5.
 
@@ -74,7 +84,7 @@ activation이 필요한 것은 r5뿐이고, r6은 현재 고정-class 설계에�
 행동 복제까지만 제한한다")이 이미 그 실패 모드를 덮는다. 나머지 항목에는
 그런 대안이 없다.
 
-## 10. 스크립트가 못 하는 것
+## 11. 스크립트가 못 하는 것
 
 Related Work의 서지·게재 상태와 인용 문장을 원문으로 재확인하는 일.
 `docs/paper/README.md` 게이트 7번이다.

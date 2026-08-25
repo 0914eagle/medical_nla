@@ -23,7 +23,7 @@
 | 가설 | 연구 질문 | 반증 또는 약화 조건 |
 |---|---|---|
 | **H1: internal-output dissociation** | **RQ1.** Wrong referral note가 답을 얼마나 움직이며, moved case의 gold/suggestion/other signal은 prompt landmark를 따라 어떻게 변하는가? | Moved case 대부분에서 suggestion이 내부 top-1이 되면 약화된다. |
-| **H2: single-run attribution** | **RQ2.** 숨겨진 no-note 반사실 없이 wrong-note 실행 한 번만 보고 그 note가 answer movement를 일으켰는지 귀속할 수 있는가? | 내부 채널이 동일 입력을 보는 강한 LLM CoT monitor보다 낫지 않거나 heldout에서 붕괴하면 약화된다. |
+| **H2: single-run note-influence detection** | **RQ2.** 같은 사례에서 referral sentence만 제거한 no-note 기준 실행을 숨긴 채, wrong-note 실행 한 번만 보고 그 note 때문에 답이 바뀐 사례를 판별할 수 있는가? | 내부 채널이 동일 입력을 보는 강한 LLM CoT monitor보다 낫지 않거나 heldout에서 붕괴하면 약화된다. |
 | **H3: conditional correction** | **RQ3.** Decode한 내부 content를 되먹이면 답을 회복하며, 이득은 재실행·evidence·label·자연어 중 무엇에서 오는가? | 정확한 content가 generic retry/evidence-only보다 낫지 않거나 kept answer 손해를 포함한 순효과가 음수면 실용 주장이 성립하지 않는다. |
 
 AV의 activation specificity는 별도 **M0 measurement gate**다. 이는 연구 질문의
@@ -184,7 +184,7 @@ DDXPlus의 moved 321건 중 230건(71.7%)은 suggestion이 아니라 제3 진단
 | Turpin et al. (2023) | 답을 움직인 bias가 CoT에서 누락·합리화될 수 있음 | [NeurIPS / arXiv](https://arxiv.org/abs/2305.04388) |
 | Lanham et al. (2023) | CoT faithfulness가 모델·과제에 따라 달라짐 | [arXiv](https://arxiv.org/abs/2307.13702) |
 | Faithful or Just Plausible? (2026) | 의료 폐쇄형 LLM의 causal ablation과 hint injection | [arXiv](https://arxiv.org/abs/2603.13988) |
-| Catching Rationalization (2026) | Probe와 full-CoT monitor의 단일 실행 영향 귀속 비교 | [arXiv](https://arxiv.org/abs/2603.17199) |
+| Catching Rationalization (2026) | Probe와 full-CoT monitor의 단일 실행 원인 판별 비교 | [arXiv](https://arxiv.org/abs/2603.17199) |
 | Fraile Navarro et al. (2026) | 동일 Gemma NLA를 사용한 의료 triage 내부-출력 해리 | [arXiv](https://arxiv.org/abs/2605.29889) |
 | Tayebi Arasteh (2026) | Hidden-state evidence grade와 stated grade의 해리 | [arXiv](https://arxiv.org/abs/2606.29034) |
 | Basu et al. (2026) | 임상 risk signal의 높은 probe 성능과 낮은 output sensitivity | [arXiv](https://arxiv.org/abs/2603.18353) |

@@ -141,6 +141,9 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 8. Appendix Figure A2의 옛 `64.1%`를 **`.591`**로 교체한다 (canonical 재집계 완료).
 9. corpus-300을 "독립 재현 아님"에서 **독립 재현**으로 승격한 서술로
    본문·표·outline을 맞춘다 (미관측 3,319에서 재현 확인).
+10. **Source output-head likelihood 기준선**을 canonical wrong-note 1,747건에서
+    실행한다. 생성문과 hidden-state probe 사이의 필수 비교이며, 과거 source-error
+    logprob 결과로 대체하지 않는다.
 
 ## 갱신 규칙
 

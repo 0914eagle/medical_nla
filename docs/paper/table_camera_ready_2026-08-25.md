@@ -431,13 +431,15 @@ baseline의 가능성까지 부정하지 않는다.
 
 ---
 
-## Table 2b — Single-run attribution (§4.2)
+## Table 2b — Detecting note-caused answer movement from one wrong-note run (§4.2)
 
 셀당 값 하나: All / Silent를 **열 두 개**로. MCR은 숫자 열이 아니라
 **적용 가능 여부 열**로 — 값이 아니라 정의의 문제라서.
 
-**Table 2b.** Within-diagnosis AUROC for identifying moved cases from the
-wrong-note run alone. All: n=1,747. Silent: n=1,641 (218 moved), restricted to
+**Table 2b.** Within-diagnosis AUROC for identifying cases whose answer was
+changed by the note, using the wrong-note run alone. The causal label is defined
+offline by comparing the same case's no-note and wrong-note answers; the detector
+does not receive the no-note run. All: n=1,747. Silent: n=1,641 (218 moved), restricted to
 cases whose answer does not name the suggestion, where the output-copying
 heuristic is blind by construction. `Task supervision` makes explicit that
 the fixed-class probe and the text channels do not operate under identical
@@ -449,6 +451,7 @@ by Appendix Table A1; it is not a clinician-facing explanation result.
 | Channel | Input access | Task supervision | AUROC, all | AUROC, silent |
 |---|---|---|---:|---:|
 | Answer names suggestion | Output text | none | **.6610** | n.a.ᵃ |
+| Source output-head likelihood | Final logits over diagnosis candidates | fixed 49-class candidate set | ▢ᵈ | ▢ᵈ |
 | Best rule-based CoT feature | CoT text | none | **.5464** | not reportedᶜ |
 | LLM monitor | Vignette + note + CoT + answer | external LLM | **.7233** | **.6829** |
 | NL activation readout (ours) | Hidden state → text | readout adapter | **.7506** | **.8302** |
@@ -462,10 +465,14 @@ performance is not established by this table.
 ᶜ The canonical ledger retains the rule feature's all-case score and its
 paired gap against the readout, but not a standalone silent value; do not
 reconstruct it by subtraction from rounded numbers.
+ᵈ Required gray-box baseline, pending the canonical wrong-note run. Candidate
+likelihood is scored after the same `The answer is` assistant prefill as direct
+generation. Old source-error likelihood results use a different label and must
+not fill these cells.
 
 **LLM 모니터 행 (08-24 실측, gpt-5.6-sol, 1,747/1,747 파싱, 실패 0).** 이
 행이 §4.2의 주장을 바꾼다. 규칙 기반 특징 .53 → 프런티어 모니터 .7233이면
-차이가 크므로 **"체인은 귀속 신호를 담지 않는다"는 더 이상 못 쓴다** — 우리
+차이가 크므로 **"체인은 소견서 영향 판별 신호를 담지 않는다"는 더 이상 못 쓴다** — 우리
 채점기가 약한 부분이었고, 같은 체인에서 강한 독자는 실제로 신호를 끌어낸다.
 주장은 이진에서 정량으로 바뀐다. 같은 정본 침묵 구역(n=1,641)에서 모니터
 .6829 대 판독 .8302(+14.7%p)다. 모니터 자체의 다른 침묵 정의(n=1,656)에서는
@@ -693,7 +700,7 @@ advantage from this table.*
 
 - **구 T3 신설**: 기전(대조 곡선·never-flip)이 표 없이 그림에만 있었다.
   관성 반론을 닫는 세 줄이므로 인용 가능한 표가 필요하다.
-- camera-ready에서는 궤적/귀속을 **T2a/T2b**로 묶는다.
+- camera-ready에서는 궤적/단일 실행 영향 판별을 **T2a/T2b**로 묶는다.
 - Appendix A1의 **답-위치 vanilla 검사**는 실행 완료됐지만 n=229/230 정합 전까지
   본표가 아니라 산문/부록에 둔다.
 - 캡션이 계기를 명시하도록 설계 규칙에 한 줄 추가.

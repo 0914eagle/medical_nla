@@ -44,6 +44,24 @@ Probe `.9280/.9840`, AV `.7506/.8302`, LLM CoT monitor `.7233/.6829`
 아니다. 안전한 표현은 `decodable gold-diagnosis signal`, `internal diagnostic
 representation`, `internal-output dissociation`이다.
 
+### 발표에서 사용할 인과 용어
+
+`귀속(attribution)`은 처음 듣는 사람에게 불투명하므로, 발표 본문에서는 아래처럼
+먼저 풀어 말한다.
+
+| 짧은 표기 | 발표에서 먼저 풀어 말할 뜻 |
+|---|---|
+| `no-note` / `none arm` | 같은 환자 findings는 유지하고 referral-suggestion sentence만 제거한 기준 실행 |
+| `wrong-note arm` | 같은 환자 findings에 plausible wrong diagnosis 한 줄을 추가한 실행 |
+| `moved` | no-note에서는 정답이었지만 wrong-note에서 답이 달라진 사건 |
+| `single-run attribution` | no-note 결과를 보지 않고 wrong-note 실행 하나만으로, **그 소견서가 답을 바꾼 원인인 사례를 판별하는 과제** |
+
+따라서 한국어 본문에서는 `귀속`을 단독으로 쓰지 않고 **소견서 영향 판별** 또는
+**소견서가 답을 바꾼 원인인지 판별**이라고 쓴다. 영어 논문 용어가 필요할 때만
+`single-run note-influence attribution`을 괄호에 병기한다. Probe와 AV가 스스로
+인과관계를 증명하는 것은 아니다. 인과 label은 no-note/wrong-note pair가 만들고,
+probe·AV·CoT monitor는 wrong-note 한 번만 보고 그 label을 예측한다.
+
 ### 논문 Methodology와 발표의 대응
 
 발표는 논문의 §3 순서를 그대로 따른다. Slide 9–11은 §3.1 데이터와 direct-answer
@@ -155,7 +173,7 @@ Medical-NLA의 성능 홍보가 아니라, 인과적으로 만든 output 이동�
 의도적으로 분리한다.
 
 1. **Cross-fitted linear diagnosis probe**는 DDXPlus의 고정된 진단 공간에서
-   각 진단의 decodability를 확률로 정량화한다. 내부 궤적과 단일 실행 영향 귀속의
+   각 진단의 decodability를 확률로 정량화한다. 내부 궤적과 단일 실행 소견서 영향 판별의
    주 계기다.
 2. **Natural-language AV readout**은 activation에서 cue와 진단 후보를 자연어로
    제안한다. 분류 vocabulary를 미리 닫기 어려운 곳에서 사용할 가능성이 있지만,
@@ -224,8 +242,8 @@ diagnostic signal`, `internal-output dissociation`, `suggestion dominance`로
 signal 또는 제3 진단 signal이 남을 수 있다. 이 가설은 행동 변화와 probe
 trajectory를 대조해 검증한다.
 
-**H2 — 단일 실행의 내부 채널은 output과 CoT보다 note-caused answer movement를
-더 잘 귀속한다.**
+**H2 — 단일 실행의 내부 채널은 output과 CoT보다 소견서가 답을 바꾼 사례를
+더 잘 판별한다.**
 배포 시에는 none/wrong 쌍을 동시에 볼 수 없으므로 wrong-note 한 번의 실행만으로
 이 케이스가 개입 때문에 움직였을 가능성을 추정해야 한다. Output-only,
 rule-based CoT, LLM monitor, AV, probe를 같은 모집단에서 비교한다.
@@ -255,10 +273,11 @@ heldout cue, cross-patient contamination으로 검사한다. M0은 연구 질문
 출력이 이동한 사례에서 gold·suggestion·제3 진단의 decodable signal은 prompt
 landmark를 따라 어떻게 변하는가?
 
-**RQ2 — 단일 실행 영향 귀속.** 반사실 none arm을 볼 수 없는 상황에서
-wrong-note 한 번의 output, CoT, LLM monitor, probe, AV 중 무엇이 **이 note가
-없었더라면 답이 달랐을 사건**을 가장 잘 식별하는가? 특히 answer가 suggestion과
-다른 silent subset에서도 신호가 남는가?
+**RQ2 — 단일 실행 소견서 영향 판별.** 실제 배포에서는 같은 환자의 no-note
+기준 답을 함께 볼 수 없다. 이때 wrong-note 한 번의 output, CoT, LLM monitor,
+probe, AV 중 무엇이 **그 소견서가 없었더라면 답이 달랐을 사례**를 가장 잘
+식별하는가? 특히 answer가 suggestion 이름을 말하지 않는 silent subset에서도
+신호가 남는가?
 
 **RQ3 — 조건부 교정.** Decode한 내부 내용을 source model에 다시 제공하면
 답을 고칠 수 있는가? 효과는 자연어 형식, 내용 정확도, 재실행 자체 중 무엇에서
@@ -274,7 +293,7 @@ RQ2가 오류 진단·조기 경보, RQ3가 해결이다. RQ1은 이 세 응용�
 | 교수님이 제시한 축 | 논문 안의 질문 | 현재 답의 범위 |
 |---|---|---|
 | 설명 | M0 + RQ1의 위치별 내부 측정 | activation-dependent 후보는 읽지만 임상 설명 효용은 미확립 |
-| 진단/경보 | RQ2 single-run note-influence attribution | DDXPlus에서 가능; probe가 최강 |
+| 진단/경보 | RQ2: wrong-note 한 번으로 소견서 유발 이동 판별 | DDXPlus에서 가능; probe가 최강 |
 | 해결 | RQ3 conditional correction | 정확한 content는 유용; selector 없이는 순손해 |
 
 ## Slide 8A. 기존 연구는 어디까지 왔는가
@@ -311,7 +330,7 @@ dissociation`은 주장하지 않는다.
 | 기존 결과 | 아직 남은 문제 |
 |---|---|
 | Misleading context가 평균 정확도를 낮춘다 | **어느 개별 답이 그 note 때문에 바뀌었는가?** 현재 오답과 note-caused error는 다름 |
-| CoT가 원인을 누락할 수 있다 | **같은 wrong run에서 output·CoT·내부 중 무엇이 note influence를 가장 잘 귀속하는가?** |
+| CoT가 원인을 누락할 수 있다 | **같은 wrong run에서 output·CoT·내부 중 무엇이 그 소견서가 답을 바꾼 사례를 가장 잘 판별하는가?** |
 | 내부에 정답·위험 신호가 남을 수 있다 | **Gold, suggestion, 제3 진단은 answer formation 동안 각각 어디로 가는가?** |
 | Probe/readout으로 내부 정보를 읽을 수 있다 | **읽힌 정보가 paired activation에 근거하는가, verbalizer가 답을 지어내는가?** |
 | 오류 신호로 재질문·steering할 수 있다 | **탐지가 실제 교정으로 이어지는가? Content, 형식, selector 중 무엇이 효과를 만드는가?** |
@@ -322,14 +341,16 @@ dissociation`은 주장하지 않는다.
 |---|---|---|
 | Fraile Navarro et al. | Triage output-format failure, NLA로 clinical content 확인 | Referral suggestion의 사례별 인과 효과와 competing-diagnosis trajectory가 아님 |
 | Tayebi Arasteh | Evidence grade의 internal/verbalized gap | 최종 진단 변화나 외부 suggestion intervention이 아님 |
-| Basu et al. | Clinical-risk probe와 output sensitivity gap | Referral anchoring의 원인 귀속·자연어 판독·correction ladder가 아님 |
-| Afolabi et al. | 의료 CoT causal ablation과 hint injection | Closed-source라 내부 궤적을 직접 관측하지 못하고 single-run note-influence attribution을 평가하지 않음 |
+| Basu et al. | Clinical-risk probe와 output sensitivity gap | Referral suggestion이 답을 바꾼 개별 사례의 원인 판별·자연어 판독·correction ladder가 아님 |
+| Afolabi et al. | 의료 CoT causal ablation과 hint injection | Closed-source라 내부 궤적을 직접 관측하지 못하고 wrong-note 한 번으로 note-induced movement를 판별하지 않음 |
 
 따라서 공백을 “의료에서 내부를 본 적이 없다”로 말하면 틀리다. 정확한 공백은
 다음이다.
 
-> **우리가 확인한 범위에서, 의료 진단 제안의 영향을 same-case 반사실로
-> 사례별 정의하고, 하나의 wrong-note 실행에서 그 영향을 귀속하며,
+> **우리가 확인한 범위에서, 같은 환자 케이스를 소견서 없이 한 번, 잘못된
+> 진단 제안과 함께 한 번 실행해 두 답을 비교함으로써 그 소견서 때문에 답이
+> 바뀌었는지를 사례마다 정의하고, 실제 판별 단계에서는 하나의 wrong-note
+> 실행만 보고 그런 사례를 식별하며,
 > gold/suggestion/other의 위치 궤적과 조건부 교정을 같은 protocol로 연결한
 > 연구는 없었다.**
 
@@ -347,7 +368,7 @@ moved 321건 중 **230건(71.7%)은 suggestion을 복사하지 않고 제3 진�
 | 1. Causal testbed | Same patient에 `none/neutral/wrong/correct` referral-suggestion sentence | Wrong content 자체가 답을 움직였는가? |
 | 2. Pair-derived label | No-note와 wrong-note 결과로 `note-caused answer movement` 정의 | 평가할 인과 사건은 무엇인가? |
 | 3. Internal trajectory | 여섯 landmark에서 gold/suggestion/other probe probability | 답이 바뀌는 동안 competing diagnosis는 어디로 가는가? |
-| 4. Single-run attribution | Detector에는 wrong run 하나만 제공; output/CoT/LLM monitor/probe/AV 비교 | 배포 시 note influence를 귀속할 수 있는가? |
+| 4. Single-run influence detection | Detector에는 wrong run 하나만 제공; output/CoT/LLM monitor/probe/AV 비교 | 배포 시 그 소견서가 답을 바꾼 사례를 판별할 수 있는가? |
 | 5. Measurement gate | AV swap/shuffle/heldout/memorization/contamination 통제 | 자연어 판독이 activation을 실제로 따라가는가? |
 | 6. Correction ladder | retry/evidence/label/readout + selector 비교 | 정확한 content를 언제 되먹여야 순이득인가? |
 
@@ -360,11 +381,11 @@ moved 321건 중 **230건(71.7%)은 suggestion을 복사하지 않고 제3 진�
 한국어 발표 문장:
 
 > **우리는 소견서가 답을 움직인 사건을 같은 환자의 숨겨진 반사실로 정의하고,
-> 실제로 관측 가능한 wrong-note 실행 하나에서 그 영향을 내부 상태로 귀속한 뒤,
+> 실제로 관측 가능한 wrong-note 실행 하나에서 그 소견서가 답을 바꾼 사례를 내부 상태로 판별한 뒤,
 > 경쟁 진단의 위치 궤적과 조건부 교정까지 연결합니다.**
 
 이 논문의 기여는 NLA, probe, anchoring 중 하나의 최초성이 아니다. 새 평가
-문제인 **single-run note-influence attribution**과 이를 중심으로 한
+문제인 **단일 실행 소견서 영향 판별(single-run note-influence attribution)**과 이를 중심으로 한
 `intervention → trajectory → attribution → correction`의 연결이다. 자연어 AV는
 이 사슬의 유일한 근거가 아니라 검증 관문을 통과해야 하는 보조 open-vocabulary
 계기이고, 닫힌 DDXPlus에서는 cross-fitted probe가 주 정량 계기다.
@@ -624,7 +645,7 @@ limitations에 밝힌다.
 **왜 두 생성 조건이 필요한가.** 이 논문은 CoT를 무조건 믿지도, 무조건 버리지도
 않는다. Direct 조건은 외부 suggestion이 최종 선택 자체를 얼마나 움직이는지
 측정하는 행동 기준선이다. CoT 조건은 명시적 추론 시간이 anchoring을 완화하는지,
-반대로 suggestion을 정당화하는지, 그리고 chain text가 단일 실행 영향 귀속에
+반대로 suggestion을 정당화하는지, 그리고 chain text가 소견서 유발 이동을 단일 실행에서 판별하는 데
 얼마나 유용한지를 측정한다. 두 조건을 분리하지 않으면 “CoT가 보호했다”와
 “direct prompt가 사실상 짧은 CoT를 생성했다”를 구분할 수 없고, LLM monitor가
 읽을 일관된 chain도 정의할 수 없다.
@@ -664,8 +685,9 @@ prefix가 byte-identical하고 instruction suffix만 다르다.
 추론이 흔들려 제3 진단으로 간 경우를 놓친다. 그래서 같은 사례의 no-note와
 wrong-note 결과를 비교해 **note가 답을 바꾼 사건을 사후 평가 label로 정의**한다.
 Detector는 이 pair를 입력으로 보지 않고 wrong run 하나만 받는다. 즉 Slide 15는
-“케이스 탐지”가 아니라 **숨겨진 반사실적 note influence를 단일 실행에서
-귀속하는 평가 문제**를 만드는 단계다.
+일반적인 오답 탐지가 아니라, **같은 사례의 no-note 기준 실행으로 정의한
+소견서 유발 답변 이동을 wrong-note 한 번만 보고 판별하는 평가 문제**를 만드는
+단계다.
 
 **화면에 넣을 label 정의표**
 
@@ -700,6 +722,7 @@ unchanged라는 뜻이 아니다. Canonical silent 1,641개 안에는 moved 218�
 | 계기 | 입력 | 출력 | 강점 | 단독으로 말할 수 없는 것 |
 |---|---|---|---|---|
 | Source Gemma | 임상 prompt | answer, CoT, activation | 실제 행동 | 내부 원인 |
+| Output-head likelihood | same prompt + answer prefill | 49진단 후보분포 | 생성 직전 gray-box 기준선 | 열린 어휘·중간 layer 정보 |
 | Linear probe | L32 activation | 49 diagnosis probabilities | 정밀한 decodability·trajectory | 생성에 실제 사용됐는지 |
 | AV readout | 같은 activation | 자연어 conclusion/cues | 자연어·열린 어휘 후보 | 전체 문장의 faithfulness |
 | LLM monitor | vignette+note+CoT+answer | moved risk | 강한 비내부 text baseline | activation 내용 |
@@ -1003,13 +1026,14 @@ note 0, question 30, constraint 6, format 5, final 7이다. 한 번이라도 top
 진단이 top-1인 경로다. 따라서 “82.9%에서 모델은 속으로 정답을 알고 있었다”가
 아니라 “82.9%에서 suggestion dominance 없이 출력이 이동했다”가 정확한 결론이다.
 
-## Slide 23. RQ2 - 한 번의 wrong-note 실행에서 moved를 탐지한다
+## Slide 23. RQ2 - wrong-note 한 번으로 소견서가 답을 바꾼 사례를 판별한다
 
 **화면에는 Table 2b와 Figure 4(a)를 그대로 넣는다.**
 
 | Channel | 무엇을 봄 | Task supervision | AUROC all | AUROC silent |
 |---|---|---|---:|---:|
 | Answer names suggestion | Output | none | .6610 | n.a. |
+| Source output-head likelihood | Final logits | fixed 49-class candidates | ▢ | ▢ |
 | Best rule-based CoT feature | CoT | none | .5464 | not reported |
 | LLM monitor | Vignette+note+CoT+answer | external LLM | .7233 | .6829 |
 | AV readout | Hidden state→text | readout adapter | .7506 | .8302 |
@@ -1020,8 +1044,15 @@ note 0, question 30, constraint 6, format 5, final 7이다. 한 번이라도 top
 “wrong-note 오류에서는 activation 접근이 추가 정보를 주며, 닫힌 label
 space에서는 supervised probe가 가장 강하다”다.
 
+단, 이 결론에는 아직 필수 기준선 하나가 비어 있다. Source output-head likelihood는
+실제 답을 생성하기 직전 49개 진단 후보에 준 확률분포다. 이 행이 probe와 비슷하면
+probe가 hidden-only 정보를 발견했다는 해석은 약해지고, 이 행보다 probe가 뚜렷하게
+높아야 activation 접근의 추가 정보가 성립한다. 과거 source-error likelihood 수치는
+label과 모집단이 다르므로 이 빈칸에 옮기지 않는다.
+
 Detector는 wrong-note 실행 하나만 본다. None arm은 ground-truth moved label을
-만들 때만 사용하고 detector에게 보여주지 않는다. 비교 채널은 output heuristic,
+만들 때만 사용하는 **숨겨진 no-note 기준 실행**이며 detector에게 보여주지
+않는다. 비교 채널은 output heuristic,
 rule-based CoT feature, 외부 LLM CoT monitor, natural-language activation readout,
 cross-fitted diagnosis probe다.
 
@@ -1032,7 +1063,7 @@ readout-monitor 차이는 `+.1473`, 95% paired bootstrap CI `[+.0691,+.2209]`다
 
 Readout에서 가장 강한 feature는 “answer가 readout internal conclusion을 포함하지
 않는다”다. 근거 슬롯이 referral을 직접 인용하는 feature는 AUROC `.5000`이다.
-따라서 readout이 하는 일은 “소견서가 원인이다”라는 직접 attribution이 아니라
+따라서 readout이 하는 일은 “소견서가 원인이다”라고 직접 설명하는 것이 아니라
 **내부 결론과 출력의 불일치를 국소화하고 탐지하는 것**이다.
 
 AUROC는 accuracy가 아니라 무작위 moved-kept 쌍에서 moved에 더 높은 risk score를
@@ -1386,4 +1417,4 @@ decode 가능한 정보가 있지만 vanilla verbalizer가 이를 안정적으�
 reconstruction score와 semantic content를 분리하며, supervised AV의 출력은
 heldout·swap·shuffle 없이는 activation evidence로 믿지 않는다. 그러나 파일럿
 자체가 현재 논문의 RQ는 아니다. 현재 RQ는 referral-note intervention 아래의
-내부-출력 결렬, 단일 실행 영향 귀속, 조건부 교정이다.
+내부-출력 결렬, 단일 실행 소견서 영향 판별, 조건부 교정이다.
