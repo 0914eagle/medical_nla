@@ -1,112 +1,15 @@
-# Medical-NLA 교수님 Slack 문안과 실행 계획 (2026-08-26)
+# Medical-NLA 표·그림과 실행 계획 (2026-08-26)
 
-이 문서는 두 부분을 분리한다.
-
-1. 교수님께 바로 보낼 수 있는 주제·가설 Slack 문안
-2. 가설을 실제로 검증하기 위한 표·그림·실험·데이터 실행 계획
+이 문서는 가설을 실제로 검증하기 위한 표·그림·실험·데이터 실행 계획만 기록한다.
+교수님께 전달할 메시지는 저장하지 않는다.
 
 8월 19일에 확인받은 연구 방향인 `CoT의 한계 -> 닫힌 내부 도구의 한계 ->
 검증된 Medical-NLA`는 유지한다. 후속 pilot에서 반증된 세부 기제와 계측
-confound만 수정한다. 과거 표의 처분 근거는
+confound를 반영해 평가 방법을 갱신했다. 과거 표의 처분 근거는
 [`hypothesis_disposition_2026-08-22.md`](hypothesis_disposition_2026-08-22.md)와
 [`RETRACTIONS.md`](../experiments/RETRACTIONS.md)에 기록되어 있다.
 
----
-
-## 1. 교수님께 보낼 Slack 문안
-
-교수님, 기존에 확인받았던 Medical-NLA 연구 주제와 가설을 후속 pilot 결과에
-맞춰 다시 정리했습니다. 연구 주제를 변경한 것은 아니며, 기존의 세 단계 논리를
-유지하되 각 가설을 반증 가능한 형태로 구체화했습니다.
-
-### 연구 주제
-
-의료 LLM의 설명을 신뢰하려면 설명이 임상적으로 타당한 내용을 포함하는 것뿐
-아니라, 그 설명이 실제 모델 내부 상태에 사례 특이적으로 근거해야 합니다.
-CoT는 유용하고 그럴듯한 임상 설명을 생성할 수 있지만 모델의 실제 판단 과정을
-충실하게 보고한다고 보장할 수 없습니다. 본 연구에서는 의료 LLM의 activation을
-자연어로 판독하는 Medical-NLA를 만들고, 이 판독의 임상적 정렬, activation
-grounding, 그리고 자연어 기반 개입 가능성을 단계적으로 검증하고자 합니다.
-
-### 가설 1. CoT의 임상적 그럴듯함은 내부 상태 충실성을 보장하지 않는다
-
-기존 연구들은 답에 영향을 준 힌트나 편향 요인이 CoT에 나타나지 않거나, CoT가
-이미 선택된 답을 사후적으로 합리화할 수 있음을 보였습니다. 의료 도메인에서도
-CoT의 인과적 충실성이 보장되지 않는다는 연구가 보고되었습니다.
-
-- Reasoning Models Don't Always Say What They Think:
-  <https://arxiv.org/pdf/2505.05410>
-- Language Models Don't Always Say What They Think:
-  <https://arxiv.org/pdf/2305.04388>
-- Faithful or Just Plausible?:
-  <https://arxiv.org/pdf/2603.13988>
-
-최근에는 일반 도메인의 multiple-choice hint 설정에서 activation probe가 full-CoT
-monitor보다 motivated reasoning을 더 잘 탐지할 수 있다는 결과도 나왔습니다.
-그러나 이는 고정된 label을 예측하는 probe 연구이며, 의료 사례의 관찰·속성·관계를
-열린 자연어로 읽는 문제는 다루지 않습니다.
-
-- Catching Rationalization in the Act:
-  <https://arxiv.org/abs/2603.17199>
-
-따라서 본 연구는 동일한 source run에서 CoT와 answer-boundary activation 판독을
-비교하고, Medical-NLA가 CoT에 누락되거나 왜곡된 사례 고유 관찰, 관계 또는
-source-decision 정보를 추가로 복원하는지 평가합니다.
-
-### 가설 2. 기존 내부 도구는 닫힌 탐지에는 강하지만 열린 설명을 직접 제공하지 않는다
-
-Linear probe와 같은 내부 도구는 사전에 정의된 진단이나 속성을 매우 정확하게
-탐지할 수 있고, 답을 생성하기 전에도 내부 진단 신호를 읽을 수 있습니다. 다만
-질문할 label과 output head를 사전에 정해야 하며, 하나의 판독기로 학습에서
-열거하지 않은 환자 고유 관찰·속성·관계를 자연어로 출력하는 과제와는 다릅니다.
-
-Pilot에서는 같은 협심증 계열 activation에 대해 diagnosis probe는 동일한 class를
-출력했지만, 자연어 판독은 layer에 따라 세부 속성 보존 여부가 달랐습니다.
-
-```text
-gold observation: chest pain even at rest
-L24 readout:       chest pain at rest                              [보존]
-L32 readout:       increased with exertion but alleviated by rest  [반전]
-diagnosis probe:   두 위치 모두 협심증 계열
-```
-
-이 사례는 probe가 틀렸다는 뜻이 아니라, diagnosis label 하나만으로는 `at rest`와
-`relieved by rest`의 차이를 표현할 수 없다는 뜻입니다. 본 연구는 별도 head를
-계속 추가하지 않고 하나의 reader가 held-out 관찰과 관계를 자연어로 복원할 수
-있는지를 평가합니다.
-
-### 가설 3. 의료 SFT만으로는 faithful readout이 되지 않으며 독립적인 activation 검증이 필요하다
-
-AV는 activation을 자연어로 출력할 수 있지만, 임상적으로 그럴듯한 문장을 생성한
-것과 실제 activation을 읽은 것은 다릅니다. 실제 pilot에서도 진단명을 직접
-생성하도록 SFT한 Medical-AV가 seen-class classifier처럼 작동하고 diagnosis-heldout
-성능이 붕괴했습니다. 따라서 본 방법은 단순 SFT를 ablation으로 두고, 임상
-supervision과 AV-AR reconstruction/contrastive grounding을 함께 사용하는 full
-Medical-NLA를 평가합니다.
-
-Medical-NLA는 다음 두 관문을 모두 통과해야 합니다.
-
-1. 의사 주석의 observation-rationale-diagnosis 구조를 CoT와 vanilla NLA보다 잘
-   보존하는가
-2. matched-vs-shuffled, evidence counterfactual, activation swap, AV-AR round-trip을
-   통해 판독 내용이 실제 activation에 사례 특이적으로 근거함을 보이는가
-
-두 관문을 통과한 뒤에만 dataset-native claim을 자연어로 편집하고 AR로 activation에
-되돌리는 text patching을 평가합니다. 이 단계에서는 목표 속성과 관련 likelihood가
-선택적으로 변하는지, 비목표 정보가 얼마나 보존되는지를 측정합니다. Backbone
-성능 향상은 사전 결론이 아니라 이 마지막 단계에서 검증할 후속 가설입니다.
-
-### 기존 설계와의 관계
-
-8월 19일에 확인받은 `CoT만으로는 부족함 -> 기존 내부 도구의 열린 설명 한계 ->
-검증된 Medical-NLA`라는 주제는 유지했습니다. 후속 pilot에서 CoT의 단순 누락
-가설, DDXPlus 오답 예측, diagnosis-target SFT에 confound가 확인되어, 설명 품질과
-activation faithfulness를 분리하고 각 가설을 직접 측정하도록 표와 실험을 다시
-구성했습니다.
-
----
-
-## 2. 데이터셋 역할
+## 1. 데이터셋 역할
 
 | 데이터셋 | 원래 제공하는 정보 | 본 연구 역할 | 사용하지 않을 주장 |
 |---|---|---|---|
@@ -155,7 +58,7 @@ DiReCT는 PhysioNet Restricted Health Data License 1.5.0 대상이다.
 
 ---
 
-## 3. 최종 Table 설계
+## 2. 최종 Table 설계
 
 ### Table 1. Closed-label detection versus open natural-language readout
 
@@ -247,7 +150,7 @@ Table 3를 통과하지 못하면 Table 4는 실행하지 않는다.
 
 ---
 
-## 4. Figure 설계
+## 3. Figure 설계
 
 | Figure | 내용 | Table과 겹치지 않는 역할 |
 |---|---|---|
@@ -261,7 +164,7 @@ taxonomy, MCR OOD 사례, seed sensitivity를 둔다.
 
 ---
 
-## 5. 지금 가장 시급한 작업
+## 4. 지금 가장 시급한 작업
 
 ### E0. DiReCT 데이터·평가기 감사 -- 지금 바로
 
@@ -318,7 +221,7 @@ E0 dataset/evaluator audit
  -> E7 MCR external OOD
 ```
 
-## 6. 다음 미팅에서 확인받을 질문
+## 5. 다음 미팅에서 확인받을 질문
 
 1. 위 세 가설의 표현이 기존 컨펌 범위를 유지하는가
 2. DiReCT를 supervised PDD-disjoint split으로 사용할 것인가
