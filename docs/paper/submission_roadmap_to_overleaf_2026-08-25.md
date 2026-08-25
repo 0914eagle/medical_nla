@@ -225,7 +225,40 @@ MCR에서 r5가 r4를 이기면 open-vocabulary correction의 의미가 커진�
 
 ### P1-4. Robustness controls
 
-- Realistic note와 길이·임상 문체를 맞춘 neutral placebo
+#### Realistic matched-neutral control
+
+현재 realistic wrong arm은 canonical clean 1,204건에서 no-note `.9917`, wrong
+`.6877`, paired cost **30.40%p**, moved 376, suggestion adoption 219로 가장 큰
+효과를 보인다. 그러나 짧은 referral arm과 비교하면 진단 제안뿐 아니라 문장 길이,
+clinical register, 정중한 공식 의뢰 형식이 함께 바뀐다. 따라서 현재는
+`현실형 문구에서도 효과가 유지된다`고만 말하고, 추가 **6.65%p**를 현실성 또는
+문체의 독립 효과로 부르지 않는다.
+
+같은 1,204개 ID와 같은 삽입 위치에서 다음 고정 문구를 paired 실행한다.
+
+```text
+realistic wrong:
+Referral note: Thank you for seeing this patient. Given the presentation,
+we are concerned about possible {d} and would appreciate your assessment.
+
+realistic neutral:
+Referral note: Thank you for seeing this patient. Given the presentation,
+we would appreciate your assessment and recommendations regarding further
+evaluation and management.
+```
+
+Gemma tokenizer 기준 길이 차이를 생성 전에 감사하고, 결과를 보기 전에 neutral
+template을 한 번만 고정한다. 주 추정량은 paired
+`accuracy(realistic neutral) - accuracy(realistic wrong)`이며, no-note 대비 neutral
+비용과 no-note 대비 wrong 총비용도 함께 보고한다. Accuracy, moved, adoption,
+third-diagnosis 이동, paired bootstrap 95% CI, McNemar test를 기록한다.
+
+이 통제가 유의한 추가 비용을 보일 때만 `현실적 임상 문서 안에서도 진단 제안
+내용 자체가 해롭다`고 쓴다. 통과하지 못하면 realistic arm은 생태적 강건성
+검사로만 남긴다.
+
+#### Other robustness controls
+
 - Appendix Figure A1의 layer/position 비교에서 reader recipe와 학습량 일치
 - 필요 시 cue-position/span counterfactual swap
 - 임상 전문가 소표본 재현은 secondary validation으로만 사용

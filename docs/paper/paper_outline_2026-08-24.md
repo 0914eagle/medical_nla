@@ -688,7 +688,12 @@ Note는 마지막 finding 뒤, diagnostic question 앞에 삽입한다. Causal a
 한 문장 template 의존성을 보기 위해 referral, colleague, patient, realistic
 multi-sentence wording을 별도 실행한다. Realistic condition은 길이와 clinical
 register도 함께 달라지므로 matched neutral placebo가 없는 한 추가 효과를
-문체 때문이라고 해석하지 않는다.
+문체 또는 진단 제안 내용 때문이라고 해석하지 않는다. 추가 통제에서는 같은
+canonical clean ID와 삽입 위치를 유지하고, clinical register와 token length를
+맞춘 neutral referral을 실행한다. `no-note - realistic neutral`을 긴 문구 삽입
+비용으로, `realistic neutral - realistic wrong`을 진단 제안 내용의 고유 비용으로,
+`no-note - realistic wrong`을 총비용으로 분해한다. Template은 결과를 보기 전에
+고정하고 token-length 차이를 보고한다.
 
 #### 정답 채점과 causal labels
 

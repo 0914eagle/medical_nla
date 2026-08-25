@@ -281,8 +281,11 @@ hidden-state 추가 이득을 확인한다.
 **필수 전사**: channel-gap CI, canonical capitulation/newly-broken, Appendix A2
 `.591`, corpus-300 matcher/서술 정합성.
 
-**확장**: no-CoT monitor, MCR wrong-note 내부 추출·탐지·교정 사다리, matched
-realistic placebo.
+**확장**: no-CoT monitor, MCR wrong-note 내부 추출·탐지·교정 사다리, realistic
+matched-neutral control. 마지막 항목은 같은 canonical clean 1,204건에서
+`no-note - neutral`(긴 문구 삽입 비용)과 `neutral - wrong`(진단 제안 고유 비용)을
+paired 분해한다. 완료 전에는 realistic 30.40%p와 짧은 referral 23.75%p의 차이
+6.65%p를 현실성의 독립 효과로 쓰지 않는다.
 
 **외부 판정**: 독자-신뢰 임상 전문가 재현/임상 타당성 평가는 보조 검증이다.
 

@@ -65,9 +65,52 @@ moved 자체는 z=1.75로 유의하지 않음) → [04](04-note-intervention-mcr
 
 ## 남은 것
 
-- ▢ realistic 길이·문체에 맞춘 neutral note arm을 추가해야 긴 소견서의
-  제안 고유 효과와 단순 삽입 비용을 분리할 수 있다.
+- ▢ **realistic matched-neutral control**을 추가해야 긴 소견서의 진단 제안
+  고유 효과와 단순 삽입 비용을 분리할 수 있다. 현재 허용되는 주장은
+  `실제형 문구에서도 효과가 사라지지 않았다`까지다. `실제형 referral note가
+  짧은 referral 문구보다 정확히 6.65%p 더 위험하다`는 주장은 길이·문체·정중한
+  의뢰 형식이 동시에 바뀌었으므로 허용되지 않는다.
 - ▢ canonical clean 1,204건의 moved 정의로 화자 간 z-test를 다시 계산한다.
+
+### 추가 실험: realistic matched-neutral
+
+같은 canonical clean **1,204개 base ID**에 아래 두 문장을 같은 위치에 삽입한다.
+진단 제안 유무를 제외한 임상 문서 레지스터와 길이를 최대한 고정한다.
+
+```text
+realistic wrong:
+Referral note: Thank you for seeing this patient. Given the presentation,
+we are concerned about possible {d} and would appreciate your assessment.
+
+realistic neutral:
+Referral note: Thank you for seeing this patient. Given the presentation,
+we would appreciate your assessment and recommendations regarding further
+evaluation and management.
+```
+
+실행 전에 Gemma tokenizer로 두 문구의 길이를 감사한다. neutral 문장은 결과를
+보기 전에 전역적으로 한 번만 조정하며, case별로 다른 filler를 넣지 않는다.
+평균·중앙값 token 차이와 범위를 함께 기록한다.
+
+주 비교는 **같은 case의 `accuracy(realistic neutral) - accuracy(realistic wrong)`**다.
+이 값이 진단 제안 내용의 고유 비용이다. 함께 보고할 분해는 다음과 같다.
+
+| 비교 | 의미 |
+|---|---|
+| no-note − realistic neutral | 긴 임상 문구를 삽입한 형식·길이 비용 |
+| realistic neutral − realistic wrong | 길이·문체를 맞춘 진단 제안의 고유 비용 |
+| no-note − realistic wrong | 두 비용이 합쳐진 총효과 |
+
+정확도 외에 moved, suggestion adoption, third-diagnosis 이동을 같은 canonical
+no-note reference에 대해 계산한다. 주 불확실성은 case-paired bootstrap 95% CI와
+McNemar test로 보고한다.
+
+- `neutral > wrong`이고 paired CI가 0을 배제하면: 현실적 문체 안에서도 진단
+  제안 내용이 추가 피해를 만든다고 말할 수 있다.
+- 두 arm이 비슷하면: 현재 30.40%p 낙폭의 상당 부분은 길이·레지스터·의뢰 형식
+  비용일 수 있으며, 짧은 문구 대비 추가 6.65%p를 제안 효과로 해석하지 않는다.
+- neutral도 해롭고 wrong이 더 해로우면: 문서 삽입 비용과 진단 제안 비용이
+  함께 존재한다고 분해해 보고한다.
 
 ## 대체된 fixed-cohort 감사값
 

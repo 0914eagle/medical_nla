@@ -170,6 +170,11 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
     held-out test에서 overall accuracy, moved recovery, unchanged preservation,
     newly broken, net correction, intervention rate와 paired CI를 보고하기 전에는
     RQ3를 전체 성능 향상으로 쓰지 않는다.
+12. **Realistic matched-neutral control을 canonical clean 1,204건에서 실행한다.**
+    현재 realistic arm의 30.40%p 비용은 길이·임상 문체·정중한 의뢰 형식과 진단
+    제안이 함께 바뀐 총효과다. 같은 길이와 레지스터의 neutral referral note를
+    paired 비교하기 전에는 짧은 referral 대비 추가 6.65%p를 현실성 또는 제안
+    내용의 독립 효과로 쓰지 않는다.
 
 전체 의존관계와 Overleaf 이전 순서는
 [`submission_roadmap_to_overleaf_2026-08-25.md`](submission_roadmap_to_overleaf_2026-08-25.md)를

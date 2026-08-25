@@ -1106,6 +1106,27 @@ cost를 기준으로 읽는다. Effect가 특정 한 문장에만 의존하지�
 길이와 clinical register도 함께 바뀌므로 matched placebo 없이 현실성이 원인이라고
 말할 수 없다.
 
+**이 슬라이드에서 허용되는 주장과 보류할 주장을 분리한다.** Realistic 조건의
+30.40%p 비용, moved 376, suggestion adoption 219는 `정중한 실제형 의뢰 문구에서도
+현상이 사라지지 않았다`는 강건성 증거다. 그러나 짧은 referral의 23.75%p보다 큰
+추가 6.65%p에는 길이, 임상 문체, 공식 의뢰 형식, 진단 제안 내용이 모두 섞여 있다.
+따라서 `실제 의뢰서가 한 줄보다 정확히 6.65%p 더 위험하다`고 말하지 않는다.
+
+이 해석을 닫는 추가 arm은 같은 1,204건에 넣는 **realistic neutral**이다.
+
+```text
+Referral note: Thank you for seeing this patient. Given the presentation,
+we would appreciate your assessment and recommendations regarding further
+evaluation and management.
+```
+
+기존 realistic wrong과 길이·clinical register·정중함·삽입 위치를 맞추고 진단명과
+`concerned about possible {d}`만 제거한다. 주 비교는 같은 사례의
+`realistic neutral accuracy - realistic wrong accuracy`다. `no-note - neutral`은
+긴 문서 삽입 자체의 비용, `neutral - wrong`은 진단 제안 내용의 고유 비용,
+`no-note - wrong`은 총비용으로 해석한다. paired bootstrap CI가 두 번째 차이에서
+0을 배제할 때만 현실적 문서 안에서도 진단 제안 내용이 추가 피해를 만든다고 말한다.
+
 Direct에서는 none `1.0000`, wrong `.7625`로 note cost가 `23.75pp`다. 같은
 ID의 CoT에서는 none `.7068`, wrong `.6628`로 arm 간 cost가 `4.40pp`로 줄어든다.
 그러나 코호트를 Direct no-note 정답으로 골랐으므로 Direct와 CoT의 baseline
@@ -1597,7 +1618,7 @@ LLM monitor, natural-language readout, linear probe를 동일한 single-run task
 | 3 | 동일 LLM monitor의 no-CoT arm | CoT만의 순수 증분 |
 | 4 | MCR wrong-note activation·detection | DDXPlus 내부 기전의 열린 어휘 확장 |
 | 5 | MCR correction ladder | probe가 직접 이전되지 않는 조건의 교정 |
-| 6 | matched realistic placebo·matched layer control | 문체·길이·학습량 교란 분리 |
+| 6 | realistic matched-neutral·matched layer control | 문체·길이·학습량 교란 분리 |
 
 Reader-trust 2,896행 전수와 same-channel shuffled account control은 완료됐다.
 현재 첫째 제출 게이트는 detector-gated correction이다. Selector는 wrong-note run
@@ -1619,6 +1640,13 @@ ladder가 남아 있다. 현재 MCR은 행동 복제와 source-aligned answer re
 필요하다. 여섯째, realistic note 효과를 길이와 문체에서 분리할 matched placebo가
 필요하다. 마지막으로 최근접 선행연구의 서지와 claim을 투고 전에 다시 확인해야
 한다.
+
+Realistic matched-neutral은 강건성 해석을 위한 별도 paired 실험이다. 같은
+canonical clean 1,204건에서 고정된 realistic neutral과 realistic wrong을 비교하고,
+생성 전에 Gemma tokenizer 길이 차이를 기록한다. Accuracy뿐 아니라 moved,
+suggestion adoption, third-diagnosis 이동, paired bootstrap CI와 McNemar test를
+보고한다. 이 통제가 끝나기 전에는 30.40%p를 현실적 referral 형식의 독립 효과로
+발표하지 않는다.
 
 외부 semantic judge 238쌍 전수는 완료됐으며 파싱 실패는 0건이다. 따라서 이
 항목은 더 이상 미결 과제가 아니고, 손채점과 외부 판정을 보조 감사로 함께 보고한다.
