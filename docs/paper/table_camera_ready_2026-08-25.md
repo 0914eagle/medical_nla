@@ -5,11 +5,10 @@
 수치는 source-misaligned target에서 나온 무효 결과로 인용하지 않는다.
 문서 역할과 제출 전 관문은 `README.md`를 따른다.
 
-> **수치 잠금 경고 (08-25):** Table 1/Figure 2는 canonical-eligible DDXPlus
-> 1,729건으로 갱신됐지만, Table 2a·2b·3의 1,747/321 기반 trajectory,
-> detection, correction 값은 현재 **폐기된 fixed-cohort 감사값**이다. 새
-> `_canonical_eligible` 덤프가 생성되기 전까지 해당 셀과 캡션을 인용하거나
-> camera-ready 자산으로 내보내지 않는다.
+> **수치 잠금 상태 (08-25):** Table 1/Figure 2와 Table 2b·3은
+> canonical-eligible DDXPlus **1,729건(moved 319)**으로 갱신됐다. Table 2a의
+> trajectory 세부 분해와 Table 2b의 paired-bootstrap CI는 새 로그 전사가
+> 끝날 때까지 잠금 상태다. 옛 1,747/321 값은 fixed-cohort 감사값으로만 남긴다.
 
 설계 규칙 (v1의 실패에서):
 - **표 하나 = 지표 하나.** 단위가 다른 값은 같은 열에 두지 않는다.
@@ -463,6 +462,10 @@ mostly does not.*
 표가 있어야 한다. 지표 하나(최종 토큰에서 프로브가 정답에 주는 확률),
 셀당 값 하나, Δ는 명시된 파생 열.
 
+> **LOCKED — fixed-cohort audit.** 아래 Table 2a와 Figure 3 수치는 새
+> `trajectory_dump_canonical_eligible.json`을 전사하기 전까지 camera-ready
+> 본문에 사용하지 않는다.
+
 **Table 2a.** Probability the cross-fit linear probe places on the gold
 diagnosis at the final token, by what the model then did. "No note" reads the
 same cases with the note removed; finding-position activations are identical
@@ -474,7 +477,7 @@ across the two by construction, so Δ is the note's internal cost.
 | Lost the gold, answered elsewhere | **230** | **.880** | **.934** | **−.055** |
 | Adopted the suggestion | **91** | **.725** | **.919** | **−.195** |
 
-*The canonical trajectory contains 321 moved cases. The suggestion is probe
+*The fixed-cohort trajectory contains 321 moved cases. The suggestion is probe
 top-1 at least once in 55 (17.1%); seven of those already decode to it before
 the note. In 266 (82.9%) it is never top-1. That last group must not be called
 "gold throughout": 151 cases keep gold top-1 at every observed landmark,
@@ -521,7 +524,7 @@ baseline의 가능성까지 부정하지 않는다.
 **Table 2b.** Within-diagnosis AUROC for identifying cases whose answer was
 changed by the note, using the wrong-note run alone. The causal label is defined
 offline by comparing the same case's no-note and wrong-note answers; the detector
-does not receive the no-note run. All: n=1,747. Silent: n=1,641 (218 moved), restricted to
+does not receive the no-note run. All: n=1,729. Silent: n=1,628, restricted to
 cases whose answer does not name the suggestion, where the output-copying
 heuristic is blind by construction. `Task supervision` makes explicit that
 the fixed-class probe and the text channels do not operate under identical
@@ -532,12 +535,12 @@ by Appendix Table A1; it is not a clinician-facing explanation result.
 
 | Channel | Input access | Task supervision | AUROC, all | AUROC, silent |
 |---|---|---|---:|---:|
-| Answer names suggestion | Output text | none | **.6610** | n.a.ᵃ |
+| Answer names suggestion | Output text | none | **.6632** | n.a.ᵃ |
 | Source output-head likelihood | Final logits over diagnosis candidates | fixed 49-class candidate set | ▢ᵈ | ▢ᵈ |
-| Best rule-based CoT feature | CoT text | none | **.5464** | not reportedᶜ |
-| LLM monitor | Vignette + note + CoT + answer | external LLM | **.7233** | **.6829** |
-| NL activation readout (ours) | Hidden state → text | readout adapter | **.7506** | **.8302** |
-| Linear diagnosis probe | Hidden state | fixed 49-class labels | **.9280** | **.9840** |
+| Best rule-based CoT feature | CoT text | none | **.5434** | not reportedᶜ |
+| LLM monitor | Vignette + note + CoT + answer | external LLM | **.7305** | **.6904** |
+| NL activation readout (ours) | Hidden state → text | readout adapter | **.7511** | **.8319** |
+| Linear diagnosis probe | Hidden state | fixed 49-class labels | **.9330** | **.9881** |
 
 ᵃ Undefined because this feature defines the silent subset. ᵇ The same fixed
 49-way probe does not directly transfer to an
@@ -552,13 +555,13 @@ likelihood is scored after the same `The answer is` assistant prefill as direct
 generation. Old source-error likelihood results use a different label and must
 not fill these cells.
 
-**LLM 모니터 행 (08-24 실측, gpt-5.6-sol, 1,747/1,747 파싱, 실패 0).** 이
-행이 §4.2의 주장을 바꾼다. 규칙 기반 특징 .53 → 프런티어 모니터 .7233이면
+**LLM 모니터 행 (08-24 실측 후 canonical 1,729 ID 재집계, gpt-5.6-sol).** 이
+행이 §4.2의 주장을 바꾼다. 규칙 기반 특징 .5434 → 프런티어 모니터 .7305이면
 차이가 크므로 **"체인은 소견서 영향 판별 신호를 담지 않는다"는 더 이상 못 쓴다** — 우리
 채점기가 약한 부분이었고, 같은 체인에서 강한 독자는 실제로 신호를 끌어낸다.
-주장은 이진에서 정량으로 바뀐다. 같은 정본 침묵 구역(n=1,641)에서 모니터
-.6829 대 판독 .8302(+14.7%p)다. 모니터 자체의 다른 침묵 정의(n=1,656)에서는
-.6930이다. `.664 → .7233`은 강한 텍스트 모니터 전체와 단순 출력 휴리스틱의
+주장은 이진에서 정량으로 바뀐다. 같은 정본 침묵 구역(n=1,628)에서 모니터
+.6904 대 판독 .8319(**+14.15%p**)다. `.6632 → .7305`는 강한 텍스트 모니터
+전체와 단순 출력 휴리스틱의
 차이지, **CoT만의 순수 증분이 아니다** — 그것은 동일 판정자의 no-CoT arm이
 필요하다.
 모니터는 소견서를 보므로 "답 == 제안"을 스스로 계산할 수 있고, all 열의
@@ -568,12 +571,12 @@ not fill these cells.
 
 **판정자가 실제로 확률을 썼다 (08-24).** 서로 다른 값 61개, 0.00–1.00 전
 구간, 평균 0.149(실제 답 바뀜 비율 0.185). 형식만 확률이고 실질은 3단계인
-경우가 아니므로 **동점으로 AUROC가 깎인 것은 아니다**. 다만 분포가 두 번째
-사실을 말한다: P>0.5가 222건이고 canonical moved는 321건이다. 이 두 수치만으로
-calibration이나 유병률 추정을 결론내릴 수 없다;
+경우가 아니므로 **동점으로 AUROC가 깎인 것은 아니다**. 다만 과거 P>0.5
+건수와 새 canonical moved 319를 직접 결합해 calibration이나 유병률 추정을
+결론내리지 않는다;
 그 주장은 Brier/ECE 또는 calibration curve가 있어야 한다.
 
-### ✅ 부트스트랩 CI 완료 (08-24, `bootstrap_channel_gap.py`)
+### Paired-bootstrap CI (canonical rerun complete; exact log transcription pending)
 
 케이스 단위 **쌍 부트스트랩**, 각 추출 안에서 진단 내 층화, 2,000회.
 쌍으로 뽑는 이유는 두 채널이 같은 환자를 채점하므로 표본에 어떤 진단이
@@ -581,11 +584,12 @@ calibration이나 유병률 추정을 결론내릴 수 없다;
 
 | 비교 | 부분집합 | 차이 | 95% CI |
 |---|---|---:|---|
-| 판독 − **LLM 모니터** | 침묵 (1,641, moved 218) | **+.147** | **[+.069, +.221]** |
-| 판독 − 체인 특징(최강) | 침묵 | **+.291** | **[+.230, +.354]** |
-| 판독 − 출력만 | 전체 (1,747, moved 321) | **+.090** | **[+.026, +.157]** |
+| 판독 − **LLM 모니터** | 침묵 (1,628) | **+.142** | ▢ canonical 재부트스트랩 로그 전사 |
+| 판독 − 체인 특징(최강) | 침묵 | ▢ | ▢ canonical 재부트스트랩 로그 전사 |
+| 판독 − 출력만 | 전체 (1,729, moved 319) | **+.088** | ▢ canonical 재부트스트랩 로그 전사 |
 
-세 비교 모두 canonical labels에서 0을 배제한다.
+옛 1,747 fixed-cohort에서는 세 비교 모두 0을 배제했다. 새 1,729 코호트의
+구간은 `channel_gap_canonical_eligible.log`에서 전사한 뒤 확정한다.
 
 **셋째 줄은 정직하게 적어야 한다** — 하한이 +2.6%p로 가장 아슬하다. 전체
 집합에서 판독이 "답이 제안을 말하는가"라는 공짜 특징보다 앞서는 폭은 실재하나
@@ -593,10 +597,9 @@ calibration이나 유병률 추정을 결론내릴 수 없다;
 AUROC 0.5다.
 
 *침묵 구역 정의가 두 가지다.* 정본 채널 덤프는
-`answer_names(wrong, hint)`로 자르고(1,641건), 모니터 라벨 파일은
-`took_the_hint`로 자른다(1,656건). 15건 차이는 무소견서 arm이 이미 제안을
-부른 진짜 사례이며, 모니터 AUROC는 .6829 대 .6930이다. 채널 간 비교는 모든
-채널이 같은 1,641건을 볼 때만 인용한다.
+`answer_names(wrong, hint)`로 자른 **1,628건**이다. 채널 간 비교는 모든
+채널이 이 동일한 1,628건을 볼 때만 인용한다. 과거 1,641/1,656 이중 정의와
+15건 차이는 fixed-cohort 감사 기록으로만 남긴다.
 
 *행 순서는 '내부를 안 보는 것 → 보는 것'으로, 프로브를 맨 아래로 옮겼다.
 표가 주장하는 것이 순위가 아니라 **경계**이기 때문이다.*
@@ -614,21 +617,21 @@ prompt_cot는 케이스 파일에 이미 있음)** — 나오면 "AUROC, MCR (be
 ## Table 3 — Correction ladder (§4.3)
 
 **Table 3.** Second-pass accuracy with the wrong note still in place. Moved:
-the canonical 321 causally moved cases. Capitulation: share of newly broken
+the canonical 319 causally moved cases. Capitulation: share of newly broken
 answers landing on the suggested diagnosis (first-pass counterpart .3209).
 The r5 text channel is the AV readout qualified by Appendix Table A1; r6 is a
 fixed-label supervised control, not a natural-language method.
 
 | Rung | Appended | Overall | Moved | Capitulation |
 |---|---|---:|---:|---:|
-| r3 | reconsider request only | .4173 | .4548 | .4507 |
-| r4 | + findings re-shown (control) | .4139 | .4050 | .6410 |
-| r5 | + readout conclusion & grounds | .4098 | .6293 | .4940 |
-| r6 | + probe class label | .4568 | .8318 | .5212 |
+| r3 | reconsider request only | .4170 | .4545 | ▢ |
+| r4 | + findings re-shown (control) | .4147 | .4044 | ▢ |
+| r5 | + readout conclusion & grounds | .4083 | .6301 | ▢ |
+| r6 | + probe class label | .4552 | .8339 | ▢ |
 
-*First-pass baseline: overall .8117, moved .0031. r5 − r4 = +22.4 pp on moved;
-r5 capitulation is 14.7 pp lower than r4. r3, not r5, has the lowest absolute
-capitulation.*
+*First-pass baseline: overall .8161, moved .0031. r5 − r4 = +22.6 pp on moved.
+Capitulation rates require transcription from the new canonical ladder log;
+the old 1,747-case rates are not carried forward.*
 
 **Appendix Table A4 (r7 common cohort).** Same 1,151 IDs for every rung; r7 is evaluated separately
 because it requires agreement between the direct and CoT first answers.
@@ -651,11 +654,11 @@ entrenchment but does not by itself establish a rationalization mechanism.*
 
 | Rung | DDXPlus | MedCaseReasoning | 왜 |
 |---|:-:|:-:|---|
-| r3 reconsider only | .4548 | ▢ 실행 가능 | 어댑터 불필요 |
-| r4 findings re-shown | .4050 | ▢ 실행 가능 | 어댑터 불필요 |
+| r3 reconsider only | .4545 | ▢ 실행 가능 | 어댑터 불필요 |
+| r4 findings re-shown | .4044 | ▢ 실행 가능 | 어댑터 불필요 |
 | r7 own chain | .1236ᵈ | ▢ (CoT 실행 필요) | GPU ~1–2h |
-| r5 readout conclusion | .6293 | ▢ wrong-note activation 추출 필요 | source-aligned 어댑터 완료; 결론 판독은 예비 신호, 근거 접지는 실패 |
-| r6 probe class label | .8318 | **n.a. (현재 설계)** | DDXPlus의 고정 49-class probe를 직접 이전할 수 없음 |
+| r5 readout conclusion | .6301 | ▢ wrong-note activation 추출 필요 | source-aligned 어댑터 완료; 결론 판독은 예비 신호, 근거 접지는 실패 |
+| r6 probe class label | .8339 | **n.a. (현재 설계)** | DDXPlus의 고정 49-class probe를 직접 이전할 수 없음 |
 
 ᵈ DDXPlus r7 is the moved recovery on the 1,151-ID common cohort, not the
 full-run Table 3 population.
@@ -678,11 +681,13 @@ moved 회복은 12.4%에 그쳤다. 다만 CoT 실행의 답이 direct 첫 답�
 제외해 모집단이 쉬우므로, 반드시 같은 1,151 id로 제한한 r3–r6과만 비교한다.
 
 **r6은 제안하는 방법이 아니라 통제다 (08-25 명시).** 표를 처음 보는 독자는
-r6의 moved .830을 "probe가 이긴다"로 읽고, 곧바로 **"클래스명을 되먹이는
+r6의 moved .834를 "probe가 이긴다"로 읽고, 곧바로 **"클래스명을 되먹이는
 건 정답을 쥐여 주는 것 아닌가"**라고 되묻는다. 그 되물음은 옳고, 수치가
 그대로 인정한다: probe argmax의 정답률은 moved에서 **.8567**(전체 .9588),
-AV 판독 결론은 **.5047**다. r6의 .8318은 .8567을 거의 그대로
-따라간다. r6이 존재하는 이유가 바로 이것이다 — r5가 r4를 이긴 것이
+AV 판독 결론은 **.5047**다. 이 내용 정확도 값들은 1,747 fixed-cohort
+감사값이며 canonical 1,729에서 전사 대기다. 새 r6 회복률 .8339도 같은
+정성적 관계와 일치하지만, 새 내용 정확도가 들어오기 전 배수를 인용하지 않는다.
+r6이 존재하는 이유가 바로 이것이다 — r5가 r4를 이긴 것이
 **문장이라서**인지 **내용이 맞아서**인지 가르려면 내용만 있고 문장이 없는
 단이 필요했고, Appendix Table A5가 그 교란을 제거한다. 답은 내용이다.
 
@@ -748,7 +753,8 @@ advantage from this table.*
   diagnosis` stacked bar로 보인다. (a)는 gold가 chart에 없는 clean cohort,
   (b)는 canonical 전체 source-correct cohort이므로 각 패널에 n을 따로 쓴다.
 - **Figure 3 — Internal trajectory.** 절대 decoded signal, no-note 대비 paired
-  cost, suggestion-top1 최초 지점을 보인다. canonical 321건 중 suggestion
+  cost, suggestion-top1 최초 지점을 보인다. 아래 321건은 fixed-cohort
+  감사값이며 새 319건 덤프 전사 전에는 잠금 상태다. suggestion
   top-1 경험 55, never 266이며, never는 gold-throughout 151과 other-top1 115로
   나뉜다. note 이전 last-finding 7건은 개입 효과가 아니라 baseline
   differential signal이다. 채택형 최종 토큰의 `p(gold)=.725` 대

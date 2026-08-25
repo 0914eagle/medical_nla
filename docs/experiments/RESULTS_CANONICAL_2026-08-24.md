@@ -8,9 +8,9 @@
 
 > **08-25 primary-cohort migration in progress.** DDXPlus 행동 분석은 canonical
 > no-note 정답 조건을 다시 적용한 **1,729건(moved 319)**으로 확정했다. 아래의
-> trajectory/detection/correction/reader-trust 절에 남은 **1,747/321 기반 값은
-> 더 이상 정본이 아니며 인용하지 않는다.** `run_canonical_eligible_downstream.sh`
-> 결과가 들어오면 같은 1,729 ID로 재학습·재집계한 값으로 교체한다.
+> detection/correction은 같은 **1,729건(moved 319)**에서 재학습·재집계됐다.
+> trajectory 세부 분해와 reader-trust 전사는 새 로그 확인 전까지 잠금 상태다.
+> 옛 **1,747/321 기반 값은 더 이상 정본이 아니며 인용하지 않는다.**
 
 **Camera-ready numbering (08-25):** 이 원장의 절 순서는 실험이 수행된 역사적
 순서를 보존한다. 원고에서는 AV 검증/레이어 스윕을 Appendix A1로 옮기고,
@@ -33,9 +33,9 @@ Table 3/Figure 4(b) 교정 순서를 쓴다.
 | **DDXPlus 위약/정답** | `ddxplus_hint_answers_{neutral,correct}_rescored.jsonl` |
 | **MCR 답** | `mcr_hint_answers_full_rescored.jsonl` |
 | **사다리** | `ddxplus_ladder_r{3..7}_rescored.jsonl` |
-| **채널 점수 덤프** | `channel_scores_canonical_eligible.jsonl` (재생성 대기) |
-| **프로브 판정** | `probe_verdicts_canonical_eligible.jsonl` (재학습 대기) |
-| **궤적 덤프** | `trajectory_dump_canonical_eligible.json` (재학습 대기) |
+| **채널 점수 덤프** | `channel_scores_canonical_eligible.jsonl` (1,729행) |
+| **프로브 판정** | `probe_verdicts_canonical_eligible.jsonl` (1,729행, 재학습) |
+| **궤적 덤프** | `trajectory_dump_canonical_eligible.json` (재학습 완료, 전사 대기) |
 
 **저장 필드를 믿지 않는다.** `run_source_answers.py`가 생성 시점에 쓰는
 `source_correct`를 분석기가 읽으므로, 채점기를 고쳐도 그 절반은 옛 판정
@@ -351,15 +351,17 @@ DDXPlus 318건/MCR 426건이지만 moved는 319/427이다. 따라서 moved 전�
 
 선택된 집합의 수치가 뒷받침하는 명제는 따로 있고, 그쪽으로만 쓴다:
 
-> **추론은 모델이 이미 맞혔던 답을 흔든다.** 1,747 base case의 no-note와
+> **Fixed-cohort CoT audit:** 추론은 모델이 이미 맞혔던 답을 흔든다. 이
+> 별도 감사는 옛 1,747 base case의 no-note와
 > wrong-note를 각각 비교한 **3,494 paired prompt instances** 중
 > **25.1%**(877/3,494)에서 Direct와 CoT의 정오가 엇갈린다. CoT가 깬 것은
 > **747건**, 구한 것은 130건이다. 총 정확도 차이는 이 뒤바뀜을 감춘다.
 
-### Appendix Figure A2 — 옛 `64.1%`의 canonical 재집계 (08-24)
+### Appendix Figure A2 — 옛 `64.1%`의 fixed-cohort 재집계 (08-24; audit only)
 
 `analyze_trajectory_readouts.py --ladder ddxplus_ladder_r5_rescored.jsonl`,
-final 랜드마크, n=1,747.
+final 랜드마크, n=1,747. 아래 값은 새 1,729 코호트로 아직 옮기지 않은
+감사값이며 주 결과로 인용하지 않는다.
 
 | 군 | n | 결론 = 정답 | 결론 = 제안 | 근거가 소견서 인용 |
 |---|---:|---:|---:|---:|
@@ -499,7 +501,7 @@ no_account 독자는 안 움직인 케이스를 8%만 의심한다. 판독을 �
 없는 id다(kept 표본이 403 vs 400으로 다르게 뽑혔다). 채널 행에서 제외되므로
 수치에 영향이 없다. 7개 팔은 모두 n=720~721로 온전하다.
 
-### 행동 분해
+### 행동 분해 (옛 fixed-cohort audit; primary 아님)
 
 | | DDXPlus | MCR |
 |---|---:|---:|
@@ -510,6 +512,11 @@ no_account 독자는 안 움직인 케이스를 8%만 의심한다. 판독을 �
 ---
 
 ## 4. Figure 3 · Table 2a — 궤적과 용량-반응 (§4.2, 프로브)
+
+> **전사 대기:** 아래 321건 수치와 확률 궤적은 옛 fixed-cohort 감사값이다.
+> `trajectory_dump_canonical_eligible.json`과 새 Figure 3은 생성됐지만, 값을
+> 전사하기 전에는 본문 정본으로 인용하지 않는다. Figure 4 탐지·교정 수치만
+> 현재 1,729/319 코호트로 완전히 갱신됐다.
 
 `analyze_trajectory.py`, 재채점 답 + `trajectory_L32` 매니페스트.
 교차적합 선형 프로브, 43클래스. fold 무소견서 디코드 정확도 .9755 / .9776.
@@ -571,19 +578,20 @@ no_account 독자는 안 움직인 케이스를 8%만 의심한다. 판독을 �
 
 | 채널 | 내부 | AUROC 전체 | AUROC 침묵 |
 |---|:-:|---:|---:|
-| 답 == 제안 (출력만) | – | **.6610** | 정의 불가 |
-| 체인 규칙 특징 (최강: dwells) | – | **.5464** | – |
-| **LLM 모니터** | – | **.7233** | **.6829** |
-| **AV 판독** (답이 내부 결론 누락) | ✓ | **.7506** | **.8302** |
-| **선형 프로브** (containment flag) | ✓ | **.9280** | **.9840** |
+| 답 == 제안 (출력만) | – | **.6632** | 정의 불가 |
+| 체인 규칙 특징 (최강: dwells) | – | **.5434** | – |
+| **LLM 모니터** | – | **.7305** | **.6904** |
+| **AV 판독** (답이 내부 결론 누락) | ✓ | **.7511** | **.8319** |
+| **선형 프로브** (containment flag) | ✓ | **.9330** | **.9881** |
 
-전부 **진단 내 층화**. 침묵 구역 n=**1,641**, moved **218** (덤프 정의).
+전부 **진단 내 층화**. 전체 n=**1,729**, moved **319**; 침묵 구역
+n=**1,628** (덤프 정의).
 
 **침묵 정의가 둘이고 정확히 15건 다르다**: `answer_names` 1,641 / `took_the_hint`
 1,656. 그 15건은 채택 감사의 `aliased`(106) 대 `causal`(91) 차이와 같은 케이스다.
 모니터는 후자 정의에서 **.6930**.
 
-### 판독 채널의 세부 (침묵 구역)
+### 판독 채널의 세부 (옛 fixed-cohort 감사; 새 특징별 전사 대기)
 
 | 특징 | AUROC | 진단 내 |
 |---|---:|---:|
@@ -598,7 +606,7 @@ no_account 독자는 안 움직인 케이스를 8%만 의심한다. 판독을 �
 말한다"가 아니다.** 근거가 의뢰서를 인용하는 특징은 정확히 .5000 — 정보 0.
 그러므로 이 채널이 하는 일은 **원인을 직접 설명하는 것이 아니라 국소화 + 불일치 탐지**다.
 
-### 채널 격차 신뢰구간
+### 채널 격차 신뢰구간 (옛 fixed-cohort CI; 새 CI 전사 대기)
 
 `bootstrap_channel_gap.py`, 케이스 쌍 부트스트랩 2,000회, 각 추출 안에서
 진단 내 층화.
@@ -613,7 +621,7 @@ no_account 독자는 안 움직인 케이스를 8%만 의심한다. 판독을 �
 판독이 공짜 특징보다 앞서는 폭은 실재하나 작다. **판독의 자리는 침묵 구역**이고
 거기서 그 특징은 정의상 0.5다.
 
-### 프로브의 추가 수치
+### 프로브의 추가 수치 (옛 fixed-cohort 감사; 새 전사 대기)
 
 | | |
 |---|---:|
@@ -625,11 +633,13 @@ no_account 독자는 안 움직인 케이스를 8%만 의심한다. 판독을 �
 
 ---
 
-## 6. CoT LLM 모니터 (§4.2)
+## 6. CoT LLM 모니터 (§4.2; 옛 fixed-cohort calibration audit)
 
 `make_cot_monitor_requests.py` → `run_judge.py --backend codex` →
 `analyze_cot_monitor.py` / `analyze_monitor_calibration.py`.
 
+- 아래 calibration 값은 판정자를 새로 호출하지 않고 1,729건으로 필터링해
+  다시 낼 수 있다. 전사 전까지 옛 1,747건 감사값으로만 둔다.
 - 판정자 **gpt-5.6-sol** (백본과 다름; `run_judge.py`가 gemma 계열 거부)
 - 1,747 요청, **1,747 파싱, 실패 0**
 - 서로 다른 확률값 **61개**, 0.00–1.00 전 구간 → 동점 아티팩트 아님
@@ -672,19 +682,19 @@ no_account 독자는 안 움직인 케이스를 8%만 의심한다. 판독을 �
 ## 7. Table 3 · Figure 4(b) — 교정 사다리 (§4.3)
 
 `analyze_correction_ladder.py`, 재채점 사다리 파일 + `probe_verdicts_canonical`.
-첫 답: 전체 **.8117**, moved **.0031**.
+첫 답: 전체 **.8161**, moved **.0031**.
 
-### 전체 n=1,747
+### 전체 n=1,729
 
 | 단 | 덧붙이는 것 | 전체 | **moved** | 항복률 |
 |---|---|---:|---:|---:|
-| r3 | 재고 요청만 | .4173 | .4548 | .4507 |
-| r4 | + 소견 재제시 | .4139 | .4050 | .6410 |
-| **r5** | + 판독 결론·근거 | .4098 | **.6293** | **.4940** |
-| **r6** | + 프로브 클래스 라벨 | .4568 | **.8318** | .5212 |
+| r3 | 재고 요청만 | .4170 | .4545 | ▢ |
+| r4 | + 소견 재제시 | .4147 | .4044 | ▢ |
+| **r5** | + 판독 결론·근거 | .4083 | **.6301** | ▢ |
+| **r6** | + 프로브 클래스 라벨 | .4552 | **.8339** | ▢ |
 
-- **r5 − r4 = +22.4%p** (moved)
-- r5 항복률이 r4보다 **−14.7%p**
+- **r5 − r4 = +22.6%p** (moved)
+- canonical 항복률은 새 ladder 로그 전사 대기
 - 첫 패스 항복률 .3209 → 재실행 후 .45–.64: **재실행 자체가 파괴적**
 
 ### r7 — 같은 1,151 id로 제한 (`--common-ids`)
@@ -705,9 +715,10 @@ no_account 독자는 안 움직인 케이스를 8%만 의심한다. 판독을 �
 다시 읽고 자기 답을 재확인한다 — **되먹임이 아니라 고착**이다. 깨진 소수마저
 제안 쪽으로 덜 간다(항복률 .2069 대 첫 패스 .5281, ×0.39).
 
-### Appendix Table A5 — 내용을 맞춘 r5 대 r6
+### Appendix Table A5 — 내용을 맞춘 r5 대 r6 (옛 fixed-cohort audit)
 
 되먹인 내용 정확도: 판독 **.5047**, 프로브 **.8567** (moved n=321).
+새 319건 코호트로 전사하기 전에는 이 표를 주 결과로 인용하지 않는다.
 
 | 판독/프로브 내용 | n | r5 | r6 | r5만:r6만 | p |
 |---|---:|---:|---:|:-:|---:|

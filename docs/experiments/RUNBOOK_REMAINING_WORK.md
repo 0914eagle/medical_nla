@@ -66,7 +66,8 @@ dry-run 견적은 3층 합계 **약 $0.09**다. 결과는 손라벨을 덮어쓰
 Table 2b의 생성문과 hidden-state probe 사이에 실제 final-logit 기준선이 빠져 있다.
 이 값 없이는 probe가 final output distribution에 이미 있는 uncertainty를 다시 읽은
 것인지, output head보다 이른 representation에서 추가 정보를 얻은 것인지 구분할
-수 없다. [실험 17](17-output-head-likelihood.md)의 wrong-arm 1,747행만 실행한다.
+수 없다. [실험 17](17-output-head-likelihood.md)의 canonical-eligible wrong-arm
+1,729행만 실행한다.
 
 결과는 `RESULTS_CANONICAL`에 먼저 기록한 뒤 Table 2b의 `▢` 행을 채운다. 과거
 all-cue source-error logprob AUROC는 label과 모집단이 다르므로 가져오지 않는다.

@@ -1,0 +1,28 @@
+{
+  "cohort": {
+    "definition": "canonical no-note correct",
+    "source_rows": 1747,
+    "eligible_rows": 1729
+  },
+  "detection": {
+    "channels": [
+      "Answer heuristic",
+      "Rule-based CoT",
+      "LLM monitor",
+      "AV readout",
+      "Linear probe"
+    ],
+    "all": [0.6632, 0.5434, 0.7305, 0.7511, 0.9330],
+    "silent": [null, null, 0.6904, 0.8319, 0.9881],
+    "n_all": 1729,
+    "n_silent": 1628,
+    "n_moved": 319
+  },
+  "correction": {
+    "stages": ["First answer", "r3", "r4", "r5", "r6"],
+    "overall": [0.8161, 0.4170, 0.4147, 0.4083, 0.4552],
+    "moved": [0.0031, 0.4545, 0.4044, 0.6301, 0.8339],
+    "n_all": 1729,
+    "n_moved": 319
+  }
+}

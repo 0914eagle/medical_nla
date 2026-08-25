@@ -57,7 +57,13 @@ P=<probability between 0.00 and 1.00>
   임계값에서의 점 하나만 준다.
   그리고 답 바뀜이 18.5%라 이진 정확도로 재면 **"전부 아니오"가 81.5%**다.
 
-## 결과
+## 정본 결과 (canonical no-note eligible n=1,729)
+
+기존 1,747 판정 결과를 새 eligibility ID로 필터해 같은 채널 덤프에서 다시
+계산했다. 전체 AUROC **.7305**, 침묵 1,628건에서 **.6904**다. 같은 모집단의
+AV는 `.7511/.8319`, probe는 `.9330/.9881` (all/silent)이다.
+
+## 이전 결과 (fixed-cohort audit)
 
 | | All | Silent |
 |---|---:|---:|

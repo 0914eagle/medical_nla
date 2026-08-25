@@ -119,11 +119,13 @@ used to define the evaluation label, not exposed as an input.
 Three findings organize the paper. First, wrong referral notes substantially
 reduce diagnostic accuracy in both controlled DDXPlus prompts and case-report
 language, but answer movement is not equivalent to internal suggestion
-dominance: among 321 causally moved DDXPlus cases, the suggestion is never the
-probe top-1 diagnosis at any of six observed landmarks in 266 cases (82.9\%).
+dominance: in the fixed-cohort trajectory audit, among 321 causally moved
+DDXPlus cases, the suggestion is never the probe top-1 diagnosis at any of six
+observed landmarks in 266 cases (82.9\%). These counts remain locked until the
+canonical 319-case trajectory dump is transcribed.
 Second, this dissociation is detectable from one wrong-note run. On the
-canonical silent subset, a cross-fitted probe reaches 0.9840 AUROC, compared
-with 0.8302 for the natural-language readout and 0.6829 for the LLM CoT monitor.
+canonical silent subset, a cross-fitted probe reaches 0.9881 AUROC, compared
+with 0.8319 for the natural-language readout and 0.6904 for the LLM CoT monitor.
 Third, correction is conditional. Accurate decoded content can recover moved
 answers, but indiscriminate re-prompting damages answers that would otherwise
 remain correct, and we find no independent advantage of natural-language form

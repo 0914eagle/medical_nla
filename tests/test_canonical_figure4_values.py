@@ -88,6 +88,7 @@ def test_figure4_builder_uses_one_canonical_cohort_for_both_panels(tmp_path, mon
     assert values["cohort"]["eligible_rows"] == 4
     assert values["detection"]["n_all"] == 4
     assert values["detection"]["n_moved"] == 2
+    assert values["detection"]["n_silent_moved"] == 2
     assert values["correction"]["n_all"] == 4
     assert values["correction"]["n_moved"] == 2
     assert values["detection"]["all"] == [1.0] * 5

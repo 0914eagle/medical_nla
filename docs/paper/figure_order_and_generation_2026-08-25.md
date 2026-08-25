@@ -112,12 +112,12 @@ python scripts/make_figure_trajectory.py \
 `$ART/reports/figure4_detection_correction_canonical_eligible.json`에 있다.
 
 - **(a) detection**: wrong-note 실행 하나만 보고 moved를 탐지하는 within-diagnosis
-  AUROC다. `silent`는 답이 suggestion을 직접 명명한 경우를 제외한다. 수치는
-  canonical 1,729 코호트에서 probe를 재학습한 뒤 채운다. 옛 1,747 코호트의
-  `.9280/.9840`, `.7506/.8302`, `.7233/.6829`는 감사 기록으로만 남긴다.
+  AUROC다. `silent`는 답이 suggestion을 직접 명명한 경우를 제외한다. Canonical
+  1,729 코호트에서 probe를 재학습한 결과 probe `.9330/.9881`, AV
+  `.7511/.8319`, LLM monitor `.7305/.6904` (all/silent)다.
 - **(b) correction**: 전체 정확도와 moved recovery를 분리한다. R3-R6도 같은
-  1,729 ID로 재집계한다. 방향이 유지되더라도 옛 `.8117/.4098/.4568` 등의
-  값을 새 모집단의 값으로 간주하지 않는다.
+  1,729 ID로 재집계했다. 첫 답 전체 `.8161`, r5/r6 전체 `.4083/.4552`지만,
+  moved 319에서는 첫 답 `.0031`에서 `.6301/.8339`로 회복한다.
 
 ```bash
 python scripts/make_figure_detection_correction.py \

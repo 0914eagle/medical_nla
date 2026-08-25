@@ -132,6 +132,7 @@ def main() -> None:
         "n_all": len(detection_rows),
         "n_silent": len(silent_rows),
         "n_moved": sum(bool(row["moved"]) for row in detection_rows),
+        "n_silent_moved": sum(bool(row["moved"]) for row in silent_rows),
     }
 
     rung_rows: dict[str, dict[str, dict[str, Any]]] = {}
@@ -198,6 +199,7 @@ def main() -> None:
         f"- cohort: canonical no-note correct, {len(eligible):,}/{len(all_cases):,}",
         f"- moved: {detection['n_moved']:,}",
         f"- silent: {detection['n_silent']:,}",
+        f"- silent moved: {detection['n_silent_moved']:,}",
         "",
         "## Detection",
         "",

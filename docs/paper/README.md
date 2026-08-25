@@ -2,9 +2,9 @@
 
 > **08-25 행동 재집계 완료, 파생 분석 진행 중.** Canonical no-note correctness를
 > 다시 요구한 DDXPlus 전체 1,729/clean 1,204와 MCR 1,452에서 Figure 2 행동값을
-> 갱신했다. Non-overlap replication과 trajectory/detection/correction/reader-trust는
-> 아직 새 case ID로 다시 계산해야 한다. 그 파생 결과의 1,747/321 및 1,543/437
-> 수치는 완료 전까지 generation-time fixed-cohort 감사값으로만 인용한다.
+> 갱신했다. Detection/correction은 같은 1,729 ID에서 재학습·재집계됐고,
+> trajectory 세부 분해와 reader-trust는 새 로그 전사 대기다. 과거 1,747/321
+> 수치는 generation-time fixed-cohort 감사값으로만 인용한다.
 
 이 폴더의 논문 서사는 **현상 우선**이다. 주인공은 NLA 자체가 아니라,
 의뢰 소견서의 의심 진단이 의료 LLM의 출력은 바꾸지만 내부 정답 신호를
@@ -62,11 +62,11 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 | 오답 소견서가 진단을 움직인다 | canonical-eligible DDXPlus main **−23.75 pp**; MCR **−29.34 pp** | 행동 효과는 두 코퍼스; non-overlap primary refresh 대기 |
 | moved의 다수는 제안 복사가 아니다 | DDXPlus **230/319(72.1%)**, MCR **300/427(70.3%)**가 제3 진단으로 이동 | DDX moved의 **287/319(90.0%)**가 clean presentation |
 | corpus-300은 이제 독립 재현이다 | 주 실행 id를 뺀 **미관측 3,319**(clean 2,192)에서 오답 조건 **.7682** vs 초집합 .7670 — 0.12 pp 차 | 행동 효과에 한정; 사다리도 r5−r4 +15.94 pp로 재현 |
-| suggestion이 내부 top-1을 대개 차지하지 못한다 | moved 321건 중 266건(82.9%)에서 suggestion이 어느 landmark에서도 top-1이 아님 | 그중 gold throughout 151, third-diagnosis path 115 |
-| 소견서는 내부 gold signal을 행동별로 다르게 낮춘다 | final Δ: 유지 **−.007**, 제3 진단 **−.055**, 제안 채택 **−.195** | DDXPlus, 49-class cross-fit probe |
-| CoT보다 내부 채널이 강하다 | 정본 silent subset(n=1,641) AUROC: LLM CoT monitor .6829, NL readout .8302, probe .9840; readout−monitor gap +.1473 CI [.0691,.2209] | DDXPlus, 진단 내 층화 |
+| suggestion이 내부 top-1을 대개 차지하지 못한다 | 옛 fixed-cohort moved 321건 중 266건(82.9%)에서 suggestion이 어느 landmark에서도 top-1이 아님 | 그중 gold throughout 151, third-diagnosis path 115; 새 319건 궤적 전사 전에는 감사값으로만 인용 |
+| 소견서는 내부 gold signal을 행동별로 다르게 낮춘다 | fixed-cohort final Δ: 유지 **−.007**, 제3 진단 **−.055**, 제안 채택 **−.195** | DDXPlus, 49-class cross-fit probe; 새 319건 전사 대기 |
+| CoT보다 내부 채널이 강하다 | 정본 silent subset(n=1,628) AUROC: LLM CoT monitor .6904, NL readout .8319, probe .9881; readout−monitor 점추정 +.1415, 새 CI 전사 대기 | DDXPlus, 진단 내 층화 |
 | 자연어 판독은 벡터에 종속된다 | swap .993, memorization .000, contamination .007; heldout cue content .751 (n=770, 기계 채점) | DDXPlus 검증 배터리 |
-| 내부 내용을 되먹이면 회복한다 | canonical moved=321: 첫 답 .0031 → r5 .6293 / r6 .8318 | 내용 정확도가 지배; 무선별 재실행은 해로움 |
+| 내부 내용을 되먹이면 회복한다 | canonical moved=319: 첫 답 .0031 → r5 .6301 / r6 .8339 | 내용 정확도가 지배; 무선별 재실행은 해로움 |
 | 자기 CoT 되먹임은 교정하지 못한다 | 공통 1,151 id에서 r7 moved 회복 .1236, r5 .5281, r6 .7416 | 쉬운 공통 집합; 기전은 고착과 일관되나 미확정 |
 | 현재 판독은 독자 인터페이스로 부적합하다 | reader-trust **전수 2,896**: no-account 대비 ΔAUROC **−.0935 [−.130,−.059]**; probe **+.0715 [+.044,+.100]**, CoT −.0235 (0 포함) | 확정 |
 | 판독의 **내용**은 독자에게 실재한다 | shuffled 통제: readout .7347 vs shuffled_readout .4491 (**+.2856**) | 내용은 실재하나 순효과는 여전히 음수 |
@@ -77,8 +77,8 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 
 - 행동 효과는 DDXPlus와 MCR에서 재현됐지만, **82.9% 기전 해부는 DDXPlus만**이다.
   그리고 82.9%는 gold-throughout이 아니라 suggestion-never-top1이다.
-- 닫힌 49-class 탐지에서는 지도 프로브가 자연어 판독보다 강하다(.9280/.9840
-  all/silent 대 .7506/.8302). 자연어 판독의 현재 몫은 최고 정확도나 임상의용
+- 닫힌 49-class 탐지에서는 지도 프로브가 자연어 판독보다 강하다(.9330/.9881
+  all/silent 대 .7511/.8319). 자연어 판독의 현재 몫은 최고 정확도나 임상의용
   설명이 아니라 **계측·오류 유형 탐색과 열린 어휘 가설 생성**이다.
 - MCR처럼 진단명이 대부분 한 번씩 등장하는 자료에서는 표준적인 고정
   클래스 지도 프로브를 그대로 정의하기 어렵다. 이것을 "어떤 프로브도
@@ -161,7 +161,7 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 8. Appendix Figure A2의 옛 `64.1%`를 **`.591`**로 교체한다 (canonical 재집계 완료).
 9. corpus-300을 "독립 재현 아님"에서 **독립 재현**으로 승격한 서술로
    본문·표·outline을 맞춘다 (미관측 3,319에서 재현 확인).
-10. **Source output-head likelihood 기준선**을 canonical wrong-note 1,747건에서
+10. **Source output-head likelihood 기준선**을 canonical wrong-note 1,729건에서
     실행한다. 생성문과 hidden-state probe 사이의 필수 비교이며, 과거 source-error
     logprob 결과로 대체하지 않는다.
 
