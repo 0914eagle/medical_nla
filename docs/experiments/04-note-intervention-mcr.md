@@ -64,16 +64,17 @@ Generation-time source-correct 1,543건 중 canonical matcher에서도 no-note �
 - DDXPlus 3× larger run의 4.31배와 함께 **5.06배가 관측됐다.** 두 코퍼스는 난이도, 진단
   공간, 오답 제안 생성법이 달라 효과 크기의 우열을 인과적으로 비교하지 않는다.
   이 행이 닫는 것은 효과의 합성 데이터 한정 여부다.
-- canonical moved **437건** 중 제안 채택은 **137건**, 제3 진단은 **300건**이다.
+- fixed-cohort moved **437건** 중 제안 채택은 **137건**, 제3 진단은 **300건**이다.
 - 채택률은 moved 중 **31.4%**이고, **68.6%**는 제3 진단으로 간다.
 
 ## Table 1의 MCR 행을 읽는 법
 
 - MCR 행은 합성 DDXPlus에서 본 `neutral < wrong` 구조가 실제 증례 텍스트에서도
   반복되는지를 보는 **행동 복제**다.
-- 모집단은 MCR 전체 12,620건이 아니라 소스 모델이 no-note에서 맞힌 1,543건
-  (12.2%)이다. 따라서 `.6721`을 MCR 전체 성능이라고 말하지 않는다.
-- DDXPlus와 MCR은 진단 공간, 난이도, 제안 생성법이 다르므로 5.06×와 4.31×의
+- Primary 모집단은 MCR 전체 12,620건이 아니라 canonical matcher에서도
+  no-note 정답인 1,452건(11.5%)이다. 따라서 `.7066`을 MCR 전체 성능이라고
+  말하지 않는다. 1,543/.6721은 fixed-cohort 감사값이다.
+- DDXPlus와 MCR은 진단 공간, 난이도, 제안 생성법이 다르므로 4.44×와 4.40×의
   대소를 모델의 임상 취약성 순위로 해석하지 않는다. 공통으로 지지되는 것은
   **위약보다 오답 제안의 추가 비용이 크다**는 구조다.
 - 이 행은 행동 효과만 복제한다. MCR에서 같은 내부 궤적이나 자연어 판독이
@@ -100,10 +101,10 @@ Generation-time source-correct 1,543건 중 canonical matcher에서도 no-note �
 
 ## 남은 것
 
-- ▢ Table 2b의 MCR 판독 칸과 MCR r5 단 — **MCR hint 케이스 wrong arm의
-  답-위치 활성값 추출**이 별도로 필요하다. 현재 매니페스트는 소견서가 없는
-  프롬프트로 뽑혀 있다.
-- ✅ canonical matcher 재채점은 완료됐다: `.9410/.8879/.6721/.8179`,
-  moved/adopted/third = `437/137/300`.
-- ▢ MCR 내부 기전은 wrong-note arm 활성값과 source-aligned 판독이 준비된 뒤
-  별도로 측정한다. DDXPlus 49-way probe를 그대로 이전하지 않는다.
+- ✅ Canonical matcher 재채점 완료: `1/.9339/.7066/.8388`,
+  moved/adopted/third = `427/127/300` (n=1,452).
+- ✅ MCR hint case의 none/wrong L32 activation과 readout 3,086행 생성 완료.
+- ▢ 첫 pooled readout 채점은 arm을 섞고 wrong readout을 no-note 답에 조인해
+  무효다. Wrong 1,543행을 arm-aware 재채점한 뒤에만 Table 2b와 r5를 진행한다.
+- ▢ DDXPlus 49-way probe를 그대로 이전하지 않고 source likelihood와 열린 어휘
+  representation baseline을 비교한다.

@@ -1577,14 +1577,17 @@ no account, real account, shuffled account를 보여 실제 판별 효용과 사
 
 | Account shown to reader | AUROC | Δ vs no account | Paired 95% CI |
 |---|---:|---:|---:|
-| No account | .8235 | — | — |
-| Probe label | **.8951** | **+.0715** | `[+.044,+.100]` |
-| CoT | .8000 | −.0235 | `[−.050,+.003]` |
-| AV readout | .7301 | **−.0935** | `[−.130,−.059]` |
+| No account | **.8340** | — | — |
+| Probe label | **.9032** | **+.0692** | `[+.042,+.098]` |
+| CoT | .8123 | −.0217 | `[−.045,+.003]` |
+| AV readout | .7342 | **−.0998** | `[−.135,−.065]` |
 
-전수 2,896건에서 probe label만 no-account보다 판별력을 높였다. AV가 자연어를
-생성한다는 사실은 인간에게 유용한 설명이라는 뜻이 아니다. Readout은 kept case까지
-전반적으로 의심하게 해 판별력을 낮췄다.
+원래 판정 요청은 2,896행이고, canonical eligibility를 적용하면 2,860행/1,729
+base ID가 남는다. 위 paired 표는 no-account, real account, shuffled account가
+모두 존재하는 동일 채널 통제 집합 **n=716/channel**에서 계산했고, shuffled
+readout만 1행이 없어 n=715다. Probe label만 no-account보다 판별력을 높였다.
+AV가 자연어를 생성한다는 사실은 인간에게 유용한 설명이라는 뜻이 아니다.
+Readout은 kept case까지 전반적으로 의심하게 해 판별력을 낮췄다.
 
 Reader-trust task에서는 판정자에게 vignette와 source answer를 주고, 조건에 따라
 아무 account도 주지 않거나 CoT, probe label, readout을 하나만 준다. 판정자는
@@ -1592,23 +1595,22 @@ Reader-trust task에서는 판정자에게 vignette와 source answer를 주고, 
 moved label은 숨긴다. 주 지표는 account의 절대 AUROC가 아니라 동일 사례의
 no-account 대비 paired delta다.
 
-전수 결과에서 no-account AUROC `.8235`, probe `.8951`, CoT `.8000`, readout
-`.7301`이다. No-account 대비 probe delta는 `+.0715 [+.044,+.100]`, CoT
-`-.0235 [-.050,+.003]`, readout `-.0935 [-.130,-.059]`이다. 따라서 probe의
+동일 채널 통제 집합에서 no-account AUROC `.8340`, probe `.9032`, CoT `.8123`,
+readout `.7342`다. No-account 대비 probe delta는 `+.0692 [+.042,+.098]`, CoT
+`-.0217 [-.045,+.003]`, readout `-.0998 [-.135,-.065]`이다. 따라서 probe의
 양의 증분과 readout의 음의 증분은 paired interval에서도 방향이 분명하다.
 
 **Shuffled-account 통제.** 같은 채널의 account를 다른 사례에서 가져와 내용과
-사례의 정렬만 깨뜨린 721-case 통제에서 `shuffled → real` AUROC는 probe
-`.4207→.9020`, CoT `.5293→.8098`, readout `.4491→.7347`이다. Real-minus-shuffled는
-각각 `+.4813/+.2805/+.2856`이므로 readout 내용도 아무 산문이 아니라 **해당 사례와
+사례의 정렬만 깨뜨린 canonical 통제에서 `shuffled → real` AUROC는 probe
+`.4218→.9032`, CoT `.5310→.8123`, readout `.4488→.7342`다. Real-minus-shuffled는
+각각 `+.4814/+.2813/+.2854`이므로 readout 내용도 아무 산문이 아니라 **해당 사례와
 정렬된 정보**를 담는다. 다만 shuffled-no-account를 단순한 “설명 제시 비용”으로
 부르면 안 된다. Shuffled account에는 문체·권위 효과뿐 아니라 다른 환자의
 임상 정보라는 적극적 misinformation도 함께 들어 있기 때문이다.
 
-같은 721건에서 no-account 대비 real account의 순효과는 probe `+.0727`, CoT
-`-.0195`, readout `-.0946`이다. Readout은 case alignment로 `.2856`을 회복하지만
-최종 판별력은 여전히 baseline보다 낮다. 안 움직인 사례를 의심한 비율도 no account
-`.080`, real readout `.580`, shuffled readout `.958`이다. 정확한 결론은
+같은 canonical 통제에서 no-account 대비 real account의 순효과는 probe `+.0692`,
+CoT `-.0217`, readout `-.0998`이다. Readout은 case alignment로 `.2854`를
+회복하지만 최종 판별력은 여전히 baseline보다 낮다. 정확한 결론은
 **“readout 내용은 사례 특이적이지만, 현재 표현 방식은 false alarm을 너무 많이
 만들어 독자 효용이 음수다”**이다. 현재 readout을 clinician-facing explanation으로
 제안하지 않는다.
@@ -1684,13 +1686,14 @@ LLM monitor, natural-language readout, linear probe를 동일한 single-run task
 
 | 우선순위 | 남은 작업 | 닫히는 주장 |
 |---:|---|---|
+| 0 | MCR wrong-arm readout arm-aware 재채점 | wrong 상태가 실제 낸 답을 판독하는지 검증 |
 | 1 | Canonical detector-gated correction | RQ2 탐지가 전체 순이득의 RQ3 정책으로 이어지는가 |
 | 2 | Source output-head likelihood baseline | probe의 hidden-state 추가 이득 판정 |
-| 3 | 동일 LLM monitor의 no-CoT arm | CoT만의 순수 증분 |
-| 4 | MCR wrong-note activation·detection | DDXPlus 내부 기전의 열린 어휘 확장 |
-| 5 | MCR correction ladder | probe가 직접 이전되지 않는 조건의 교정 |
-| 6 | Direct×CoT matched 2×2 | selection bias 없이 CoT의 anchoring 완화 여부 판정 |
-| 7 | realistic matched-neutral·matched layer control | 문체·길이·학습량 교란 분리 |
+| 3 | MCR r3/r4와 r5-conclusion/full | 열린 어휘에서 내부 결론의 조건부 교정 가치 |
+| 4 | 동일 LLM monitor의 no-CoT arm | CoT만의 순수 증분 |
+| 5 | Direct×CoT matched 2×2 | selection bias 없이 CoT의 anchoring 완화 여부 판정 |
+| 6 | realistic matched-neutral | 문체·길이와 진단 제안 효과 분리 |
+| 7 | matched layer/position reader control | layer와 reader recipe·학습량 교란 분리 |
 
 Reader-trust 2,896행 전수와 same-channel shuffled account control은 완료됐다.
 현재 첫째 제출 게이트는 detector-gated correction이다. Selector는 wrong-note run
@@ -1705,9 +1708,13 @@ probe가 hidden-only 정보를 추가로 발견했다는 주장을 줄여야 한
 monitor에서 CoT를 제거한 동일 판정자 arm이 필요하다. 현재 monitor는 vignette,
 note, CoT, answer를 모두 보므로 CoT만의 증분을 분리하지 못한다.
 
-셋째, MCR wrong-note activation 추출, MCR single-run attribution, MCR correction
-ladder가 남아 있다. 현재 MCR은 행동 복제와 source-aligned answer readout까지만
-완료됐다. 넷째, MCR cue-position readout과 counterfactual span swap이 필요하다.
+MCR wrong-note activation과 readout 생성은 끝났다. 다만 3,086행이 none/wrong을
+1,543행씩 포함하는데 첫 분석이 이를 pooling하고 wrong readout을 no-note 답에
+조인했으므로 `.6361/.0029`는 무효다. Wrong-arm readout은
+`mcr_hint_answers_full_rescored.jsonl`의 wrong-arm 실제 답과 arm-aware하게 다시
+채점한다. 이 관문을 통과하면 r5를 **결론만 제공하는 조건**과 **결론+비접지일
+수 있는 근거 산문 조건**으로 분리한다. r3/r4는 이 감사와 독립적으로 실행한다.
+그 뒤 MCR cue-position readout과 counterfactual span swap은 확장 실험으로 둔다.
 다섯째, Appendix Figure A1 layer 비교에서 epoch와 reader recipe를 맞춘 position/layer control이
 필요하다. 여섯째, realistic note 효과를 길이와 문체에서 분리할 matched placebo가
 필요하다. 마지막으로 최근접 선행연구의 서지와 claim을 투고 전에 다시 확인해야

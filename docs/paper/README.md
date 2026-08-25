@@ -6,6 +6,11 @@
 > 재집계됐다. Table 2b paired CI와 Table 3 capitulation만 로그 전사 대기다.
 > 과거 1,747/321 수치는 generation-time fixed-cohort 감사값으로만 인용한다.
 
+모든 본문 분모와 표·그림의 모집단 대응은
+[`POPULATION_REGISTRY_2026-08-25.md`](../experiments/POPULATION_REGISTRY_2026-08-25.md)를
+따른다. 현재 정본은 DDXPlus clean 1,204, all eligible 1,729, silent 1,628,
+MCR behavior 1,452다.
+
 이 폴더의 논문 서사는 **현상 우선**이다. 주인공은 NLA 자체가 아니라,
 의뢰 소견서의 의심 진단이 의료 LLM의 출력은 바꾸지만 내부 정답 신호를
 완전히 대체하지 못한다는 **internal-output dissociation**이다. 프로브는 이를
@@ -61,7 +66,7 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 |---|---|---|
 | 오답 소견서가 진단을 움직인다 | canonical-eligible DDXPlus main **−23.75 pp**; MCR **−29.34 pp** | 행동 효과는 두 코퍼스; non-overlap primary refresh 대기 |
 | moved의 다수는 제안 복사가 아니다 | primary behavior에서 DDXPlus clean **201/287(70.0%)**, MCR **300/427(70.3%)**가 제3 진단으로 이동 | DDX 전체 eligible 민감도는 **230/319(72.1%)** |
-| corpus-300은 이제 독립 재현이다 | 주 실행 id를 뺀 **미관측 3,319**(clean 2,192)에서 오답 조건 **.7682** vs 초집합 .7670 — 0.12 pp 차 | 행동 효과에 한정; 사다리도 r5−r4 +15.94 pp로 재현 |
+| corpus-300의 ID 독립성은 확인됐다 | 주 실행 id를 뺀 **미관측 3,319**(fixed-cohort clean 2,192)에서 오답 조건 **.7682** vs 초집합 .7670 — 0.12 pp 차 | 행동 효과의 appendix audit; canonical clean 2,137 refresh 전에는 primary row로 쓰지 않음 |
 | suggestion이 내부 top-1을 대개 차지하지 못한다 | canonical moved 319건 중 **262건(82.1%)**에서 suggestion이 어느 landmark에서도 top-1이 아님 | 그중 gold throughout 147, third-diagnosis path 115 |
 | 소견서는 내부 gold signal을 행동별로 다르게 낮춘다 | final Δ: 유지 **−.006**, 제3 진단 **−.054**, 제안 채택 **−.199** | paired CI 모두 0 배제; final trend ρ=−.282 [−.328,−.233] |
 | CoT보다 내부 채널이 강하다 | 정본 silent subset(n=1,628) AUROC: LLM CoT monitor .6904, NL readout .8319, probe .9881; readout−monitor 점추정 +.1415, 새 CI 전사 대기 | DDXPlus, 진단 내 층화 |
@@ -146,9 +151,14 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
    readout **−.0998 [−.135,−.065]**, probe **+.0692**, CoT 0 포함.
    shuffled로 내용/제시를 분해했다 — 판독 내용 기여 **+.2854**, 그러나
    뒤섞임 바닥이 −.3848이라 순효과는 음수로 남는다.
-4. ~~MCR 결론 판독에 derangement baseline을 붙인다.~~ **완료 — 통과
-   (08-24)**: 답 필드 .2643 vs .0049. 남은 것은 **MCR 교정 사다리**이고,
-   게이트가 열렸으므로 wrong-note 추출을 진행한다. (r3/r4는 추출 없이 가능.)
+4. ~~MCR 결론 과제 판독에 derangement baseline을 붙인다.~~ **완료 — 통과
+   (08-24)**: 별도 conclusion-task 821행의 답 필드 .2643 vs .0049. Wrong-note
+   L32 추출과 readout 3,086행 생성도 완료됐다. 다만 이 파일은 none/wrong을
+   1,543행씩 포함하며 첫 채점은 두 arm을 pooling하고 wrong readout을 no-note
+   답에 붙여 **무효**다. `a21875e`의 arm-aware 조인으로 wrong 1,543행을 다시
+   채점한 뒤에만 MCR r5를 진행한다. Grounding이 약하므로 r5는 conclusion-only와
+   conclusion+grounds를 분리한다. 세부 절차는
+   [`18-mcr-wrong-arm-readout.md`](../experiments/18-mcr-wrong-arm-readout.md)다.
 5. ~~외부 판정자로 판독의 임상적 타당성을 보조 검증한다.~~ **완료 (08-24)**:
    238쌍 전수. 손채점 `.3402/.7306/.5571` vs 판정자 `.5525/.7740/.6393`,
    kappa .35–.50. **손채점은 하한이었다** — 세 층 모두 외부 판정자가 더
@@ -160,8 +170,9 @@ probe top-1이 되지 않는다. 이 내부-출력 결렬은
 7. Related Work의 최신 논문 서지·게재 상태와 정확한 인용 문장을 원문으로
    재확인한다.
 8. Appendix Figure A2의 옛 `64.1%`를 **`.591`**로 교체한다 (canonical 재집계 완료).
-9. corpus-300을 "독립 재현 아님"에서 **독립 재현**으로 승격한 서술로
-   본문·표·outline을 맞춘다 (미관측 3,319에서 재현 확인).
+9. corpus-300은 **base-ID non-overlap이 확인된 fixed-cohort 독립 감사**로
+   서술한다. Canonical clean 2,137 refresh가 끝난 뒤에만 primary replication
+   row로 승격한다.
 10. **Source output-head likelihood 기준선**을 canonical wrong-note 1,729건에서
     실행한다. 생성문과 hidden-state probe 사이의 필수 비교이며, 과거 source-error
     logprob 결과로 대체하지 않는다.

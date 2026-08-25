@@ -272,7 +272,7 @@ DDXPlus clean 286건/MCR 426건이지만 moved는 287/427이다. 전체 eligible
 존재하고 `src/answer_matching.py`보다 새롭다. 위 네 값은 그 파일에서
 `analyze_hint_effect.py`로 재현된다. §11의 "확인 필요"는 해소됐다.
 
-### corpus-300 non-overlap — 이제 진짜 두 번째 표본이다
+### corpus-300 non-overlap — ID 독립성 확인, fixed-cohort audit
 
 주 실행의 base_id 1,747개를 빼면 **정확히 1,676건이 빠지고 3,319건이 남는다**
 (문서에 적힌 겹침과 일치). 그 3,319건은 주 실행이 한 번도 보지 않은 케이스다.
@@ -285,11 +285,13 @@ DDXPlus clean 286건/MCR 426건이지만 moved는 287/427이다. 전체 eligible
 - clean 기준 오답 비용 **20.67%p**, 위약 비용 **4.70%p** → **4.40배**,
   제안 고유 **15.97%p**
 - 초집합 3,343건의 `.7670`과 미관측 2,192건의 `.7682`는 **0.12%p 차이**다.
-  효과는 원 실행 절반에 갇혀 있지 않다 — corpus-300을 이제 **행동 효과의
-  독립 재현으로 인용할 수 있다**. (프로브·판독 계기까지 분리된 표본이다.)
+  효과 방향이 원 실행과 겹치지 않는 ID에서도 반복된다는 appendix 감사 근거다.
+  그러나 no-note가 `.9749`로 1이 아니므로 canonical no-note-eligible primary
+  row가 아니다. Expected clean 2,137 refresh 전에는 본문 독립 재현 수치로
+  승격하지 않는다.
 - moved 563 / 3,319, 그중 인과적 채택 174.
 
-**사다리 non-overlap 재실행 (canonical matcher, n=3,319, 미관측만)**
+**사다리 non-overlap 아카이브 감사 (n=3,319, 미관측 ID만; 별도 matcher)**
 
 | 등급 | moved n=571 첫 답 → 둘째 | 회복 | 전체 net |
 |---|---|---:|---:|
@@ -297,7 +299,9 @@ DDXPlus clean 286건/MCR 426건이지만 moved는 287/427이다. 전체 eligible
 | r5 (AV 판독) | .0210 → **.6305** | 356 | −1,345 |
 | r6 (probe 클래스명) | .0210 → **.8546** | 483 | −1,160 |
 
-- r5 − r4 = **+15.94%p** (주 실행 +22.4%p와 같은 방향)
+- 이 사다리의 moved는 571이고 위 행동 표의 moved 563과 다르다. 같은 3,319
+  base ID여도 matcher/사다리 산출물이 달라 두 분모를 결합하지 않는다.
+- r5 − r4 = **+15.94%p** (주 실행과 같은 방향의 fixed-cohort audit)
 - 투항률(broken → 제안): r4 **.6718** > r6 .5620 > r5 **.5216** — 주 실행의
   "r5 < r4"가 미관측 표본에서 재현된다
 - 하이브리드: flag recall **.8109**, precision **.3251**
@@ -425,6 +429,39 @@ Table 2b MCR 칸, MCR r5를 진행할 근거가 선다. 반면 **근거 필드(c
 gap +.025 · 반복 70%로 통과하지 못했으므로 표에 넣지 않는다.** 열린 것은
 답 필드 하나다.
 
+### MCR wrong-note L32 판독 — arm-aware 재감사 대기 (08-25)
+
+Wrong-note position 추출과 readout 생성은 완료됐다.
+
+```text
+mcr_hint_position_rows.jsonl
+activations/mcr_hint_positions_L32/
+readout_mcr_hint_final_L32.jsonl  3,086행
+```
+
+그러나 3,086행은 `none×final=1,543`과 `wrong×final=1,543`의 합이다. 첫 채점은
+두 arm을 pooling하고 둘 다 no-note source answer에 `base_id`만으로 조인했다.
+따라서 그 실행의 `vs model .6361`, `deranged .0029`, gap `+.6332`,
+source-correct `2,964/3,086`은 **무효이며 인용 금지**다. 별도 conclusion-task
+821행의 `.2643/.0049` 결과와도 섞지 않는다.
+
+`a21875e`에서 조인 키를 `(base_id, hint_variant)`로 바꾸고 다음 재실행을
+정본으로 지정했다.
+
+```bash
+python scripts/score_readout_against_model.py \
+  --readouts $ART/results/readout_mcr_hint_final_L32.jsonl \
+  --answers $ART/results/mcr_hint_answers_full_rescored.jsonl \
+  --variant wrong
+
+python scripts/analyze_readout_grounding.py \
+  --readouts $ART/results/readout_mcr_hint_final_L32.jsonl --by-variant
+```
+
+Wrong-arm 1,543행의 실제 답과 조인한 결과가 들어오기 전에는 Table 2b MCR 칸과
+MCR r5의 근거로 사용하지 않는다. 세부 의존관계는
+`18-mcr-wrong-arm-readout.md`에 있다.
+
 ### reader-trust — canonical-eligible 전수와 shuffled 통제 (08-25)
 
 전수 판정 2,896행은 모두 원 케이스에 조인됐고, canonical eligibility를
@@ -551,9 +588,11 @@ Spearman ρ는 **−.282 [−.328,−.233]**으로 0을 배제한다.
 전부 **진단 내 층화**. 전체 n=**1,729**, moved **319**; 침묵 구역
 n=**1,628** (덤프 정의).
 
-**침묵 정의가 둘이고 정확히 15건 다르다**: `answer_names` 1,641 / `took_the_hint`
-1,656. 그 15건은 채택 감사의 `aliased`(106) 대 `causal`(91) 차이와 같은 케이스다.
-모니터는 후자 정의에서 **.6930**.
+현재 primary silent는 canonical-eligible 덤프의 `answer_names` 정의 **1,628건**이다.
+과거 fixed-cohort에는 `answer_names` 1,641 / `not took_the_hint` 1,656이라는 두
+정의가 있었고 정확히 15건 달랐다. 그 15건은 당시 채택 감사의
+`aliased`(106) 대 `causal`(91) 차이와 같은 케이스다. 후자 민감도에서 모니터는
+**.6930**이었지만 현재 채널 표에 섞지 않는다.
 
 ### 판독 채널의 세부 (옛 fixed-cohort 감사; 새 특징별 전사 대기)
 
@@ -612,7 +651,8 @@ n=**1,628** (덤프 정의).
 |---|---:|---:|
 | AUROC | **.7233** | **.6930** |
 
-정본 침묵 정의(1,641)에서는 **.6829**.
+Fixed-cohort의 `answer_names` 침묵 정의(1,641)에서는 **.6829**. 현재 canonical
+침묵은 1,628건이고 AUROC는 **.6904**다.
 
 ### 보정 (calibration)
 
@@ -878,17 +918,18 @@ Pericarditis).
 | no-CoT arm 판정 (CoT 순수 기여 분리) | codex ~4h | **빌더 완성** (`--no-cot`) |
 | reader-trust 완주 | codex | **완료 — 2,896/2,896** |
 | reader-trust `shuffled` 통제 | codex | **완료 — 721×7 arm** |
-| MCR readout derangement 통제 | CPU | **완료 — 답 필드 통과, 근거 필드 실패** |
+| MCR conclusion-task derangement 통제 | CPU | **완료 — 821행 답 필드 통과, 근거 필드 실패** |
+| MCR wrong-note readout arm-aware 감사 | CPU | **추출 완료; wrong 1,543행 재채점 대기** |
 | wording 4종 canonical 재채점 | CPU | **완료** |
 | CoT 이중성 canonical 재채점 | CPU | **완료** |
 | Appendix Figure A2 옛 `64.1%` canonical 재집계 | CPU | **완료 — `.591`로 교체** |
 | Table 2a 페어드 CI·추세 검정 | CPU | **계기 완성** (`src/paired_stats.py`) |
 | MCR 사다리 r3/r4 | GPU 짧음 | derangement를 기다리지 않는다 |
-| MCR 내부 판독·교정 (Table 2b MCR 칸, MCR r5) | GPU 며칠 | 별도 추출 필요 |
+| MCR 내부 판독·교정 (Table 2b MCR 칸, MCR r5) | CPU+GPU | arm-aware 감사 통과 후; conclusion-only/full 분리 |
 | Appendix Figure A1 position 통제 (같은 split·타깃·어댑터) | GPU ~1일 | 미착수 |
 | 438행 의미 채점 재채점 (판정자 #3) | codex ~$0.10 | **완료, 238쌍·파싱 실패 0** |
-| corpus-300 canonical 재채점 | CPU | preflight가 판정 |
-| corpus-300 non-overlap 3,319 | CPU | 아카이브에 구 매처 실행 있음 — 재실행 |
+| corpus-300 canonical clean refresh | CPU | expected n=2,137; primary Table 1 대기 |
+| corpus-300 non-overlap 3,319 | CPU | ID 독립성 확인; 행동 moved 563과 사다리 moved 571 불일치 해소 필요 |
 | Related Work 서지·인용 재확인 | 사람 | 스크립트 불가 |
 
 **corpus-300 non-overlap이 선택 항목이 아닌 이유.**

@@ -17,6 +17,10 @@
 값이 어긋나면 그 문서가 기준이고, 거기 없는 값은 인용하지 않는다.
 아래 실험별 문서는 **왜 그렇게 쟀는지**를, `docs/paper/`는 **조판**을 맡는다.
 
+**[`POPULATION_REGISTRY_2026-08-25.md`](POPULATION_REGISTRY_2026-08-25.md) — 모집단 원장.**
+clean/eligible/silent 분모와 historical fixed cohort를 구분하고, 각 표·그림이
+어느 분모를 써야 하는지 고정한다.
+
 [`AUDIT_2026-08-24.md`](AUDIT_2026-08-24.md) — 인용 전 점검 목록과 채점기 수정 기록.
 
 **Camera-ready numbering (08-25):** 본문은 Table 1/Figure 2 행동, Table 2a/Figure 3
@@ -45,6 +49,7 @@ layer map은 Appendix Table A1/Figure A1이다. 아래 실험 번호는 바뀌�
 | [15](15-judge-infrastructure.md) | 외부 판정자 기반 | 공통 | ✅ |
 | [16](16-readout-semantic-judging.md) | 판독 의미 채점 — 손채점 vs 외부 판정자 | Appendix | ✅ 08-24, 238쌍 |
 | [17](17-output-head-likelihood.md) | Source output-head likelihood 기준선 | 4.2 | ▢ GPU 실행 |
+| [18](18-mcr-wrong-arm-readout.md) | MCR wrong-arm 판독·arm-aware 감사·교정 | 4.2/4.3 | 🔶 추출 완료, 재채점·r5 대기 |
 
 인용 전에는 [문서 감사 기록](AUDIT_2026-08-24.md)의 미해결 항목을 확인한다.
 
@@ -125,7 +130,8 @@ no-note에서도 이미 제안명을 말해 개입의 인과 효과가 아니므
 
 - **moved** = `took_the_hint` **또는** `lost_the_gold`. 소견서가 답을 바꿨다.
 - **침묵 구역(silent), 정본 정의** = `answer_names(wrong_answer, suggestion)`이
-  거짓인 행. 채널 비교 덤프 기준 **n=1,641, moved=218**이다. 모니터 라벨 파일의
+  거짓인 행. canonical-eligible 채널 비교 덤프 기준 **n=1,628**이다. 이전
+  fixed-cohort 덤프의 1,641과 모니터 라벨 파일의
   `not took_the_hint` 정의는 **n=1,656, moved=230**인 별도 민감도 분석이며 같은 표에
   섞지 않는다. 출력만 보는 "답=제안" 신호는 정본 침묵 구역에서 정의상 무력하다.
 - **위약(neutral)** = `"The referring note requests evaluation."` — 제안이

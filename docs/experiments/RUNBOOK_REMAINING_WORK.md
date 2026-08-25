@@ -1,103 +1,205 @@
 # 남은 작업 실행 런북
 
-투고 게이트에 남은 항목을 **의존 순서**로 적는다. 날짜를 붙이지 않은 이유는
-이것이 스냅샷이 아니라 항목이 끝날 때마다 줄어드는 살아 있는 목록이기
-때문이다. 수치는 여기 적지 않는다 — 나온 값은
-`RESULTS_CANONICAL_2026-08-24.md`에 스크립트·입력 파일과 함께 먼저 기록한 뒤
-표 문서로 옮긴다.
+> **현재 상태 (2026-08-25, `a21875e`)**: DDXPlus canonical 행동·궤적·탐지·
+> 교정 재집계와 reader-trust는 완료됐다. MCR wrong-note activation/readout도
+> 생성됐지만, 3,086행이 none/wrong arm을 각각 1,543행씩 포함한다는 사실을
+> 무시한 첫 채점은 무효다. 현재 첫 실행은 **arm-aware CPU 재채점**이다.
 
-## 0. 먼저 — 디스크에 물어본다
+이 문서는 남은 항목을 의존 순서로 적는 실행 정본이다. 새 수치는 먼저
+`RESULTS_CANONICAL_2026-08-24.md`에 모집단·입력 파일·스크립트와 함께 기록한 뒤
+표·그림·발표 문서로 옮긴다.
 
-    source scripts/env.sh
-    bash scripts/preflight_remaining_work.sh
+분모는 [모집단 원장](POPULATION_REGISTRY_2026-08-25.md)의 cohort key를 사용한다.
+새 분석이 다른 분모를 요구하면 결과를 옮기기 전에 원장에 정의와 사용처부터
+추가한다.
 
-여덟 항목은 전부 **문서**를 보고 잡은 일정이다. corpus-300이 재채점됐다고
-문서는 말하지만, 그것을 말할 수 있는 것은 파일뿐이다. 이 스크립트는 단계마다
-READY 또는 없는 경로를 정확히 찍고, corpus-300 provenance 모순에는 별도
-판정을 낸다(재채점 파일이 `src/answer_matching.py`보다 새로운가).
+## 0. 환경과 입력 확인
 
-## 1–5. GPU도 판정자도 필요 없는 것들
+```bash
+source scripts/env.sh
+bash scripts/preflight_remaining_work.sh
+python scripts/audit_document_populations.py
+```
 
-    bash scripts/run_remaining_cpu_work.sh          # 전부
-    STEPS="2" bash scripts/run_remaining_cpu_work.sh # 한 단계만
+Preflight가 아직 새 MCR arm-aware 감사와 detector-gated 정책 입력을 모두 검사하지
+않으므로, 해당 절의 파일 확인 명령도 함께 사용한다.
 
-| # | 하는 일 | 왜 지금 |
+## P0-A. 지금 즉시 — MCR arm-aware CPU 감사
+
+정본 절차와 폐기할 수치는 [실험 18](18-mcr-wrong-arm-readout.md)에 있다.
+
+```bash
+python scripts/score_readout_against_model.py \
+  --readouts "$ART/results/readout_mcr_hint_final_L32.jsonl" \
+  --answers "$ART/results/mcr_hint_answers_full_rescored.jsonl" \
+  --variant wrong \
+  2>&1 | tee "$ART/reports/mcr_wrong_readout_faithfulness.txt"
+
+python scripts/analyze_readout_grounding.py \
+  --readouts "$ART/results/readout_mcr_hint_final_L32.jsonl" \
+  --by-variant \
+  2>&1 | tee "$ART/reports/mcr_readout_grounding_by_variant.txt"
+```
+
+첫 3,086행 pooled 점수 `.6361/.0029`는 인용하지 않는다. wrong readout은
+`mcr_hint_answers_full_rescored.jsonl`의 **wrong-arm 실제 답**과 비교해야 한다.
+이 결과가 MCR r5의 선행 조건이다.
+
+필수 확인:
+
+- wrong 평가행 1,543, `unjoined=0`
+- wrong `vs model / vs gold / deranged`
+- wrong-arm source-wrong 수와 model-only/gold-only/both/neither 분해
+- none/wrong별 cue grounding gap과 반복률
+
+## P0-B. 위 감사와 독립적으로 가능한 GPU 작업
+
+### B1. MCR 사다리 r3/r4
+
+```bash
+nohup env CUDA_VISIBLE_DEVICES=0,1 RUNGS="3 4" \
+  bash scripts/run_mcr_ladder.sh \
+  > "$ART/logs/mcr_ladder_r3_r4_launcher.log" 2>&1 &
+```
+
+r3/r4는 activation이나 판독 결론을 사용하지 않으므로 P0-A와 병렬 실행한다.
+
+### B2. Source output-head likelihood
+
+[실험 17](17-output-head-likelihood.md)을 canonical-eligible wrong-arm 1,729행에서
+실행한다. 이 기준선은 다음 두 질문에 필요하다.
+
+1. Probe가 final output distribution에 이미 있는 신호를 다시 읽는가.
+2. Detector-gated correction의 source-confidence selector를 무엇으로 정의할까.
+
+과거 all-cue source-error logprob는 label과 모집단이 달라 대체할 수 없다.
+
+## P0-C. MCR CPU 관문 통과 후
+
+### C1. MCR r5를 conclusion-only와 full로 분리
+
+현재 r5는 `internal conclusion`과 `encoded findings`를 함께 제공한다. Grounding이
+약하고 반복 문장이 많으므로 최종 비교는 다음 두 조건이어야 한다.
+
+| 조건 | 제공 내용 | 역할 |
 |---|---|---|
-| 1 | corpus-300 provenance + non-overlap 3,319 | Table 2 안에서 main 행과 c300 행이 다른 매처일 수 있는 유일한 내부 모순 |
-| 2 | MCR 판독 derangement | **GPU 항목의 게이트.** `.2643`이 사례 특이적이 아니면 MCR 내부 분기 전체가 무의미해진다 |
-| 3 | wording 4종 + CoT canonical 재채점 | 이 행들은 아직 생성 시점 매처를 달고 있다 |
-| 4 | Figure 5 `64.1%` 재집계 | 분석기는 이미 canonical, 낡은 것은 그것이 group by 하는 사다리 파일이다 |
-| 5 | ~~reader-trust dedupe·채점 + shuffled 케이스 생성~~ | **완료** — canonical controlled readout Δ −.0998, shuffled case-alignment 통제 완료 |
+| r5-conclusion | internal conclusion만 | 주 비교: 결론 자체의 교정 가치 |
+| r5-full | conclusion + encoded findings | 민감도: 현재 판독 전체의 순효과 |
 
-**1번의 숨은 절반**: 아카이브에 이미 non-overlap 3,319 실행이 있다(`docs/
-archive/paper_tables_worklog_2026-08-23.md`). 그 실행이 "둘 다 오답" 칸을
-11:4, p=0.118로 재현 실패 판정해 탐색적으로 강등했고, README의 "형식 우위
-주장 금지"가 거기서 나왔다. 그런데 그 칸은 정의상 `is_correct` 결과이므로
-매처 수정이 행을 칸 사이로 옮길 수 있다. **강등을 상속하지 말고 다시
-얻어야 한다.**
+`r5-conclusion` builder flag는 구현 대기다. 이 통제 없이 full r5만 실행하면
+grounded explanation의 효과를 주장할 수 없다. Arm-aware 결론이 derangement를
+통과하지 못하면 MCR r5를 중단하고 MCR은 행동 복제까지만 주장한다.
 
-## 6–8. 판정자가 필요한 것들 (GPU 불필요)
+### C2. 동일-ID 분석
 
-    DRY=1 bash scripts/run_readout_semantic_judge.sh   # 견적
-    bash scripts/run_readout_semantic_judge.sh         # 본 실행
+```bash
+python scripts/analyze_correction_ladder.py \
+  --rungs \
+    "$ART/results/mcr_ladder_r3.jsonl" \
+    "$ART/results/mcr_ladder_r4.jsonl" \
+    "$ART/results/mcr_ladder_r5.jsonl" \
+  --common-ids
+```
 
-**판정자 #3 — Table 1의 빈 채점 주체 칸.** 그 칸이 비어 있던 이유가
-확인됐다: `.340/.731/.557`은 쌍 단위 손라벨을 행 가중해 A+B를 센 값이다
-(`results_snapshot/*_heldout_pairs_hand_labeled.jsonl`에서 소수점 넷째 자리까지
-재현된다). 손채점이라 칸을 비워둔 것이고, 외부 판정자가 그 자리를 채운다.
+주 비교는 r5-conclusion 대 r4다. MCR에서는 DDXPlus 49-class r6를 직접 만들지
+않는다.
 
-계획보다 훨씬 작다. `judge_jobs`는 n=1,314(438×3)로 잡았지만 DDXPlus가 고정
-문진표에서 소견을 렌더링하므로 **고유 쌍은 238개**(92/72/74)로 5.5배 줄고,
-dry-run 견적은 3층 합계 **약 $0.09**다. 결과는 손라벨을 덮어쓰지 않고
-나란히 출력한다 — 두 채점자가 같은 238쌍을 봤다는 사실이 어느 한쪽 숫자보다
-강한 근거다.
+## P0-D. 제출 주장을 결정하는 핵심 실험
 
-나머지 둘:
+### D1. Canonical detector-gated correction
 
-    bash scripts/run_reader_trust_judge.sh             # shuffled arm
-    python scripts/make_cot_monitor_requests.py ... --no-cot
+Canonical DDXPlus 1,729건에서 threshold와 policy를 validation에서 고정하고
+held-out test에서 평가한다.
 
-`--no-cot`은 같은 케이스·같은 답·같은 루브릭에서 추론 블록만 지운다. 모니터
-`.7233`에서 이 값을 빼야 체인 자체의 몫이 나온다. 지금 본문이 "CoT만의 순수
-증분으로 부르지 않는다"고 적어둔 것이 이 갈래가 없기 때문이다.
+| 정책 | 개입 방식 |
+|---|---|
+| Keep first | 개입 없음 |
+| Apply r5 to all | 무선별 재실행 통제 |
+| Source-confidence gated | output-head 신호로 r5 선택 |
+| LLM-monitor gated | 외부 text monitor로 r5 선택 |
+| AV gated | AV 위험 신호로 r5 선택 |
+| Probe gated | probe 위험 신호로 r5 선택 |
+| Probe argmax replacement | flag 시 probe class로 교체 |
+| Oracle moved | true moved에만 개입하는 상한 |
 
-## 9. GPU (짧음) — source output-head likelihood
+반드시 보고할 값:
 
-Table 2b의 생성문과 hidden-state probe 사이에 실제 final-logit 기준선이 빠져 있다.
-이 값 없이는 probe가 final output distribution에 이미 있는 uncertainty를 다시 읽은
-것인지, output head보다 이른 representation에서 추가 정보를 얻은 것인지 구분할
-수 없다. [실험 17](17-output-head-likelihood.md)의 canonical-eligible wrong-arm
-1,729행만 실행한다.
+- overall accuracy
+- moved recovery
+- unchanged preservation
+- newly broken
+- net correction (`wrong→right - right→wrong`)
+- intervention rate와 intervention precision
+- keep-first 대비 case-paired 95% CI
 
-결과는 `RESULTS_CANONICAL`에 먼저 기록한 뒤 Table 2b의 `▢` 행을 채운다. 과거
-all-cue source-error logprob AUROC는 label과 모집단이 다르므로 가져오지 않는다.
+Validation에서 고정한 정책이 held-out test에서 positive net correction을 내고 CI가
+0을 배제하기 전에는 RQ3를 “사후 식별된 moved 사례에서 내부 내용이 유용하다”로
+제한한다.
 
-## 10. GPU (며칠) — 2번 통과 후에만
+## P1. 해석 교란을 닫는 확인 실험
 
-MCR wrong-note activation 추출 → Table 3b MCR 칸 → MCR r5.
+| 항목 | 선행 조건 | 닫히는 해석 |
+|---|---|---|
+| 동일 monitor의 no-CoT arm | 빌더 완성 | monitor 성능 중 CoT 자체의 증분 |
+| Direct×CoT matched 2×2 | 공통 ID 확인 후 누락 셀 생성 | selection bias 없는 CoT 강건성 |
+| realistic matched-neutral | canonical clean 1,204 | 길이·문체 비용과 진단 제안 비용 분리 |
+| matched layer/position reader | GPU | Figure A1의 layer와 recipe 교란 분리 |
+| MCR cue-position/span swap | P0-A 결과 이후 | 열린 어휘 판독의 위치·사례 특이성 |
 
-**단, 사다리 r3/r4는 지금 실행 가능하다** (`run_mcr_ladder.sh`). wrong-note
-activation이 필요한 것은 r5뿐이고, r6은 현재 고정-class 설계에서 직접 이전이
-안 된다. Table 4d의 절반은 2번 결과와 무관하게 오늘 채울 수 있다.
+Direct×CoT는 두 분석을 분리한다.
 
-이 항목이 끝내 들어오지 않아도 논문은 선다 — `docs/paper/README.md`의 주장
-경계("82.1% 기전 해부는 DDXPlus만")와 게이트 4번의 대안 조항("본문 주장을
-행동 복제까지만 제한한다")이 이미 그 실패 모드를 덮는다. 나머지 항목에는
-그런 대안이 없다.
+1. 정답 여부로 고르지 않은 common cohort: difference-in-differences
+2. 두 no-note가 모두 정답인 shared-solvable subset: harmful flip 비교
 
-## 11. 스크립트가 못 하는 것
+Realistic matched-neutral 전에는 30.40%p와 짧은 referral 23.75%p의 차이
+6.65%p를 현실성의 독립 효과로 해석하지 않는다.
 
-Related Work의 서지·게재 상태와 인용 문장을 원문으로 재확인하는 일.
-`docs/paper/README.md` 게이트 7번이다.
+## P2. CPU·판정자·문서 작업
 
-## 새로 생긴 계기
+### 남은 작업
+
+- 동일 LLM monitor의 no-CoT 판정
+- Table 3 capitulation/newly-broken와 selector-policy paired CI 전사
+- Related Work 서지·게재 상태·인용 문장 원문 재확인
+- 최종 표/그림 모집단 통일: clean 1,204 / eligible 1,729 / silent 1,628 /
+  moved 319 / MCR 1,452
+- corpus-300 canonical clean expected 2,137 재집계와 행동 moved 563 / 사다리
+  moved 571의 matcher 차이 해소
+- RQ3 gated 결과가 나온 뒤 Abstract/Conclusion 성능 향상 문장 동결
+
+### 완료되어 재실행하지 않는 작업
+
+- wording 4종과 CoT의 canonical clean 1,204 재채점
+- reader-trust 2,896/2,896 및 shuffled 통제
+- 외부 의미 판정 238쌍
+- Appendix Figure A2 `.591` 재집계
+- corpus-300 non-overlap **ID 확인**과 fixed-cohort appendix audit
+- DDXPlus trajectory/detection/correction canonical 1,729 재집계
+
+## 보조 실행기
+
+```bash
+bash scripts/run_remaining_cpu_work.sh
+DRY=1 bash scripts/run_readout_semantic_judge.sh
+python scripts/make_cot_monitor_requests.py ... --no-cot
+```
 
 | 스크립트 | 하는 일 |
 |---|---|
-| `preflight_remaining_work.sh` | 단계별 입력 존재 확인 + corpus-300 provenance 판정 |
-| `run_remaining_cpu_work.sh` | 1–5단계 드라이버, 입력 없으면 건너뛰고 이름을 찍는다 |
-| `run_readout_semantic_judge.sh` | 판정자 #3 (238쌍) |
-| `analyze_readout_semantic_judgements.py` | 외부 판정 vs 손라벨, 행 가중 A+B와 kappa |
-| `src/paired_stats.py` | Table 3의 페어드 CI·군간 차·추세 검정 (torch 불필요, 테스트됨) |
-| `analyze_hint_effect.py --exclude-from` | 개입 표의 non-overlap 부분집합 |
-| `make_cot_monitor_requests.py --no-cot` | 모니터 ablation arm |
+| `preflight_remaining_work.sh` | 단계별 입력 존재 확인 |
+| `run_remaining_cpu_work.sh` | 기존 CPU 감사 드라이버 |
+| `src/paired_stats.py` | paired CI·군간 차·추세 검정 |
+| `make_cot_monitor_requests.py --no-cot` | monitor ablation arm |
+| `score_readout_against_model.py --variant` | arm-aware 결론 충실성 |
+| `analyze_readout_grounding.py --by-variant` | arm별 근거 grounding |
+
+## 결과 전파 순서
+
+1. `RESULTS_CANONICAL_2026-08-24.md`에 모집단·분자/분모·입력·스크립트 기록
+2. 해당 실험 문서(17 또는 18) 갱신
+3. `docs/paper/experiment_summary_2026-08-25.md`
+4. `docs/paper/table_camera_ready_2026-08-25.md`와 figure dump
+5. `docs/professor/paper_presentation_full_2026-08-25.md`
+6. 마지막에 Overleaf 원고
+
+Related Work의 서지·게재 상태와 인용 문장 확인은 스크립트로 대체하지 않는다.

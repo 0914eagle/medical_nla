@@ -189,7 +189,8 @@ Moved recovery 하나만 높고 newly broken이 더 크면 성공으로 판정�
 - Table 3 canonical capitulation/newly-broken counts
 - Selector policy별 paired CI와 net correction
 - Appendix Figure A2의 canonical `.591`
-- corpus-300 독립 재현 서술과 최신 matcher 수치 일치
+- corpus-300 non-overlap canonical clean refresh(expected 2,137)와 행동/사다리
+  moved 563/571 불일치 해소; 전에는 fixed-cohort appendix audit로만 표기
 - 모든 표의 모집단을 `clean 1,204`, `all eligible 1,729`, `silent 1,628`,
   `moved 319`, `MCR 1,452` 중 하나로 명시
 
@@ -205,18 +206,26 @@ arm을 실행해 `.7305/.6904`가 CoT에서 온 것인지 vignette/note/answer �
 
 ### P1-2. MCR wrong-note activation과 detection
 
-1. Canonical MCR wrong-note prompt에서 L32 activation을 추출한다.
-2. Fixed 49-class probe는 직접 적용하지 않는다.
-3. Source output likelihood, LLM monitor, source-aligned AV answer field를 비교한다.
-4. Derangement를 통과한 answer field만 사용하고 supporting-ground field는 실패로
-   보고한다.
-5. 성공하면 DDXPlus 전용 기전이라는 한계를 줄이고, 실패하면 MCR은 행동 효과의
+1. Canonical MCR none/wrong prompt의 L32 activation과 readout 3,086행 생성은
+   완료됐다(arm당 1,543행).
+2. 첫 채점은 arm을 pooling하고 wrong readout을 no-note 답에 조인해 무효다.
+   `a21875e`의 `(base_id, hint_variant)` 조인과 `--variant wrong`으로 재채점한다.
+3. Fixed 49-class probe는 직접 적용하지 않는다.
+4. Source output likelihood, LLM monitor, source-aligned AV answer field를 비교한다.
+5. Wrong-arm derangement를 통과한 answer field만 사용한다. Supporting-ground field는
+   none/wrong별 grounding 통제에서 다시 실패하면 표에서 제외한다.
+6. 성공하면 DDXPlus 전용 기전이라는 한계를 줄이고, 실패하면 MCR은 행동 효과의
    외적 재현까지만 담당한다.
+
+첫 pooled 값 `.6361/.0029`는 인용하지 않는다. 실행·판정 관문은
+`docs/experiments/18-mcr-wrong-arm-readout.md`를 따른다.
 
 ### P1-3. MCR correction ladder
 
 - r3/r4는 activation 없이 실행 가능하다.
-- r5는 MCR wrong-note activation + source-aligned readout이 필요하다.
+- r5에 필요한 MCR wrong-note activation + source-aligned readout은 생성됐다.
+  Arm-aware 결론 감사가 통과한 뒤 **conclusion-only**와
+  **conclusion+supporting-ground**를 분리해 실행한다.
 - r7은 MCR source CoT가 필요하다.
 - r6의 49-class probe label은 열린 진단 어휘에 직접 정의되지 않으므로 `n.a.`다.
 

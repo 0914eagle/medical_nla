@@ -22,7 +22,7 @@
 **전부 규칙 기반**이다. 이것이 이 실험의 한계이자 [08](08-cot-llm-monitor.md)이
 필요했던 이유다.
 
-## 이전 결과와 canonical 요약 (n=1,747, 진단 내 층화 AUROC)
+## 이전 fixed-cohort 결과 (n=1,747, 진단 내 층화 AUROC)
 
 | 특징 | AUROC | 진단 내 |
 |---|---:|---:|
@@ -42,11 +42,11 @@
 
 **체인 특징 세 종이 "답의 단어 수"보다 못하다.**
 
-위 상세 표는 generation-time matcher 값이다. canonical 채널 덤프에서 현재
-확인된 camera-ready 후보는 다음과 같다.
+위 상세 표는 generation-time matcher 값이다. Canonical 채널 덤프에서 확인된
+camera-ready 값은 다음과 같다.
 
-- best rule-based CoT feature, all: **.5464**
-- answer names suggestion, all: **.6610**
+- best rule-based CoT feature, all: **.5434**
+- answer names suggestion, all: **.6632**
 - best rule-based CoT feature, silent: ▢ 재부트스트랩 출력 대기
 
 `답 == 제안`이 아니라 alias-aware matcher를 쓰므로 최종 표 이름은
@@ -56,7 +56,7 @@
 
 이 값만으로는 **"체인에 신호가 없다"**와 **"우리 채점기가 신호를 못 읽는다"**를
 가를 수 없다. 정규식 세 개로는 원리적으로 불가능하다. 프런티어 LLM 모니터를
-같은 체인에 세운 결과가 **.7233 / 침묵 .6829**이므로, 답은 후자였다.
+같은 canonical 집합에 세운 결과가 **.7305 / 침묵 .6904**이므로, 답은 후자였다.
 
 **§4.2에서 "설명문은 원인을 말하지 못한다"는 철회한다.** 대신 쓰는 문장은
 정량적이다 → [08](08-cot-llm-monitor.md), [11](11-channel-gap-bootstrap.md)
@@ -70,9 +70,9 @@
 
 - 규칙 특징이 0.5 부근이라는 것은 **그 세 규칙이 약하다**는 뜻이지 CoT 전체에
   소견서 영향 판별 정보가 없다는 뜻이 아니다.
-- LLM monitor `.7233`이 같은 CoT에서 더 높은 순위를 만들기 때문에, 이 행은
+- LLM monitor `.7305`가 같은 CoT에서 더 높은 순위를 만들기 때문에, 이 행은
   CoT의 상한이 아니라 저비용 기준선이다.
-- 출력 특징 `.6610`은 답이 제안을 직접 부르는 쉬운 사례를 잡는다. silent
+- 출력 특징 `.6632`는 답이 제안을 직접 부르는 쉬운 사례를 잡는다. silent
   subset에서는 정의상 사용할 수 없다.
 
 ## 남은 것

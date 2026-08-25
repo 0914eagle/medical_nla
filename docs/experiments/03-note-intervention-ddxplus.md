@@ -133,16 +133,19 @@ neutral/correct를 재실행하고 canonical matcher로 채점해 **.9377/.9246*
    `gold_in_prompt`는 train-test leakage가 아니라 presentation이 정답명 또는
    alias를 직접 포함하는지를 표시하는 층화 변수다.
 
-**말하면 안 되는 것**: corpus-300은 원 실행의 초집합이며 base ID가 겹친다.
-`independent replication`이라고 쓰지 않고 **3× larger run**이라고 부른다.
-독립 재현을 주장하려면 원 실행 ID를 제외한 non-overlap subset을 별도로
-재집계해야 한다.
+전체 corpus-300은 원 실행의 초집합이므로 그대로 `independent replication`이라
+부르지 않는다. 다만 원 실행 ID 1,676개를 제외한 non-overlap 3,319개는 확인됐고,
+그중 fixed-cohort clean 2,192행에서 행동 효과가 재현됐다. 이 값은 appendix
+audit다. Canonical no-note eligibility를 다시 적용한 clean subset(예상 n=2,137)을
+재집계하기 전에는 main Table 1의 independent replication 행을 채우지 않는다.
 
 ## 남은 것
 
-- ▢ corpus-300에서 원 실행 base ID를 뺀 non-overlap 민감도 분석
-- ▢ wording/CoT 파생 표를 canonical matcher로 재집계. correction ladder의
-  주 표와 공통-ID r7은 재집계 완료됐다.
+- ✅ corpus-300에서 원 실행 base ID를 뺀 non-overlap ID와 fixed-cohort audit 확인
+- ▢ corpus-300 non-overlap에 canonical no-note eligibility를 적용해 expected
+  clean 2,137 primary row 재집계
+- ✅ wording/CoT 파생 표를 canonical clean 1,204로 재집계. correction ladder의
+  주 표와 공통-ID r7도 재집계 완료됐다.
 - ▢ `analyze_hint_effect.py`의 “correct arm took≈0 by construction” 설명은
   canonical no-note 실패가 생긴 지금 성립하지 않으므로 수정
 

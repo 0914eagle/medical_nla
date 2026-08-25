@@ -661,7 +661,7 @@ entrenchment but does not by itself establish a rationalization mechanism.*
 | r3 reconsider only | .4545 | ▢ 실행 가능 | 어댑터 불필요 |
 | r4 findings re-shown | .4044 | ▢ 실행 가능 | 어댑터 불필요 |
 | r7 own chain | .1236ᵈ | ▢ (CoT 실행 필요) | GPU ~1–2h |
-| r5 readout conclusion | .6301 | ▢ wrong-note activation 추출 필요 | source-aligned 어댑터 완료; 결론 판독은 예비 신호, 근거 접지는 실패 |
+| r5 readout conclusion | .6301 | ▢ arm-aware audit 후 실행 | wrong-note activation/readout 생성 완료; conclusion-only와 full을 분리해야 함 |
 | r6 probe class label | .8339 | **n.a. (현재 설계)** | DDXPlus의 고정 49-class probe를 직접 이전할 수 없음 |
 
 ᵈ DDXPlus r7 is the moved recovery on the 1,151-ID common cohort, not the
@@ -784,18 +784,20 @@ appendix and does not establish overall deployment benefit.*
 
 ## 남은 ▢ (표 전반)
 
-- **canonical matcher와 eligibility는 확정** — Figure 2의 DDXPlus clean
+- **main canonical matcher와 eligibility는 확정** — Figure 2의 DDXPlus clean
   moved/adopted/third = 287/86/201; 전체 eligible 민감도는 319/89/230;
-  MCR = 427/127/300. wording·CoT·Appendix Figure A2와 corpus-300 non-overlap 재집계도
-  완료됐다.
+  MCR = 427/127/300. wording·CoT·Appendix Figure A2 재집계도 완료됐다.
+  Corpus-300은 non-overlap ID를 확인했지만 canonical clean refresh(예상 2,137)는
+  대기이며, 현재 2,192행 값은 fixed-cohort audit다.
 - T2a: final probability 셀 전사 완료; paired CI/추세 값은 새 궤적 실행에서 반영
 - T2b: standalone rule-based silent 값은 원장에 없음; 필요하면 직접 재출력
-- A1: 외부 판정자의 438행 의미 재채점, MCR cue-position 계기 검증 및 산문
-  서술률 행
+- A1: 외부 판정자의 438행 의미 재채점은 완료; MCR cue-position 계기 검증 및
+  산문 서술률 행은 대기
 - T2b: MCR 출력 채널 AUROC(CPU 가능), MCR CoT 채널(GPU), logit lens 칸
-- T3: **MCR 사다리(Appendix Table A7)** — derangement gate는 통과; r3/r4는 지금 실행 가능, r7은 MCR CoT
-  실행 필요, r5는 wrong-note activation 추출 필요, r6은 현재 고정-class
-  설계에서 직접 이전 불가. `run_mcr_ladder.sh`
+- T3: **MCR 사다리(Appendix Table A7)** — 별도 conclusion-task derangement는
+  통과했지만 wrong-arm arm-aware gate는 대기; r3/r4는 지금 실행 가능, r7은
+  MCR CoT 실행 필요, r5 입력은 생성 완료, r6은 현재 고정-class 설계에서 직접
+  이전 불가. `run_mcr_ladder.sh`
 
 ## v2 → v3에서 바뀐 것 (08-24)
 

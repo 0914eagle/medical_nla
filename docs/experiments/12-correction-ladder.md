@@ -49,8 +49,9 @@
 추가 효과를 지지하지 않는다**는 뜻이지, 효과가 정확히 0임을 증명하지 않는다.
 가운데 두 줄은 주로 내용 정확도를 반영한다.
 
-**⚠️ canonical 재집계에서 이 행이 갈린다 (08-24).** 주 실행(1,747)의 both-right
-행을 모집단별로 보면:
+**⚠️ fixed-cohort matcher 재분류에서 이 행이 갈린다 (08-24).** 주 실행
+(1,747)의 both-right 행을 모집단별로 보면 아래와 같다. 이 내용 정확도 표는
+canonical 1,729에서 아직 전사되지 않았으므로 본문 교정률과 같은 분모로 읽지 않는다.
 
 | 모집단 | n | r5 | r6 | 불일치쌍 | p |
 |---|---:|---:|---:|:-:|---:|
@@ -172,11 +173,11 @@ direct 첫 답과 다른 케이스는 제외되므로 **r7의 모집단이 작�
 
 | 단 | DDXPlus | MCR | 왜 |
 |---|:-:|:-:|---|
-| r3 | .4548 | ▢ 실행 가능 | 어댑터 불필요 |
-| r4 | .4050 | ▢ 실행 가능 | 어댑터 불필요 |
+| r3 | .4545 | ▢ 실행 가능 | 어댑터 불필요 |
+| r4 | .4044 | ▢ 실행 가능 | 어댑터 불필요 |
 | r7 | .1236ᵃ | ▢ (CoT 필요) | 공통-ID DDXPlus 참고값 |
-| r5 | .6293 | ▢ wrong-note activation 추출 필요 | source-aligned 결론 어댑터는 학습 완료 |
-| **r6** | .8318 | **n.a. (현재 설계)** | DDXPlus의 고정 49-way probe를 직접 이전할 수 없음 |
+| r5 | .6301 | ▢ arm-aware audit 후 실행 | activation/readout 생성 완료; conclusion-only/full 분리 필요 |
+| **r6** | .8339 | **n.a. (현재 설계)** | DDXPlus의 고정 49-way probe를 직접 이전할 수 없음 |
 
 ᵃ r7은 전체 1,747행이 아니라 r3-r7 공통-ID 1,151행에서 계산한 값이다.
 
@@ -187,7 +188,7 @@ representation baseline을 실제로 비교해야 한다.
 
 ## 남은 것
 
-- ▢ corpus-300 Appendix Table A5/A6도 canonical matcher로 재집계하고, 원 실행과 겹치지
-  않는 3,319개가 정말 동일 비교 모집단인지 다시 확인한다.
-- ▢ MCR r3/r4/r7을 실행한다. r5는 source-aligned readout 자체가 아니라
-  wrong-note arm의 활성값 추출이 남은 병목이다.
+- ✅ corpus-300에서 원 실행과 겹치지 않는 3,319개 ID를 확인했다. Appendix
+  Table A5/A6의 canonical eligibility 재집계는 별도 대기다.
+- ▢ MCR r3/r4/r7을 실행한다. Wrong-note activation/readout은 생성됐고, r5의
+  현재 병목은 wrong 1,543행 arm-aware faithfulness와 conclusion-only/full 분리다.

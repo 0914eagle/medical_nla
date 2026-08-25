@@ -2,9 +2,9 @@
 
 > **Primary behavior refresh completed for main DDXPlus and MCR (08-25).**
 > Canonical matcher에서도 no-note 정답인 DDXPlus 전체 1,729/clean 1,204와
-> MCR 1,452로 Figure 2 행동값을 재집계했다. Non-overlap clean 2,137과
-> trajectory/detection/correction과 reader-trust는 canonical eligibility로
-> 재집계됐다. 기존 1,747/321 수치는
+> MCR 1,452로 Figure 2 행동값을 재집계했다. Trajectory/detection/correction과
+> reader-trust도 canonical eligibility로 재집계됐다. Non-overlap clean의
+> canonical refresh(예상 n=2,137)는 아직 대기다. 기존 1,747/321 수치는
 > 폐기된 fixed-cohort audit로만 읽는다.
 
 한 장으로 보는 현황. 각 실험이 무엇을 보이는지 · 실측치 · 상태.
@@ -44,8 +44,8 @@
 |---|---|---|---|
 | 4조건 개입 (DDX 1,204 clean) | 소견서 한 줄이 답을 바꾼다 | none=1 by selection; neutral/wrong/correct **.9460/.7625/.9302**; 오답 비용 **23.75%p** | ✅ primary refresh |
 | 문구 변형 4종 | 화자를 갈아도 살아남는가 | 동일 clean 1,204건의 wrong accuracy: 소견서 **.7625** / 동료 **.7757** / 환자 **.8480** / 실제형 **.6877**; paired 비용 23.75/21.93/14.45/30.40%p | ✅ primary refresh |
-| corpus-300 independent replication | 미관측 표본에서도 같은 구조가 보이는가 | canonical-eligible clean n=2,137 재집계 대기; fixed-cohort n=2,192 결과는 appendix audit | ▢ primary refresh |
-| **MCR 1,452 (실제 증례)** | 합성 데이터 한정이 아니다 | none=1 by selection; neutral/wrong/correct **.9339/.7066/.8388**, 제안 고유 비용 **22.73%p**, total/neutral **4.44배** | ✅ 행동 재현; wrong-note 내부 영향 판별은 미실행 |
+| corpus-300 independent replication | 미관측 표본에서도 같은 구조가 보이는가 | base-ID non-overlap은 확인; canonical-eligible clean n=2,137 재집계 대기; fixed-cohort n=2,192 결과는 appendix audit | ▢ primary refresh |
+| **MCR 1,452 (실제 증례)** | 합성 데이터 한정이 아니다 | none=1 by selection; neutral/wrong/correct **.9339/.7066/.8388**, 제안 고유 비용 **22.73%p**, total/neutral **4.44배** | ✅ 행동 재현; wrong-note activation/readout 생성 완료, arm-aware 판별 대기 |
 | CoT 전수 | 추론 조건에서도 효과가 남는가 | Direct-selected clean 1,204 ID에서 소견서 비용 **−23.75 vs −4.40%p**; Direct no-note=1 by selection, CoT no-note=.7068. CoT 완화의 정식 비교가 아니라 탐색적 관찰 | ⚠️ matched 2×2 대기 |
 | CoT의 일반 정확도 비용 | 추론이 정확도를 해치는가 | 비선택 표본 320건에서 .3375 vs .3187, exact p=.50로 차이를 검출하지 못함. 동등성 증명은 아니며, 개입 파일의 baseline 차이는 **직답 정답 케이스만 고른 집합**이라 일반 정확도 효과로 인용 금지 | ✅ 차이 미검출 |
 | CoT가 맞힌 답을 흔든다 | 선택 집합에서 무슨 일이 있나 | 1,747 base case × 2 note arms = 3,494 paired prompt instances 중 정오 불일치 **877(25.1%)**; CoT가 깬 747 : 구한 130 | ✅ (단위 명시) |
@@ -281,7 +281,13 @@ hidden-state 추가 이득을 확인한다.
 **필수 전사**: channel-gap CI, canonical capitulation/newly-broken, Appendix A2
 `.591`, corpus-300 matcher/서술 정합성.
 
-**확장**: no-CoT monitor, MCR wrong-note 내부 추출·탐지·교정 사다리, realistic
+**즉시 감사**: MCR wrong-note readout 3,086행은 none/wrong 1,543행씩이며 첫
+채점이 두 arm을 pooling하고 wrong readout을 no-note 답에 붙였다. 그 `.6361`과
+gap `+.6332`는 인용하지 않는다. `mcr_hint_answers_full_rescored.jsonl`과
+`--variant wrong`으로 arm-aware 재채점한 뒤, 통과하면 MCR r5를
+conclusion-only/full로 나눈다. r3/r4는 이 감사와 독립적으로 실행 가능하다.
+
+**확장**: no-CoT monitor, MCR arm-aware 탐지·교정 사다리, realistic
 matched-neutral control. 마지막 항목은 같은 canonical clean 1,204건에서
 `no-note - neutral`(긴 문구 삽입 비용)과 `neutral - wrong`(진단 제안 고유 비용)을
 paired 분해한다. 완료 전에는 realistic 30.40%p와 짧은 referral 23.75%p의 차이
