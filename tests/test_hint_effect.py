@@ -223,6 +223,7 @@ def test_report_explains_canonical_no_note_selection(tmp_path, capsys):
     output = capsys.readouterr().out
     assert "no-note accuracy is 1.0 by construction" in output
     assert "fixed-cohort comparison" not in output
+    filtered = require_canonical_no_note_correct(cases)
     assert summarize(filtered)["none"]["correct"] == 1.0
 
 

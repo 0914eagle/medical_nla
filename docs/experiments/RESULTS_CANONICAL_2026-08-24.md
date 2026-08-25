@@ -6,6 +6,12 @@
 
 해석과 설계는 실험별 문서(`01`–`15`)에, 표 조판은 `docs/paper/`에 있다.
 
+> **08-25 primary-cohort migration in progress.** DDXPlus 행동 분석은 canonical
+> no-note 정답 조건을 다시 적용한 **1,729건(moved 319)**으로 확정했다. 아래의
+> trajectory/detection/correction/reader-trust 절에 남은 **1,747/321 기반 값은
+> 더 이상 정본이 아니며 인용하지 않는다.** `run_canonical_eligible_downstream.sh`
+> 결과가 들어오면 같은 1,729 ID로 재학습·재집계한 값으로 교체한다.
+
 **Camera-ready numbering (08-25):** 이 원장의 절 순서는 실험이 수행된 역사적
 순서를 보존한다. 원고에서는 AV 검증/레이어 스윕을 Appendix A1로 옮기고,
 Table 1/Figure 2 행동 → Table 2a/Figure 3 궤적 → Table 2b/Figure 4(a) 탐지 →
@@ -27,9 +33,9 @@ Table 3/Figure 4(b) 교정 순서를 쓴다.
 | **DDXPlus 위약/정답** | `ddxplus_hint_answers_{neutral,correct}_rescored.jsonl` |
 | **MCR 답** | `mcr_hint_answers_full_rescored.jsonl` |
 | **사다리** | `ddxplus_ladder_r{3..7}_rescored.jsonl` |
-| **채널 점수 덤프** | `channel_scores.jsonl` (재채점 파일에서 재생성) |
-| **프로브 판정** | `probe_verdicts_canonical.jsonl` |
-| **궤적 덤프** | `trajectory_dump.json` |
+| **채널 점수 덤프** | `channel_scores_canonical_eligible.jsonl` (재생성 대기) |
+| **프로브 판정** | `probe_verdicts_canonical_eligible.jsonl` (재학습 대기) |
+| **궤적 덤프** | `trajectory_dump_canonical_eligible.json` (재학습 대기) |
 
 **저장 필드를 믿지 않는다.** `run_source_answers.py`가 생성 시점에 쓰는
 `source_correct`를 분석기가 읽으므로, 채점기를 고쳐도 그 절반은 옛 판정

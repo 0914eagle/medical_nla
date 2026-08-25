@@ -3,8 +3,9 @@
 > **Primary behavior refresh completed for main DDXPlus and MCR (08-25).**
 > Canonical matcher에서도 no-note 정답인 DDXPlus 전체 1,729/clean 1,204와
 > MCR 1,452로 Figure 2 행동값을 재집계했다. Non-overlap clean 2,137과
-> trajectory/detection/correction/reader-trust 파생 분석은 아직 새 case ID로
-> 재계산해야 하며, 해당 기존 수치는 fixed-cohort audit로만 읽는다.
+> trajectory/detection/correction/reader-trust 파생 분석은
+> `run_canonical_eligible_downstream.sh`로 같은 1,729 ID에서 재학습·재집계해야
+> 하며, 해당 기존 1,747/321 수치는 폐기된 fixed-cohort audit로만 읽는다.
 
 한 장으로 보는 현황. 각 실험이 무엇을 보이는지 · 실측치 · 상태.
 상세 수치와 표 캡션은 `table_camera_ready_2026-08-25.md`. 문서 역할과

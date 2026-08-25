@@ -5,6 +5,12 @@
 수치는 source-misaligned target에서 나온 무효 결과로 인용하지 않는다.
 문서 역할과 제출 전 관문은 `README.md`를 따른다.
 
+> **수치 잠금 경고 (08-25):** Table 1/Figure 2는 canonical-eligible DDXPlus
+> 1,729건으로 갱신됐지만, Table 2a·2b·3의 1,747/321 기반 trajectory,
+> detection, correction 값은 현재 **폐기된 fixed-cohort 감사값**이다. 새
+> `_canonical_eligible` 덤프가 생성되기 전까지 해당 셀과 캡션을 인용하거나
+> camera-ready 자산으로 내보내지 않는다.
+
 설계 규칙 (v1의 실패에서):
 - **표 하나 = 지표 하나.** 단위가 다른 값은 같은 열에 두지 않는다.
 - **열 = 조건/방법, 행 = 측정 대상.** 파생 통계(차이, 배수)는 별도 열이

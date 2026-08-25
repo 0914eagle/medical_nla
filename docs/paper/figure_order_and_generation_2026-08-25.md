@@ -94,35 +94,35 @@ gold를 유지한 채 suggestion을 추가한 사례도 포함한다. 따라서 
 - **(b) paired note cost**: 같은 case의 `p_wrong(gold)-p_none(gold)`. Constraint에서
   비용이 최대이고 final에서 일부 회복한다. 단조 누적이 아니며, 현재 prompt
   skeleton의 위치 효과이지 보편적인 `constraint token` 기전이 아니다.
-- **(c) first suggestion top-1**: moved 321 중 266에서는 suggestion이 끝까지 top-1이
-  아니다. 이 266은 gold-throughout 151과 third-diagnosis path 115로 나눈다.
-  Note의 0 label은 측정된 0이며 누락이 아니다.
+- **(c) first suggestion top-1**: canonical-eligible 모집단에서 다시 계산한 moved
+  사례를 first top-1 landmark별로 나눈다. 옛 321/266/151/115는 matcher-era
+  고정 코호트 값이므로 본문에서 폐기한다. Note의 0 label은 측정된 0이며
+  누락이 아니다.
 
 ```bash
 python scripts/make_figure_trajectory.py \
-  --dump $ART/results/trajectory_dump.json \
-  --output $ART/results/figure3_trajectory.png
+  --dump $ART/results/trajectory_dump_canonical_eligible.json \
+  --output $ART/results/figure3_trajectory_canonical_eligible.png
 ```
 
 ## 4. Figure 4 — Detection to correction
 
 생성 코드: `scripts/make_figure_detection_correction.py`; 정본 값은
-`configs/figure4_detection_correction_canonical.json`에 있다.
+`run_canonical_eligible_downstream.sh`가 per-case 산출물에서 생성하는
+`$ART/reports/figure4_detection_correction_canonical_eligible.json`에 있다.
 
 - **(a) detection**: wrong-note 실행 하나만 보고 moved를 탐지하는 within-diagnosis
-  AUROC다. `silent`는 답이 suggestion을 직접 명명한 경우를 제외한다. Probe가
-  `.9280/.9840`, AV가 `.7506/.8302`, LLM monitor가 `.7233/.6829`다. 이는
-  내부 접근이 CoT/output 채널에 추가 정보를 준다는 결과이지 AV가 probe보다
-  우수하다는 결과가 아니다.
-- **(b) correction**: 전체 정확도와 moved recovery를 분리한다. R5/R6은 moved에서
-  `.6293/.8318`까지 회복하지만 overall은 `.4098/.4568`로 첫 답 `.8117`보다
-  낮다. 따라서 “다시 물으면 고친다”가 아니라 **탐지 후 선택적으로 개입해야
-  한다**가 결론이다.
+  AUROC다. `silent`는 답이 suggestion을 직접 명명한 경우를 제외한다. 수치는
+  canonical 1,729 코호트에서 probe를 재학습한 뒤 채운다. 옛 1,747 코호트의
+  `.9280/.9840`, `.7506/.8302`, `.7233/.6829`는 감사 기록으로만 남긴다.
+- **(b) correction**: 전체 정확도와 moved recovery를 분리한다. R3-R6도 같은
+  1,729 ID로 재집계한다. 방향이 유지되더라도 옛 `.8117/.4098/.4568` 등의
+  값을 새 모집단의 값으로 간주하지 않는다.
 
 ```bash
 python scripts/make_figure_detection_correction.py \
-  --values configs/figure4_detection_correction_canonical.json \
-  --output $ART/results/figure4_detection_correction.png
+  --values $ART/reports/figure4_detection_correction_canonical_eligible.json \
+  --output $ART/results/figure4_detection_correction_canonical_eligible.png
 ```
 
 ## 5. Appendix Figure A1 — AV readability map
@@ -161,10 +161,10 @@ FORMAT=pdf bash scripts/run_paper_figures_without_figure1.sh /data1/heejae
 
 ```bash
 python scripts/make_paper_figures.py \
-  --ddx-dump $ART/results/figure2_ddx_dump.json \
-  --mcr-dump $ART/results/figure2_mcr_dump.json \
-  --trajectory-dump $ART/results/trajectory_dump.json \
-  --detection-values configs/figure4_detection_correction_canonical.json \
+  --ddx-dump $ART/results/figure2_ddx_canonical_eligible_dump.json \
+  --mcr-dump $ART/results/figure2_mcr_canonical_eligible_dump.json \
+  --trajectory-dump $ART/results/trajectory_dump_canonical_eligible.json \
+  --detection-values $ART/reports/figure4_detection_correction_canonical_eligible.json \
   --out-dir $ART/results/paper_figures \
   --format png
 ```
@@ -196,8 +196,29 @@ output-head likelihood가 끝나면 canonical JSON과 표를 먼저 갱신한 �
 
 ## 8. 남은 검증
 
+1,747 fixed-cohort 파생값을 폐기하고 canonical 1,729에서 필요한 재학습·재집계를
+한 번에 실행하는 명령은 다음과 같다.
+
+```bash
+nohup bash scripts/run_canonical_eligible_downstream.sh /data1/heejae \
+  > /data1/heejae/medical_nla/logs/canonical_eligible_downstream.log 2>&1 &
+```
+
+이 실행은 final probe와 landmark probe를 새 코호트에서 다시 학습하고,
+`channel_scores`, correction ladder, reader-trust를 같은 eligibility ID로 필터한 뒤
+Figure 3/4를 다시 그린다. 완료 후 우선 확인할 파일은 다음 두 개다.
+
+```text
+$ART/reports/figure4_detection_correction_canonical_eligible_summary.md
+$ART/reports/trajectory_canonical_eligible.log
+```
+
 1. Figure 2용 DDX/MCR dump를 최신 스키마로 재생성하고 표의 n/accuracy와 대조한다.
-2. Figure 3의 `trajectory_dump.json`이 canonical matcher와 moved=321을 쓰는지 확인한다.
-3. Figure 4 값은 새 실험이 확정될 때 JSON → 원장 → 표 문서 → 그림 순으로 갱신한다.
+2. Figure 3과 Figure 4는 `run_canonical_eligible_downstream.sh`가 만든
+   `_canonical_eligible` 산출물만 사용한다. 옛 `trajectory_dump.json`,
+   `channel_scores.jsonl`, `probe_verdicts_canonical.jsonl`의 1,747건 결과는
+   matcher-era 감사 기록일 뿐 본문 결과가 아니다.
+3. Figure 4 값은 새 실험이 확정될 때 per-case JSONL → canonical values JSON
+   → 원장 → 표 문서 → 그림 순으로 갱신한다. 플롯 코드에 수치를 직접 옮기지 않는다.
 4. 모든 PNG/PDF를 흑백 인쇄와 1-column/2-column 폭에서 확인한다.
 5. 본문 캡션에는 모집단, 계기, silent 정의, probe supervision을 반드시 적는다.

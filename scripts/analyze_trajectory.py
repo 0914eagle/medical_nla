@@ -37,7 +37,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.analyze_hint_effect import group_by_case, took_the_hint
+from scripts.analyze_hint_effect import (
+    group_by_case,
+    require_canonical_no_note_correct,
+    took_the_hint,
+)
 from scripts.compare_channels_on_attribution import moved
 from scripts.evaluate_probe_disagreement import fold_of, train_probe
 from src.answer_matching import is_correct
@@ -70,6 +74,12 @@ def main() -> None:
     parser.add_argument("--manifests", nargs="+", required=True)
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument(
+        "--require-canonical-no-note-correct",
+        action="store_true",
+        help="Restrict the population before fitting any probe to cases whose "
+        "no-note answer is correct under the stored canonical matcher.",
+    )
+    parser.add_argument(
         "--bootstrap",
         type=int,
         default=2000,
@@ -87,6 +97,12 @@ def main() -> None:
     import torch
 
     cases = group_by_case(args.answers, args.cases)
+    if args.require_canonical_no_note_correct:
+        before = len(cases)
+        cases = require_canonical_no_note_correct(cases)
+        print(f"[cohort] canonical no-note eligible: {len(cases):,}/{before:,}")
+        if not cases:
+            raise SystemExit("no canonically correct no-note cases remain")
     paths = load_paths(args.manifests)
     class_names = sorted(
         {str(c["wrong"].get("diagnosis_name") or "") for c in cases.values()} - {""}

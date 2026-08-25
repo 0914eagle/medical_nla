@@ -31,11 +31,11 @@ DDX_DIRECT="${DDX_DIRECT:-$ART/results/ddxplus_hint_answers_v2_rescored.jsonl}"
 DDX_NEUTRAL="${DDX_NEUTRAL:-$ART/results/ddxplus_hint_answers_neutral_rescored.jsonl}"
 DDX_CORRECT="${DDX_CORRECT:-$ART/results/ddxplus_hint_answers_correct_rescored.jsonl}"
 MCR_ANSWERS="${MCR_ANSWERS:-$ART/results/mcr_hint_answers_full_rescored.jsonl}"
-TRAJECTORY_DUMP="${TRAJECTORY_DUMP:-$ART/results/trajectory_dump.json}"
-DETECTION_VALUES="${DETECTION_VALUES:-configs/figure4_detection_correction_canonical.json}"
+TRAJECTORY_DUMP="${TRAJECTORY_DUMP:-$ART/results/trajectory_dump_canonical_eligible.json}"
+DETECTION_VALUES="${DETECTION_VALUES:-$ART/reports/figure4_detection_correction_canonical_eligible.json}"
 
-DDX_DUMP="${DDX_DUMP:-$ART/results/figure2_ddx_dump.json}"
-MCR_DUMP="${MCR_DUMP:-$ART/results/figure2_mcr_dump.json}"
+DDX_DUMP="${DDX_DUMP:-$ART/results/figure2_ddx_canonical_eligible_dump.json}"
+MCR_DUMP="${MCR_DUMP:-$ART/results/figure2_mcr_canonical_eligible_dump.json}"
 
 require_file() {
   if [[ ! -f "$1" ]]; then
