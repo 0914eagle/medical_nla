@@ -18,7 +18,7 @@
 이 논문은 단순히 의료용 NLA 하나를 fine-tuning했다는 논문이 아니다. 잘못된
 의뢰 소견서가 의료 LLM의 최종 진단을 바꾸더라도, 제안 진단이 내부 표현의
 최우세 진단으로 완전히 자리 잡지 않는 경우가 많다는 현상을 인과적으로
-구성하고 측정한 논문이다. DDXPlus에서 출력이 바뀐 321건 중 266건(82.9%)은
+구성하고 측정한 논문이다. DDXPlus에서 출력이 바뀐 319건 중 262건(82.1%)은
 제안 진단이 관측한 여섯 prompt landmark에서 한 번도 diagnosis probe top-1이
 되지 않았다. 이 내부-출력 결렬은 한 번의 wrong-note 실행에서 탐지할 수 있고,
 정확한 내부 내용을 조건부로 되먹이면 일부 오류를 회복할 수 있다. 그러나 현재
@@ -34,7 +34,7 @@
 > 채널이다.
 
 이 비교는 DDXPlus wrong-note 단일 실행의 diagnosis-stratified AUROC에 한정한다.
-Probe `.9280/.9840`, AV `.7506/.8302`, LLM CoT monitor `.7233/.6829`
+Probe `.9330/.9881`, AV `.7511/.8319`, LLM CoT monitor `.7305/.6904`
 (all/silent)다. “내부가 언제나 CoT보다 낫다”거나 “AV가 probe를 대체한다”고
 일반화하지 않는다.
 
@@ -190,14 +190,14 @@ Medical-NLA의 성능 홍보가 아니라, 인과적으로 만든 output 이동�
 
 | 질문 | 가장 적합한 채널 | 현재 결과 |
 |---|---|---|
-| 49개 중 어느 진단 signal인가? | Linear probe | 가장 강함: `.9280/.9840` |
-| 어떤 cue·진단 후보를 자연어로 말하는가? | AV readout | 가능하지만 `.7506/.8302` |
+| 49개 중 어느 진단 signal인가? | Linear probe | 가장 강함: `.9330/.9881` |
+| 어떤 cue·진단 후보를 자연어로 말하는가? | AV readout | 가능하지만 `.7511/.8319` |
 | 열린 진단 공간으로 직접 이전 가능한가? | AV가 후보 | answer 예비 신호, grounds 실패 |
 | 임상의에게 직접 보여도 유용한가? | Reader study로 별도 검증 | 현재 AV는 negative |
 
 DDXPlus처럼 진단 후보가 49개로 고정된 환경에서는 지도 probe가 더 정확하고
 간단하다. 실제로 단일 실행 moved 탐지에서 probe는 전체/침묵 AUROC
-`.9280/.9840`, AV는 `.7506/.8302`다. 따라서 본 논문은 AV가 probe보다 우수하다고
+`.9330/.9881`, AV는 `.7511/.8319`다. 따라서 본 논문은 AV가 probe보다 우수하다고
 주장하지 않는다.
 
 그럼에도 AV를 평가하는 이유는 세 가지다. 첫째, probe는 “49개 중 어느
@@ -225,8 +225,8 @@ MCR supporting-ground 판독과 reader-trust에서 실패했고, 닫힌 공간�
 > signal을 완전히 제거하지 않고도 출력을 바꿀 수 있다. 따라서 출력, CoT,
 > activation을 분리하여 측정해야 한다.
 
-이 대전제는 “항상 내부에 정답이 남는다”가 아니다. 실제로 moved 321건 중
-gold가 여섯 landmark에서 계속 top-1인 경우는 151건뿐이다. 나머지는 제안 또는
+이 대전제는 “항상 내부에 정답이 남는다”가 아니다. 실제로 moved 319건 중
+gold가 여섯 landmark에서 계속 top-1인 경우는 147건뿐이다. 나머지는 제안 또는
 제3 진단으로 내부 top-1 경로가 달라진다. 논문의 관심은 단순 정답 보존이 아니라
 **출력 이동과 내부 top-1 이동이 동일한 사건이 아니라는 것**이다.
 
@@ -356,7 +356,7 @@ dissociation`은 주장하지 않는다.
 > 연구는 없었다.**
 
 또한 이 문제는 단순 hint-copy detection이 아니다. 우리 결과에서 DDXPlus
-moved 321건 중 **230건(71.7%)은 suggestion을 복사하지 않고 제3 진단으로
+moved 319건 중 **230건(72.1%)은 suggestion을 복사하지 않고 제3 진단으로
 이동**했다. 따라서 `answer == suggestion`만 검사하면 note가 야기한 이동의
 대부분을 놓친다.
 
@@ -520,20 +520,21 @@ prompt와 source answer를 생성한 prompt가 달랐다. 이 세 문제는 초�
 | 단계 | n | 왜 줄었는가 | 이후 용도 |
 |---|---:|---|---|
 | 균형 표집 | 4,900 | 49 diagnoses × 100 | source baseline·activation pool |
-| generation-time source-correct | 1,747 | 최초 matcher로 개입 파일·activation 선정 | trajectory·detection fixed cohort |
+| generation-time source-correct | 1,747 | 최초 matcher로 개입 파일·activation 선정 | provenance·과거 fixed-cohort 감사 |
 | canonical no-note-correct | **1,729** | 수정 matcher로 eligibility 재적용 | primary behavior 전체 |
 | explicit gold-name 행 제외 | **1,204** | 위 1,729에서 정답명·alias가 직접 나온 525행 제외 | primary clean behavior·wording·CoT |
 
-`1,729/1,204`는 canonical primary behavior 분모이고, `1,747/1,220`은 기존
-generation-time fixed-cohort 분모다. 행동 주표와 wording/CoT는 1,204를 쓰고,
-이미 추출된 trajectory와 single-run attribution은 1,747 전체를 쓴다.
+`1,729/1,204`는 canonical primary 분모이고, `1,747/1,220`은 기존
+generation-time fixed-cohort 분모다. 행동 주표와 wording/CoT는 clean 1,204를
+쓰며, trajectory·single-run 탐지·correction도 canonical-eligible 전체 1,729로
+재집계했다. 1,747/1,220 값은 appendix의 provenance 감사에만 남긴다.
 
 **Canonical primary 재집계 결정.** 위 1,747/1,220은 generation-time matcher로
 선정한 fixed cohort의 provenance 수치다. 논문 primary는 canonical matcher에서도
 no-note가 정답인 전체 1,729건과 clean 1,204건으로 다시 제한한다. 이 primary
 cohort에서는 no-note accuracy가 1.0 by construction이므로 결과 그림에서 none
 막대는 생략하고 1.0 기준선만 둔다. 기존 fixed-cohort 수치는 appendix audit와
-아직 재추출하지 않은 trajectory/detection 분석의 provenance로 보존한다.
+재현 provenance로만 보존한다.
 
 현재 논문용 DDXPlus prompt는 3-cue 파일럿이 아니라 cleaning 후 남은
 positive/meaningful cue 전체를 bullet로 넣는다. Exact skeleton은 다음과 같다.
@@ -624,7 +625,7 @@ Neutral arm은 문장 삽입과 referral framing 자체의 비용을 측정한�
 본다. 둘째, 구조화된 닫힌 DDXPlus가 아니라 실제 증례 서술과 열린 진단 어휘를
 가진 MCR에서도 행동 효과가 복제되는지 본다. 다만 MCR은 wrong diagnosis를 만드는
 규칙과 내부 계기가 DDXPlus와 다르므로, 여기서는 **행동 외적 타당성**만 복제하고
-82.9% trajectory mechanism까지 일반화하지 않는다.
+82.1% trajectory mechanism까지 일반화하지 않는다.
 
 **화면에 넣을 corpus별 wrong-suggestion 생성표**
 
@@ -660,8 +661,8 @@ limitations에 밝힌다.
 Slide 13은 DDXPlus와 MCR에서 plausible wrong suggestion을 실제로 어떻게 만드는지
 설명했다. 이제 입력 구성이 끝났으므로, 같은 사례의 no-note와 wrong-note 실행을
 비교해 **어떤 변화를 소견서가 유발한 사건이라고 부를지** 정의해야 한다. 이 label을
-정하지 않으면 primary behavior의 moved 319건과, 기존 activation fixed cohort의
-moved 321건·silent subset·탐지 AUROC가 각각 무엇을 뜻하는지 설명할 수 없다.
+정하지 않으면 primary behavior의 moved 319건·silent subset·탐지 AUROC가 각각
+무엇을 뜻하는지 설명할 수 없다.
 따라서 흐름은 다음과 같다.
 
 ```text
@@ -701,7 +702,8 @@ note-influence attribution을 가른다.
 비교한다. 과거 substring matcher에서는 `PE`가 `superior`나 `pericarditis` 안에서
 매칭되고, `Stable angina`가 `Unstable angina`에 포함되는 오류가 있었다. Canonical
 matcher 수정으로 DDXPlus direct 12/3,494행, CoT 16/3,494행, MCR 143/6,172행이
-바뀌었고, causal suggestion adoption은 95에서 91로 정정됐다.
+바뀌었고, 과거 fixed cohort의 causal suggestion adoption은 95에서 91로
+정정됐다. Canonical-eligible primary cohort에서는 89건이다.
 
 `lost_the_gold`는 none arm에서 정답이던 사례가 wrong arm에서 오답이 된 경우다.
 `took_the_hint`는 wrong answer가 suggestion을 명명하고, none answer가 이미 그
@@ -710,7 +712,7 @@ population에서는 대부분 `lost_the_gold`가 핵심이지만, suggestion을 
 제3 진단으로 갔는지를 별도로 분해한다.
 
 `silent`는 answer가 suggestion name을 포함하지 않는 subset이다. Answer가
-unchanged라는 뜻이 아니다. Canonical silent 1,641개 안에는 moved 218개가 있고,
+unchanged라는 뜻이 아니다. Canonical silent 1,628개에도 moved 사례가 포함되며,
 대부분 제3 진단으로 이동한 사례다. 이 subset은 output-copy heuristic을 제거한
 상태에서 내부 채널의 추가 정보를 시험한다.
 
@@ -951,6 +953,12 @@ model이 no-note에서 맞힌 사례(11.5%)다. 최초 matcher 선정은 1,543�
 | DDXPlus | **319** | 89 (27.9%) | **230 (72.1%)** |
 | MCR | **427** | 127 (29.7%) | **300 (70.3%)** |
 
+*이 표는 Figure 2(b)와 동일한 destination population을 쓴다: DDXPlus는
+canonical-eligible 전체 1,729건, MCR은 1,452건이다. Figure 2(a)의 정확도 막대는
+DDXPlus에서 explicit gold-name 행을 뺀 clean 1,204건을 쓰므로, 두 패널의 DDXPlus
+분모는 의도적으로 다르다. 이동한 답의 행방을 셀 때 clean 행만 고르면 현상 전체의
+destination을 일부 버리게 되므로 panel (b)는 전체 eligible population을 유지한다.*
+
 두 corpus 모두 약 70%가 suggestion 복사가 아니다. 이 때문에 “answer가 note의
 진단명을 그대로 말했는가”만 보는 출력 휴리스틱은 구조적으로 대부분을 놓친다.
 
@@ -1054,34 +1062,34 @@ direct 30.0%에서 CoT 49.1%로 높아지지만 분모가 다른 조건부 비�
 
 | Behaviour under wrong note | n | With note `p(gold)` | No note `p(gold)` | Δ |
 |---|---:|---:|---:|---:|
-| Answer unchanged | 1,426 | .980 | .987 | **−.007** |
-| Lost gold, answered elsewhere | 230 | .880 | .934 | **−.055** |
-| Adopted suggestion | 91 | .725 | .919 | **−.195** |
+| Answer unchanged | 1,410 | .981 | .987 | **−.006** |
+| Lost gold, answered elsewhere | 230 | .878 | .932 | **−.054** |
+| Adopted suggestion | 89 | .730 | .929 | **−.199** |
 
 Δ는 같은 case의 wrong minus none이다. 행동이 더 강하게 움직인 집단일수록
 final-token gold probability 비용이 커진다. 하지만 이 값은 source next-token
 probability가 아니라 cross-fitted 49-way probe probability다.
 
 Final token에서 probe가 gold에 주는 평균 확률은 answer unchanged 집단이 note
-있음/없음 `.980/.987`, 차이 `-.007`이다. 제3 진단으로 이동한 집단은
-`.880/.934`, `-.055`이고 suggestion 채택 집단은 `.725/.919`, `-.195`다.
+있음/없음 `.981/.987`, 차이 `-.006`이다. 제3 진단으로 이동한 집단은
+`.878/.932`, `-.054`이고 suggestion 채택 집단은 `.730/.929`, `-.199`다.
 출력 변화가 강할수록 gold signal 감소도 커지는 용량-반응이 있다.
 
-그러나 suggestion 채택 집단에서도 final `p(gold)=.725`, `p(suggestion)=.211`로
-gold mass가 3.4배 높다. 실제 출력은 suggestion인데 diagnosis probe는 평균적으로
+그러나 suggestion 채택 집단에서도 final `p(gold)=.730`, `p(suggestion)=.212`로
+gold mass가 약 3.4배 높다. 실제 출력은 suggestion인데 diagnosis probe는 평균적으로
 gold에 더 큰 probability mass를 준다. 이는 model next-token probability가 아니라
 49-way diagnosis probe probability라는 점을 반드시 말한다.
 
-Paired note cost는 suggestion 채택/제3 진단 집단에서 question `-.167/-.057`,
-constraint `-.439/-.304`, format `-.183/-.188`, final `-.195/-.055`다. Constraint에서
+Paired note cost는 suggestion 채택/제3 진단 집단에서 question `-.171/-.060`,
+constraint `-.467/-.299`, format `-.188/-.189`, final `-.199/-.054`다. Constraint에서
 가장 크게 흔들리고 final에서 일부 회복한다. 이는 현재 L32 prompt skeleton에서
 관측된 위치 효과이며 “constraint token이 모든 모델의 보편적 취약점”이라고
 일반화하지 않는다.
 
 **발표자 연결 원고.** 행동이 강하게 바뀐 집단일수록 정답 신호 비용도 커지는
 용량-반응이 있으므로 내부 변화와 행동 변화가 무관하지는 않다. 그러나 suggestion을
-실제로 출력한 집단에서도 final-token probe는 평균적으로 gold에 `.725`, suggestion에
-`.211`을 준다. 즉 평균 probability mass만 보면 정답 신호가 상당히 남아 있다.
+실제로 출력한 집단에서도 final-token probe는 평균적으로 gold에 `.730`, suggestion에
+`.212`를 준다. 즉 평균 probability mass만 보면 정답 신호가 상당히 남아 있다.
 그렇다면 남은 질문은 “그래도 중간 어딘가에서는 suggestion이 잠시 top-1이 되어
 출력을 장악했는가?”다. 평균값이 가리는 사례별 경로를 확인하기 위해 다음에는
 suggestion이 처음 top-1이 된 landmark를 센다.
@@ -1094,27 +1102,27 @@ suggestion이 처음 top-1이 된 landmark를 센다.
 |---|---:|
 | Last finding | 7 |
 | Note | **0** |
-| Question | 30 |
-| Constraint | 6 |
+| Question | 29 |
+| Constraint | 10 |
 | Format | 5 |
-| Final token | 7 |
-| Never top-1 | **266** |
+| Final token | 6 |
+| Never top-1 | **262** |
 
-Never 266은 다시 `gold throughout 151`과 `other diagnosis top-1 115`로 나뉜다.
-이 분해를 생략하면 82.9%를 “모델이 계속 정답을 알고 있었다”로 잘못 읽게 된다.
+Never 262는 다시 `gold throughout 147`과 `other diagnosis top-1 115`로 나뉜다.
+이 분해를 생략하면 82.1%를 “모델이 계속 정답을 알고 있었다”로 잘못 읽게 된다.
 
-Moved 321건 중 suggestion이 처음 probe top-1이 된 지점은 last finding 7,
-note 0, question 30, constraint 6, format 5, final 7이다. 한 번이라도 top-1인
-사례는 55건(17.1%)이며, note를 본 뒤 처음 top-1이 된 사례는 48건(15.0%)이다.
+Moved 319건 중 suggestion이 처음 probe top-1이 된 지점은 last finding 7,
+note 0, question 29, constraint 10, format 5, final 6이다. 한 번이라도 top-1인
+사례는 57건(17.9%)이며, note를 본 뒤 처음 top-1이 된 사례는 50건(15.7%)이다.
 
-나머지 266건(82.9%)에서는 suggestion이 어느 landmark에서도 top-1이 아니다.
-하지만 이 중 gold가 여섯 지점에서 계속 top-1인 경우는 151건이고, 115건은 다른
-진단이 top-1인 경로다. 따라서 “82.9%에서 모델은 속으로 정답을 알고 있었다”가
-아니라 “82.9%에서 suggestion dominance 없이 출력이 이동했다”가 정확한 결론이다.
+나머지 262건(82.1%)에서는 suggestion이 어느 landmark에서도 top-1이 아니다.
+하지만 이 중 gold가 여섯 지점에서 계속 top-1인 경우는 147건이고, 115건은 다른
+진단이 top-1인 경로다. 따라서 “82.1%에서 모델은 속으로 정답을 알고 있었다”가
+아니라 “82.1%에서 suggestion dominance 없이 출력이 이동했다”가 정확한 결론이다.
 
 **RQ1 마무리와 RQ2로의 연결.** RQ1의 논증은 다음 순서로 닫힌다. Wrong note는
 행동을 바꾸고, 그 효과는 문구 변형과 다른 corpus에서도 반복된다. 그러나 이동의
-대부분은 suggestion 복사가 아니며, moved 321건 중 266건에서는 관측한 어느
+대부분은 suggestion 복사가 아니며, moved 319건 중 262건에서는 관측한 어느
 landmark에서도 suggestion이 top-1이 아니다. 따라서 최종 출력이나 CoT에서
 suggestion을 찾는 것만으로는 인과적으로 움직인 사례를 놓친다. 이것이 RQ2가
 필요한 직접적인 이유다. 실제 배포에서는 같은 환자를 no-note로 다시 실행할 수
@@ -1134,12 +1142,12 @@ suggestion을 찾는 것만으로는 인과적으로 움직인 사례를 놓친�
 
 | Channel | 무엇을 봄 | Task supervision | AUROC all | AUROC silent |
 |---|---|---|---:|---:|
-| Answer names suggestion | Output | none | .6610 | n.a. |
+| Answer names suggestion | Output | none | .6632 | n.a. |
 | Source output-head likelihood | Final logits | fixed 49-class candidates | ▢ | ▢ |
-| Best rule-based CoT feature | CoT | none | .5464 | not reported |
-| LLM monitor | Vignette+note+CoT+answer | external LLM | .7233 | .6829 |
-| AV readout | Hidden state→text | readout adapter | .7506 | .8302 |
-| **Linear probe** | Hidden state | fixed 49-class labels | **.9280** | **.9840** |
+| Best rule-based CoT feature | CoT | none | .5434 | not reported |
+| LLM monitor | Vignette+note+CoT+answer | external LLM | .7305 | .6904 |
+| AV readout | Hidden state→text | readout adapter | .7511 | .8319 |
+| **Linear probe** | Hidden state | fixed 49-class labels | **.9330** | **.9881** |
 
 이 표가 현재 논문의 실용적 중심이다. 내부 채널이 CoT 기반 채널보다 강하지만,
 내부 채널끼리는 probe가 AV보다 강하다. 그러므로 결론은 “NLA가 최고”가 아니라
@@ -1158,10 +1166,11 @@ Detector는 wrong-note 실행 하나만 본다. None arm은 ground-truth moved l
 rule-based CoT feature, 외부 LLM CoT monitor, natural-language activation readout,
 cross-fitted diagnosis probe다.
 
-전체 1,747개와 canonical silent 1,641개에서 진단 내 층화 AUROC를 계산한다.
-전체/침묵 AUROC는 output suggestion-name `.6610/정의 불가`, LLM monitor
-`.7233/.6829`, readout `.7506/.8302`, probe `.9280/.9840`이다. Silent에서
-readout-monitor 차이는 `+.1473`, 95% paired bootstrap CI `[+.0691,+.2209]`다.
+전체 1,729개와 canonical silent 1,628개에서 진단 내 층화 AUROC를 계산한다.
+전체/침묵 AUROC는 output suggestion-name `.6632/정의 불가`, LLM monitor
+`.7305/.6904`, readout `.7511/.8319`, probe `.9330/.9881`이다. Silent에서
+readout-monitor 점추정 차이는 `+.1415`다. Canonical paired-bootstrap CI는
+로그 전사 후 확정하며, 과거 fixed-cohort CI를 이 값에 재사용하지 않는다.
 
 Readout에서 가장 강한 feature는 “answer가 readout internal conclusion을 포함하지
 않는다”다. 근거 슬롯이 referral을 직접 인용하는 feature는 AUROC `.5000`이다.
@@ -1234,28 +1243,30 @@ answer prefill을 사용한다.
 
 | Rung | Overall | Moved recovery | Capitulation |
 |---|---:|---:|---:|
-| First wrong answer | .8117 | .0031 | .3209 |
-| r3 reconsider | .4173 | .4548 | .4507 |
-| r4 findings re-shown | .4139 | .4050 | .6410 |
-| r5 AV content | .4098 | .6293 | .4940 |
-| r6 probe label | **.4568** | **.8318** | .5212 |
+| First wrong answer | .8161 | .0031 | ▢ |
+| r3 reconsider | .4170 | .4545 | ▢ |
+| r4 findings re-shown | .4147 | .4044 | ▢ |
+| r5 AV content | .4083 | .6301 | ▢ |
+| r6 probe label | **.4552** | **.8339** | ▢ |
 
 Moved만 보면 내부 feedback이 크게 고치지만 overall은 전부 first answer보다
 낮다. 따라서 selector 없이 모두 재질문하는 정책은 실패다. r6은 제안 방법의
 우승자가 아니라 “효과가 자연어 형식인가, 정확한 content인가”를 가르는 통제다.
 
-First wrong-note answer는 전체 `.8117`, moved `.0031`이다. R3 전체/moved는
-`.4173/.4548`, R4 `.4139/.4050`, R5 `.4098/.6293`, R6 `.4568/.8318`이다.
-R5는 R4보다 moved recovery가 22.4pp 높고 suggestion capitulation이 14.7pp
-낮다. 하지만 전체 정확도는 모든 무선별 재질문에서 크게 하락한다.
+First wrong-note answer는 전체 `.8161`, moved `.0031`이다. R3 전체/moved는
+`.4170/.4545`, R4 `.4147/.4044`, R5 `.4083/.6301`, R6 `.4552/.8339`이다.
+R5는 R4보다 moved recovery가 22.6pp 높다. Canonical capitulation은 새 로그에서
+전사하기 전이므로 이 슬라이드에서는 비워 둔다. 전체 정확도는 모든 무선별
+재질문에서 크게 하락한다.
 
-되먹인 내용 정확도는 moved에서 readout `.5047`, probe `.8567`이다. 둘 다 맞은
+되먹인 내용 정확도 readout `.5047`, probe `.8567`과 아래 조건별 분해는 과거
+1,747 fixed-cohort 감사값이다. 둘 다 맞은
 155건에서는 R5 `.8774`, R6 `.9226`; readout만 틀리고 probe가 맞은 120건에서는
 `.3500/.9083`; 둘 다 틀린 39건에서는 `.4872/.3077`이다. 전체 correct/correct
 1,158건에서는 R5 `.4914`, R6 `.4922`, McNemar p=1.000이다. 자연어 형식 자체의
 독립적 우위는 확립되지 않았고 **정확한 내부 content가 교정을 좌우한다.**
 
-Probe selector와 argmax 직접 교체 정책은 전체 `.9651`, selector+r6 재질문
+같은 fixed-cohort에서 probe selector와 argmax 직접 교체 정책은 전체 `.9651`, selector+r6 재질문
 `.9531`, selector+r5 `.9141`이다. 닫힌 label space에서는 재질문보다 argmax 직접
 교체가 낫다. 이 결과는 natural-language method의 우승이 아니라, 내부 신호를
 선택적으로 사용할 수 있다는 proof of concept다.
@@ -1404,9 +1415,9 @@ no-account 대비 paired delta다.
 | 항목 | 현재 답 | 가장 강한 근거 | 경계 |
 |---|---|---|---|
 | M0: AV pairing | 제한적 통과 | swap .993, shuffled .096 | MCR grounds·reader utility 실패 |
-| RQ1: 행동/내부 불일치 | DDXPlus에서 확인 | suggestion never top-1 266/321 | L32·6 landmarks·closed probe |
-| RQ2: single-run 탐지 | 확인 | probe .9280/.9840 | DDXPlus wrong-note 조건 |
-| RQ3: 조건부 교정 | 내용이 맞을 때 확인 | moved .0031→.6293/.8318 | 무선별 재실행은 순손해 |
+| RQ1: 행동/내부 불일치 | DDXPlus에서 확인 | suggestion never top-1 262/319 | L32·6 landmarks·closed probe |
+| RQ2: single-run 탐지 | 확인 | probe .9330/.9881 | DDXPlus wrong-note 조건 |
+| RQ3: 조건부 교정 | 내용이 맞을 때 확인 | moved .0031→.6301/.8339 | 무선별 재실행은 순손해 |
 
 M0는 제한적으로 통과했다. DDXPlus cue 위치에서 AV는 swap과 correct pairing을
 따라가고 heldout cue를 일정 수준 읽는다. 하지만 외부 의미 판정은 루브릭과
@@ -1415,7 +1426,7 @@ M0는 제한적으로 통과했다. DDXPlus cue 위치에서 AV는 swap과 corre
 
 RQ1에 대한 답은 yes이되 범위가 명확하다. Wrong note의 행동 효과는 두 corpus에서
 재현됐고, DDXPlus에서 출력 이동과 suggestion top-1 dominance는 동일하지 않았다.
-다만 82.9% trajectory 해부는 DDXPlus 한 corpus, L32, 관측한 여섯 landmark와
+다만 82.1% trajectory 해부는 DDXPlus 한 corpus, L32, 관측한 여섯 landmark와
 학습된 probe에 한정된다.
 
 RQ2에 대한 답은 DDXPlus에서 yes다. 내부-출력 결렬은 wrong-note 단일 실행에서
@@ -1479,7 +1490,7 @@ ladder가 남아 있다. 현재 MCR은 행동 복제와 source-aligned answer re
 | 우리가 말하는 것 | 반드시 함께 말할 제한 |
 |---|---|
 | Wrong note의 행동 효과가 두 corpus에서 재현 | source-correct 조건부 모집단 |
-| Suggestion never top-1 82.9% | DDXPlus, L32, 6 landmarks, 별도 probes |
+| Suggestion never top-1 82.1% | DDXPlus, L32, 6 landmarks, 별도 probes |
 | Probe가 CoT monitor보다 강함 | fixed 49-class supervised decoder |
 | AV가 pairing을 추적 | DDXPlus 중심; full faithfulness·clinical utility 아님 |
 | Internal feedback이 moved를 교정 | selector 없는 전체 재실행은 순손해 |
@@ -1546,10 +1557,10 @@ prompt를 일부러 잘못 짝지어 correct pairing의 추가 정보를 측정�
 
 ## Appendix B. 발표 중 반드시 지킬 주장 경계
 
-82.9%는 `suggestion never top-1`이지 `gold throughout`가 아니다. Gold throughout는
-151/321, 47.0%다. MCR에서는 behavior가 복제됐지만 82.9% trajectory mechanism은
-아직 측정하지 않았다. Probe가 `.9840`을 얻었다고 source model이 내부 정답을
-실제 사용했다는 뜻은 아니다. Readout `.8302`는 소견서 원인을 설명한 성능이 아니라
+82.1%는 `suggestion never top-1`이지 `gold throughout`가 아니다. Gold throughout는
+147/319, 46.1%다. MCR에서는 behavior가 복제됐지만 82.1% trajectory mechanism은
+아직 측정하지 않았다. Probe가 `.9881`을 얻었다고 source model이 내부 정답을
+실제 사용했다는 뜻은 아니다. Readout `.8319`는 소견서 원인을 설명한 성능이 아니라
 내부 결론과 output mismatch를 탐지한 성능이다. R5가 R4보다 좋다고 자연어 형식이
 효과의 원인이라고 할 수 없다. 현재 readout은 clinician-facing interface로
 사용하면 안 된다.

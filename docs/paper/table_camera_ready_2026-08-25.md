@@ -775,8 +775,8 @@ advantage from this table.*
 
 ## 남은 ▢ (표 전반)
 
-- **canonical matcher는 확정** — DDXPlus moved/adopted/third = 321/91/230,
-  MCR = 437/137/300. wording·CoT·Appendix Figure A2와 corpus-300 non-overlap 재집계도
+- **canonical matcher와 eligibility는 확정** — DDXPlus moved/adopted/third =
+  319/89/230, MCR = 427/127/300. wording·CoT·Appendix Figure A2와 corpus-300 non-overlap 재집계도
   완료됐다.
 - T2a: final probability 셀 전사 완료; paired CI/추세 값은 새 궤적 실행에서 반영
 - T2b: standalone rule-based silent 값은 원장에 없음; 필요하면 직접 재출력
