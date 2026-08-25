@@ -1211,6 +1211,29 @@ content, R6는 같은 목적의 압축된 probe label, R7은 모델 자신의 Co
 따라서 다음 슬라이드의 숫자는 방법 간 순위표라기보다 **어떤 정보가 교정을
 만드는지 분해하는 실험**으로 읽어야 한다.
 
+**화면 상단에 먼저 넣을 RQ3의 두 단계.** `moved`를 아는 것과 실제로 개입
+대상을 고르는 것을 분리한다.
+
+```text
+평가 단계: no-note/wrong-note pair + gold로 moved 정답 라벨을 만든다.
+배포 단계: gold와 no-note 실행 없이, 현재 wrong-note run 하나의 detector로
+          개입 여부를 고른다.
+```
+
+즉 아래 correction ladder의 `moved recovery`는 **사후에 moved로 판명된 사례에서
+교정 재료의 조건부 가치를 측정하는 지표**다. 실제 사용에서 moved를 미리 아는
+것은 아니며, 최종 시스템은 다음 정책이어야 한다.
+
+```python
+if detector_score(wrong_note_run) >= threshold_fixed_on_validation:
+    return r5_corrected_answer
+return first_answer
+```
+
+Gold, no-note answer, true `moved`는 threshold를 고르거나 배포 입력으로 쓰지 않고
+최종 test 평가에만 쓴다. 이 구분을 먼저 말해야 Slide 25의 높은 moved recovery를
+oracle 배포 성능으로 오해하지 않는다.
+
 **화면에 넣을 intervention 설계표**
 
 | Rung | 두 번째 prompt에 추가하는 정보 | 무엇을 통제하는가 |
@@ -1250,7 +1273,7 @@ answer prefill을 사용한다.
 
 ## Slide 25. 교정 결과와 정확한 해석
 
-**화면에는 Table 3과 Figure 4(b)를 그대로 넣는다.**
+**화면에는 Table 3과 Figure 4(b), 그리고 아래 상태 상자를 함께 넣는다.**
 
 | Rung | Overall | Moved recovery | Capitulation |
 |---|---:|---:|---:|
@@ -1259,6 +1282,12 @@ answer prefill을 사용한다.
 | r4 findings re-shown | .4147 | .4044 | ▢ |
 | r5 AV content | .4083 | .6301 | ▢ |
 | r6 probe label | **.4552** | **.8339** | ▢ |
+
+| RQ3 증거 단계 | 현재 상태 | 무엇을 말할 수 있는가 |
+|---|---|---|
+| Moved subset의 content value | **완료** | r5가 r4보다 +22.6%p; 정확한 내부 내용은 조건부로 유용 |
+| Detector + correction 결합 | **예비** | fixed-cohort selector+r5 `.9141`, argmax replacement `.9651` |
+| Canonical end-to-end utility | **미검증** | 1,729건 validation-frozen policy와 held-out paired CI 필요 |
 
 Moved만 보면 내부 feedback이 크게 고치지만 overall은 전부 first answer보다
 낮다. 따라서 selector 없이 모두 재질문하는 정책은 실패다. r6은 제안 방법의
@@ -1284,6 +1313,28 @@ R5는 R4보다 moved recovery가 22.6pp 높다. Canonical capitulation은 새 �
 코호트에서 validation으로 threshold를 고정하고 held-out test의 paired CI까지
 계산한 결과가 아니므로, 이것만으로 완성된 배포 정책이나 전체 성능 향상을
 주장하지 않는다.
+
+**이 슬라이드에서 말할 RQ3의 정확한 결론.** 현재 강하게 성립하는 것은
+“이미 harmful movement가 발생한 사례에서 내부 content가 단순 재고보다 좋은
+교정 재료다”이다. 아직 확정되지 않은 것은 “wrong-note 단일 실행만 보고 개입
+대상을 골랐을 때 전체 QA 정확도가 실제로 오른다”이다. 후자를 닫으려면 최신
+canonical 1,729건에서 detector threshold를 validation으로 고정한 뒤 held-out
+test에서 다음을 함께 보고해야 한다.
+
+| 최종 policy 지표 | 왜 필요한가 |
+|---|---|
+| Overall accuracy | 전체 순이득 여부 |
+| Moved recovery | 위험 사례 복구율 |
+| Unchanged preservation | 원래 맞던 답 보존율 |
+| Newly broken | 개입의 부작용 |
+| Net correction | wrong→right minus right→wrong |
+| Intervention rate | 실제 개입 규모 |
+
+비교군은 no intervention, all-r5, source-confidence gated, CoT/LLM-monitor gated,
+AV gated, probe gated, oracle-moved다. Canonical gated policy가 keep-first보다
+positive net correction을 내고 paired CI가 0을 배제해야만 “내부 판독으로 전체
+성능을 향상했다”고 말한다. 실패하면 RQ3는 conditional/oracle analysis로 남기고,
+RQ1·RQ2와 무선별 재고의 위험은 그대로 유지한다.
 
 **발표자 연결 원고.** R5와 R6는 moved subset에서는 크게 회복하지만 모든 사례에
 적용하면 전체 정확도가 첫 답보다 낮다. 따라서 내부 신호의 가치는 무조건적인
