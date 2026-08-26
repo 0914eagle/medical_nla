@@ -10,6 +10,7 @@ RUN_NAME="${RUN_NAME:-validation_full_v1}"
 LIMIT_CASES="${LIMIT_CASES:-0}"
 EXPECTED_CASES="${EXPECTED_CASES:-50}"
 OVERWRITE_EVAL="${OVERWRITE_EVAL:-0}"
+PREPARE_ONLY="${PREPARE_ONLY:-0}"
 EXTRACTOR_BACKEND="${EXTRACTOR_BACKEND:-codex}"
 EXTRACTOR_MODEL="${EXTRACTOR_MODEL:-}"
 CODEX_CMD="${CODEX_CMD:-codex}"
@@ -75,6 +76,11 @@ python scripts/make_direct_e4_claim_requests.py \
   --summary-md "${OUT}/requests_summary.md" \
   --expected-cases "${EXPECTED_CASES}" \
   "${limit_args[@]}"
+
+if [[ "${PREPARE_ONLY}" == "1" ]]; then
+  echo "[done] PREPARE_ONLY=1; transfer ${OUT}/extraction_requests.jsonl to Codex host"
+  exit 0
+fi
 
 echo "[stage 2/5] quote-constrained extraction via ${EXTRACTOR_BACKEND}"
 request_rows="$(wc -l < "${OUT}/extraction_requests.jsonl")"
