@@ -26,6 +26,18 @@ shuffle 난이도를 선택하지 않는다. 학습에 쓴 DDXPlus 행을 같은
 HS32로 고정한다. HS16/HS24를 같은 decoder에 넣는 값은 representation 차이와 decoder
 distribution shift를 분리하지 못해 appendix sensitivity로만 다룬다.
 
+정본 데이터는 공식 `validate.csv`와 `test.csv`에서 각각 독립적으로 진단당 100건을
+reservoir sampling한다(seed 17; 최대 49 diagnosis). 적격 조건은 clean rendered cue가
+3개 이상이고 prompt에 gold diagnosis/alias가 직접 나오지 않는 것이다. 따라서 계획 분모는
+validation 4,900과 locked test 4,900이며, 실제 값은 빌더가 49개 diagnosis의 quota를 모두
+채웠을 때만 확정한다. 세부 생성 규칙과 실행 명령은
+[`docs/data/ddxplus_e5_canonical.md`](../data/ddxplus_e5_canonical.md)에 고정한다.
+
+Cue deletion은 모든 적격 case에 만들고, value edit은 같은 `evidence_id`에 release가
+명시한 다른 value가 있으며 정상 문장으로 렌더링되는 case에만 만든다. 전역 cue 어휘에서
+무관한 문장을 뽑는 과거 swap은 사용하지 않는다. Validation mean activation만 mean-control로
+사용하고 test mean은 계산하지 않는다.
+
 ## 지표
 
 - Own-pair score와 shuffled score의 paired gap

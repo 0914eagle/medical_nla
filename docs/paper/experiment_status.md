@@ -9,7 +9,7 @@
 | E2 capability baselines | 완료 | probe, raw/calibrated output-head, evidence-quoted AI semantic audit 312/312 | E3-E5 |
 | E3 Medical-NLA train | 실행 준비 | DiReCT P0 SFT-only 3 seeds; reconstruction/full objective는 주 큐에서 보류 | E4-E6 |
 | E4 DiReCT explanation | 대기 | official metrics + evidence-quoted LLM-as-a-judge | Table 2 |
-| E5 DDX grounding | 대기 | shuffle/counterfactual/round-trip 통과 | RQ2, E6 gate |
+| E5 DDX grounding | 데이터 빌더 완료, 실행 대기 | official validate/test 각 49x100, native counterfactual, shuffle/round-trip 통과 | RQ2, E6 gate |
 | E6 text patching | 조건부 | target change + no-op preservation | RQ3 |
 | E7 MCR OOD | 후순위 | frozen checkpoint external test | generalization |
 
@@ -110,8 +110,10 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
    mean/SD를 보고한다.
 3. **방법 동결 후 test 1회**: seen 72와 PDD-heldout 106에서 vanilla/CoT/SFT-only를 같은
    evaluator로 비교한다. 이 시점 이후 prompt, layer, target schema를 수정하지 않는다.
-4. **E5 DDXPlus grounding**: frozen SFT-only adapter에 matched/shuffled, zero/mean activation,
-   cue deletion/edit, AV-to-AR round-trip을 적용한다.
+4. **E5 DDXPlus grounding**: `prepare_ddxplus_e5.py`로 official validation/test를 분리한
+   정본 population을 먼저 만들고, frozen SFT-only adapter에 matched/shuffled, zero/validation-
+   mean activation, cue deletion/native-value edit, AV-to-AR round-trip을 적용한다. Test에서
+   population, donor 또는 threshold를 다시 선택하지 않는다.
 5. **E6 조건부 patching**: E5의 pair gap과 cue-specific change가 통과할 때만 실행한다.
 6. **E7 MCR OOD**: 핵심 표가 닫힌 뒤 frozen checkpoint의 외적 일반화로만 실행한다.
 

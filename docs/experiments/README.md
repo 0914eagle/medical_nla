@@ -11,7 +11,7 @@
 | E2 | Capability baselines | 완료 | Table 1, HS32 primary baseline |
 | E3 | Medical-NLA training | 실행 준비 | DiReCT P0 SFT-only 3 seeds; full objective 보류 |
 | E4 | DiReCT explanation evaluation | 대기 | Table 2, Figure 2 |
-| E5 | DDXPlus activation grounding | 대기 | Table 3, Figure 3 |
+| E5 | DDXPlus activation grounding | 정본 빌더 완료, 실행 대기 | Table 3, Figure 3 |
 | E6 | Text patching | E5 조건부 | Table 4, Figure 4 |
 | E7 | MCR external OOD | 후순위 | frozen-checkpoint OOD table |
 

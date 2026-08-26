@@ -119,7 +119,9 @@ validation을 다시 나눠 hyperparameter를 선택한다. 평균과 fold-level
 ### Table 3: DDXPlus activation grounding
 
 - own pair와 donor pair는 같은 diagnosis, 비슷한 cue count/길이로 맞춘다.
-- donor는 source answer나 같은 evidence value까지 같은 행이면 안 된다.
+- donor는 같은 diagnosis 안에서 다른 evidence/value signature를 가져야 한다. Source
+  answer 일치 여부는 기술 통계로 보고하되 eligibility로 쓰지 않는다. 결론을 고정하고
+  case-specific evidence만 바꾸는 것이 이 hard negative의 목적이기 때문이다.
 - cue deletion/edit은 같은 base case의 paired counterfactual로 만든다.
 - 평균 점수만 아니라 paired effect와 bootstrap CI를 보고한다.
 - zero, mean, shuffled activation은 NLA language prior 바닥을 측정한다.
