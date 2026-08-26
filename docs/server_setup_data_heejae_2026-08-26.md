@@ -38,6 +38,17 @@ The first SSH connection asks for the source-server password. SSH connection
 multiplexing reuses that authenticated connection for subsequent `rsync`
 calls. Configure an SSH key if policy permits for unattended transfers.
 
+To transfer data and checkpoints first and create the environment later, add
+`INSTALL_ENV=0`. This mode does not require `uv` on the destination yet:
+
+```bash
+SOURCE_HOST=eagle0914@165.132.76.125 \
+SOURCE_DATA_ROOT=/data1/heejae \
+DEST_DATA_ROOT=/data/heejae \
+COPY_HF_MODELS=1 COPY_DDXPLUS=1 INSTALL_ENV=0 \
+bash scripts/bootstrap_direct_server.sh
+```
+
 Set `COPY_DDXPLUS=1` only when the destination will also run the DDXPlus
 grounding experiments. Existing activations and old result trees are not copied
 by default because they are large and are not required for DiReCT E1.

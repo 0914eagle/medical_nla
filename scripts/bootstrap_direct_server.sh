@@ -19,12 +19,16 @@ TORCH_INDEX_URL="${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cu121}"
 RSYNC_RSH="${RSYNC_RSH:-ssh -o ControlMaster=auto -o ControlPersist=600 -o ControlPath=/tmp/medical-nla-ssh-%C}"
 RSYNC=(rsync -a --partial --append-verify --info=progress2 -e "${RSYNC_RSH}")
 
-for command in git rsync ssh uv python3; do
+for command in git rsync ssh python3; do
   if ! command -v "${command}" >/dev/null 2>&1; then
     echo "[error] required command is unavailable: ${command}" >&2
     exit 1
   fi
 done
+if [[ "${INSTALL_ENV}" == "1" ]] && ! command -v uv >/dev/null 2>&1; then
+  echo "[error] uv is required when INSTALL_ENV=1" >&2
+  exit 1
+fi
 
 if [[ ! -d "${CODE_ROOT}/.git" ]]; then
   echo "[error] clone the repository at ${CODE_ROOT} before running this script" >&2
