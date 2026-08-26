@@ -1,6 +1,11 @@
+from pathlib import Path
+
 import pytest
 
-from scripts.make_direct_oracle_predictions import official_oracle_prediction
+from scripts.make_direct_oracle_predictions import (
+    official_oracle_prediction,
+    resolve_source_path,
+)
 from scripts.run_direct_official_evaluator import is_yes as evaluator_is_yes
 from scripts.score_direct_official_eval import score_record
 
@@ -59,6 +64,41 @@ def test_duplicate_oracle_observation_is_audited():
 
     assert duplicate_count == 1
     assert prediction["chest pain"][0] == "second"
+
+
+def test_resolve_source_path_relocates_legacy_absolute_manifest(tmp_path: Path):
+    samples_root = tmp_path / "restricted" / "direct" / "samples"
+    relative_path = Path("Finished") / "Cardiology" / "NSTEMI" / "case.json"
+    relocated = samples_root / relative_path
+    relocated.parent.mkdir(parents=True)
+    relocated.write_text("{}", encoding="utf-8")
+    row = {
+        "id": "direct_test",
+        "source_path": f"/data1/heejae/restricted/direct/samples/{relative_path}",
+    }
+
+    source_path, resolved_relative = resolve_source_path(row, samples_root)
+
+    assert source_path == relocated.resolve()
+    assert resolved_relative == relative_path
+
+
+def test_resolve_source_path_prefers_portable_relative_path(tmp_path: Path):
+    samples_root = tmp_path / "samples"
+    relative_path = Path("Finished") / "Neurology" / "Stroke" / "case.json"
+    relocated = samples_root / relative_path
+    relocated.parent.mkdir(parents=True)
+    relocated.write_text("{}", encoding="utf-8")
+    row = {
+        "id": "direct_test",
+        "source_path": "/obsolete/location/without/samples-marker/case.json",
+        "source_relative_path": relative_path.as_posix(),
+    }
+
+    source_path, resolved_relative = resolve_source_path(row, samples_root)
+
+    assert source_path == relocated.resolve()
+    assert resolved_relative == relative_path
 
 
 @pytest.mark.parametrize(

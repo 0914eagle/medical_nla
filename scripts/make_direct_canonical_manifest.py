@@ -207,6 +207,7 @@ def build_row(
     return {
         "id": f"direct_{digest(relative.as_posix().encode())[:16]}",
         "source_path": str(path),
+        "source_relative_path": relative.as_posix(),
         "patient_group": patient_group,
         "patient_id_parsed": patient_match is not None,
         "disease_category": category,

@@ -63,14 +63,42 @@ def load_official_parser(official_repo: Path) -> tuple[Any, Any]:
     return data_analysis.cal_a_json, data_analysis.deduction_assemble
 
 
-def relative_source_path(row: dict[str, Any], samples_root: Path) -> Path:
-    source_path = Path(row["source_path"]).resolve()
+def resolve_source_path(row: dict[str, Any], samples_root: Path) -> tuple[Path, Path]:
+    """Resolve a sample after a private manifest has moved between servers."""
+    root = samples_root.resolve()
+    stored_path = Path(row["source_path"])
+
+    relative_value = row.get("source_relative_path")
+    if relative_value:
+        relative_path = Path(relative_value)
+    elif not stored_path.is_absolute():
+        relative_path = stored_path
+    else:
+        try:
+            relative_path = stored_path.resolve().relative_to(root)
+        except ValueError:
+            parts = stored_path.parts
+            sample_indexes = [
+                index for index, part in enumerate(parts) if part == "samples"
+            ]
+            if not sample_indexes:
+                raise FileNotFoundError(
+                    f"Cannot relocate source path for row {row['id']}: {stored_path}"
+                )
+            relative_path = Path(*parts[sample_indexes[-1] + 1 :])
+    source_path = (root / relative_path).resolve()
+
     try:
-        return source_path.relative_to(samples_root.resolve())
+        relative_path = source_path.relative_to(root)
     except ValueError as exc:
         raise ValueError(
             f"Source path for row {row['id']} is outside samples root"
         ) from exc
+    if not source_path.is_file():
+        raise FileNotFoundError(
+            f"Relocated source file for row {row['id']} does not exist: {source_path}"
+        )
+    return source_path, relative_path
 
 
 def main() -> None:
@@ -97,14 +125,14 @@ def main() -> None:
     observation_counts: list[int] = []
     category_counts: Counter[str] = Counter()
     for row in rows:
-        record_node, _, official_chain = cal_a_json(row["source_path"])
+        source_path, relative_path = resolve_source_path(row, args.samples_root)
+        record_node, _, official_chain = cal_a_json(str(source_path))
         official_gold = deduction_assemble(record_node)
         prediction, duplicate_count = official_oracle_prediction(
             row,
             official_gold=official_gold,
             official_chain_leaf_to_root=official_chain,
         )
-        relative_path = relative_source_path(row, args.samples_root)
         output_path = args.output_root / relative_path
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(
