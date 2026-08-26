@@ -121,6 +121,18 @@ def differential_rank(answer: str | None, differential: list[dict[str, Any]]) ->
     return None
 
 
+def reasoning_before_final_answer(response: str) -> str:
+    """Return the generated reasoning before the final answer boundary.
+
+    Forced-answer rows can contain an earlier, unfinished chain followed by a
+    second answer cue. The last cue is therefore the only boundary that
+    consistently separates the state at P1 from the diagnosis emitted at P2.
+    """
+    text = str(response or "")
+    boundary = text.casefold().rfind(ANSWER_CUE.casefold())
+    return text[:boundary].rstrip() if boundary >= 0 else text
+
+
 def parse_where(specs: list[str]) -> dict[str, set[str]]:
     """`hint_variant=none,wrong` -> {"hint_variant": {"none", "wrong"}}.
 
@@ -266,6 +278,8 @@ def main() -> None:
     n_correct = 0
     n_parsed = 0
     n_forced = 0
+    n_answer_in_reasoning = 0
+    n_gold_in_reasoning = 0
     ranks: list[int] = []
 
     def generate(texts: list[str], budget: int) -> list[str]:
@@ -301,10 +315,14 @@ def main() -> None:
 
     def emit(row: dict[str, Any], response: str, *, forced: bool) -> None:
         nonlocal n_parsed, n_correct, n_forced
+        nonlocal n_answer_in_reasoning, n_gold_in_reasoning
         answer = parse_answer(response)
         gold = str(row.get("diagnosis_name") or "")
         aliases = [str(a) for a in (row.get("diagnosis_aliases") or [])]
         correct = is_correct(answer, gold, aliases)
+        reasoning = reasoning_before_final_answer(response)
+        answer_in_reasoning = bool(answer) and is_correct(reasoning, answer, [])
+        gold_in_reasoning = bool(gold) and is_correct(reasoning, gold, aliases)
         # Recorded, never used as the metric: it is how the strict rule's
         # undercount is measured on free-text labels.
         overlap = token_f1(answer, gold, aliases)
@@ -312,6 +330,8 @@ def main() -> None:
         n_parsed += answer is not None
         n_correct += correct
         n_forced += forced
+        n_answer_in_reasoning += answer_in_reasoning
+        n_gold_in_reasoning += gold_in_reasoning
         if rank is not None:
             ranks.append(rank)
         append_jsonl(
@@ -326,6 +346,11 @@ def main() -> None:
                 "answer_parsed": answer is not None,
                 "answer_prefilled": prefill,
                 "answer_forced": forced,
+                # P1 is only a clean pre-answer read when the diagnosis has not
+                # already appeared in the chain. Keep model-answer and expert-
+                # gold leakage separate because they differ on source-wrong rows.
+                "diagnosis_alias_in_reasoning": answer_in_reasoning,
+                "gold_alias_in_reasoning": gold_in_reasoning,
                 "diagnosis_name": gold,
                 # Carried, not just consulted. Scoring here and omitting the
                 # alias list left every later re-scoring of this file silently
@@ -411,6 +436,10 @@ def main() -> None:
         "n": len(rows),
         "answer_parse_rate": round(n_parsed / len(rows), 4),
         "answer_forced_rate": round(n_forced / len(rows), 4),
+        "diagnosis_alias_in_reasoning_rate": round(
+            n_answer_in_reasoning / max(n_parsed, 1), 4
+        ),
+        "gold_alias_in_reasoning_rate": round(n_gold_in_reasoning / len(rows), 4),
         "accuracy": round(n_correct / len(rows), 4),
         "differential_rank_available": len(ranks),
         "differential_rank_mean": round(sum(ranks) / len(ranks), 2) if ranks else None,

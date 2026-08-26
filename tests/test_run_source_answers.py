@@ -1,4 +1,9 @@
-from scripts.run_source_answers import differential_rank, matches_where, parse_where
+from scripts.run_source_answers import (
+    differential_rank,
+    matches_where,
+    parse_where,
+    reasoning_before_final_answer,
+)
 
 
 def test_differential_rank_reports_where_the_answer_sits():
@@ -16,6 +21,21 @@ def test_differential_rank_reports_where_the_answer_sits():
 
 def test_differential_rank_is_none_without_a_differential():
     assert differential_rank("Croup", []) is None
+
+
+def test_reasoning_stops_at_the_last_answer_boundary():
+    response = (
+        "The findings favor pneumonia.\n"
+        "The answer is unfinished\n\n"
+        "The answer is Bronchiolitis."
+    )
+    assert reasoning_before_final_answer(response) == (
+        "The findings favor pneumonia.\nThe answer is unfinished"
+    )
+
+
+def test_prefilled_direct_answer_has_no_reasoning_prefix():
+    assert reasoning_before_final_answer("The answer is Pneumonia.") == ""
 
 
 def test_where_selects_the_arms_a_run_is_actually_for():

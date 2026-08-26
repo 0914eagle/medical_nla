@@ -112,6 +112,8 @@ PASSTHROUGH_FIELDS = [
     "position_label",
     "source_correct",
     "answer_forced",
+    "diagnosis_alias_in_reasoning",
+    "gold_alias_in_reasoning",
 ]
 
 # Every fourth block, plus the last one before the final norm. 48 (post-norm)

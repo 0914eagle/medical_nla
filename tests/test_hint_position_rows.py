@@ -28,7 +28,14 @@ def test_the_arm_survives_extraction():
     """The recurring failure in this project: the builder writes which arm a
     row is, the next stage passes through a fixed field list that omits it, and
     the loss is silent until an analysis has nothing to pair on."""
-    for field in ("base_id", "hint_variant", "hint_diagnosis_name", "gold_in_prompt"):
+    for field in (
+        "base_id",
+        "hint_variant",
+        "hint_diagnosis_name",
+        "gold_in_prompt",
+        "diagnosis_alias_in_reasoning",
+        "gold_alias_in_reasoning",
+    ):
         assert field in PASSTHROUGH_FIELDS
     assert set(final_row(case())) >= {"base_id", "hint_variant", "target_role"}
 

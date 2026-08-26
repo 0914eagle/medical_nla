@@ -58,6 +58,10 @@ def main() -> None:
             "patient_group": source.get("patient_group"),
             "source_correct": source.get("source_correct"),
             "answer_forced": source.get("answer_forced"),
+            "diagnosis_alias_in_reasoning": source.get(
+                "diagnosis_alias_in_reasoning"
+            ),
+            "gold_alias_in_reasoning": source.get("gold_alias_in_reasoning"),
         }
         extraction_rows.append(
             {
