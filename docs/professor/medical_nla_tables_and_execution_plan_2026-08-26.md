@@ -130,15 +130,18 @@ Probe는 Panel B에서 `0`이 아니라 `N/A`다. 각 cue/relation별 별도 pro
 | Medical-AV, SFT only | TBD | TBD | TBD | TBD | TBD | TBD |
 | Medical-NLA | TBD | TBD | TBD | TBD | TBD | TBD |
 
-- `Accdiag`: primary discharge diagnosis 정확도
-- `Obspre`: 출력 observation 중 physician observation과 대응된 비율
-- `Obsrec`: physician observation 중 출력이 복원한 비율
+- `Accdiag`: 공식 코드 `acc_diag`; canonical PDD 문자열 exact match
+- `Obspre`: 공식 코드 `comp_pre = matched / (predicted + 1)`
+- `Obsrec`: 공식 코드 `comp_re = matched / (gold + 1)`
 - `Obscomp`: observation 집합의 semantic Jaccard completeness
 - `Expcom`: 대응된 observation에서 rationale와 diagnosis edge까지 맞은 비율
 - `Expall`: 누락·추가·관계·진단 오류를 모두 포함한 end-to-end alignment
 
 이 표는 activation faithfulness가 아니라 `expert-reference clinical alignment`다.
 CoT와 NLA 출력은 동일한 claim schema로 정규화하고 method 이름을 judge에게 숨긴다.
+공식 평가는 Llama-3-8B가 observation/rationale 의미 대응을 `Yes`로 판정한 뒤
+`statistics.py`가 집계한다. Greedy observation matching의 순서 의존성, exact `Yes`
+판정, 누락 파일을 0으로 처리하는 동작은 공식 재현과 별도의 민감도 분석으로 감사한다.
 
 ### Table 3. Activation grounding on controlled DDXPlus cases
 

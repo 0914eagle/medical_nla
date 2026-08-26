@@ -492,17 +492,20 @@ diagnosis)`를 주석했다. 아래 metric은 새로 만든 것이 아니라 DiR
 ```text
 O      = 의사가 주석한 gold observation 집합
 O_hat  = 방법이 생성한 predicted observation 집합
-M      = semantic matcher가 만든 O와 O_hat의 one-to-one 대응
+M      = semantic matcher가 greedy하게 만든 O와 O_hat의 일대일 대응
 m      = 대응된 observation 중 rationale와 연결 diagnosis까지 맞은 개수
 ```
 
 각 열의 정확한 뜻:
 
-- **Accdiag**: primary discharge diagnosis(PDD)가 gold와 맞으면 1, 아니면 0인 평균.
-- **Obspre = |M| / |O_hat|**: 모델이 관찰이라고 말한 것 중 의사 관찰과 의미적으로
-  대응된 비율. 근거 없는 관찰을 많이 생성하면 내려간다.
-- **Obsrec = |M| / |O|**: 의사가 필요하다고 표시한 관찰 중 모델이 복원한 비율.
-  짧고 보수적으로만 말하면 내려간다.
+- **Accdiag**: 공식 코드의 `acc_diag`. 예측 chain의 마지막 진단 문자열과 gold chain의
+  마지막 진단 문자열을 첫 글자 대문자화 후 exact match한다. 출력은 평가 전에 공식
+  PDD vocabulary로 canonicalize해야 한다.
+- **Obspre = |M| / (|O_hat| + 1)**: 공식 코드의 `comp_pre`. 모델이 관찰이라고 말한 것
+  중 의사 관찰과 의미적으로 대응된 정도다. 구현에는 `+1` smoothing이 있어 완전
+  일치해도 1.0이 되지 않는다.
+- **Obsrec = |M| / (|O| + 1)**: 공식 코드의 `comp_re`. 의사가 표시한 관찰 중 모델이
+  복원한 정도이며 이 열에도 `+1` smoothing이 있다.
 - **Obscomp = |M| / |O union O_hat|**: observation 집합의 semantic Jaccard다.
   precision과 recall을 하나의 completeness 값으로 묶는다.
 - **Expcom = m / |M|**: 이미 observation이 서로 대응된 쌍 안에서 rationale와 그
@@ -511,11 +514,20 @@ m      = 대응된 observation 중 rationale와 연결 diagnosis까지 맞은 �
   잘못된 diagnosis 연결을 모두 포함한 end-to-end 설명 점수다. 주 설명 metric으로 삼는다.
 
 DiReCT는 자연어 observation 대응과 rationale match를 exact string이 아니라
-Llama-3-8B few-shot semantic matcher로 판정하고 temperature 0을 사용했다. 우리는 공식
-코드와 prompt를 먼저 재현하고, method 이름을 가린 뒤 최소 100건을 임상의 두 명이
-감사한다. `Expcom/Expall`은 DiReCT 논문이 “faithfulness”라고 부르지만, 본 논문에서는
-혼동을 막기 위해 **expert-reference reasoning alignment**라고 부른다. 이것만으로
-activation faithfulness가 증명되지는 않는다.
+Llama-3-8B semantic matcher로 판정하고 temperature 0을 사용했다. 공식 `evaluation.py`는
+최종 점수 계산기가 아니라 observation/rationale의 `Yes` 매칭 결과를 `_eval` JSON으로
+만드는 1단계이며, `statistics.py`가 위 산식을 집계한다. Prediction schema는
+`{observation: [rationale, note_section, diagnosis], ..., "chain": [...]}`다.
+
+구현 감사에서 세 가지 민감도 검사가 필요함을 확인했다. 첫째, observation matching은
+gold 순서대로 첫 `Yes` prediction을 선택하는 greedy matching이라 dict 순서에 의존할 수
+있다. 둘째, judge 응답이 정확히 `"Yes"`일 때만 match로 인정된다. 셋째, 평가 중 예외는
+건너뛰고 누락된 eval 파일은 통계 단계에서 모든 metric 0으로 처리된다. 따라서 공식
+점수를 그대로 재현한 결과와 함께 prediction 순서 permutation, 응답 정규화, maximum
+bipartite matching 민감도 결과를 별도로 낸다. Method 이름을 가린 뒤 최소 100건을
+임상의 두 명이 감사한다. `Expcom/Expall`은 DiReCT 논문이 “faithfulness”라고 부르지만,
+본 논문에서는 혼동을 막기 위해 **expert-reference reasoning alignment**라고 부른다.
+이것만으로 activation faithfulness가 증명되지는 않는다.
 
 공식 출처:
 
