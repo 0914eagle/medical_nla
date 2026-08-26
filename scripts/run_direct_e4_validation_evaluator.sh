@@ -10,6 +10,9 @@ RUN_NAME="${RUN_NAME:-validation_full_v1}"
 LIMIT_CASES="${LIMIT_CASES:-0}"
 EXPECTED_CASES="${EXPECTED_CASES:-50}"
 OVERWRITE_EVAL="${OVERWRITE_EVAL:-0}"
+EXTRACTOR_BACKEND="${EXTRACTOR_BACKEND:-codex}"
+EXTRACTOR_MODEL="${EXTRACTOR_MODEL:-}"
+CODEX_CMD="${CODEX_CMD:-codex}"
 
 cd /home/eagle0914/medical_nla
 source "${DATA_ROOT}/uv/medical_nla/bin/activate"
@@ -73,19 +76,40 @@ python scripts/make_direct_e4_claim_requests.py \
   --expected-cases "${EXPECTED_CASES}" \
   "${limit_args[@]}"
 
-echo "[stage 2/5] quote-constrained local extraction on GPU ${GPU}"
-CUDA_VISIBLE_DEVICES="${GPU}" torchrun --nproc_per_node 1 \
-  scripts/run_direct_local_llama_judge.py \
-  --requests "${OUT}/extraction_requests.jsonl" \
-  --out "${OUT}/extraction_judgements.jsonl" \
-  --official-repo "${OFFICIAL}" \
-  --ckpt-dir "${JUDGE}" \
-  --tokenizer-path "${JUDGE}/tokenizer.model" \
-  --max-seq-len 8192 \
-  --max-batch-size 1 \
-  --max-gen-len 768 \
-  --temperature 0 \
-  --top-p 1
+echo "[stage 2/5] quote-constrained extraction via ${EXTRACTOR_BACKEND}"
+if [[ "${EXTRACTOR_BACKEND}" == "codex" ]]; then
+  command -v "${CODEX_CMD%% *}" >/dev/null || {
+    echo "[error] Codex command not found: ${CODEX_CMD}" >&2
+    exit 2
+  }
+  model_args=()
+  if [[ -n "${EXTRACTOR_MODEL}" ]]; then
+    model_args=(--model "${EXTRACTOR_MODEL}")
+  fi
+  python scripts/run_judge.py \
+    --requests "${OUT}/extraction_requests.jsonl" \
+    --out "${OUT}/extraction_judgements.jsonl" \
+    --backend codex \
+    --codex-cmd "${CODEX_CMD}" \
+    --timeout 300 \
+    "${model_args[@]}"
+elif [[ "${EXTRACTOR_BACKEND}" == "local_llama" ]]; then
+  CUDA_VISIBLE_DEVICES="${GPU}" torchrun --nproc_per_node 1 \
+    scripts/run_direct_local_llama_judge.py \
+    --requests "${OUT}/extraction_requests.jsonl" \
+    --out "${OUT}/extraction_judgements.jsonl" \
+    --official-repo "${OFFICIAL}" \
+    --ckpt-dir "${JUDGE}" \
+    --tokenizer-path "${JUDGE}/tokenizer.model" \
+    --max-seq-len 8192 \
+    --max-batch-size 1 \
+    --max-gen-len 768 \
+    --temperature 0 \
+    --top-p 1
+else
+  echo "[error] EXTRACTOR_BACKEND must be codex or local_llama" >&2
+  exit 2
+fi
 
 echo "[stage 3/5] validate quotes and create official-schema predictions"
 python scripts/apply_direct_e4_claim_extractions.py \

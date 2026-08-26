@@ -111,12 +111,19 @@ def main() -> None:
         raise ValueError(f"Unexpected method populations: {wrong_counts}")
 
     stats: dict[str, Counter[str]] = {method: Counter() for method in methods}
+    extractor_backends: Counter[str] = Counter()
+    extractor_models: Counter[str] = Counter()
     audit_rows: list[dict[str, Any]] = []
     seen_paths: dict[str, set[str]] = {method: set() for method in methods}
     for request_id in sorted(index):
         item = index[request_id]
         method = str(item["method"])
         source = str(item.get("method_output") or "")
+        judgement = judgements[request_id]
+        extractor_backend = clean_text(judgement.get("judge_backend")) or "unknown"
+        extractor_model = clean_text(judgement.get("judge_model")) or "unknown"
+        extractor_backends[extractor_backend] += 1
+        extractor_models[extractor_model] += 1
         relative_path = str(item["source_relative_path"])
         if relative_path in seen_paths[method]:
             raise ValueError(f"Duplicate prediction path for {method}: {relative_path}")
@@ -129,7 +136,7 @@ def main() -> None:
         diagnosis_label: str | None = None
         diagnosis_quote: str | None = None
         try:
-            parsed = extract_json_object(judgements[request_id].get("response"))
+            parsed = extract_json_object(judgement.get("response"))
             raw_label = clean_text(parsed.get("diagnosis_label"))
             raw_quote = quoted(parsed.get("diagnosis_quote"), source)
             canonical_label = names.get(raw_label.casefold()) if raw_label else None
@@ -190,6 +197,8 @@ def main() -> None:
                 "accepted_claims": accepted_claims,
                 "rejected_claims": rejected_claims,
                 "parse_error": parse_error,
+                "extractor_backend": extractor_backend,
+                "extractor_model": extractor_model,
             }
         )
 
@@ -198,6 +207,9 @@ def main() -> None:
         "# DiReCT E4 Quote-Constrained Extraction",
         "",
         "Private audit: accepted text remains under the restricted data root.",
+        "",
+        f"- extractor backends: `{dict(extractor_backends)}`",
+        f"- extractor models: `{dict(extractor_models)}`",
         "",
         "| method | rows | diagnosis | rows with observation | observations | "
         "rows with rationale | rationales | parse errors |",
