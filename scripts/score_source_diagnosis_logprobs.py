@@ -30,6 +30,7 @@ frequency rather than on evidence.
 from __future__ import annotations
 
 import argparse
+import inspect
 import math
 import random
 import sys
@@ -165,8 +166,24 @@ def score_candidates(
 ) -> list[dict[str, float | int]]:
     out_scores: list[dict[str, float | int]] = []
     device = model.device
-    for start in range(0, len(candidate_ids), batch_size):
-        batch = candidate_ids[start : start + batch_size]
+    forward_parameters = inspect.signature(model.forward).parameters
+    keep_parameter = next(
+        (
+            name
+            for name in ("logits_to_keep", "num_logits_to_keep")
+            if name in forward_parameters
+        ),
+        None,
+    )
+    effective_batch_size = batch_size if keep_parameter else 1
+    if keep_parameter is None and batch_size > 1:
+        print(
+            "[source-logprob] model cannot limit vocabulary projection positions; "
+            "falling back to candidate_batch_size=1",
+            flush=True,
+        )
+    for start in range(0, len(candidate_ids), effective_batch_size):
+        batch = candidate_ids[start : start + effective_batch_size]
         text_ids = [prefix_ids + ids for ids in batch]
         max_len = max(len(ids) for ids in text_ids)
         input_ids = torch.full((len(batch), max_len), pad_token_id, dtype=torch.long, device=device)
@@ -174,17 +191,39 @@ def score_candidates(
         for idx, ids in enumerate(text_ids):
             input_ids[idx, : len(ids)] = torch.tensor(ids, dtype=torch.long, device=device)
             attention[idx, : len(ids)] = 1
+        max_candidate_len = max(len(ids) for ids in batch)
+        # Gemma-3 can project only the final positions through its very large
+        # vocabulary head. The previous implementation projected every prompt
+        # token and then converted the complete [batch, sequence, vocabulary]
+        # tensor to FP32. At batch 8 this requested another 7+ GiB for a single
+        # DiReCT row even though only a handful of candidate-token positions
+        # were read below.
+        forward_kwargs: dict[str, Any] = {"use_cache": False}
+        kept_logits = keep_parameter is not None
+        if keep_parameter is not None:
+            # To score the first candidate token we also need the logit at the
+            # final prefix position, hence candidate length + 1.
+            forward_kwargs[keep_parameter] = max_candidate_len + 1
         with torch.inference_mode():
-            logits = model(input_ids=input_ids, attention_mask=attention).logits.float()
-        log_probs = F.log_softmax(logits, dim=-1)
+            logits = model(
+                input_ids=input_ids,
+                attention_mask=attention,
+                **forward_kwargs,
+            ).logits
         prefix_len = len(prefix_ids)
+        if kept_logits:
+            # Returned positions start at prefix_len - 1. The final returned
+            # position predicts the token after the candidate and is unused.
+            candidate_logits = logits[:, :max_candidate_len, :].float()
+        else:
+            start = prefix_len - 1
+            candidate_logits = logits[:, start : start + max_candidate_len, :].float()
+        log_probs = F.log_softmax(candidate_logits, dim=-1)
         for row_idx, ids in enumerate(batch):
             total = 0.0
             token_logprobs = []
             for offset, token_id in enumerate(ids):
-                token_index = prefix_len + offset
-                logits_index = token_index - 1
-                lp = float(log_probs[row_idx, logits_index, int(token_id)].item())
+                lp = float(log_probs[row_idx, offset, int(token_id)].item())
                 total += lp
                 token_logprobs.append(lp)
             out_scores.append(
