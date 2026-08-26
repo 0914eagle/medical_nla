@@ -43,6 +43,16 @@ category top-1 .5962로 가장 높다. 이 값은 test 결과가 아니며, AV/A
 행은 설정을 동결한 뒤 locked test에서 한 번 계산하며, PDD-heldout에는 train label space
 밖 PDD가 있으므로 category probe만 해석 가능한 경우를 분리한다.
 
+Validation의 matched raw early forced-answer 결과는 category 25-way
+`.4808/.6731/.5814`, PDD 49-way `.1538/.5192/.3250`(top-1/top-5/MRR)이었다. PDD는
+corpus 빈도 1인 한 후보가 35/52 top-1이어서 후보 문자열 prior가 강했다. 사전 고정한
+content-free prompt를 차감하면 category top-1이 `.2308`, PDD top-1이 `.0577`로 더
+악화되고 다른 소수 후보로 다시 붕괴했다. 따라서 Table 1에는 raw matched 값을 무학습
+행동 기준선으로 보고하되 이 prior 제한을 캡션에 적고, calibrated 값은 appendix
+sensitivity로 둔다. 이 결과는 likelihood가 `나쁘다`는 일반 명제가 아니라 이 고정
+completion과 label surface form으로 만든 ranking이 안정적인 내부 판독이 아니라는
+진단이다.
+
 동일 validation에서 HS32용 vanilla AV decoder는 default와 task-aligned prompt 모두
 HS16/24/32 P0 입력에서 source answer, gold PDD, category literal mention 및 own-donor
 source gap이 0이었다. 이 결과는 HS24 probe가 가장 높았던 결과와 함께 제시해, 내부 정보

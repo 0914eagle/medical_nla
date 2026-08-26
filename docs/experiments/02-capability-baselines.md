@@ -75,7 +75,10 @@ granularity가 다르므로 서로 정확도를 직접 비교하지 않고 각�
 | Target | Candidates | Top-1 | Top-5 | MRR | Mean gold rank |
 |---|---:|---:|---:|---:|---:|
 | Disease category, raw likelihood | 25 | 0.4808 | 0.6731 | 0.5814 | 5.02 |
+| Disease category, calibrated sensitivity | 25 | 0.2308 | 0.3077 | 0.3091 | 9.58 |
 | Canonical PDD, raw likelihood | 61 | 0.1538 | 0.4423 | 0.3168 | 8.77 |
+| Canonical PDD, train-ontology raw | 49 | 0.1538 | 0.5192 | 0.3250 | 7.92 |
+| Canonical PDD, train-ontology calibrated sensitivity | 49 | 0.0577 | 0.1346 | 0.1486 | 15.83 |
 
 Category 25-way는 동일 label space의 HS24 probe보다 top-1 0.1154, top-5 0.2307,
 MRR 0.1470 낮았다. 이는 supervised probe와 무학습 candidate ranking의 비교이므로 동일
@@ -86,15 +89,21 @@ Raw PDD ranking은 52행 중 35행에서 corpus 빈도 1인
 `Arrhythmogenic Right Ventricular Cardiomyopathy`를 top-1으로 골랐다. 61개 후보 중 실제
 top-1으로 나온 label도 8개뿐이었다. 따라서 raw `logprob_mean`은 사례 정보뿐 아니라 후보
 문자열·tokenization prior에 크게 오염되어 있으며 primary method comparison에 그대로 쓰지
-않는다. 다음 두 validation 통제를 닫은 뒤 설정을 고정한다.
+않는다. 두 validation 통제도 52/52행을 완주했다.
 
-1. content-free candidate prior를 차감한 calibrated 25-way category.
-2. train에서 정의된 49 PDD만 사용한 raw/calibrated PDD. 이 결과만 49-way probe와 직접
-   비교한다. 기존 61-way raw 결과는 full-ontology sensitivity로 보존한다.
+1. 49-way train ontology에서도 같은 후보가 35/52 top-1이어서 후보 수 불일치가 붕괴의
+   원인이 아니었다. 이 raw 49-way만 후보 공간이 같은 probe와 직접 비교할 수 있지만,
+   후보 prior 오염을 함께 보고한다.
+2. content-free prior 차감은 category top-1을 0.4808에서 0.2308로, PDD top-1을
+   0.1538에서 0.0577로 낮추고 각각 소수의 다른 후보에 다시 집중됐다. 따라서 이 보정은
+   primary ranking으로 채택하지 않고 sensitivity audit으로 보존한다.
 
 고정 calibration prompt는 임상 정보가 없는 동일 과제 형식인
 `Clinical case:\nN/A\n\nWhat is the most likely diagnosis?`로 한다. 이 보정은 모델의
-확률 calibration을 주장하는 절차가 아니라 후보명 prior 차감이다.
+확률 calibration을 주장하는 절차가 아니라 후보명 prior 차감이다. 이번 결과는 단일
+content-free prompt 차감 자체가 안정적인 진단 상태 추정기가 아님을 보여준다. Table 1의
+early forced-answer 행은 raw matched 결과를 행동 기준선으로 쓰되, probe보다 낮고 후보명
+prior에 취약하다는 제한을 캡션에 명시한다.
 
 ## 실행 상태
 
