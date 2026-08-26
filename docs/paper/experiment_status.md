@@ -6,7 +6,7 @@
 |---|---|---|---|
 | E0 DiReCT audit/evaluator | 완료 | 496행 canonical split, official oracle smoke | E1-E4 |
 | E1 source/activation | 실행 중 | 496 source outputs, P0/P1/P2 x L16/24/32 | E2 |
-| E2 capability baselines | 대기 | output head, probe, vanilla NLA | E3-E5 |
+| E2 capability baselines | 실행 중 | test P0/L32 vanilla AV 171행 완료; output head/probe 대기 | E3-E5 |
 | E3 Medical-NLA train | 대기 | SFT-only, recon-only, full, 3 seeds | E4-E6 |
 | E4 DiReCT explanation | 대기 | official metrics + human audit | Table 2 |
 | E5 DDX grounding | 대기 | shuffle/counterfactual/round-trip 통과 | RQ2, E6 gate |
@@ -71,3 +71,12 @@ official `Obs*`/`Exp*`로 별도 평가한다.
 3. P1의 `diagnosis_alias_in_reasoning`에 따른 clean/leaky 민감도 분석
 4. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
 5. Validation에서 primary layer와 probe regularization을 선택하고 test에는 고정 적용
+
+## E2 vanilla AV test 상태
+
+Test P0/L32 171행 생성은 완료됐다. `parsed_explanation_tag`는 171/171, 빈 출력은
+0/171이며 split은 test-seen 71, PDD-heldout 100으로 E1 test 모집단과 일치한다. 출력
+길이는 637--741자(중앙값 697, 평균 696.9)로 매우 좁다. 이는 generation 안정성은
+보이지만 사례별 내용 복원이나 faithfulness를 뜻하지 않는다. 동일 문구 반복률,
+own-case 대 shuffled-case 격차, 이후 official claim extraction을 통과하기 전에는
+vanilla AV의 설명 성능으로 인용하지 않는다.

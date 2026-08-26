@@ -24,6 +24,13 @@ Probe는 closed-label upper bound다. Open evidence text 열은 `N/A`이며 실�
 처리하지 않는다. Vanilla NLA의 자연어 점수가 낮아도 P0 activation에 정보가 없다는
 결론을 바로 내리지 않고 probe와 output head를 같이 본다.
 
+## 실행 상태
+
+Test P0/L32 vanilla AV는 171/171행 생성 및 `<explanation>` parsing에 성공했고 빈 출력은
+없었다. 출력 길이는 637--741자(중앙값 697, 평균 696.9)였다. 길이 안정성은 내용의
+사례 특이성과 별개다. 길이 범위가 매우 좁으므로 exact/normalized 반복률과
+own-case-versus-shuffled specificity를 우선 확인한 뒤 clinical alignment를 평가한다.
+
 ## Model selection
 
 Primary layer와 probe regularization은 train/val_seen으로 정한다. Test_seen과
