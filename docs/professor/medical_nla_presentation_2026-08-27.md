@@ -109,111 +109,206 @@ Intro에서는 “임상 설명과 activation grounding을 서로 다른 적합�
 
 ---
 
-## Slide 6A. DiReCT 한 사례에는 무엇이 들어 있는가
+## Slide 6A. DiReCT의 배포 단위
 
-DiReCT restricted release는 **511개의 임상 note JSON**과 **24개의 diagnostic KG JSON**을
-포함한다. 임상 note 한 행이 본 연구의 한 사례이며, 다음 여섯 섹션을 합쳐 backbone prompt의
-환자 기록으로 사용한다.
+DiReCT restricted release에서 본 연구가 확인한 구성은 다음과 같다.
 
-| 원 필드 | 임상 섹션 | 실제로 담는 정보 | 진단에서의 역할 |
-|---|---|---|---|
-| `input1` | Chief Complaint, 주호소 | 환자가 병원에 온 가장 직접적인 이유 | 문제의 출발점과 가장 두드러진 증상 |
-| `input2` | History of Present Illness, 현병력 | 증상의 시작, 기간, 변화, 유발·완화 요인, 동반 증상 | 현재 질환의 시간적 경과와 증상 조합 |
-| `input3` | Past Medical History, 과거력 | 기존 질환, 과거 입원·수술 등 | 기저 위험과 감별진단의 사전확률 |
-| `input4` | Family History, 가족력 | 가족의 질환과 유전적 위험 | 유전성·가족성 질환 가능성 |
-| `input5` | Physical Exam, 신체검진 | 활력징후와 의료진이 관찰·측정한 징후 | 환자 진술과 구분되는 객관적 임상 소견 |
-| `input6` | Pertinent Results, 주요 검사 결과 | 혈액검사, 영상, 심전도 등 관련 검사 | 진단을 지지하거나 배제하는 검사 증거 |
+| 구성 | 수 | 본 연구에서의 용도 |
+|---|---:|---|
+| Clinical note JSON | 511 | backbone 입력과 설명 reference |
+| Diagnostic KG JSON | 24 | 진단 ontology와 구조 감사 |
+| Disease category | 25 | 넓은 질환군 평가 |
+| Canonical PDD | 61 | 구체적인 최종 진단 평가 |
 
-여섯 필드는 서로 다른 여섯 환자가 아니라 **같은 환자의 한 임상 기록을 구성하는 여섯 부분**이다.
-모델은 특정 cue 하나만 보는 것이 아니라 주호소, 경과, 위험요인, 진찰, 검사를 함께 읽고 진단해야
-한다. 일부 필드는 원자료에서 비어 있을 수 있으며, 빈 필드에는 내용을 보충하지 않고 그대로 둔다.
+**임상 note 한 행이 한 사례**다. 한 행 안에는 같은 환자의 주호소, 현병력, 과거력, 가족력,
+신체검진, 검사 결과가 함께 들어 있다. 여섯 입력 필드는 서로 다른 환자나 여섯 독립 표본이 아니다.
 
-### Disease category와 PDD는 같은 것이 아니다
+발표 핵심 문장:
 
-```text
-넓은 질환군: Disease category = Heart Failure
-구체적 주 퇴원 진단: Primary Discharge Diagnosis (PDD) = HFrEF 또는 HFpEF
-```
-
-`PDD`는 환자 퇴원 기록 전체를 뜻하지 않고, 그 기록에 부여된 **구체적인 주 퇴원 진단 label**을
-뜻한다. DiReCT에는 25개 disease category와 이를 세분화한 61개 canonical PDD가 있다. 따라서
-category accuracy는 넓은 질환군을 맞혔는지, strict PDD accuracy는 세부 진단까지 맞혔는지를
-서로 다르게 측정한다.
-
-### 의사 주석이 제공하는 설명 구조
-
-```text
-환자 기록의 observation
-        -> 그 관찰이 진단을 지지하는 rationale
-        -> intermediate 또는 final diagnosis
-```
-
-예를 들어 실제 restricted 원문이 아닌 일반적인 예시는 다음과 같다.
-
-```text
-observation: 휴식 중에도 발생하는 흉통
-rationale:   휴식 시 흉통은 안정형보다 급성 관상동맥 증후군 가능성을 더 지지함
-diagnosis:   불안정 협심증
-```
-
-본 연구에서는 annotation tree를 `observation -> rationale -> diagnosis` deduction으로
-정규화한다. 이 구조 덕분에 단순히 최종 진단을 맞혔는지만 보지 않고 다음을 분리해 평가한다.
-
-1. 설명이 진단에 필요한 환자 관찰을 회수했는가
-2. 기록이나 의사 주석에 없는 관찰을 불필요하게 추가했는가
-3. 관찰과 진단 사이의 임상적 이유를 올바르게 연결했는가
-4. 최종 diagnosis를 올바른 specificity로 제시했는가
+> DiReCT는 진단명만 제공하는 QA 데이터가 아니라, 한 환자의 임상 기록과 의사가 표시한
+> observation-rationale-diagnosis 구조를 함께 제공한다.
 
 ---
 
-## Slide 6B. 데이터 감사 수치는 무엇을 보장하는가
+## Slide 6B. 임상 입력 1: 환자가 무엇을 호소했는가
 
-여기서 **감사(audit)**는 CoT나 Medical-NLA의 성능 평가가 아니다. 모델 실험 전에 원자료를
-정상적으로 읽을 수 있는지, label 정의가 일관적인지, 같은 환자가 train과 test에 섞일 위험은
-없는지, 의사 observation이 실제 note에 근거하는지를 확인한 데이터 품질 검사다.
+| 필드 | 임상 섹션 | 담는 정보 | 진단에서의 역할 |
+|---|---|---|---|
+| `input1` | Chief Complaint, 주호소 | 병원에 온 가장 직접적인 이유 | 문제의 출발점과 대표 증상 |
+| `input2` | History of Present Illness, 현병력 | 시작, 기간, 변화, 유발·완화 요인, 동반 증상 | 현재 질환의 시간적 경과와 증상 조합 |
+| `input3` | Past Medical History, 과거력 | 기존 질환, 과거 입원·수술 등 | 기저 위험과 감별진단의 사전확률 |
 
-| 감사 항목 | 값 | 이 값이 의미하는 것 | 이 값이 의미하지 않는 것 |
-|---|---:|---|---|
-| Raw notes / valid JSON | 511 / 511 | 제공된 511개 note가 모두 JSON으로 정상 파싱됨 | 511개 내용과 label이 모두 오류 없이 완벽함 |
-| Disease categories | 25 | 넓은 상위 질환군이 25개임 | 서로 균등한 25-class 데이터임 |
-| Canonical PDD labels | 61 | 공식 목록과 annotation root를 정규화한 세부 주 퇴원 진단 수 | 폴더 이름만 세어 얻은 최초 62개가 정본임 |
-| Parsed patient groups | 469 | 반복 note를 동일 환자 단위로 묶어 leakage를 검사할 수 있음 | 511 notes가 511명의 독립 환자임 |
-| Physician deductions | 5,109 | 전체 note에 존재하는 observation-rationale-diagnosis 연결 수 | 5,109명의 환자 또는 독립 표본이 존재함 |
-| Exact-substring grounded observations | 4,965/5,109 (.9718) | 의사가 표시한 observation의 97.18%가 note 원문에서 문자 그대로 확인됨 | 모델이 observation을 97.18% 정확도로 복원함 |
-
-### 각 감사가 필요한 이유
-
-- **JSON 유효성:** parse 실패 사례가 조건별로 조용히 빠져 분모가 달라지는 문제를 막는다.
-- **Category/PDD 정규화:** 복수형, 개행, 표기 차이와 폴더-label 충돌을 별도 진단으로 잘못 세는
-  문제를 막는다. 정본은 공식 `data_list.csv`와 annotation root를 기준으로 한 61 PDD다.
-- **Patient grouping:** 같은 환자의 반복 note가 train과 test에 동시에 들어가 환자 고유 표현을
-  기억하는 일을 막는다. 이후 split은 note-random이 아니라 patient-disjoint로 만든다.
-- **Deduction 수:** note 하나에 여러 임상 관찰과 추론 연결이 있음을 보여준다. 설명 평가의 단위는
-  환자 수와 같지 않으며, case-level 집계와 deduction-level 집계를 구분해야 한다.
-- **Exact-substring grounding:** physician observation이 원문에서 실제로 추적 가능한지 확인한다.
-  남은 144개는 곧바로 잘못된 주석으로 처리하지 않고 약어, 문장 변형, 정규화 차이를 별도 감사한다.
-
-### Raw 511행과 실제 실험 496행의 차이
-
-| 제외 사유 | 행 수 | 이유 |
-|---|---:|---|
-| Canonical PDD 의미 충돌 | 10 | 폴더 PDD와 annotation root가 임상적으로 다른 label을 가리킴 |
-| Patient ID parse 실패 | 4 | 환자 단위 분리를 보장할 수 없음 |
-| Exact duplicate copy | 1 | 동일 사례를 두 번 세는 것을 방지 |
-| **최종 eligible population** | **496** | 이후 patient-disjoint split의 고정 모집단 |
-
-따라서 `511`은 배포본 감사의 분모이고, `496`은 primary split과 후속 실험의 모집단이다.
-두 숫자를 같은 표의 분모로 섞지 않는다. 원 audit의 469 patient groups와 제외 후 split의
-458 patient groups도 같은 이유로 구분한다.
-
-마지막으로 physician annotation은 **임상적으로 바람직한 설명의 reference**이지 source model
-activation의 정답이 아니다. 모델이 오답을 선택한 사례에서는 의사 gold diagnosis와 모델 내부의
-현재 결론이 다를 수 있다. 그러므로 다음 두 질문을 하나의 점수로 합치지 않는다.
+쉽게 구분하면 다음과 같다.
 
 ```text
-Clinical alignment: 설명이 의사 주석과 임상적으로 일치하는가?
-Source-decision fidelity: 설명이 실제 source model의 현재 판단을 충실하게 읽는가?
+주호소: 지금 가장 불편해서 온 이유
+현병력: 그 문제가 언제부터 어떻게 진행됐는지
+과거력: 현재 판단에 영향을 줄 기존 질환과 이전 병력
 ```
+
+---
+
+## Slide 6C. 임상 입력 2: 의료진이 무엇을 확인했는가
+
+| 필드 | 임상 섹션 | 담는 정보 | 진단에서의 역할 |
+|---|---|---|---|
+| `input4` | Family History, 가족력 | 가족의 질환과 유전적 위험 | 유전성·가족성 질환 가능성 |
+| `input5` | Physical Exam, 신체검진 | 활력징후와 의료진이 관찰·측정한 징후 | 환자 진술과 구분되는 객관적 소견 |
+| `input6` | Pertinent Results, 주요 검사 | 혈액검사, 영상, 심전도 등 | 진단을 지지하거나 배제하는 검사 증거 |
+
+```text
+input1--3: 환자가 말한 현재 문제와 배경
+input4--6: 가족 위험, 의료진 관찰, 객관적 검사 결과
+                     ↓
+              하나의 clinical note
+                     ↓
+              동일 backbone prompt
+```
+
+일부 필드는 원자료에서 비어 있을 수 있다. 빈 필드에 임의의 정상 소견을 보충하지 않고 그대로
+두며, 모든 방법이 같은 조립 규칙으로 만든 note를 입력받는다.
+
+---
+
+## Slide 6D. Disease category와 PDD의 차이
+
+`PDD`는 **Primary Discharge Diagnosis**다. 환자의 퇴원 기록 전체가 아니라, 그 기록에 부여된
+구체적인 주 퇴원 진단 label을 뜻한다.
+
+```text
+Disease category: Heart Failure
+        ├─ PDD: HFrEF
+        └─ PDD: HFpEF
+```
+
+| 평가 | 묻는 질문 | 난이도 |
+|---|---|---|
+| Disease-category accuracy | 넓은 질환군을 맞혔는가 | 상대적으로 거친 분류 |
+| Strict-PDD accuracy | 구체적인 세부 진단까지 맞혔는가 | 더 엄격한 분류 |
+
+DiReCT에는 25 categories와 61 canonical PDD가 있다. 폴더 이름만 세어 얻은 초기 62개가 아니라,
+공식 `data_list.csv`와 annotation root를 정규화한 **61개가 정본**이다.
+
+---
+
+## Slide 6E. 의사 주석은 무엇을 제공하는가
+
+DiReCT의 의사 주석은 다음 연결을 제공한다.
+
+```text
+observation
+환자 기록에서 진단에 사용되는 사실
+        ↓
+rationale
+그 사실이 해당 진단을 지지하는 임상적 이유
+        ↓
+diagnosis
+중간 진단 또는 최종 진단
+```
+
+실제 restricted 원문이 아닌 일반적인 예시는 다음과 같다.
+
+```text
+observation: 휴식 중에도 발생하는 흉통
+rationale:   휴식 시 흉통은 급성 관상동맥 증후군 가능성을 더 지지함
+diagnosis:   불안정 협심증
+```
+
+---
+
+## Slide 6F. 이 구조로 설명의 무엇을 평가하는가
+
+Annotation tree를 `observation -> rationale -> diagnosis` deduction으로 정규화한다.
+
+| 평가 질문 | 확인하는 오류 |
+|---|---|
+| 필요한 observation을 회수했는가 | 중요한 임상 정보 누락 |
+| 불필요한 observation을 추가했는가 | 기록에 없는 내용 또는 과잉 설명 |
+| observation과 diagnosis를 올바르게 연결했는가 | 그럴듯하지만 잘못된 임상 관계 |
+| diagnosis를 올바른 specificity로 제시했는가 | 넓은 category만 맞히고 세부 PDD를 놓침 |
+
+따라서 DiReCT는 단순 진단 정확도 외에 **무엇을 관찰했고, 왜 그 진단으로 연결했는지**를
+CoT와 Medical-NLA 사이에서 비교하게 해준다.
+
+---
+
+## Slide 6G. 데이터 감사 결과
+
+감사(audit)는 CoT나 Medical-NLA의 성능 평가가 아니라, 모델 실험 전에 수행한 데이터 품질
+검사다.
+
+| 감사 항목 | 값 | 직접 확인한 것 |
+|---|---:|---|
+| Raw notes / valid JSON | 511 / 511 | 모든 배포 note가 정상 파싱됨 |
+| Disease categories | 25 | 상위 질환군 vocabulary |
+| Canonical PDD labels | 61 | 정규화된 세부 진단 vocabulary |
+| Parsed patient groups | 469 | 반복 note를 환자 단위로 묶을 수 있음 |
+| Physician deductions | 5,109 | observation-rationale-diagnosis 연결 수 |
+| Grounded observations | 4,965/5,109 (.9718) | observation이 note에 exact substring으로 존재 |
+
+`5,109 deductions`는 환자 수가 아니다. 한 note에 여러 관찰과 추론 연결이 있기 때문에 생긴
+annotation 단위의 총수다.
+
+---
+
+## Slide 6H. 감사 결과를 어떻게 해석해야 하는가
+
+| 값 | 올바른 해석 | 잘못된 해석 |
+|---|---|---|
+| 511/511 valid JSON | parse 누락 없이 전체 파일을 읽음 | 모든 내용과 label이 완벽함 |
+| 25 categories / 61 PDDs | label vocabulary의 크기 | 클래스별 표본 수가 균등함 |
+| 469 patient groups | patient-disjoint split이 필요함 | 511 notes가 511명의 독립 환자임 |
+| 4,965/5,109 grounded | physician observation의 97.18%가 원문에서 추적됨 | 모델의 observation 정확도가 97.18%임 |
+
+남은 144개 observation은 즉시 잘못된 주석으로 처리하지 않는다. 약어, 문장 변형, 정규화 차이
+때문에 exact match가 실패했을 수 있으므로 별도 감사 대상으로 남긴다.
+
+---
+
+## Slide 6I. 왜 데이터 감사를 먼저 했는가
+
+- **JSON 감사:** 조건별 parse 실패로 분모가 달라지는 것을 방지한다.
+- **Label 정규화:** 복수형·개행·폴더 표기 차이를 별도 진단으로 잘못 세지 않는다.
+- **Patient grouping:** 같은 환자의 반복 note가 train과 test에 동시에 들어가는 것을 막는다.
+- **Deduction grounding:** 설명 평가의 정답 observation이 실제 note에서 추적되는지 확인한다.
+
+즉 이 감사는 높은 모델 점수를 만들기 위한 필터가 아니라, **모든 방법을 같은 모집단과 같은
+정답 정의로 비교하기 위한 선행 조건**이다.
+
+---
+
+## Slide 6J. Raw 511행에서 실험 496행으로
+
+| 제외 사유 | 행 수 | 제외 이유 |
+|---|---:|---|
+| Canonical PDD 의미 충돌 | 10 | 폴더 PDD와 annotation root가 다른 임상 label을 가리킴 |
+| Patient ID parse 실패 | 4 | 환자 단위 분리를 보장할 수 없음 |
+| Exact duplicate copy | 1 | 동일 사례의 중복 집계를 방지 |
+| **최종 eligible population** | **496** | patient-disjoint split의 고정 모집단 |
+
+```text
+511 = restricted release 전체를 감사할 때의 분모
+496 = primary split과 후속 실험에서 사용하는 분모
+```
+
+원 audit의 469 patient groups와 제외 후 split의 458 patient groups도 같은 이유로 구분한다.
+이후 표에서 511과 496을 같은 모집단처럼 섞지 않는다.
+
+---
+
+## Slide 6K. 의사 설명과 모델 내부 상태는 다른 정답이다
+
+Physician annotation은 **임상적으로 바람직한 설명의 reference**이지 source-model activation의
+정답이 아니다. 모델이 오답을 선택한 사례에서는 의사 gold와 모델 내부의 현재 결론이 다를 수 있다.
+
+| 평가 축 | 질문 | 주된 평가 자원 |
+|---|---|---|
+| Clinical alignment | 설명이 의사 주석과 임상적으로 일치하는가 | DiReCT physician annotation |
+| Source-decision fidelity | 설명이 source model의 현재 판단을 충실하게 읽는가 | source answer와 paired controls |
+| Activation grounding | 설명이 해당 activation에 사례 특이적으로 의존하는가 | matched/shuffled와 counterfactual |
+
+세 질문을 하나의 faithfulness 점수로 합치지 않는다. DiReCT의 높은 설명 점수만으로 activation을
+충실하게 읽었다고 주장하지 않고, 별도의 activation grounding 실험을 통과해야 한다.
 
 ---
 
