@@ -80,3 +80,9 @@ Test P0/L32 171행 생성은 완료됐다. `parsed_explanation_tag`는 171/171, 
 보이지만 사례별 내용 복원이나 faithfulness를 뜻하지 않는다. 동일 문구 반복률,
 own-case 대 shuffled-case 격차, 이후 official claim extraction을 통과하기 전에는
 vanilla AV의 설명 성능으로 인용하지 않는다.
+
+같은 disease category 안에서 donor prompt를 한 칸 회전한 lexical pilot은 164행에서
+output trigram의 own-prompt containment 0.0013, shuffled-prompt containment 0.0013,
+gap -0.0001이었다. 원문 표현을 사례 특이적으로 복원한다는 증거는 없으며 generic 또는
+paraphrastic prose를 우선 의심해야 한다. 다만 exact trigram은 의미 보존 paraphrase를
+놓치므로 이 값은 경고용 진단이지 Table 2의 설명 점수나 E5 faithfulness 판정이 아니다.

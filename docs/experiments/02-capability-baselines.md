@@ -31,6 +31,12 @@ Test P0/L32 vanilla AV는 171/171행 생성 및 `<explanation>` parsing에 성�
 사례 특이성과 별개다. 길이 범위가 매우 좁으므로 exact/normalized 반복률과
 own-case-versus-shuffled specificity를 우선 확인한 뒤 clinical alignment를 평가한다.
 
+예비 same-category lexical derangement에서 164행의 own-prompt trigram containment와
+shuffled-prompt containment가 모두 0.0013이었고 gap은 -0.0001이었다. 따라서 P0 vanilla
+AV가 prompt의 사례 고유 표현을 그대로 복원한다는 증거는 없다. 이 검사는 paraphrase를
+인정하지 않으므로 최종 실패 판정으로 쓰지 않고, 동일 claim extractor와 semantic
+matcher를 이용한 own-versus-shuffled 평가의 필요성을 확인한 sanity check로만 둔다.
+
 ## Model selection
 
 Primary layer와 probe regularization은 train/val_seen으로 정한다. Test_seen과
