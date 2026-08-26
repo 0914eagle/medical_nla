@@ -59,6 +59,13 @@ source gap이 0이었다. 이 결과는 HS24 probe가 가장 높았던 결과와
 부재와 자연어 decoder 실패를 구분한다. HS16/24 AV 값은 decoder가 HS32에서 학습됐기
 때문에 appendix sensitivity로만 두며 Table 1의 primary vanilla NLA 행은 HS32를 사용한다.
 
+Blinded semantic audit도 312/312행을 판정했고 exact readout quote를 요구했다. Primary
+default/HS32/P0의 source answer, gold PDD, category match는 모두 0/52였으며 task-aligned
+HS32도 동일했다. HS16에서 category 1/52만 두 prompt에 관찰됐다. 따라서 약칭·동의어를
+허용해도 P0 진단 target 복원이 개선되지 않았다는 validation 진단은 유지된다. 이는 열린
+observation/rationale 점수나 activation grounding 점수가 아니므로 Table 2·3을 대신하지
+않으며, primary 52행 수동 감사 뒤 Table 1의 semantic diagnostic 열을 확정한다.
+
 ## Table 2. Clinical explanation alignment on DiReCT
 
 | Method | Pool | n | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |

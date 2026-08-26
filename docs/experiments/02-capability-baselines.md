@@ -170,6 +170,24 @@ disease category만 준다. `match=true`일 때 readout 안의 exact evidence qu
 activation faithfulness 자체를 증명하지는 않는다. Faithfulness는 이후 own-vs-shuffled,
 counterfactual, patching 통제로 별도로 검증한다.
 
+자동 semantic audit은 312/312행 parse에 성공했다. Exact evidence quote가 실제 readout에
+포함된 경우에만 semantic match를 인정했다.
+
+| Prompt | HS | Source answer | Gold PDD | Category |
+|---|---:|---:|---:|---:|
+| Default | 16 | 0/52 | 0/52 | 1/52 |
+| Default | 24 | 0/52 | 0/52 | 0/52 |
+| **Default** | **32** | **0/52** | **0/52** | **0/52** |
+| Task-aligned | 16 | 0/52 | 0/52 | 1/52 |
+| Task-aligned | 24 | 0/52 | 0/52 | 0/52 |
+| Task-aligned | 32 | 0/52 | 0/52 | 0/52 |
+
+따라서 primary `default_HS32/P0`의 lexical 0은 단순 약칭·임상 동의어 누락으로 설명되지
+않는다. Prompt suffix도 개선하지 않았다. 다만 이 audit은 readout이 세 진단 target을
+명시적으로 이름 붙였는지만 측정하며 physician observation/rationale의 품질이나 activation
+grounding을 측정하지 않는다. 자동 judge의 false negative를 감사하기 위해 생성된 primary
+52행의 수동 판정은 아직 비어 있으므로, 최종 표에는 수동 전수 감사 뒤 값을 확정한다.
+
 Server 62에 여섯 P0 파일을 모은 뒤 다음처럼 실행한다. 먼저 `LIMIT=8`로 schema와 인용
 검증을 smoke-test하고, 같은 출력에 full run을 resume한다. Restricted readout과 judge
 response는 모두 `${DATA_ROOT}/restricted` 아래에 남기며 커밋하지 않는다.
@@ -189,8 +207,8 @@ DATA_ROOT=/data/heejae GPU=2 \
   > /data/heejae/medical_nla/logs/direct_e2_semantic_audit_v1.log 2>&1 &
 ```
 
-Task-aligned suffix가 literal/case-specific diagnostic을 개선하지 않아 default를 vanilla
-primary로 유지한다. P1/P2 validation에서는 source-answer mention이 각각
+Task-aligned suffix가 lexical 또는 semantic diagnostic recovery를 개선하지 않아 default를
+vanilla primary로 유지한다. P1/P2 validation에서는 source-answer mention이 각각
 default 0.5192/0.5962, task-aligned 0.5577/0.5000이었지만, P1 leakage-free subset은
 5행이고 두 prompt 모두 0/5였다. P1은 CoT 문자열 누출 분석, P2는 answer-exposed positive
 control로만 사용한다.

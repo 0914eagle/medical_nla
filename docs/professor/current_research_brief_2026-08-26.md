@@ -87,6 +87,21 @@ Medical-NLA 선택과 평가에 대해 고정한 `locked downstream evaluation`�
 7. DDXPlus Table 3으로 shuffle/counterfactual/round-trip 검증
 8. Table 3 통과 시에만 text patching과 성능 개선 평가
 
+## 08-27 validation 갱신
+
+닫힌 P0 진단 정보는 HS24 probe에서 category top-1 0.5962, PDD top-1 0.4423으로
+읽혔다. 같은 후보 공간의 raw forced-answer likelihood는 각각 0.4808, 0.1538이었고,
+PDD에서는 한 후보가 35/52 top-1인 label-surface prior 붕괴가 있었다. Content-free prior
+차감은 category 0.2308, PDD 0.0577로 더 악화돼 보조 민감도 분석으로만 남긴다.
+
+Vanilla AV의 P0 312행(2 prompts x 3 layers x 52 cases)을 blinded semantic judge로
+전수 판정했다. Exact readout quote가 있는 약칭·동의어만 인정했을 때 primary
+default/HS32의 source answer, gold PDD, category는 모두 0/52였고, 전체에서 유일한 양성은
+HS16 category 1/52가 두 prompt에 나타난 경우였다. 따라서 lexical 0은 단순 alias 누락이
+아니었다. 그러나 이 평가는 진단 target의 명시적 복원만 측정하며, physician observation과
+rationale의 임상 품질 또는 activation grounding을 대신하지 않는다. 자동 판정은 primary
+52행 수동 감사 후 확정한다.
+
 이 구조에서 설명 점수만 오르면 `좋은 의료 설명 생성기`, grounding까지 통과하면
 `내부 상태 판독기`, patching까지 성공하면 `설명과 성능을 함께 개선하는 방법`이라고
 단계적으로 주장한다.

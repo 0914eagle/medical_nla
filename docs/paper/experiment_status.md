@@ -6,7 +6,7 @@
 |---|---|---|---|
 | E0 DiReCT audit/evaluator | 완료 | 496행 canonical split, official oracle smoke | E1-E4 |
 | E1 source/activation | 완료 | pilot 496 source outputs, P0/P1/P2 x HS16/24/32 완전성 확인 | E2 |
-| E2 capability baselines | 실행 중 | probe와 raw/calibrated output-head 완료; vanilla AV semantic audit 8/312 smoke 통과, full 대기 | E3-E5 |
+| E2 capability baselines | 실행 중 | probe와 raw/calibrated output-head 완료; vanilla AV semantic audit 312/312 완료, primary 52 수동 감사 대기 | E3-E5 |
 | E3 Medical-NLA train | 설계 차단 | SFT-only 실행 가능; reconstruction/full objective 미구현 | E4-E6 |
 | E4 DiReCT explanation | 대기 | official metrics + human audit | Table 2 |
 | E5 DDX grounding | 대기 | shuffle/counterfactual/round-trip 통과 | RQ2, E6 gate |
@@ -93,6 +93,10 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
 7. ~~기존 activation을 새 split ID로 재색인하고 join/completeness 100% 확인~~ 완료
 8. ~~Validation 52행에서 probe regularization을 선택~~ 완료. Locked test 평가 전 checkpoint와 분석 코드를 고정
 9. E3 전에 full objective를 RL/preference 방식으로 구현할지, SFT-only 논문으로 제한할지 결정
+10. ~~Vanilla AV P0 semantic audit 312행~~ 완료. Primary default/HS32에서 source answer,
+    gold PDD, category 모두 0/52; HS16 category만 두 prompt에서 1/52. 이 결과는 진단 target의
+    명시적 의미 복원 실패이며 observation 설명 품질이나 grounding 결과가 아님. Primary
+    52행 수동 전수 감사 후 확정
 
 ## 두 서버 병렬 실행 원칙
 
