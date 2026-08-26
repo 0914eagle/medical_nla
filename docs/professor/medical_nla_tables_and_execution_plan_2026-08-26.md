@@ -186,7 +186,7 @@ Table 3를 통과하지 못하면 Table 4는 실행하지 않는다.
 
 | Figure | 내용 | Table과 겹치지 않는 역할 |
 |---|---|---|
-| Figure 1 | CoT, P0/P1 activation, AV, AR, 세 평가 gate의 전체 파이프라인 | 연구 논리와 위치 정의 |
+| Figure 1 | CoT, P0/P1/P2 activation, AV, AR, 세 평가 gate의 전체 파이프라인 | 연구 논리와 위치 정의 |
 | Figure 2 | DiReCT 한 사례의 physician tree / CoT / vanilla / SFT-only / full NLA 비교 | 평균 점수가 숨기는 누락·환각·관계 오류 |
 | Figure 3 | 원본 대 cue-제거 반사실과 paired grounding 분포 | 설명이 case activation을 따라 변하는 과정 |
 | Figure 4 | `h -> AV -> edit -> AR -> h_edit -> patch`와 target/off-target 변화 | 자연어 bottleneck을 통한 선택적 개입 과정 |
@@ -262,14 +262,16 @@ P2: diagnosis 생성 후 activation, positive control only
 ```
 
 L16/L24/L32를 추출하되 validation에서 primary layer를 선택하고 test에는 한 번만
-적용한다. CoT reasoning에 final diagnosis alias가 먼저 등장한 행은 P1
-source-decision 분석에서 제외한다.
+적용한다. 설명 품질의 주 NLA 입력은 CoT 생성 전 P0다. P1은 reasoning 이후 trajectory
+분석이며, CoT reasoning에 final diagnosis alias가 먼저 등장한 행은 P1
+source-decision 분석에서 제외한다. 10행 smoke에서 이 누출이 8행이었으므로 P1 전체를
+CoT와의 주 비교에 사용하는 설계는 폐기한다.
 
 ### E2 이후
 
 ```text
 E0 dataset/evaluator audit
- -> E1 source CoT + P0/P1 activation
+ -> E1 source CoT + P0/P1/P2 activation
  -> E2 output-head/probe/vanilla baseline
  -> E3 SFT-only vs full Medical-NLA
  -> E4 DiReCT Table 2
@@ -283,7 +285,7 @@ E0 dataset/evaluator audit
 1. 위 세 가설의 표현이 기존 컨펌 범위를 유지하는가
 2. DiReCT를 supervised PDD-disjoint split으로 사용할 것인가
 3. `clinical alignment`와 `activation grounding`을 별도 gate로 두는 데 동의하는가
-4. CoT 대 NLA 주 위치를 P1 answer boundary로 두는가
+4. CoT 대 NLA 주 위치를 생성 전 P0로 두고, P1은 trajectory 보조 분석으로 두는가
 5. Table 3 통과 전에는 patching을 하지 않는 중단 기준에 동의하는가
 
 더 상세한 metric 산식과 학습 목적식은

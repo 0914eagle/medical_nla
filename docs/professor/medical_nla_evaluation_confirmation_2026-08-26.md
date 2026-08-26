@@ -184,10 +184,11 @@ CoT의 `<answer>`를 포함하면 diagnosis recovery가 자명해진다. 따라�
 `<reasoning>`만 사용한다.
 
 1. `<answer>` 블록 제거
-2. prompt에서 `Do not state the final diagnosis inside <reasoning>`을 명시
-3. reasoning 안에 source final diagnosis alias가 실제로 나왔는지 행별 flag 저장
-4. 설명 품질은 reasoning 전체와 diagnosis-alias 마스킹 버전을 모두 평가
-5. P1 source-decision 판독은 **reasoning에 final-answer alias가 없는 subset을 주 분석**으로 사용
+2. 자연스러운 reasoning을 유지하고, reasoning 안에 source final diagnosis alias가
+   실제로 나왔는지 행별 flag 저장
+3. 설명 품질은 reasoning 전체와 diagnosis-alias 마스킹 버전을 모두 평가
+4. CoT와 NLA의 주 비교는 CoT 생성 전 **P0 activation**을 사용
+5. P1 source-decision 판독은 reasoning에 final-answer alias가 없는 subset에서만 보조 분석
 6. leakage 포함 전체 P1 결과는 상한(upper-bound) 분석으로만 보고
 
 Reasoning에 진단명이 등장하는 것 자체도 설명 품질의 일부이므로 `Obs*`, `Exp*`
@@ -222,7 +223,7 @@ Reasoning에 진단명이 등장하는 것 자체도 설명 품질의 일부이�
 - output leakage 없는 내부 정보 판독
 - 실제 사전 경보 가능성
 
-### P1. Answer boundary token: CoT와 같은 실행 비교
+### P1. Answer boundary token: reasoning 이후 trajectory 분석
 
 Source 출력 형식을 다음처럼 고정한다.
 
@@ -244,12 +245,17 @@ reasoning + <answer> <P1> → DIAGNOSIS
 ```
 
 P1은 아직 진단명 token 자체를 보지 않았지만, 동일 run의 CoT가 끝난 뒤 형성된
-의사결정 상태다. CoT 설명과 NLA 판독을 **같은 source answer에 대해** 비교할 수
-있다는 장점이 있다.
+의사결정 상태다. 따라서 P0에서 읽힌 상태가 reasoning 이후 어떻게 바뀌는지 추적하는
+위치로는 유용하지만, CoT와 독립적인 내부 설명의 주 입력은 아니다.
 
 단, reasoning에서 최종 진단명을 먼저 말한 행은 P1 activation에도 그 문자열이
 이미 들어가 있다. 따라서 P1의 주 source-decision 분석은 `final diagnosis alias not
 present in reasoning`인 행으로 제한하고, 전체 P1은 누출 상한으로만 보고한다.
+
+10행 E1 smoke에서 이 flag가 `8/10`이었다. 표본이 작아 최종 비율은 아니지만, P1을
+주 비교 위치로 쓰면 대부분의 행에서 이미 생성된 진단 문자열을 다시 읽을 위험이
+있다는 설계 문제를 확인하기에는 충분했다. 그러므로 Table 2의 NLA 계열은 P0를 주
+입력으로 고정하고, P1은 leakage-free subset과 P0->P1 trajectory에만 사용한다.
 
 ### P2. Post-answer token: 양성 통제만
 
@@ -272,7 +278,7 @@ activation을 별도로 저장한다. 이는 전체 설명의 주 입력이 아�
 | 질문 | 주 위치 | 보조 위치 |
 |---|---|---|
 | 출력 전 조기 판독 | P0 final prompt token | P1, P2 |
-| CoT 대 NLA 설명 비교 | P1 answer boundary | P0 |
+| CoT 대 NLA 설명 비교 | P0 final prompt token | leakage-free P1 |
 | evidence locality | cue span final subtoken | P0/P1 |
 | positive leakage control | P2 post-answer | 없음 |
 
@@ -482,10 +488,10 @@ diagnosis)`를 주석했다. 아래 metric은 새로 만든 것이 아니라 DiR
 | Method | Text source | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
 |---|---|---:|---:|---:|---:|---:|---:|
 | CoT reasoning | prompt + generated reasoning | TBD | TBD | TBD | TBD | TBD | TBD |
-| Diagnosis probe | P1 activation | TBD | — | — | — | — | — |
-| Vanilla NLA | P1 activation | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-AV, SFT only | P1 activation | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-NLA | P1 activation | TBD | TBD | TBD | TBD | TBD | TBD |
+| Diagnosis probe | P0 activation | TBD | — | — | — | — | — |
+| Vanilla NLA | P0 activation | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-AV, SFT only | P0 activation | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA | P0 activation | TBD | TBD | TBD | TBD | TBD | TBD |
 
 기호를 먼저 고정한다.
 
@@ -535,9 +541,11 @@ bipartite matching 민감도 결과를 별도로 낸다. Method 이름을 가린
 - evaluator 구현: <https://github.com/wbw520/DiReCT>
 
 **CoT의 공정한 입력**: `<answer>`를 제거한 같은 source run의 reasoning만 넣는다.
-**NLA의 공정한 입력**: 그 reasoning 뒤, 첫 diagnosis token 직전 P1 activation이다.
-P1 reasoning에 diagnosis alias가 이미 적힌 행은 source-decision 분석에서 제외하고,
-전체 결과는 leakage upper bound로 별도 보고한다.
+**NLA의 공정한 주 입력**: reasoning이나 answer가 생성되기 전 final-prompt-token인 P0
+activation이다. CoT와 NLA가 같은 임상 note에서 출발하되, NLA가 CoT 문자열을 입력으로
+재사용하지 않게 한다. 첫 diagnosis token 직전 P1은 reasoning 이후 상태의 보조 분석이며,
+reasoning에 diagnosis alias가 이미 적힌 행을 제외한 결과와 전체 leakage upper bound를
+나란히 보고한다.
 
 **이 표가 답하지 않는 것**: 높은 `Expall`은 의사 annotation과 비슷하다는 뜻이지,
 그 문장이 해당 activation에서 읽혔다는 뜻이 아니다. 그 반박을 Table 3가 담당한다.
@@ -817,7 +825,15 @@ layer, activation_path, generation seed, decoding config
 ```
 
 **완료 조건**: 모든 activation path가 존재하고, token index를 원문에 역표시한 100건
-감사에서 P0/P1/P2 정의 오류가 없다.
+감사에서 P0/P1/P2 정의 오류가 없다. `diagnosis_alias_in_reasoning`과
+`gold_alias_in_reasoning`을 전수 집계하며, P1의 누출 없는 유효 표본 수도 함께 고정한다.
+
+10행 smoke에서는 strict canonical PDD hit가 `0/10`, disease-category hit가 `6/10`,
+model-answer alias의 reasoning 선행 등장이 `8/10`, gold PDD alias의 선행 등장이
+`1/10`이었다. 이는 activation 추출 실패가 아니라 open-ended source answer와 세부 PDD
+ontology가 어긋나는 문제다. Full run에서는 공식 exact `Accdiag`, category match,
+blinded semantic match를 분리해 보고하고, source-wrong activation을 gold target과
+자동 정렬된 것으로 간주하지 않는다.
 
 ### E2. 기준선과 capability boundary
 
@@ -914,10 +930,10 @@ reference-based matcher로 정성 감사한다.
    재현하고, 그 조건에서만 `Obs*`, `Exp*`를 사용하는 것에 동의하시는가?
 2. DDXPlus는 임상 설명 benchmark가 아니라 controlled patching testbed로 한정해도
    되는가?
-3. CoT 비교는 동일 run의 reasoning과 P1 answer-boundary activation 판독을 비교하는
-   방식이 적절한가?
-4. P0를 조기 판독, P1을 CoT 비교, P2를 leakage control로 사전등록하는 것에
-   동의하시는가?
+3. CoT 비교는 같은 note에서 생성한 reasoning과, 그 reasoning 생성 전 P0 activation
+   판독을 비교하는 방식이 적절한가?
+4. P0를 주 설명 판독, P1을 reasoning 이후 trajectory와 leakage-free 보조 분석,
+   P2를 positive leakage control로 사전등록하는 것에 동의하시는가?
 5. LLM judge는 expert-reference semantic matcher로만 쓰고, 100건 임상의 감사를
    붙이는 수준이면 충분한가?
 6. 본문 기여를 explanation quality + activation grounding까지로 두고, text patching은
