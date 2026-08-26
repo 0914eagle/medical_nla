@@ -5,6 +5,8 @@ DATA_ROOT="${DATA_ROOT:?Set DATA_ROOT to /data/heejae or /data1/heejae}"
 GPUS="${GPUS:-0,1}"
 SEEDS="${SEEDS:-17}"
 EPOCHS="${EPOCHS:-3}"
+EXPECTED_TRAIN="${EXPECTED_TRAIN:-248}"
+EXPECTED_VAL="${EXPECTED_VAL:-50}"
 
 cd /home/eagle0914/medical_nla
 source "${DATA_ROOT}/uv/medical_nla/bin/activate"
@@ -30,6 +32,15 @@ python scripts/make_direct_e3_sft_dataset.py \
   --seed 17
 
 cat "${DATASET}/summary.md"
+
+train_rows="$(wc -l < "${DATASET}/sft_train.jsonl")"
+val_rows="$(wc -l < "${DATASET}/sft_val.jsonl")"
+if [[ "${train_rows}" -ne "${EXPECTED_TRAIN}" || "${val_rows}" -ne "${EXPECTED_VAL}" ]]; then
+  echo "[error] unexpected SFT population: train=${train_rows}, val=${val_rows}; " \
+    "expected ${EXPECTED_TRAIN}/${EXPECTED_VAL}" >&2
+  exit 2
+fi
+echo "[population] train=${train_rows} val=${val_rows} (expected)"
 
 for seed in ${SEEDS}; do
   out="${E3}/adapters/direct_e3_sft_v1_seed${seed}"
