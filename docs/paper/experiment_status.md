@@ -81,7 +81,7 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
 ## 즉시 할 일
 
 1. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
-2. Output-head candidate sequence baseline 구현 및 validation 실행
+2. ~~Early forced-answer candidate sequence baseline 구현~~ 완료. PDD/category validation 실행
 3. ~~HS16/HS24 vanilla AV prompt sensitivity 집계~~ 완료
 4. 기존 171행은 exploratory로 동결. 새 locked downstream split 266/52/72/106과 hash는 확정 완료
 5. 새 heldout artifact 감사 완료: backbone 106/106, vanilla AV 16/106

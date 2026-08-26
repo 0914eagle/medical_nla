@@ -54,17 +54,24 @@ def normalize_candidate_id(text: str) -> str:
     return "_".join(text.strip().lower().replace("/", " ").split())
 
 
-def collect_candidates(rows: list[dict[str, Any]]) -> list[dict[str, str]]:
+def collect_candidates(
+    rows: list[dict[str, Any]],
+    *,
+    diagnosis_id_field: str = "diagnosis_id",
+    diagnosis_name_field: str = "diagnosis_name",
+) -> list[dict[str, str]]:
     by_id: dict[str, str] = {}
     for row in rows:
-        diagnosis_name = str(row.get("diagnosis_name") or "").strip()
+        diagnosis_name = str(row.get(diagnosis_name_field) or "").strip()
         if not diagnosis_name:
             aliases = row.get("diagnosis_aliases") or []
             if aliases:
                 diagnosis_name = str(aliases[0]).strip()
         if not diagnosis_name:
             continue
-        diagnosis_id = str(row.get("diagnosis_id") or normalize_candidate_id(diagnosis_name))
+        diagnosis_id = str(
+            row.get(diagnosis_id_field) or normalize_candidate_id(diagnosis_name)
+        )
         by_id.setdefault(diagnosis_id, diagnosis_name)
     return [
         {"diagnosis_id": diagnosis_id, "diagnosis_name": diagnosis_name}
@@ -72,9 +79,19 @@ def collect_candidates(rows: list[dict[str, Any]]) -> list[dict[str, str]]:
     ]
 
 
-def read_candidates(path: str | None, rows: list[dict[str, Any]]) -> list[dict[str, str]]:
+def read_candidates(
+    path: str | None,
+    rows: list[dict[str, Any]],
+    *,
+    diagnosis_id_field: str = "diagnosis_id",
+    diagnosis_name_field: str = "diagnosis_name",
+) -> list[dict[str, str]]:
     if path is None:
-        candidates = collect_candidates(rows)
+        candidates = collect_candidates(
+            rows,
+            diagnosis_id_field=diagnosis_id_field,
+            diagnosis_name_field=diagnosis_name_field,
+        )
     else:
         by_id: dict[str, str] = {}
         for row in read_jsonl(path):
@@ -274,6 +291,9 @@ def main() -> None:
     parser.add_argument("--output-jsonl", required=True)
     parser.add_argument("--summary-md", required=True)
     parser.add_argument("--candidates-jsonl", default=None)
+    parser.add_argument("--prompt-field", default="prompt")
+    parser.add_argument("--diagnosis-id-field", default="diagnosis_id")
+    parser.add_argument("--diagnosis-name-field", default="diagnosis_name")
     parser.add_argument(
         "--completion-prefix",
         default=ANSWER_CUE,
@@ -331,16 +351,28 @@ def main() -> None:
     cache_dir = cfg["paths"].get("cache_dir")
     model_cfg = cfg["source_model"]
     all_rows = list(read_jsonl(args.input))
-    all_rows = [row for row in all_rows if row.get("prompt") and row.get("diagnosis_id")]
+    all_rows = [
+        row
+        for row in all_rows
+        if row.get(args.prompt_field) and row.get(args.diagnosis_id_field)
+    ]
     if not all_rows:
-        raise ValueError("No input rows with prompt and diagnosis_id found.")
+        raise ValueError(
+            "No input rows with the requested prompt and diagnosis fields: "
+            f"{args.prompt_field!r}, {args.diagnosis_id_field!r}."
+        )
 
     # Candidates come from the whole file, before any limit. Deriving them from
     # the limited rows made --limit change the task rather than shorten it: the
     # case file is grouped by diagnosis at a hundred cases each, so --limit 200
     # left two labels, and a two-way choice scored top1 200/200 and mrr 1.0000
     # against a source model that answers these cases at 0.3724.
-    candidates = read_candidates(args.candidates_jsonl, all_rows)
+    candidates = read_candidates(
+        args.candidates_jsonl,
+        all_rows,
+        diagnosis_id_field=args.diagnosis_id_field,
+        diagnosis_name_field=args.diagnosis_name_field,
+    )
     rows = all_rows
     if args.hint_variant is not None:
         rows = [row for row in rows if str(row.get("hint_variant") or "") == args.hint_variant]
@@ -401,12 +433,12 @@ def main() -> None:
         output_path.unlink()
     out_rows = []
     for idx, row in enumerate(rows, start=1):
-        gold_id = str(row["diagnosis_id"])
+        gold_id = str(row[args.diagnosis_id_field])
         if gold_id not in candidate_by_id:
             raise ValueError(f"Gold diagnosis_id {gold_id!r} is not in candidate set.")
         prefix_ids = chat_prefix_ids(
             tokenizer,
-            prompt=str(row["prompt"]),
+            prompt=str(row[args.prompt_field]),
             completion_prefix=args.completion_prefix,
         )
         scores = score_candidates(
@@ -424,11 +456,12 @@ def main() -> None:
         out = {
             "id": row["id"],
             "base_id": row.get("base_id", row["id"]),
-            "prompt": row["prompt"],
-            "variant": row.get("variant"),
+            "prompt": row[args.prompt_field],
+            "variant": row.get("variant") or row.get("split"),
             "hint_variant": row.get("hint_variant"),
             "gold_diagnosis_id": gold_id,
-            "gold_diagnosis_name": row.get("diagnosis_name") or candidate_by_id[gold_id]["diagnosis_name"],
+            "gold_diagnosis_name": row.get(args.diagnosis_name_field)
+            or candidate_by_id[gold_id]["diagnosis_name"],
             "completion_prefix": args.completion_prefix,
             "rank_field": args.rank_field,
             "num_candidates": len(candidates),

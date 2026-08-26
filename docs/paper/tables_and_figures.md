@@ -20,7 +20,7 @@
 
 | Method | Coverage | Seen-PDD gold | Held-out-PDD gold | Category gold | Source-decision fidelity | Open evidence | Trained task head | Eval ontology |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Output-head candidate score |  |  |  |  |  | N/A | No | Yes |
+| CoT-P0 early forced-answer candidate likelihood |  |  |  |  |  | N/A | No | Yes |
 | Linear PDD probe |  |  | N/A |  |  | N/A | Yes | Yes |
 | Vanilla NLA, default prompt |  |  |  |  |  |  | No | No |
 | Vanilla NLA, task-aligned prompt |  |  |  |  |  |  | No | No |
@@ -29,9 +29,11 @@
 `N/A`는 0점이 아니라 해당 출력 공간이 정의되지 않았다는 뜻이다. 특히 supervised PDD
 probe는 train에 없던 PDD를 출력할 수 없으므로 PDD-heldout을 zero-shot accuracy처럼
 보고하지 않는다. Category probe는 held-out PDD의 category가 train에 있을 때 별도로
-평가한다. Output-head candidate score는 P0 뒤에 각 사전등록 PDD 문자열을 teacher-force해
-길이 정규화 sequence log-likelihood로 순위를 매긴다. 별도 head를 학습하지 않지만 후보
-ontology를 제공받으므로 열린 생성 기준선이 아니다. Panel A와 B는 같은 case IDs를
+평가한다. Early forced-answer baseline은 CoT-P0 prompt 뒤에 `The answer is`를 붙이고 각
+사전등록 PDD 문자열을 teacher-force해 길이 정규화 sequence log-likelihood로 순위를
+매긴다. 이는 raw next-token logit이나 저장된 P0 벡터의 직접 unembedding이 아니라,
+reasoning을 생략하고 답을 강제한 backbone 행동 기준선이다. 별도 head를 학습하지 않지만
+후보 ontology를 제공받으므로 열린 생성 기준선도 아니다. Panel A와 B는 같은 case IDs를
 쓰더라도 질문이 다르므로 한 평균으로 합치지 않는다.
 
 Validation에서 probe layer를 고를 때는 별도 보조표에 HS16/24/32의 top-1, top-5, MRR,

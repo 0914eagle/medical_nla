@@ -6,7 +6,7 @@
 
 ## 비교 방법
 
-1. Source output-head candidate sequence likelihood
+1. Source early forced-answer candidate sequence likelihood
 2. Linear probe
 3. Source CoT
 4. Vanilla NLA/AV
@@ -24,11 +24,39 @@ Probe는 closed-label upper bound다. Open evidence text 열은 `N/A`이며 실�
 처리하지 않는다. Vanilla NLA의 자연어 점수가 낮아도 P0 activation에 정보가 없다는
 결론을 바로 내리지 않고 probe와 output head를 같이 본다.
 
-Output-head baseline은 단일 다음-token logit이 아니다. PDD 이름이 여러 token일 수 있으므로
-각 사전등록 candidate label을 P0 다음에 teacher-force하고 label token들의 평균 log
-probability로 순위를 매긴다. 별도 분류 head는 없지만 평가 label ontology를 제공받는
-closed candidate-ranking baseline이다. Held-out PDD를 candidate list에 넣은 결과는
-zero-shot open generation이 아니라 ontology-given ranking으로 표기한다.
+Candidate-likelihood baseline은 단일 다음-token logit이나 저장된 P0 벡터의 unembedding이
+아니다. P0 prompt가 먼저 추론하라고 요구하므로 `The answer is`를 강제로 붙인 뒤 각
+사전등록 candidate label을 teacher-force하고 label token들의 평균 log probability로
+순위를 매긴다. 따라서 명칭은 **CoT-P0 early forced-answer candidate likelihood**로 고정한다.
+이는 reasoning 없이 바로 답하게 했을 때 backbone이 가진 닫힌 진단 선호를 보는 행동
+기준선이며, 실제 CoT의 next-token distribution이나 P0 한 벡터만의 정보라고 부르지 않는다.
+별도 분류 head는 없지만 평가 label ontology를 제공받는 closed candidate-ranking
+baseline이다. Held-out PDD를 candidate list에 넣은 결과도 zero-shot open generation이
+아니라 ontology-given ranking으로 표기한다.
+
+Validation 실행은 `scripts/run_direct_e2_forced_answer_baseline.sh`로 고정한다. 이 wrapper는
+오직 HS32/P0 `manifest_val_seen.jsonl`만 읽으며 locked-test path를 인터페이스에 두지 않는다.
+전체 canonical manifest에서 결과와 무관하게 사전등록된 61 PDD 또는 25 category label만
+추출해 candidate set을 고정한다. Primary ranking은 multi-token 길이를 정규화한
+`logprob_mean`이다.
+
+두 label space는 서로 독립이므로 두 서버에서 병렬 실행한다.
+
+```bash
+# Server 125: 61-way canonical PDD
+DATA_ROOT=/data1/heejae GPUS=0,1 LABEL_FIELD=canonical_pdd \
+  nohup bash scripts/run_direct_e2_forced_answer_baseline.sh \
+  > /data1/heejae/medical_nla/logs/direct_e2_forced_answer_pdd_val_v1.log 2>&1 &
+
+# Server 62: 25-way disease category
+DATA_ROOT=/data/heejae GPUS=2,3 LABEL_FIELD=disease_category \
+  nohup bash scripts/run_direct_e2_forced_answer_baseline.sh \
+  > /data/heejae/medical_nla/logs/direct_e2_forced_answer_category_val_v1.log 2>&1 &
+```
+
+두 실행 모두 validation 52행만 점수화한다. PDD와 category 결과는 후보 수와 label
+granularity가 다르므로 서로 정확도를 직접 비교하지 않고 각각 같은 label space의 probe와
+비교한다.
 
 ## 실행 상태
 
