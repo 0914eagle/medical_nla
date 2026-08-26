@@ -1,4 +1,4 @@
-from scripts.summarize_direct_e2_readouts import summarize_arm
+from scripts.summarize_direct_e2_readouts import parse_named_path, summarize_arm
 
 
 def test_summary_uses_same_category_different_answer_donor() -> None:
@@ -57,3 +57,9 @@ def test_p1_leakage_free_subset_is_reported() -> None:
     result = summarize_arm(rows, {"a": {"answer": "Alpha"}})
     assert result["p1_leakage_free_n"] == 1
     assert result["p1_leakage_free_source_mention"] == 1.0
+
+
+def test_named_path_keeps_path_after_first_equals() -> None:
+    name, path = parse_named_path("aligned=/tmp/a=b.jsonl")
+    assert name == "aligned"
+    assert str(path) == "/tmp/a=b.jsonl"

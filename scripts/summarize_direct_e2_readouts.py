@@ -205,12 +205,20 @@ def write_summary(path: Path, summaries: dict[str, dict[str, Any]]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--readout", action="append", required=True, help="NAME=PATH")
-    parser.add_argument("--source-answers", required=True, type=Path)
+    parser.add_argument("--source-answers", nargs="+", required=True, type=Path)
     parser.add_argument("--output-json", required=True, type=Path)
     parser.add_argument("--summary-md", required=True, type=Path)
     args = parser.parse_args()
 
-    sources = {base_id(row): row for row in read_jsonl(args.source_answers)}
+    sources: dict[str, dict[str, Any]] = {}
+    for path in args.source_answers:
+        for row in read_jsonl(path):
+            case_id = base_id(row)
+            if not case_id:
+                raise ValueError(f"Missing base_id in {path}")
+            if case_id in sources:
+                raise ValueError(f"Duplicate source answer for {case_id!r} across inputs")
+            sources[case_id] = row
     named_rows: dict[str, list[dict[str, Any]]] = {}
     expected_ids: set[str] | None = None
     for value in args.readout:
