@@ -73,6 +73,11 @@ source answers 496, activation rows 1,488, tensor 4,464개다. 각 case마다 P0
 위치와 HS16/HS24/HS32 세 index가 모두 존재한다. Train+validation prompt token 최대는
 4,834였고 tensor 저장 dtype은 float32다.
 
+62번에서 frozen split을 독립 재현한 결과 logical population hash와 네 split ID hash가
+125번 정본과 모두 일치했다. 두 서버의 activation을 62번으로 모아 재색인했으며
+266/52/72/106 cases가 각각 2,394/468/648/954 activation rows에 대응한다. 전체 4,464행에서
+case x position x layer grid가 완전하고, duplicate·unassigned·missing path는 0이다.
+
 ## 즉시 할 일
 
 1. Train/validation의 strict PDD, category, token-F1을 같은 방식으로 집계
@@ -80,9 +85,9 @@ source answers 496, activation rows 1,488, tensor 4,464개다. 각 case마다 P0
 3. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
 4. 기존 171행은 exploratory로 동결. 새 locked downstream split 266/52/72/106과 hash는 확정 완료
 5. 새 heldout artifact 감사 완료: backbone 106/106, vanilla AV 16/106
-6. 62번에서 logical population/split hash가 125번과 동일한지 확인
-7. 기존 activation을 새 split ID로 재색인하고 join/completeness 100% 확인
-8. Validation에서 primary index와 probe regularization을 선택하고 locked test에는 고정 적용
+6. ~~62번에서 logical population/split hash가 125번과 동일한지 확인~~ 완료
+7. ~~기존 activation을 새 split ID로 재색인하고 join/completeness 100% 확인~~ 완료
+8. Validation 52행에서 primary index와 probe regularization을 선택하고 locked test에는 고정 적용
 9. E3 전에 full objective를 RL/preference 방식으로 구현할지, SFT-only 논문으로 제한할지 결정
 
 Gold-label-in-note audit은 raw 511행 중 28행(0.0548)으로 완료됐다. 기존 test CoT 171행에는

@@ -90,15 +90,16 @@ P1은 CoT 안에 최종 진단이 이미 등장할 수 있다. smoke 10건에서
 ## 현재 상태
 
 - E0 DiReCT 감사·환자 분리 split·공식 evaluator smoke: 완료
-- E1 source CoT와 P0/P1/P2 activation: 두 서버에서 실행 중
-- E2 이후 baseline, Medical-NLA 학습, 설명 평가, grounding, patching: 대기
+- E1 source CoT와 P0/P1/P2 activation: 496행 및 4,464 tensors 완료
+- E2 capability baseline: 실행 중. Medical-NLA 학습, 설명 평가, grounding, patching은 대기
 
 현재 171행 test 결과는 P0/P1/P2와 vanilla AV 설계 점검에 이미 사용했으므로
 `exploratory pilot`이다. E3 이후 downstream 평가용 split은 266 train / 52 validation /
 72 seen test / 106 PDD-heldout test로 동결했다. 다만 raw 496행 전체가 과거 source 실행의
 universe였고 감사 결과 heldout 106/106에 backbone output, 16/106에 vanilla AV output이
 이미 존재했다. 따라서 이를 `dataset-level untouched test`라고 부르지 않고
-`locked downstream evaluation`으로 제한한다.
+`locked downstream evaluation`으로 제한한다. 기존 tensor는 이 split에 100% 재색인됐고,
+266/52/72/106 cases와 2,394/468/648/954 activation rows가 완전히 일치한다.
 상세 감사와 표별 분모는
 [`design_and_population_audit_2026-08-26.md`](design_and_population_audit_2026-08-26.md)를 따른다.
 

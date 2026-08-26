@@ -51,7 +51,8 @@ Gemma-3-12B-IT에서 source CoT와 layer 16/24/32 activation 추출을 완료했
 
 두 서버를 합쳐 source answers 496행, P0/P1/P2 activation rows 1,488행,
 HS16/HS24/HS32 tensor 4,464개가 생성됐다. 새 locked split은 source forward pass를
-바꾸지 않으므로 이 tensor들을 ID로 재색인해 사용하고, 100% join을 확인한다.
+바꾸지 않으므로 이 tensor들을 ID로 재색인했다. 두 서버에서 split hash가 일치했고,
+266/52/72/106 cases와 2,394/468/648/954 activation rows가 100% 조인됐다.
 
 10행 smoke에서 answer parse는 100%, strict PDD alias는 0%, disease category는 60%였다.
 세부 PDD가 매우 좁아 strict 값만으로 모델을 판단하지 않고 official semantic evaluator와

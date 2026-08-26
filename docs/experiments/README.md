@@ -7,7 +7,7 @@
 | ID | 실험 | 상태 | 주 산출물 |
 |---|---|---|---|
 | E0 | DiReCT data/evaluator audit | 완료 | canonical split, evaluator smoke |
-| E1 | Source CoT and activation extraction | 실행 중 | P0/P1/P2 x L16/24/32 |
+| E1 | Source CoT and activation extraction | 완료 | 496 cases, P0/P1/P2 x HS16/24/32 |
 | E2 | Capability baselines | 실행 중 | Table 1, HS32 primary baseline |
 | E3 | Medical-NLA training | 설계 차단 | SFT-only 가능, full objective 미구현 |
 | E4 | DiReCT explanation evaluation | 대기 | Table 2, Figure 2 |
