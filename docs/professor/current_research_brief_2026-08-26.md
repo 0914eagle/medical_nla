@@ -66,14 +66,15 @@ label token F1은 0.1850으로 Direct 0.1593보다 높았지만 이는 진단명
 단, 이 171행은 P0/P1/P2 위치 선택과 vanilla AV 진단에 이미 사용했으므로 untouched final
 test가 아니다. 위 수치는 pilot로만 보존한다. 새 106행 PDD-heldout은 pilot-heldout 5개
 PDD를 금지하고 선택했으며, logical population SHA-256과 split ID SHA-256을 동결했다.
-다만 이 106행 중 일부는 과거 train/validation source 실행에서 output이 이미 생성됐을 수
-있다. 그러므로 정확한 overlap을 집계하기 전에는 `dataset-level untouched`라고 하지 않고,
-이 시점 이후 Medical-NLA 선택과 평가에 대해 고정한 downstream-confirmatory split이라고 한다.
+감사 결과 이 106행은 모두 과거 backbone output이 생성됐고, 그중 16행은 CoT와 vanilla AV
+output까지 존재했다. 따라서 `dataset-level untouched`라고 하지 않고, 이 시점 이후
+Medical-NLA 선택과 평가에 대해 고정한 `locked downstream evaluation`이라고 한다. 완전히
+외부인 confirmatory 일반화 근거는 MCR에 둔다.
 
 ## 다음 순서
 
 1. E1 source/activation 완주와 official source score
-2. 새 confirmatory heldout 106행이 과거 artifact에 얼마나 materialize됐는지 aggregate 감사
+2. 새 heldout artifact 감사 완료: backbone 106/106, vanilla AV 16/106
 3. 62번에서 같은 logical population/split ID hash 재현 후 서버별 source path 정규화
 4. Output head, linear probe, default/task-aligned vanilla NLA baseline. 공개 AV/AR 호환 때문에 HS32를 primary로 사용
 5. SFT-only를 3 seeds로 학습. Reconstruction/full은 objective 구현 후에만 추가

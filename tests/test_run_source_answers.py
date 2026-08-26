@@ -1,9 +1,17 @@
 from scripts.run_source_answers import (
+    answer_row_key,
     differential_rank,
     matches_where,
     parse_where,
     reasoning_before_final_answer,
 )
+
+
+def test_resume_key_distinguishes_stacked_variants():
+    assert answer_row_key({"id": "case-1", "variant": "none"}) != answer_row_key(
+        {"id": "case-1", "variant": "wrong"}
+    )
+    assert answer_row_key({"id": "case-1"}) == ("case-1", "")
 
 
 def test_differential_rank_reports_where_the_answer_sits():

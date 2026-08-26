@@ -159,6 +159,18 @@ def batched(rows: list[dict[str, Any]], size: int):
         yield rows[start : start + size]
 
 
+def answer_row_key(row: dict[str, Any]) -> tuple[str, str]:
+    """Stable key for interrupted-run resumption.
+
+    Some experiment files stack several variants of one base case, so base_id
+    alone is not unique. The emitted row preserves the case id and variant.
+    """
+    identifier = row.get("id")
+    if identifier is None:
+        raise ValueError("A source-answer row lacks id")
+    return str(identifier), str(row.get("variant") or "")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/default.yaml")
@@ -216,6 +228,16 @@ def main() -> None:
         default=17,
         help="Seed for --limit, which samples rather than taking the front.",
     )
+    parser.add_argument(
+        "--resume",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Keep valid rows already present in --output-jsonl and generate only "
+            "missing case IDs. Existing rows outside the selected case set or "
+            "duplicate keys stop the run."
+        ),
+    )
     args = parser.parse_args()
 
     # Imported here so the scoring helpers stay testable without a GPU stack.
@@ -260,8 +282,41 @@ def main() -> None:
 
     output_path = Path(args.output_jsonl)
     ensure_dir(output_path.parent)
-    if output_path.exists():
+    existing_rows: list[dict[str, Any]] = []
+    if output_path.exists() and args.resume:
+        existing_rows = list(read_jsonl(output_path))
+    elif output_path.exists():
         output_path.unlink()
+
+    target_keys = [answer_row_key(row) for row in rows]
+    if len(target_keys) != len(set(target_keys)):
+        raise SystemExit("selected case rows contain duplicate (id, variant) keys")
+    existing_keys = [answer_row_key(row) for row in existing_rows]
+    if len(existing_keys) != len(set(existing_keys)):
+        raise SystemExit("existing output contains duplicate (id, variant) keys")
+    extra_keys = set(existing_keys) - set(target_keys)
+    if extra_keys:
+        raise SystemExit(
+            f"existing output contains {len(extra_keys)} rows outside the selected cases"
+        )
+    wrong_conditions = {
+        str(row.get("condition"))
+        for row in existing_rows
+        if str(row.get("condition")) != args.condition
+    }
+    if wrong_conditions:
+        raise SystemExit(
+            "existing output was produced for another condition: "
+            f"{sorted(wrong_conditions)}"
+        )
+    existing_key_set = set(existing_keys)
+    generation_rows = [row for row in rows if answer_row_key(row) not in existing_key_set]
+    if existing_rows:
+        print(
+            f"[resume] valid existing rows {len(existing_rows):,}/{len(rows):,}; "
+            f"generating {len(generation_rows):,}",
+            flush=True,
+        )
 
     cache_dir = cfg["paths"].get("cache_dir")
     model_cfg = cfg["source_model"]
@@ -275,12 +330,20 @@ def main() -> None:
     model.eval()
 
     torch.manual_seed(int(cfg.get("seed", 17)))
-    n_correct = 0
-    n_parsed = 0
-    n_forced = 0
-    n_answer_in_reasoning = 0
-    n_gold_in_reasoning = 0
-    ranks: list[int] = []
+    n_correct = sum(bool(row.get("source_correct")) for row in existing_rows)
+    n_parsed = sum(bool(row.get("answer_parsed")) for row in existing_rows)
+    n_forced = sum(bool(row.get("answer_forced")) for row in existing_rows)
+    n_answer_in_reasoning = sum(
+        bool(row.get("diagnosis_alias_in_reasoning")) for row in existing_rows
+    )
+    n_gold_in_reasoning = sum(
+        bool(row.get("gold_alias_in_reasoning")) for row in existing_rows
+    )
+    ranks: list[int] = [
+        int(row["differential_rank"])
+        for row in existing_rows
+        if row.get("differential_rank") is not None
+    ]
 
     def generate(texts: list[str], budget: int) -> list[str]:
         encoded = tokenizer(
@@ -376,7 +439,7 @@ def main() -> None:
     # failures, and finished in one batched second pass at the end.
     pending: list[tuple[dict[str, Any], str, str]] = []
 
-    for index, batch in enumerate(batched(rows, args.batch_size)):
+    for index, batch in enumerate(batched(generation_rows, args.batch_size)):
         chat_texts = [
             tokenizer.apply_chat_template(
                 [{"role": "user", "content": row[field]}],
@@ -398,7 +461,8 @@ def main() -> None:
                 continue
             emit(row, response, forced=False)
         if index and index % 25 == 0:
-            done = min((index + 1) * args.batch_size, len(rows))
+            generated = min((index + 1) * args.batch_size, len(generation_rows))
+            done = len(existing_rows) + generated
             print(
                 f"[gen] {done:,}/{len(rows):,} | "
                 f"parsed {n_parsed / max(done, 1):.3f} | "
@@ -409,7 +473,8 @@ def main() -> None:
 
     if pending:
         print(
-            f"[force] {len(pending):,}/{len(rows):,} chains reached the token budget "
+            f"[force] {len(pending):,}/{len(generation_rows):,} new chains reached "
+            "the token budget "
             "without an answer; completing them from their own reasoning",
             flush=True,
         )
@@ -452,7 +517,15 @@ def main() -> None:
         path = Path(args.summary_json)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    print(f"[done] wrote {len(rows):,} answers to {output_path}")
+    final_rows = list(read_jsonl(output_path))
+    final_keys = [answer_row_key(row) for row in final_rows]
+    if len(final_rows) != len(rows) or set(final_keys) != set(target_keys):
+        raise RuntimeError(
+            "source-answer completeness check failed: "
+            f"expected={len(rows)}, found={len(final_rows)}, "
+            f"unique={len(set(final_keys))}"
+        )
+    print(f"[done] wrote {len(final_rows):,} answers to {output_path}")
 
     del model
     torch.cuda.empty_cache()

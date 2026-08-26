@@ -64,19 +64,28 @@ python scripts/make_direct_e1_cases.py \
   --summary-md "${REPORT_DIR}/cases_summary.md" \
   --splits "${SPLIT_ARGS[@]}"
 
-if [[ "${FORCE}" == "1" || ! -s "${SOURCE_ANSWERS}" ]]; then
-  echo "[stage 2/4] generate source CoT and diagnosis on visible GPUs ${GPUS}"
-  python scripts/run_source_answers.py \
-    --config "${CONFIG}" \
-    --cases "${CASES}" \
-    --condition cot \
-    --no-force-answer \
-    --batch-size "${BATCH_SIZE}" \
-    --output-jsonl "${SOURCE_ANSWERS}" \
-    --summary-json "${SOURCE_SUMMARY}" \
-    "${LIMIT_ARGS[@]}"
-else
-  echo "[stage 2/4] reuse existing source answers: ${SOURCE_ANSWERS}"
+SOURCE_RESUME_ARG=--resume
+if [[ "${FORCE}" == "1" ]]; then
+  SOURCE_RESUME_ARG=--no-resume
+fi
+echo "[stage 2/4] generate/resume source CoT and diagnosis on visible GPUs ${GPUS}"
+python scripts/run_source_answers.py \
+  --config "${CONFIG}" \
+  --cases "${CASES}" \
+  --condition cot \
+  --no-force-answer \
+  --batch-size "${BATCH_SIZE}" \
+  --output-jsonl "${SOURCE_ANSWERS}" \
+  --summary-json "${SOURCE_SUMMARY}" \
+  "${SOURCE_RESUME_ARG}" \
+  "${LIMIT_ARGS[@]}"
+
+EXPECTED_SOURCE_ROWS=$(wc -l < "${CASES}")
+ACTUAL_SOURCE_ROWS=$(wc -l < "${SOURCE_ANSWERS}")
+if [[ "${ACTUAL_SOURCE_ROWS}" -ne "${EXPECTED_SOURCE_ROWS}" ]]; then
+  echo "[error] incomplete source answers: expected ${EXPECTED_SOURCE_ROWS}, " \
+       "found ${ACTUAL_SOURCE_ROWS}" >&2
+  exit 1
 fi
 
 echo "[stage 3/4] build teacher-forced P0/P1/P2 extraction rows"

@@ -72,7 +72,7 @@ official `Obs*`/`Exp*`로 별도 평가한다.
 3. P1의 `diagnosis_alias_in_reasoning`에 따른 clean/leaky 민감도 분석
 4. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
 5. 기존 171행은 exploratory로 동결. 새 downstream-confirmatory split 266/52/72/106과 hash는 확정 완료
-6. 새 heldout 106행과 과거 source/readout artifact의 materialization overlap 집계
+6. 새 heldout 106행과 과거 artifact overlap 집계 완료: backbone 106/106, vanilla AV 16/106
 7. 62번에서 logical population/split hash가 125번과 동일한지 확인
 8. Confirmatory validation에서 primary index와 probe regularization을 선택하고 final test에는 고정 적용
 9. E3 전에 full objective를 RL/preference 방식으로 구현할지, SFT-only 논문으로 제한할지 결정
@@ -127,5 +127,7 @@ Seed 17, pilot-heldout PDD component 금지 조건으로 266 train / 52 val-seen
 12 PDD와 10 categories로 구성되고 gold-label-in-note는 5/106이다.
 
 이 split은 앞으로의 downstream Medical-NLA 선택과 평가에는 고정됐지만, 과거 source
-실행 universe와 같은 496행을 재분할한 것이다. 과거 output artifact와 실제로 겹치는
-행 수를 감사하기 전에는 `dataset-level untouched`라고 쓰지 않는다.
+실행 universe와 같은 496행을 재분할한 것이다. 감사 결과 heldout 106/106 모두 과거
+backbone output이 존재했고, old test-seen에서 온 16행은 CoT와 vanilla AV output도
+존재했다. 따라서 `dataset-level untouched`나 pristine confirmatory test라고 쓰지 않고
+`locked downstream evaluation`으로 제한한다.

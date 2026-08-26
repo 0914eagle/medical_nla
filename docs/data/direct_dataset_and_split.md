@@ -72,10 +72,10 @@ Heldout 106행은 eligible 496행의 21.4%다. 목표 20%와의 차이는 PDD co
 행 단위로 쪼개지 않고 category coverage를 유지한 결과다.
 
 이 split은 **E3 이후 downstream Medical-NLA 평가를 지금부터 고정하는 protocol**이다.
-496행 전체가 과거 source 실행의 universe였으므로, 과거 artifact와 겹치는 행이 있으면
-`dataset-level untouched test`라고 부르지 않는다. 대신 과거 출력 materialization overlap을
-aggregate-only로 감사하고, 이 시점 이후 test readout을 보고 prompt, layer, epoch,
-threshold를 바꾸지 않는다.
+감사 결과 heldout 106/106은 과거 backbone output이 존재했고, old test-seen에서 이동한
+16행은 CoT와 vanilla AV output까지 존재했다. 따라서 `dataset-level untouched test`가 아닌
+`locked downstream evaluation`이라고 부른다. 이 시점 이후 test readout을 보고 prompt,
+layer, epoch, threshold를 바꾸지 않으며, 외부 confirmatory 일반화는 MCR에서 평가한다.
 
 ## 266 confirmatory train rows로 가능한 범위
 

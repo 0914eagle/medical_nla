@@ -228,8 +228,9 @@ connected-component 단위의 복수 seed 또는 group K-fold와 PDD별 macro �
 split을 동결했다. 크기는 train 266 / val-seen 52 / test-seen 72 /
 test-PDD-heldout 106이며, heldout은 12 PDD와 10 categories다. Logical population
 SHA-256은 `7d0a89a880fa868959099b7146c369cccaac5e7701d7ce5d8f01356ecfb68894`다.
-다만 같은 496행 universe에서 과거 source output이 생성됐을 수 있으므로, artifact overlap
-감사 전에는 이를 dataset-level untouched test라고 부르지 않는다.
+Artifact 감사 결과 heldout 106/106에 과거 backbone output이 존재했고 16/106에는
+vanilla AV output도 존재했다. 따라서 dataset-level untouched test가 아니라
+locked downstream evaluation이라고 부른다.
 
 공식 evaluator smoke test 코드는 준비되었다.
 

@@ -75,10 +75,11 @@ Split별 exact gold-label-in-note는 18/266, 2/52, 3/72, 5/106이다.
 (21.4%)에서 멈췄다. 이는 결과를 본 사후 표본 조정이 아니라 split 알고리즘의 원자 단위
 제약이다.
 
-단, 새 106행이 과거 pilot split의 train/validation/seen test에 포함됐을 수 있고, source
-output이 이미 materialize됐을 수 있다. 이는 E3 이후 downstream 선택을 지금부터 동결하는
-용도에는 사용할 수 있지만, 데이터셋 수준의 pristine external test라는 주장은 막는다.
-`audit_direct_confirmatory_exposure.py`로 실제 artifact overlap을 기록한다.
+과거 artifact 감사 결과 106/106 모두 backbone output이 이미 materialize됐다. 구체적으로
+old train 70, old validation 20, old test-seen 16행이며, 마지막 16행은 CoT와 vanilla AV
+output까지 생성됐다. 이는 E3 이후 downstream 선택을 지금부터 동결하는 용도에는 사용할 수
+있지만, 데이터셋 수준의 pristine external test라는 주장은 막는다. 따라서 논문에서는
+`locked downstream evaluation`으로 부르고 외부 confirmatory 근거는 MCR에 둔다.
 
 ### 보류안 B: nested patient/PDD group evaluation
 
@@ -192,7 +193,7 @@ Medical-NLA의 이득은 2번보다 높아야 의료 supervision의 기여로 �
 ## 9. 실행 전 필수 체크리스트
 
 - [x] downstream-confirmatory protocol과 ID hash 동결
-- [ ] confirmatory heldout과 과거 materialized artifact overlap 집계
+- [x] confirmatory heldout과 과거 materialized artifact overlap 집계: 106/106
 - [ ] train/val/test patient 및 PDD 교집합 0 재검사
 - [ ] DiReCT raw leakage 28/511 확인 완료. Confirmatory split별 비율과 sensitivity cohort 동결
 - [ ] 각 표의 expected IDs 파일 생성

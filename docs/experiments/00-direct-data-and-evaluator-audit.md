@@ -60,6 +60,6 @@ Pilot-heldout 5개 PDD component를 재선택하지 못하게 한 seed 17 split�
 Split별 gold-label-in-note는 18/266, 2/52, 3/72, 5/106이다. Patient/PDD component
 disjoint invariant와 train에서 모든 seen PDD가 최소 한 번 등장하는 invariant를 통과했다.
 
-이 split은 E3 이후 downstream 분석에 대해 prospective하게 동결됐지만, raw 496행 중 일부는
-기존 pilot source 실행에서 출력이 이미 생성됐을 수 있다. 따라서 별도 overlap 감사 전에는
-`완전히 보지 않은 데이터셋 test`가 아니라 `frozen downstream-confirmatory split`이라고 쓴다.
+이 split은 E3 이후 downstream 분석에 대해 prospective하게 동결됐지만, artifact 감사에서
+heldout 106/106의 backbone output이 이미 존재했고 16/106은 vanilla AV까지 존재했다.
+따라서 `완전히 보지 않은 데이터셋 test`가 아니라 `locked downstream evaluation`이라고 쓴다.
