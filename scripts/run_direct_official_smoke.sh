@@ -8,7 +8,7 @@ set -euo pipefail
 #   GPU=0 nohup bash scripts/run_direct_official_smoke.sh > "$ART/logs/direct_eval_smoke.log" 2>&1 &
 
 CODE_ROOT="${CODE_ROOT:-/home/eagle0914/medical_nla}"
-DATA_ROOT="${DATA_ROOT:-/data1/heejae}"
+DATA_ROOT="${DATA_ROOT:-${MEDICAL_NLA_DATA_ROOT:-/data1/heejae}}"
 PRIVATE_ROOT="${PRIVATE_ROOT:-${DATA_ROOT}/restricted/direct}"
 OFFICIAL_REPO="${OFFICIAL_REPO:-${PRIVATE_ROOT}/official_repo}"
 SAMPLES_ROOT="${SAMPLES_ROOT:-${PRIVATE_ROOT}/samples}"
