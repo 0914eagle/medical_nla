@@ -147,6 +147,19 @@ vanilla primary prompt로 유지하고 task-aligned는 prompt sensitivity로 남
 lexical diagnostic이므로 P0 정보 부재가 아니라 probe/output-head와의 판독 능력 차이로
 검증한다.
 
+이 0은 semantic score가 아니다. 현재 scorer는 case/punctuation/plural과 등록된 gold alias는
+처리하지만 source answer/category의 약칭과 미등록 임상 동의어를 추론하지 않는다. 따라서
+`GERD`, `PE` 또는 표현 수준의 동의어가 false negative일 수 있다. Frozen validation P0는
+52 cases x 2 prompts x 3 layers = 312 readout이며, 이 312행 전체를 local Llama-3-8B judge로
+blinded semantic audit하고 primary default/HS32 52행을 전수 수동 감사한다. Judge에는 note를
+보이지 않고 세 target의 역할과 순서를 숨기며, 판정 근거로 readout 안의 exact quote를
+요구한다. 완료 전까지 0.0000은 lexical lower bound로만 인용한다.
+
+Validation에는 P1/P2 208행도 있어 총 520 readout을 생성했다. 별도의 old exploratory test는
+171 cases x P0/P1/P2 = 513행이다. 운영상 누적 1,033행을 하나의 평가 모집단으로 합치지 않는다.
+방법 선택의 primary 분모는 default/HS32/P0 52행이고, layer/prompt sensitivity 분모는 P0
+312행이다.
+
 같은 validation의 P1/P2 positive control에서는 source-answer mention이 default
 0.5192/0.5962, task-aligned 0.5577/0.5000이었다. Same-category donor 대비 gap도
 +0.4091~+0.5000으로 사례별 source answer와 연결됐다. 그러나 P1에서 CoT reasoning에

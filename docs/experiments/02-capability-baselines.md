@@ -96,6 +96,52 @@ Frozen validation 52행의 HS32/P0 prompt comparison은 다음과 같다.
 | Default | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
 | Task-aligned suffix | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | +0.0007 |
 
+여기서 `mention`은 의미 채점이 아니라 `src.answer_matching.is_correct`의 엄격한 문자열
+포함 진단이다. 대소문자, 구두점, 단복수, 일부 영미 철자와 manifest에 등록된 gold alias는
+처리하지만, source answer와 category에는 별도 alias를 제공하지 않았고 `GERD`, `PE` 같은
+약칭이나 등록되지 않은 임상 동의어를 추론하지 않는다. 따라서 위의 0은 **lexical lower
+bound**이며 `semantic mention=0` 또는 `activation information=0`으로 인용하지 않는다.
+
+Frozen validation에서 생성한 vanilla AV의 정확한 수는 다음과 같다.
+
+| 범위 | 계산 | readout rows | 용도 |
+|---|---:|---:|---|
+| P0 primary+sensitivity | 52 cases x 2 prompts x 3 layers | **312** | 현재 P0 lexical 결과의 전체 모집단 |
+| P1/P2 positive controls | 52 x 2 prompts x 2 positions | **208** | answer/reasoning 노출 통제 |
+| validation total | 312 + 208 | **520** | 방법 선택용, locked test 아님 |
+| old exploratory test | 171 x 3 positions | **513** | 이미 본 pilot; 최종 test로 재사용 금지 |
+
+따라서 지금까지 materialize된 readout은 총 1,033행이지만 서로 다른 목적의 행을 합친
+운영상 총계다. 주결과의 primary arm은 frozen validation `default/HS32/P0` 52행이고,
+312행은 prompt/layer sensitivity 전체다.
+
+약칭·동의어 누락을 닫기 위해 P0 312행 전부에 blinded semantic audit을 수행한다.
+Judge에는 환자 note를 주지 않고 readout과 순서를 무작위화한 source answer, gold PDD,
+disease category만 준다. `match=true`일 때 readout 안의 exact evidence quote를 의무화하고,
+인용이 실제 readout에서 확인되지 않으면 불일치로 처리한다. Primary 52행은 자동 판정에
+더해 연구자가 전수 수동 감사한다. 이 감사는 의미상 약칭/동의어 누락을 교정하지만,
+activation faithfulness 자체를 증명하지는 않는다. Faithfulness는 이후 own-vs-shuffled,
+counterfactual, patching 통제로 별도로 검증한다.
+
+Server 62에 여섯 P0 파일을 모은 뒤 다음처럼 실행한다. 먼저 `LIMIT=8`로 schema와 인용
+검증을 smoke-test하고, 같은 출력에 full run을 resume한다. Restricted readout과 judge
+response는 모두 `${DATA_ROOT}/restricted` 아래에 남기며 커밋하지 않는다.
+
+```bash
+# task-aligned HS16/24가 server 125에만 있으면 server 62에서 먼저 복사
+scp \
+  eagle0914@165.132.76.125:/data1/heejae/restricted/direct/e2/direct_e2_val_v1/vanilla_av_task_aligned_p0_hs16_val.jsonl \
+  eagle0914@165.132.76.125:/data1/heejae/restricted/direct/e2/direct_e2_val_v1/vanilla_av_task_aligned_p0_hs24_val.jsonl \
+  /data/heejae/restricted/direct/e2/direct_e2_val_v1/
+
+DATA_ROOT=/data/heejae GPU=2 LIMIT=8 \
+  bash scripts/run_direct_e2_semantic_audit.sh
+
+DATA_ROOT=/data/heejae GPU=2 \
+  nohup bash scripts/run_direct_e2_semantic_audit.sh \
+  > /data/heejae/medical_nla/logs/direct_e2_semantic_audit_v1.log 2>&1 &
+```
+
 Task-aligned suffix가 literal/case-specific diagnostic을 개선하지 않아 default를 vanilla
 primary로 유지한다. P1/P2 validation에서는 source-answer mention이 각각
 default 0.5192/0.5962, task-aligned 0.5577/0.5000이었지만, P1 leakage-free subset은
