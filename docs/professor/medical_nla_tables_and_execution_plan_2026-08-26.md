@@ -224,6 +224,20 @@ loader/evaluator 재현과 evaluator version·prompt hash 고정이다.
 Held-out 100행이 심폐계에 치우치고 `Non-Allergic Asthma`는 3행뿐이므로, 최종 결과는
 connected-component 단위의 복수 seed 또는 group K-fold와 PDD별 macro 결과로 재확인한다.
 
+공식 evaluator smoke test 코드는 준비되었다.
+
+- `make_direct_oracle_predictions.py`: 공식 `cal_a_json()`과
+  `deduction_assemble()`로 gold-oracle prediction 10건을 만든다.
+- `run_direct_official_evaluator.py`: 원본 evaluator의 GPU 2 하드코딩을 제거하되 greedy
+  matching과 exact `Yes` 규칙은 유지하고 raw judge 응답과 실패를 private audit으로 남긴다.
+- `score_direct_official_eval.py`: 공식 `statistics.py`의 `+1` denominator와 누락 0점
+  처리를 재현하며, unsmoothed observation P/R은 별도 민감도 값으로만 낸다.
+- `run_direct_official_smoke.sh`: 위 세 단계를 10건 oracle에서 순서대로 실행한다.
+
+Llama 접근 승인 전에는 `PREPARE_ONLY=1`로 oracle schema까지만 검사하고, 승인 후 로컬
+Meta-Llama-3-8B-Instruct native weights로 평가한다. Oracle smoke가 observation/rationale
+matching과 chain 진단 비교에서 예상 상한을 내지 못하면 실제 CoT/NLA 평가는 시작하지 않는다.
+
 ### E0의 결정 게이트
 
 교수님께 다음을 확인받는다.
