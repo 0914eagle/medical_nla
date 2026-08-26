@@ -37,6 +37,14 @@ AV가 prompt의 사례 고유 표현을 그대로 복원한다는 증거는 없�
 인정하지 않으므로 최종 실패 판정으로 쓰지 않고, 동일 claim extractor와 semantic
 matcher를 이용한 own-versus-shuffled 평가의 필요성을 확인한 sanity check로만 둔다.
 
+P1/P2 L32는 각각 171/171행 parse됐고 빈 출력과 normalized exact duplicate가 없었다.
+Lexical own/shuffled는 P1 0.0067/0.0064(gap +0.0003), P2
+0.0017/0.0018(gap -0.0001)이었다. 따라서 reasoning/answer 이후 위치에서도 현재
+trigram 검사는 사례 특이성을 찾지 못했다. P1의 절대 overlap 증가는 동일 category의
+다른 사례에서도 유지되어 공유 임상 어휘로 설명된다. P2는 답을 이미 본 위치지만 진단
+label이 1--2단어인 경우 trigram에 기여하지 않으므로, 이 결과만으로 positive control
+실패를 확정하지 않고 phrase-level source-answer recovery를 다음 검사로 둔다.
+
 ## Model selection
 
 Primary layer와 probe regularization은 train/val_seen으로 정한다. Test_seen과

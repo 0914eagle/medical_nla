@@ -86,3 +86,10 @@ output trigram의 own-prompt containment 0.0013, shuffled-prompt containment 0.0
 gap -0.0001이었다. 원문 표현을 사례 특이적으로 복원한다는 증거는 없으며 generic 또는
 paraphrastic prose를 우선 의심해야 한다. 다만 exact trigram은 의미 보존 paraphrase를
 놓치므로 이 값은 경고용 진단이지 Table 2의 설명 점수나 E5 faithfulness 판정이 아니다.
+
+P1/P2 L32도 각 171행 생성됐고 전부 parse됐으며 빈 출력과 exact duplicate는 없었다.
+Same-category lexical pilot은 P1 own/shuffled 0.0067/0.0064(gap +0.0003), P2
+0.0017/0.0018(gap -0.0001)이었다. P1의 높은 절대 overlap은 같은-category shuffled에도
+거의 그대로 나타나 CoT의 공유 임상 어휘 효과로 보인다. P2에서도 사례 특이적 trigram
+gap은 확인되지 않았다. 단, 짧은 진단명은 trigram을 만들지 못하므로 source-answer 및
+gold-PDD phrase mention과 semantic extraction을 별도로 검사한다.
