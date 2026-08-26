@@ -6,7 +6,7 @@
 |---|---|---|---|
 | E0 DiReCT audit/evaluator | 완료 | 496행 canonical split, official oracle smoke | E1-E4 |
 | E1 source/activation | 완료 | pilot 496 source outputs, P0/P1/P2 x HS16/24/32 완전성 확인 | E2 |
-| E2 capability baselines | 실행 중 | validation vanilla AV prompt 비교와 P0 probe 완료; output head 및 layer sensitivity 실행 중 | E3-E5 |
+| E2 capability baselines | 실행 중 | validation vanilla AV prompt/layer 비교와 P0 probe 완료; output head 대기 | E3-E5 |
 | E3 Medical-NLA train | 설계 차단 | SFT-only 실행 가능; reconstruction/full objective 미구현 | E4-E6 |
 | E4 DiReCT explanation | 대기 | official metrics + human audit | Table 2 |
 | E5 DDX grounding | 대기 | shuffle/counterfactual/round-trip 통과 | RQ2, E6 gate |
@@ -82,7 +82,7 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
 
 1. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
 2. Output-head candidate sequence baseline 구현 및 validation 실행
-3. 실행 중인 HS16/HS24 vanilla AV prompt sensitivity를 집계
+3. ~~HS16/HS24 vanilla AV prompt sensitivity 집계~~ 완료
 4. 기존 171행은 exploratory로 동결. 새 locked downstream split 266/52/72/106과 hash는 확정 완료
 5. 새 heldout artifact 감사 완료: backbone 106/106, vanilla AV 16/106
 6. ~~62번에서 logical population/split hash가 125번과 동일한지 확인~~ 완료
@@ -130,9 +130,13 @@ literal mention은 모두 0이므로, 현재 관찰은 `activation 정보 부재
 locked-test 성능도 아니다. HS24 probe의 우세와 별개로 공개 AV/AR checkpoint 호환 index는
 HS32이므로 Medical-NLA primary와 round-trip은 HS32를 유지하고 HS16/24는 sensitivity로 둔다.
 
-현재 두 서버에서 같은 L32 AV decoder에 HS16/HS24 P0 activation을 입력하는 교차-layer
-sensitivity를 병렬 실행 중이다. 이 비교에는 activation layer 차이와 decoder distribution
-shift가 함께 들어가므로 주표의 layer 승패로 해석하지 않는다.
+같은 L32 AV decoder에 HS16/HS24 P0 activation을 입력하는 교차-layer sensitivity도
+완료했다. Default와 task-aligned prompt 모두 HS16/24/32에서 parse 1.0이었지만 source
+answer, gold PDD, category, own-donor source gap이 전부 0이었다. Prompt trigram gap은
+default HS24와 task-aligned HS32에서만 +0.0007이고 나머지는 0이었다. 따라서 layer 또는
+generic medical suffix 변경만으로 vanilla AV의 P0 diagnosis recovery는 개선되지 않았다.
+단, HS16/24 비교에는 activation layer와 HS32 decoder의 distribution shift가 함께 들어가므로
+주표의 layer 승패나 layer 정보 부재로 해석하지 않는다.
 
 Frozen validation 52행의 HS32/P0에서도 default와 task-aligned prompt를 직접 비교했다.
 두 조건 모두 parse 1.0이었지만 source answer, gold PDD, disease category의 literal

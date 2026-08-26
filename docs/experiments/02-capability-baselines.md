@@ -74,6 +74,25 @@ default 0.5192/0.5962, task-aligned 0.5577/0.5000이었지만, P1 leakage-free s
 5행이고 두 prompt 모두 0/5였다. P1은 CoT 문자열 누출 분석, P2는 answer-exposed positive
 control로만 사용한다.
 
+같은 52행에서 HS16/24/32 P0 activation을 HS32용 vanilla AV decoder에 넣은 layer
+sensitivity도 완료했다.
+
+| Prompt | HS | Parse | Source answer | Gold PDD | Category | Own-donor source gap | Prompt trigram gap |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Default | 16 | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+| Default | 24 | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | +0.0007 |
+| Default | 32 | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+| Task-aligned | 16 | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+| Task-aligned | 24 | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+| Task-aligned | 32 | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | +0.0007 |
+
+Prompt와 입력 layer를 바꿔도 생성 전 diagnosis/category의 literal recovery와
+same-category donor discrimination은 개선되지 않았다. 특히 HS24는 같은 validation에서
+probe 성능이 가장 높았으므로 `HS24 activation에 진단 정보가 없다`는 해석은 맞지 않는다.
+정확한 해석은 **HS32용 vanilla AV decoder가 어느 입력 layer에서도 그 정보를 현재
+출력 과제로 표현하지 못했다**는 것이다. HS16/24 행에는 input layer와 decoder training
+layer 불일치가 있으므로 주 성능표가 아닌 sensitivity로만 보고한다.
+
 Test P0/L32 vanilla AV는 171/171행 생성 및 `<explanation>` parsing에 성공했고 빈 출력은
 없었다. 출력 길이는 637--741자(중앙값 697, 평균 696.9)였다. 길이 안정성은 내용의
 사례 특이성과 별개다. 길이 범위가 매우 좁으므로 exact/normalized 반복률과
@@ -122,5 +141,5 @@ vanilla prompt와 probe regularization은 train/validation에서만 정한다. �
 ## 산출물
 
 - Table 1
-- HS32 primary baseline과 HS16/HS24 sensitivity
+- HS32 primary baseline과 HS16/HS24 sensitivity 완료
 - E3에서 사용할 vanilla checkpoint와 prompt 고정

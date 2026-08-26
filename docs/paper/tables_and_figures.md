@@ -41,6 +41,12 @@ category top-1 .5962로 가장 높다. 이 값은 test 결과가 아니며, AV/A
 행은 설정을 동결한 뒤 locked test에서 한 번 계산하며, PDD-heldout에는 train label space
 밖 PDD가 있으므로 category probe만 해석 가능한 경우를 분리한다.
 
+동일 validation에서 HS32용 vanilla AV decoder는 default와 task-aligned prompt 모두
+HS16/24/32 P0 입력에서 source answer, gold PDD, category literal mention 및 own-donor
+source gap이 0이었다. 이 결과는 HS24 probe가 가장 높았던 결과와 함께 제시해, 내부 정보
+부재와 자연어 decoder 실패를 구분한다. HS16/24 AV 값은 decoder가 HS32에서 학습됐기
+때문에 appendix sensitivity로만 두며 Table 1의 primary vanilla NLA 행은 HS32를 사용한다.
+
 ## Table 2. Clinical explanation alignment on DiReCT
 
 | Method | Pool | n | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
