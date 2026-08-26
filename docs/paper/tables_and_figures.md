@@ -34,6 +34,13 @@ probe는 train에 없던 PDD를 출력할 수 없으므로 PDD-heldout을 zero-s
 ontology를 제공받으므로 열린 생성 기준선이 아니다. Panel A와 B는 같은 case IDs를
 쓰더라도 질문이 다르므로 한 평균으로 합치지 않는다.
 
+Validation에서 probe layer를 고를 때는 별도 보조표에 HS16/24/32의 top-1, top-5, MRR,
+macro recall, NLL을 모두 보고한다. 현재 52행 validation에서는 HS24가 PDD top-1 .4423,
+category top-1 .5962로 가장 높다. 이 값은 test 결과가 아니며, AV/AR 호환 때문에 HS32로
+고정한 Medical-NLA primary index를 바꾸는 근거로 사용하지 않는다. 주 Table 1의 probe
+행은 설정을 동결한 뒤 locked test에서 한 번 계산하며, PDD-heldout에는 train label space
+밖 PDD가 있으므로 category probe만 해석 가능한 경우를 분리한다.
+
 ## Table 2. Clinical explanation alignment on DiReCT
 
 | Method | Pool | n | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |

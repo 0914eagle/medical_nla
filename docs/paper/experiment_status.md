@@ -1,12 +1,12 @@
 # 논문 실험 상태
 
-기준일: 2026-08-26. 제한 데이터 원문이나 개인 식별자는 기록하지 않는다.
+기준일: 2026-08-27. 제한 데이터 원문이나 개인 식별자는 기록하지 않는다.
 
 | 단계 | 상태 | 완료 조건 | 다음 단계 의존성 |
 |---|---|---|---|
 | E0 DiReCT audit/evaluator | 완료 | 496행 canonical split, official oracle smoke | E1-E4 |
 | E1 source/activation | 완료 | pilot 496 source outputs, P0/P1/P2 x HS16/24/32 완전성 확인 | E2 |
-| E2 capability baselines | 실행 중 | exploratory P0/HS32 vanilla AV 171행 완료; output head/probe 대기 | E3-E5 |
+| E2 capability baselines | 실행 중 | validation vanilla AV prompt 비교와 P0 probe 완료; output head 및 layer sensitivity 실행 중 | E3-E5 |
 | E3 Medical-NLA train | 설계 차단 | SFT-only 실행 가능; reconstruction/full objective 미구현 | E4-E6 |
 | E4 DiReCT explanation | 대기 | official metrics + human audit | Table 2 |
 | E5 DDX grounding | 대기 | shuffle/counterfactual/round-trip 통과 | RQ2, E6 gate |
@@ -80,14 +80,14 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
 
 ## 즉시 할 일
 
-1. Train/validation의 strict PDD, category, token-F1을 같은 방식으로 집계
-2. P1의 `diagnosis_alias_in_reasoning`에 따른 clean/leaky 민감도 분석
-3. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
+1. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
+2. Output-head candidate sequence baseline 구현 및 validation 실행
+3. 실행 중인 HS16/HS24 vanilla AV prompt sensitivity를 집계
 4. 기존 171행은 exploratory로 동결. 새 locked downstream split 266/52/72/106과 hash는 확정 완료
 5. 새 heldout artifact 감사 완료: backbone 106/106, vanilla AV 16/106
 6. ~~62번에서 logical population/split hash가 125번과 동일한지 확인~~ 완료
 7. ~~기존 activation을 새 split ID로 재색인하고 join/completeness 100% 확인~~ 완료
-8. Validation 52행에서 primary index와 probe regularization을 선택하고 locked test에는 고정 적용
+8. ~~Validation 52행에서 probe regularization을 선택~~ 완료. Locked test 평가 전 checkpoint와 분석 코드를 고정
 9. E3 전에 full objective를 RL/preference 방식으로 구현할지, SFT-only 논문으로 제한할지 결정
 
 ## 두 서버 병렬 실행 원칙
@@ -108,6 +108,31 @@ formatted answer marker가 여러 번 등장한 행이 0개여서 final-answer p
 민감도 분모와 ID hash를 함께 동결한다.
 
 ## E2 vanilla AV exploratory 상태
+
+### P0 linear probe validation
+
+Train 266행으로 학습하고 frozen `val_seen` 52행에서 validation NLL로 설정을 선택했다.
+Locked test manifest는 읽지 않았다.
+
+| Target | HS16 top-1 / top-5 / MRR | HS24 top-1 / top-5 / MRR | HS32 top-1 / top-5 / MRR | Majority |
+|---|---:|---:|---:|---:|
+| Canonical PDD, 49 classes | .3846 / .6923 / .5294 | **.4423 / .7692 / .5762** | .3846 / .6923 / .5335 | .0962 |
+| Disease category, 25 classes | .5000 / .7885 / .6374 | **.5962 / .9038 / .7284** | .5192 / .8654 / .6609 | .0577 |
+
+HS24가 두 target 모두에서 top-1, top-5, MRR, macro recall 및 NLL 기준으로 가장 좋았다.
+이 결과는 P0 activation에 닫힌 진단 label 정보가 존재하고 supervised linear map으로 읽을
+수 있음을 보인다. 특히 같은 HS32/P0에서 vanilla AV의 source-answer, gold-PDD, category
+literal mention은 모두 0이므로, 현재 관찰은 `activation 정보 부재`가 아니라 `vanilla
+자연어 decoder의 task mismatch`와 일치한다.
+
+다만 probe는 train에서 정의된 49 PDD 또는 25 category 중 하나를 고를 뿐이며 관찰·관계·
+근거를 열린 자연어로 설명하지 못한다. 위 수치는 validation model-selection 결과이지
+locked-test 성능도 아니다. HS24 probe의 우세와 별개로 공개 AV/AR checkpoint 호환 index는
+HS32이므로 Medical-NLA primary와 round-trip은 HS32를 유지하고 HS16/24는 sensitivity로 둔다.
+
+현재 두 서버에서 같은 L32 AV decoder에 HS16/HS24 P0 activation을 입력하는 교차-layer
+sensitivity를 병렬 실행 중이다. 이 비교에는 activation layer 차이와 decoder distribution
+shift가 함께 들어가므로 주표의 layer 승패로 해석하지 않는다.
 
 Frozen validation 52행의 HS32/P0에서도 default와 task-aligned prompt를 직접 비교했다.
 두 조건 모두 parse 1.0이었지만 source answer, gold PDD, disease category의 literal

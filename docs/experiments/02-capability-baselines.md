@@ -32,6 +32,35 @@ zero-shot open generation이 아니라 ontology-given ranking으로 표기한다
 
 ## 실행 상태
 
+### P0 linear probe: frozen validation
+
+동일한 train 266행으로 학습하고 `val_seen` 52행에서 validation NLL로 hyperparameter와
+stopping epoch를 선택했다. Locked test manifest는 읽지 않았다.
+
+| Target | HS | Classes | Majority | Top-1 | Top-5 | MRR | Macro recall | Val NLL |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Canonical PDD | 16 | 49 | 0.0962 | 0.3846 | 0.6923 | 0.5294 | 0.3597 | 2.5533 |
+| Canonical PDD | **24** | 49 | 0.0962 | **0.4423** | **0.7692** | **0.5762** | **0.3868** | **2.0489** |
+| Canonical PDD | 32 | 49 | 0.0962 | 0.3846 | 0.6923 | 0.5335 | 0.2771 | 2.3784 |
+| Disease category | 16 | 25 | 0.0577 | 0.5000 | 0.7885 | 0.6374 | 0.4833 | 1.9679 |
+| Disease category | **24** | 25 | 0.0577 | **0.5962** | **0.9038** | **0.7284** | **0.5000** | **1.3961** |
+| Disease category | 32 | 25 | 0.0577 | 0.5192 | 0.8654 | 0.6609 | 0.4426 | 1.6869 |
+
+두 label space에서 HS24가 모든 핵심 validation 지표와 NLL에서 가장 좋았다. 이는 생성 전
+P0 activation에 닫힌 ontology의 진단 정보가 선형적으로 읽힌다는 증거다. 예를 들어
+HS24 category top-1은 majority 0.0577보다 10배 이상 높고 top-5는 0.9038이다. 반면
+같은 P0에서 vanilla AV의 source answer, gold PDD, category literal mention은 모두 0이다.
+따라서 현재의 정확한 결론은 **P0에 정보가 없다는 것이 아니라, supervised closed-label
+probe가 읽는 정보를 vanilla AV가 자연어로 꺼내지 못한다**는 것이다.
+
+Probe는 train에서 정의된 49 PDD 또는 25 category 중 하나를 고르는 분류기다. 새로운
+PDD, 관찰, 관계, 근거 문장을 생성하지 못하므로 설명 품질 기준선이 아니며 open-evidence
+열은 `N/A`다. 또한 위 수치는 validation 결과이므로 최종 성능 추정치가 아니다. HS24의
+우세는 layer sensitivity 결과로 보존하되, 공개 AV/AR checkpoint가 HS32용이므로
+Medical-NLA와 round-trip의 primary index는 계속 HS32로 둔다.
+
+### Vanilla AV prompt comparison: frozen validation
+
 Frozen validation 52행의 HS32/P0 prompt comparison은 다음과 같다.
 
 | Prompt | Parse | Source-answer mention | Gold-PDD mention | Category mention | Own-donor source gap | Prompt trigram gap |
@@ -85,9 +114,10 @@ P1은 source answer alias가 reasoning에 없던 15행에서는 1/15=0.0667만 s
 
 현재 test_seen과 PDD-heldout 171행은 이미 위치 및 vanilla AV 설계 점검에 사용했으므로
 exploratory pilot다. 공개 AV/AR와 호환되는 HS32를 primary로 고정한다. HS16/HS24는 같은
-L32 decoder의 distribution shift가 섞인 sensitivity다. Task-aligned vanilla prompt와 probe
-regularization은 confirmatory train/validation에서만 정한다. 새 final test는 설정과 분석
-코드를 동결한 뒤 한 번만 평가한다.
+L32 decoder의 distribution shift가 섞인 sensitivity다. Probe 자체는 HS24가 validation에서
+최고였지만, 이것이 HS24 Medical-NLA decoder를 선택했다는 뜻은 아니다. Task-aligned
+vanilla prompt와 probe regularization은 train/validation에서만 정한다. 새 locked test는
+설정과 분석 코드를 동결한 뒤 한 번만 평가한다.
 
 ## 산출물
 
