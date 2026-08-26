@@ -68,6 +68,8 @@ Held-out PDD는 UA, Hemorrhagic Stroke, Bacterial Pneumonia, Submassive PE, Mild
 Severe COPD, Type I Diabetes, Hyperthyroidism, STEMI-ACS, HFmrEF, Dilated Cardiomyopathy,
 Severe Asthma다. Logical population SHA-256은
 `7d0a89a880fa868959099b7146c369cccaac5e7701d7ce5d8f01356ecfb68894`다.
+Heldout 106행은 eligible 496행의 21.4%다. 목표 20%와의 차이는 PDD connected component를
+행 단위로 쪼개지 않고 category coverage를 유지한 결과다.
 
 이 split은 **E3 이후 downstream Medical-NLA 평가를 지금부터 고정하는 protocol**이다.
 496행 전체가 과거 source 실행의 universe였으므로, 과거 artifact와 겹치는 행이 있으면

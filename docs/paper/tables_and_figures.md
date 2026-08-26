@@ -104,6 +104,9 @@ DiReCT note -> Gemma source run -> P0/P1/P2 activations -> CoT/vanilla NLA/Medic
 두 pool을 분리해 보고한다. 178행 pooled 값은 보조 요약으로만 둔다. Parse 또는 claim
 extraction 실패는 행을 삭제하지 않고 failure로 처리하며 coverage를 함께 보고한다.
 `source-correct`와 `source-wrong`은 subgroup 분석이지 primary eligibility 조건이 아니다.
+모든 paired CI와 유의성 검정은 동일 `patient_group`을 함께 resample하는 cluster bootstrap
+또는 cluster-aware paired test를 사용한다. 특히 heldout 106행은 103 patient groups이므로
+106행을 서로 독립이라고 가정하지 않는다.
 
 ## Figure 2. DiReCT 사례별 설명 비교
 

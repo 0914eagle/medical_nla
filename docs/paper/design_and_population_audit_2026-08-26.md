@@ -71,6 +71,9 @@ Non-Allergic Asthma 3이다. HFrEF와 HFpEF는 같은 환자 연결 성분이어
 Logical population SHA-256은
 `7d0a89a880fa868959099b7146c369cccaac5e7701d7ce5d8f01356ecfb68894`다.
 Split별 exact gold-label-in-note는 18/266, 2/52, 3/72, 5/106이다.
+목표 20%는 99.2행이지만 PDD component와 category coverage를 쪼갤 수 없어 106행
+(21.4%)에서 멈췄다. 이는 결과를 본 사후 표본 조정이 아니라 split 알고리즘의 원자 단위
+제약이다.
 
 단, 새 106행이 과거 pilot split의 train/validation/seen test에 포함됐을 수 있고, source
 output이 이미 materialize됐을 수 있다. 이는 E3 이후 downstream 선택을 지금부터 동결하는
@@ -93,6 +96,7 @@ validation을 다시 나눠 hyperparameter를 선택한다. 평균과 fold-level
 - strict PDD, disease category, official semantic diagnosis를 분리한다.
 - parse 실패는 분모에서 빼지 않고 failure로 센 뒤 parse coverage를 함께 적는다.
 - Direct와 CoT는 instruction과 assistant prefill이 다르므로 같은 생성 방식이라고 부르지 않는다.
+- paired interval과 검정은 row가 아니라 `patient_group`을 cluster 단위로 resample한다.
 
 ### Table 1B: internal readout capability
 
@@ -109,6 +113,7 @@ validation을 다시 나눠 hyperparameter를 선택한다. 평균과 fold-level
 - extractor는 method 이름, gold annotation, 원 임상 note를 보지 않고 method output만 본다.
 - 추출 실패를 삭제하지 않고 coverage와 함께 failure로 처리한다.
 - official Llama-3-8B matcher는 semantic matching 도구이지 독립 faithfulness judge가 아니다.
+- 동일 환자의 반복 note를 독립 표본으로 세지 않도록 CI는 patient-cluster bootstrap을 쓴다.
 
 ### Table 3: DDXPlus activation grounding
 
