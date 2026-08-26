@@ -123,14 +123,16 @@ def test_request_builder_balances_methods_and_hides_method_label(tmp_path, monke
             str(summary),
             "--expected-cases",
             "2",
+            "--limit-cases",
+            "1",
         ],
     )
     make_requests()
 
     request_rows = [json.loads(line) for line in requests.read_text().splitlines()]
     index_rows = [json.loads(line) for line in private_index.read_text().splitlines()]
-    assert len(request_rows) == 6
-    assert len(index_rows) == 6
+    assert len(request_rows) == 3
+    assert len(index_rows) == 3
     assert {row["method"] for row in index_rows} == {
         "cot",
         "vanilla",

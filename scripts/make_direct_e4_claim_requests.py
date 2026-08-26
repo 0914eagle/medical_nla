@@ -136,12 +136,6 @@ def main() -> None:
         raise ValueError(
             f"Cohort has {len(cohort)} cases; expected {args.expected_cases}"
         )
-    if args.limit_cases is not None:
-        if args.limit_cases <= 0 or args.limit_cases > len(cohort):
-            raise ValueError("--limit-cases must be in [1, cohort size]")
-        kept_ids = sorted(cohort)[: args.limit_cases]
-        cohort = {identifier: cohort[identifier] for identifier in kept_ids}
-
     cases = index_unique(list(read_jsonl(args.case_manifest)), "case manifest")
     missing_cases = set(cohort) - set(cases)
     if missing_cases:
@@ -167,6 +161,15 @@ def main() -> None:
                 f"extra={len(set(rows) - set(cohort))}"
             )
         readouts[method] = rows
+
+    # Validate every input against the full frozen cohort before selecting a
+    # balanced per-method smoke subset. Otherwise the 48 intentionally unused
+    # rows in a 2-of-50 smoke run look like a population mismatch.
+    if args.limit_cases is not None:
+        if args.limit_cases <= 0 or args.limit_cases > len(cohort):
+            raise ValueError("--limit-cases must be in [1, cohort size]")
+        kept_ids = sorted(cohort)[: args.limit_cases]
+        cohort = {identifier: cohort[identifier] for identifier in kept_ids}
 
     candidate_rows = list(read_jsonl(args.candidate_manifest))
     candidate_labels = sorted(
