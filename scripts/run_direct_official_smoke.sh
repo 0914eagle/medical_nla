@@ -59,6 +59,12 @@ for filename in consolidated.00.pth params.json tokenizer.model; do
   fi
 done
 
+if ! python -c 'import fairscale, tiktoken' >/dev/null 2>&1; then
+  echo "[error] missing native Llama evaluator dependencies: fairscale and/or tiktoken" >&2
+  echo "Install: uv pip install 'fairscale>=0.4.13' 'tiktoken>=0.7'" >&2
+  exit 1
+fi
+
 echo "[stage 2/3] run official Llama-3-8B semantic matching on GPU ${GPU}"
 EVAL_ARGS=(
   --official-repo "${OFFICIAL_REPO}"
