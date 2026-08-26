@@ -18,13 +18,13 @@
 
 ### Panel B. CoT-P0 internal readout on identical activations
 
-| Method | Coverage | Seen-PDD gold | Held-out-PDD gold | Category gold | Source-decision fidelity | Open evidence | Trained task head | Eval ontology |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| CoT-P0 early forced-answer candidate likelihood |  |  |  |  |  | N/A | No | Yes |
-| Linear PDD probe |  |  | N/A |  |  | N/A | Yes | Yes |
-| Vanilla NLA, default prompt |  |  |  |  |  |  | No | No |
-| Vanilla NLA, task-aligned prompt |  |  |  |  |  |  | No | No |
-| Medical-NLA |  |  |  |  |  |  | No | train text only |
+| Method | Coverage | Seen-PDD gold | Held-out-PDD gold | Category gold | Source-decision fidelity | Open evidence |
+|---|---:|---:|---:|---:|---:|---:|
+| CoT-P0 early forced-answer candidate likelihood |  |  |  |  |  | N/A |
+| Linear PDD probe |  |  | N/A |  |  | N/A |
+| Vanilla NLA, default prompt |  |  |  |  |  |  |
+| Vanilla NLA, task-aligned prompt |  |  |  |  |  |  |
+| Medical-NLA |  |  |  |  |  |  |
 
 `N/A`는 0점이 아니라 해당 출력 공간이 정의되지 않았다는 뜻이다. 특히 supervised PDD
 probe는 train에 없던 PDD를 출력할 수 없으므로 PDD-heldout을 zero-shot accuracy처럼
@@ -35,6 +35,9 @@ probe는 train에 없던 PDD를 출력할 수 없으므로 PDD-heldout을 zero-s
 reasoning을 생략하고 답을 강제한 backbone 행동 기준선이다. 별도 head를 학습하지 않지만
 후보 ontology를 제공받으므로 열린 생성 기준선도 아니다. Panel A와 B는 같은 case IDs를
 쓰더라도 질문이 다르므로 한 평균으로 합치지 않는다.
+학습 head와 평가 ontology 여부는 별도 열로 두지 않고 캡션에 적는다. Probe는 supervised
+closed-label classifier, early forced-answer likelihood는 supplied-ontology ranking,
+NLA는 open-text generation이다.
 
 Validation에서 probe layer를 고를 때는 별도 보조표에 HS16/24/32의 top-1, top-5, MRR,
 macro recall, NLL을 모두 보고한다. 현재 52행 validation에서는 HS24가 PDD top-1 .4423,

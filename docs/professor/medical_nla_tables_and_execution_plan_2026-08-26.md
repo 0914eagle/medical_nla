@@ -104,17 +104,20 @@ DiReCT는 PhysioNet Restricted Health Data License 1.5.0 대상이다.
 
 #### B. CoT-P0 internal readout on identical activations
 
-| Method | Coverage | Seen-PDD gold | Held-out-PDD gold | Category gold | Source-decision fidelity | Open evidence | Trained head | Eval ontology |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Output-head candidate score | TBD | TBD | TBD | TBD | TBD | N/A | no | yes |
-| Linear PDD probe | TBD | TBD | N/A | TBD | TBD | N/A | yes | yes |
-| Vanilla NLA, default prompt | TBD | TBD | TBD | TBD | TBD | TBD | no | no |
-| Vanilla NLA, task-aligned prompt | TBD | TBD | TBD | TBD | TBD | TBD | no | no |
-| Medical-NLA | TBD | TBD | TBD | TBD | TBD | TBD | no | train text only |
+| Method | Coverage | Seen-PDD gold | Held-out-PDD gold | Category gold | Source-decision fidelity | Open evidence |
+|---|---:|---:|---:|---:|---:|---:|
+| Output-head candidate score | TBD | TBD | TBD | TBD | TBD | N/A |
+| Linear PDD probe | TBD | TBD | N/A | TBD | TBD | N/A |
+| Vanilla NLA, default prompt | TBD | TBD | TBD | TBD | TBD | TBD |
+| Vanilla NLA, task-aligned prompt | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA | TBD | TBD | TBD | TBD | TBD | TBD |
 
 Output-head candidate score는 사전등록 PDD 문자열의 길이 정규화 sequence likelihood다.
 Probe는 held-out PDD output node와 open evidence output이 없으므로 해당 칸은 `N/A`다.
 Source-decision fidelity와 physician-gold alignment는 같은 점수로 합치지 않는다.
+학습 head와 평가 ontology 여부는 별도 열로 두지 않고 캡션에 적는다. Probe는 supervised
+closed-label classifier, output-head candidate score는 supplied-ontology ranking,
+NLA는 open-text generation이다.
 
 ### Table 2. DiReCT clinical explanation quality
 
@@ -149,7 +152,7 @@ Full objective 행은 실제 objective 구현 후에만 유지한다.
 |---|---:|---:|---:|---:|---:|---:|
 | CoT reasoning | TBD | TBD | TBD | TBD | TBD | N/A |
 | Vanilla NLA | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-AV, SFT only | TBD | TBD | TBD | TBD | TBD 또는 N/A |
+| Medical-AV, SFT only | TBD | TBD | TBD | TBD | TBD | TBD 또는 N/A |
 | Medical-NLA | TBD | TBD | TBD | TBD | TBD | TBD |
 
 필수 통제:
