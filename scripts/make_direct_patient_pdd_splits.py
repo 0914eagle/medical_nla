@@ -32,6 +32,28 @@ def stable_fraction(seed: int, value: str) -> float:
     return int(digest[:16], 16) / float(16**16)
 
 
+def population_fingerprint(rows: list[dict[str, Any]]) -> str:
+    """Hash logical cohort identity without server-specific absolute paths."""
+    fields = (
+        "id",
+        "input_digest",
+        "patient_group",
+        "canonical_pdd",
+        "disease_category",
+        "canonical_pdd_resolved",
+        "patient_id_parsed",
+        "gold_label_exact_in_note",
+    )
+    logical_rows = [
+        {field: row.get(field) for field in fields}
+        for row in sorted(rows, key=lambda item: str(item["id"]))
+    ]
+    payload = json.dumps(
+        logical_rows, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 class DisjointSet:
     def __init__(self, values: Iterable[str]) -> None:
         self.parent = {value: value for value in values}
@@ -281,7 +303,8 @@ def write_summary(
     heldout_components: list[set[str]],
     seed: int,
     forbidden_heldout_pdds: set[str],
-    manifest_sha256: str,
+    manifest_file_sha256: str,
+    population_sha256: str,
 ) -> None:
     exclusion_counts = Counter(exclusions.values())
     lines = [
@@ -295,7 +318,8 @@ def write_summary(
         f"- exclusions: `{dict(exclusion_counts)}`",
         f"- held-out PDD connected components: **{len(heldout_components)}**",
         f"- forbidden pilot-heldout PDDs: `{sorted(forbidden_heldout_pdds)}`",
-        f"- input manifest SHA-256: `{manifest_sha256}`",
+        f"- logical population SHA-256: `{population_sha256}`",
+        f"- input manifest file SHA-256: `{manifest_file_sha256}`",
         "",
         "## Split Sizes",
         "",
@@ -424,9 +448,11 @@ def main() -> None:
         args.out_dir / "assignments.jsonl",
         sorted(assignments, key=lambda row: row["id"]),
     )
-    manifest_sha256 = hashlib.sha256(args.manifest.read_bytes()).hexdigest()
+    manifest_file_sha256 = hashlib.sha256(args.manifest.read_bytes()).hexdigest()
+    population_sha256 = population_fingerprint(rows)
     protocol = {
-        "manifest_sha256": manifest_sha256,
+        "manifest_file_sha256": manifest_file_sha256,
+        "population_sha256": population_sha256,
         "seed": args.seed,
         "heldout_fraction": args.heldout_fraction,
         "train_fraction": args.train_fraction,
@@ -459,7 +485,8 @@ def main() -> None:
         heldout_components,
         args.seed,
         forbidden_heldout_pdds,
-        manifest_sha256,
+        manifest_file_sha256,
+        population_sha256,
     )
     print(
         "[split] "

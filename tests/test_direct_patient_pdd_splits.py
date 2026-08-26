@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import unittest
 
-from scripts.make_direct_patient_pdd_splits import build_splits, select_eligible_rows
+from scripts.make_direct_patient_pdd_splits import (
+    build_splits,
+    population_fingerprint,
+    select_eligible_rows,
+)
 from scripts.make_direct_canonical_manifest import contains_label
 
 
@@ -28,6 +32,13 @@ def row(
 
 
 class DirectPatientPddSplitTest(unittest.TestCase):
+    def test_population_fingerprint_ignores_server_specific_source_path(self):
+        left = row(1, patient="p1", pdd="A", category="C")
+        left["source_path"] = "/data1/heejae/restricted/direct/a.json"
+        left["gold_label_exact_in_note"] = False
+        right = dict(left, source_path="/data/heejae/restricted/direct/a.json")
+        self.assertEqual(population_fingerprint([left]), population_fingerprint([right]))
+
     def test_gold_label_phrase_matching_uses_word_boundaries(self):
         self.assertTrue(contains_label("Assessment includes low-risk PE.", "Low-risk PE"))
         self.assertTrue(contains_label("Possible PE was documented.", "PE"))
