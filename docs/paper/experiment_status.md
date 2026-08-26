@@ -50,6 +50,12 @@ P1 leakage-free test subset은 15행뿐이므로 P1의 source-decision 결과는
 세부 label exact/alias 점수이며, by-split category와 official semantic score가 나오기
 전에는 source model의 최종 진단 성능으로 해석하지 않는다.
 
+같은 171행의 prefilled Direct baseline도 완료됐다. Strict PDD는 Direct 36/171 =
+0.2105, CoT 33/171 = 0.1930이었다. 둘 다 맞은 사례 26, CoT만 맞은 사례 7,
+Direct만 맞은 사례 10, 둘 다 틀린 사례 128이며 CoT-Direct는 -0.0175,
+McNemar exact p=0.6291이다. Strict PDD 기준으로 CoT 우열의 증거는 없다. Category와
+official semantic score를 계산한 뒤 임상 성능을 해석한다.
+
 ## 즉시 할 일
 
 1. 62번 train+val 실행의 `source_cot_answers.jsonl`, activation, manifest 완주 확인

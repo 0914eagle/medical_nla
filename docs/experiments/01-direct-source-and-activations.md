@@ -63,3 +63,8 @@ Strict PDD 중간 정확도만으로 source model을 탈락시키지 않는다. 
 
 `1,539 = 171 cases x 3 positions x 3 layers`로 완전하다. P1 clean subset은 15행뿐이므로
 P1을 독립적인 pre-answer readout 결과로 일반화하지 않는다. P0를 primary로 사용한다.
+
+같은 171행에서 direct prefill baseline은 strict PDD 36/171 = 0.2105였다. CoT는
+33/171 = 0.1930으로 -1.75%p였고, paired discordant cases는 CoT rescue 7 대 CoT break
+10, McNemar exact p=0.6291이었다. 이는 strict PDD상 CoT가 Direct보다 낫거나 나쁘다는
+증거가 없다는 뜻이며 explanation quality 비교는 E4의 `Obs*`/`Exp*`로 별도 수행한다.
