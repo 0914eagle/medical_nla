@@ -109,6 +109,30 @@ class DirectPatientPddSplitTest(unittest.TestCase):
         }
         self.assertTrue(seen_pdds <= train_pdds)
 
+    def test_forbidden_pilot_label_excludes_its_connected_component(self):
+        rows = []
+        index = 0
+        for pdd in "ABCDEFGH":
+            for patient_index in range(6):
+                index += 1
+                patient = f"{pdd}-p{patient_index}"
+                if patient_index == 0 and pdd in {"A", "B"}:
+                    patient = "shared-a-b"
+                rows.append(row(index, patient=patient, pdd=pdd, category="category"))
+
+        splits, _, _ = build_splits(
+            rows,
+            seed=17,
+            heldout_fraction=0.25,
+            train_fraction=0.7,
+            val_fraction=0.15,
+            min_heldout_label_rows=3,
+            min_remaining_category_rows=3,
+            forbidden_heldout_pdds={"A"},
+        )
+        heldout = {item["canonical_pdd"] for item in splits["test_pdd_heldout"]}
+        self.assertFalse({"A", "B"} & heldout)
+
 
 if __name__ == "__main__":
     unittest.main()

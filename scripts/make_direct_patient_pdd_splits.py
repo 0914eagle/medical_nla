@@ -95,11 +95,18 @@ def choose_heldout_components(
     min_label_rows: int,
     min_remaining_category_rows: int,
     seed: int,
+    forbidden_labels: set[str] | None = None,
 ) -> list[set[str]]:
+    forbidden_labels = {str(label) for label in (forbidden_labels or set())}
     label_counts = Counter(str(row["canonical_pdd"]) for row in rows)
     category_counts = Counter(row["disease_category"] for row in rows)
     component_rows: list[tuple[set[str], list[dict[str, Any]]]] = []
     for component in components:
+        # A patient can connect several PDDs into one leakage unit. If any label
+        # in that unit was used as a pilot holdout, the whole unit is forbidden
+        # from the confirmatory holdout rather than only the named label.
+        if component & forbidden_labels:
+            continue
         component_subset = [
             row for row in rows if str(row["canonical_pdd"]) in component
         ]
@@ -216,6 +223,7 @@ def build_splits(
     val_fraction: float,
     min_heldout_label_rows: int,
     min_remaining_category_rows: int,
+    forbidden_heldout_pdds: set[str] | None = None,
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str], list[set[str]]]:
     eligible, exclusions = select_eligible_rows(rows)
     components = pdd_components(eligible)
@@ -226,6 +234,7 @@ def build_splits(
         min_heldout_label_rows,
         min_remaining_category_rows,
         seed,
+        forbidden_heldout_pdds,
     )
     heldout_labels = set().union(*heldout_components) if heldout_components else set()
     heldout = [
@@ -271,6 +280,8 @@ def write_summary(
     exclusions: dict[str, str],
     heldout_components: list[set[str]],
     seed: int,
+    forbidden_heldout_pdds: set[str],
+    manifest_sha256: str,
 ) -> None:
     exclusion_counts = Counter(exclusions.values())
     lines = [
@@ -283,6 +294,8 @@ def write_summary(
         f"- eligible unique rows: **{sum(len(items) for items in splits.values())}**",
         f"- exclusions: `{dict(exclusion_counts)}`",
         f"- held-out PDD connected components: **{len(heldout_components)}**",
+        f"- forbidden pilot-heldout PDDs: `{sorted(forbidden_heldout_pdds)}`",
+        f"- input manifest SHA-256: `{manifest_sha256}`",
         "",
         "## Split Sizes",
         "",
@@ -295,6 +308,25 @@ def write_summary(
             f"{len({row['patient_group'] for row in split_rows})} | "
             f"{len({row['canonical_pdd'] for row in split_rows})} | "
             f"{len({row['disease_category'] for row in split_rows})} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Frozen Population Fingerprints",
+            "",
+            "| split | ID SHA-256 | gold label in note |",
+            "|---|---|---:|",
+        ]
+    )
+    for split, split_rows in splits.items():
+        split_id_sha256 = hashlib.sha256(
+            "\n".join(sorted(str(row["id"]) for row in split_rows)).encode()
+        ).hexdigest()
+        gold_label_rows = sum(bool(row.get("gold_label_exact_in_note")) for row in split_rows)
+        lines.append(
+            f"| {split} | `{split_id_sha256}` | "
+            f"{gold_label_rows}/{len(split_rows)} "
+            f"({gold_label_rows / len(split_rows) if split_rows else 0:.4f}) |"
         )
     heldout_counts = Counter(
         str(row["canonical_pdd"]) for row in splits["test_pdd_heldout"]
@@ -346,6 +378,15 @@ def main() -> None:
     parser.add_argument("--val-fraction", type=float, default=0.15)
     parser.add_argument("--min-heldout-label-rows", type=int, default=3)
     parser.add_argument("--min-remaining-category-rows", type=int, default=3)
+    parser.add_argument(
+        "--forbid-heldout-pdds",
+        nargs="*",
+        default=[],
+        help=(
+            "PDD labels used as an earlier pilot holdout. Any patient-connected "
+            "component containing one is excluded from confirmatory holdout selection."
+        ),
+    )
     args = parser.parse_args()
 
     if not 0 < args.heldout_fraction < 1:
@@ -356,6 +397,7 @@ def main() -> None:
         raise ValueError("--val-fraction leaves no room for test_seen")
 
     rows = read_jsonl(args.manifest)
+    forbidden_heldout_pdds = {str(label) for label in args.forbid_heldout_pdds}
     splits, exclusions, heldout_components = build_splits(
         rows,
         seed=args.seed,
@@ -364,6 +406,7 @@ def main() -> None:
         val_fraction=args.val_fraction,
         min_heldout_label_rows=args.min_heldout_label_rows,
         min_remaining_category_rows=args.min_remaining_category_rows,
+        forbidden_heldout_pdds=forbidden_heldout_pdds,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
     for split, split_rows in splits.items():
@@ -381,6 +424,33 @@ def main() -> None:
         args.out_dir / "assignments.jsonl",
         sorted(assignments, key=lambda row: row["id"]),
     )
+    manifest_sha256 = hashlib.sha256(args.manifest.read_bytes()).hexdigest()
+    protocol = {
+        "manifest_sha256": manifest_sha256,
+        "seed": args.seed,
+        "heldout_fraction": args.heldout_fraction,
+        "train_fraction": args.train_fraction,
+        "val_fraction": args.val_fraction,
+        "min_heldout_label_rows": args.min_heldout_label_rows,
+        "min_remaining_category_rows": args.min_remaining_category_rows,
+        "forbidden_heldout_pdds": sorted(forbidden_heldout_pdds),
+        "heldout_components": [sorted(component) for component in heldout_components],
+        "splits": {
+            split: {
+                "n": len(split_rows),
+                "id_sha256": hashlib.sha256(
+                    "\n".join(sorted(str(row["id"]) for row in split_rows)).encode()
+                ).hexdigest(),
+                "gold_label_exact_in_note": sum(
+                    bool(row.get("gold_label_exact_in_note")) for row in split_rows
+                ),
+            }
+            for split, split_rows in splits.items()
+        },
+    }
+    (args.out_dir / "protocol.json").write_text(
+        json.dumps(protocol, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     write_summary(
         args.out_dir / "summary.md",
         rows,
@@ -388,6 +458,8 @@ def main() -> None:
         exclusions,
         heldout_components,
         args.seed,
+        forbidden_heldout_pdds,
+        manifest_sha256,
     )
     print(
         "[split] "

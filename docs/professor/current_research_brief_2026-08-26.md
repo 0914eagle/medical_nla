@@ -34,6 +34,8 @@
 
 DiReCT는 511개 raw note 중 충돌·식별 실패·중복 15행을 제외한 496행을 쓴다. Train 263,
 val 62, seen test 71, PDD-heldout test 100이며 환자는 split 사이에 겹치지 않는다.
+Gold PDD/root의 정규화된 완전 구문이 note에 직접 등장한 행은 raw 28/511(5.48%)였다.
+이를 주 모집단에서 사후 제거하지 않고, split별 gold-label-absent 민감도 분석을 병기한다.
 
 ## 현재 실행
 

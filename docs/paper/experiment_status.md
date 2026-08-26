@@ -75,6 +75,11 @@ official `Obs*`/`Exp*`로 별도 평가한다.
 6. Confirmatory validation에서 primary index와 probe regularization을 선택하고 final test에는 고정 적용
 7. E3 전에 full objective를 RL/preference 방식으로 구현할지, SFT-only 논문으로 제한할지 결정
 
+Gold-label-in-note audit은 raw 511행 중 28행(0.0548)으로 완료됐다. 기존 test CoT 171행에는
+formatted answer marker가 여러 번 등장한 행이 0개여서 final-answer parser 수정이 pilot
+수치를 바꾸지 않는다. 다음 split은 이 leakage flag를 eligibility에서 제거하지 않고 split별
+민감도 분모와 ID hash를 함께 동결한다.
+
 ## E2 vanilla AV exploratory 상태
 
 Pilot test P0/HS32 171행 생성은 완료됐다. `parsed_explanation_tag`는 171/171, 빈 출력은

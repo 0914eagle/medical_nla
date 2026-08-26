@@ -45,7 +45,8 @@ Non-Allergic Asthma 3이다. HFrEF와 HFpEF는 같은 환자 연결 성분이어
 - PDD/category 분포가 train, validation, test에서 동일하다는 보장은 없다.
 - 작은 held-out PDD의 per-class 추정치는 안정적이지 않다.
 - source-correct subset을 학습 모집단으로 사용할 경우 충분한 표본이 된다는 보장은 없다.
-- note 본문에 gold PDD/root 문자열이 직접 등장하는 비율은 아직 재생성한 manifest로 집계하지 않았다.
+- raw note에서 gold PDD/root 정규화 구문이 직접 등장한 비율은 28/511(5.48%)다. Eligible 및
+  새 confirmatory split별 비율은 split 생성 summary에서 동결한다.
 
 ## 3. Confirmatory protocol
 
@@ -175,7 +176,7 @@ Medical-NLA의 이득은 2번보다 높아야 의료 supervision의 기여로 �
 
 - [ ] confirmatory protocol과 ID hash 동결
 - [ ] train/val/test patient 및 PDD 교집합 0 재검사
-- [ ] DiReCT note의 exact normalized gold-label leakage를 split별로 집계하고 sensitivity cohort 고정
+- [ ] DiReCT raw leakage 28/511 확인 완료. Confirmatory split별 비율과 sensitivity cohort 동결
 - [ ] 각 표의 expected IDs 파일 생성
 - [ ] 모든 method output의 join rate 100% 또는 missing-as-failure 적용
 - [ ] Direct/CoT/NLA 실제 prompt와 generation config 저장
