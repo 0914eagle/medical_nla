@@ -2,8 +2,10 @@
 
 ## 선행 조건
 
-E5에서 full Medical-NLA가 사례별 pair와 evidence counterfactual을 읽는다는 증거가 있어야
+E5에서 주 Medical-NLA가 사례별 pair와 evidence counterfactual을 읽는다는 증거가 있어야
 한다. 그렇지 않으면 text edit는 activation patching이 아니라 외부 힌트 주입이 된다.
+또한 사용한 AR와 동일한 extraction index의 activation만 patch한다. 현재 공개 AV/AR 쌍을
+사용하는 primary patching 위치는 HS32다.
 
 ## 단계
 

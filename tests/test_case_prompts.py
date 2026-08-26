@@ -48,6 +48,14 @@ def test_parse_answer_reads_the_fixed_closing_string():
     assert parse_answer("I am not sure.") is None
 
 
+def test_parse_answer_uses_the_last_formatted_answer():
+    text = (
+        "An early hypothesis says: The answer is Pneumonia. "
+        "After reconsideration, The answer is Pulmonary embolism."
+    )
+    assert parse_answer(text) == "Pulmonary embolism"
+
+
 def test_truncate_chain_cuts_at_a_sentence_boundary():
     chain = "First the fever matters. Then the cough matters. Finally the rash matters."
     half = truncate_chain(chain, 0.5)

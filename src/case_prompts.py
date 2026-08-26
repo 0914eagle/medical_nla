@@ -135,8 +135,9 @@ def build_prompt(prefix: str, condition: str = "direct") -> str:
 
 
 def parse_answer(text: str) -> str | None:
-    """Recover the diagnosis from a response, or None if it did not comply."""
-    match = ANSWER_PATTERN.search(str(text or ""))
+    """Recover the final formatted diagnosis, or None if it did not comply."""
+    matches = list(ANSWER_PATTERN.finditer(str(text or "")))
+    match = matches[-1] if matches else None
     return " ".join(match.group(1).split()) if match else None
 
 

@@ -11,8 +11,11 @@
 |---|---:|---:|---:|
 | Vanilla NLA | No | pretrained | No |
 | SFT only | Yes | No | No |
-| Reconstruction only | No | Yes | optional |
 | Full Medical-NLA | Yes | Yes | Yes |
+
+현재 코드로 실행 가능한 것은 `SFT only`뿐이다. `train_medical_nla_lora.py`는 target token
+cross-entropy만 계산하며 AR reconstruction과 pair-specificity objective는 구현하지 않았다.
+따라서 Full Medical-NLA는 아래 구현 게이트를 통과하기 전에는 실행 이름으로 사용하지 않는다.
 
 Clinical text는 DiReCT의 physician deduction structure에서 만든다. Activation은 P0를
 주 입력으로 한다. Source-wrong 행에서 gold physician text를 activation의 현재 결론처럼
@@ -21,6 +24,12 @@ Clinical text는 DiReCT의 physician deduction structure에서 만든다. Activa
 - source-correct: clinical alignment supervision 가능
 - source-wrong: decision fidelity 평가 및 activation-grounding 학습에 사용
 - gold diagnosis를 강제로 말하게 하는 loss와 source-state를 읽는 loss를 혼합하지 않음
+
+세부 target은 observation reconstruction, source-decision diagnosis, physician-gold
+diagnosis/rationale, activation reconstruction으로 분리하고 field별 loss mask를 사용한다.
+한 note의 deduction 수가 많아도 한 환자가 과도하게 가중되지 않도록 note-level로
+normalization한다. Strict PDD source-correct 수가 작을 수 있으므로 학습 전에 train의
+strict/category/official semantic correct 수를 각각 기록한다.
 
 ## 필수 통제
 
@@ -35,3 +44,15 @@ Clinical text는 DiReCT의 physician deduction structure에서 만든다. Activa
 
 Seen 점수만 높고 PDD-heldout, hard shuffle gap, cue counterfactual이 낮으면 분류기 또는
 문구 암기로 판정한다. 이 경우 모델 크기나 epoch를 늘리기 전에 objective를 수정한다.
+
+## Full objective 구현 게이트
+
+설명 text가 discrete이므로 AR MSE를 SFT CE에 단순 가산할 수 없다. 공개 NLA 방식에 가까운
+RL/GRPO 또는 AR/clinical/pair score로 후보 설명을 순위화한 offline preference optimization
+중 하나를 먼저 구현한다. 다음 smoke가 모두 통과해야 full run을 시작한다.
+
+- AR reconstruction reward가 matched text를 shuffled text보다 높게 평가
+- zero/mean activation이 matched activation보다 높은 reward를 받지 않음
+- 한 optimizer step에서 AV LoRA parameter가 실제로 갱신
+- metadata에 objective weight, AR checkpoint, prompt, seed 기록
+- HS32 사용. 다른 hidden-state index면 layer-matched AV/AR 필요

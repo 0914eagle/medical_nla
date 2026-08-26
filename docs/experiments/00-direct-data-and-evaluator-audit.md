@@ -36,4 +36,10 @@ Official Obspre/Obsrec은 `+1` denominator 때문에 oracle에서도 평균 0.81
 
 ## 판정
 
-완료. E1-E4가 이 split과 evaluator를 사용한다.
+데이터 구조, 환자 분리, 중복 제거와 official evaluator smoke는 완료됐다. 다만 현재 note
+본문에 canonical PDD 또는 annotation-root 진단명이 정규화된 완전 구문으로 직접 등장하는
+비율은 아직 새 manifest로 재집계해야 한다. 이 값은 label leakage sensitivity cohort를
+정의하는 데 사용하며, primary eligibility를 결과에 맞춰 다시 바꾸는 데 사용하지 않는다.
+
+현재 71+100행은 E1/E2 설계 점검에 이미 사용됐으므로 exploratory pilot이다. E3 이후의
+최종 주표는 별도로 동결한 confirmatory protocol을 사용한다.

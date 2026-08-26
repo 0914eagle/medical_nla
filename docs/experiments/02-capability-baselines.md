@@ -6,7 +6,7 @@
 
 ## 비교 방법
 
-1. Source output head likelihood
+1. Source output-head candidate sequence likelihood
 2. Linear probe
 3. Source CoT
 4. Vanilla NLA/AV
@@ -18,11 +18,17 @@
 - Seen vs PDD-heldout
 - Source answer와 gold를 분리한 decision fidelity
 - Open observation/rationale는 DiReCT official evaluator의 호환 가능한 열
-- P0/P1/P2 및 L16/L24/L32 sweep
+- P0/P1/P2 및 HS16/HS24/HS32 sensitivity
 
 Probe는 closed-label upper bound다. Open evidence text 열은 `N/A`이며 실패 0점으로
 처리하지 않는다. Vanilla NLA의 자연어 점수가 낮아도 P0 activation에 정보가 없다는
 결론을 바로 내리지 않고 probe와 output head를 같이 본다.
+
+Output-head baseline은 단일 다음-token logit이 아니다. PDD 이름이 여러 token일 수 있으므로
+각 사전등록 candidate label을 P0 다음에 teacher-force하고 label token들의 평균 log
+probability로 순위를 매긴다. 별도 분류 head는 없지만 평가 label ontology를 제공받는
+closed candidate-ranking baseline이다. Held-out PDD를 candidate list에 넣은 결과는
+zero-shot open generation이 아니라 ontology-given ranking으로 표기한다.
 
 ## 실행 상태
 
@@ -64,11 +70,14 @@ P1은 source answer alias가 reasoning에 없던 15행에서는 1/15=0.0667만 s
 
 ## Model selection
 
-Primary layer와 probe regularization은 train/val_seen으로 정한다. Test_seen과
-PDD-heldout은 선택 이후 한 번만 평가한다.
+현재 test_seen과 PDD-heldout 171행은 이미 위치 및 vanilla AV 설계 점검에 사용했으므로
+exploratory pilot다. 공개 AV/AR와 호환되는 HS32를 primary로 고정한다. HS16/HS24는 같은
+L32 decoder의 distribution shift가 섞인 sensitivity다. Task-aligned vanilla prompt와 probe
+regularization은 confirmatory train/validation에서만 정한다. 새 final test는 설정과 분석
+코드를 동결한 뒤 한 번만 평가한다.
 
 ## 산출물
 
 - Table 1
-- primary layer 결정
+- HS32 primary baseline과 HS16/HS24 sensitivity
 - E3에서 사용할 vanilla checkpoint와 prompt 고정

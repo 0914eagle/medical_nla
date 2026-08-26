@@ -292,15 +292,17 @@ activation을 별도로 저장한다. 이는 전체 설명의 주 입력이 아�
 
 ## 5. Layer 선택
 
-기존 파일럿에서 cue readout은 L16/L24/L32에 따라 달랐다. 따라서 test 결과를 보고
-가장 좋은 layer만 고르면 안 된다.
+기존 파일럿에서 cue readout은 HS16/HS24/HS32에 따라 달랐다. 따라서 test 결과를 보고
+가장 좋은 index만 고르면 안 된다. 공개 AV/AR는 `extraction_layer_index=32`용이므로
+primary Medical-NLA, round-trip, patching은 HS32로 고정한다. HS16/HS24는 같은 decoder의
+distribution shift가 섞인 sensitivity다.
 
 권장안:
 
-1. L16, L24, L32를 모두 추출
-2. validation set에서 layer를 선택
-3. 선택 규칙을 고정한 뒤 held-out test 한 번 평가
-4. 본문에는 primary validation-selected layer와 세 layer sensitivity를 함께 보고
+1. HS16, HS24, HS32를 모두 추출
+2. HS32를 primary로 고정
+3. HS16/HS24는 probe와 appendix sensitivity로 보고
+4. 다른 index를 primary로 쓰려면 해당 index용 AV와 AR를 같은 recipe로 학습
 
 초기 구현은 layer별 독립 LoRA/reader로 시작한다. 하나의 layer-conditioned NLA는
 세 독립 reader가 모두 작동한 뒤의 확장 실험으로 둔다.
@@ -402,7 +404,9 @@ R_AV = -log MSE(h, AR(z))
 `ClinicalMatch`는 DiReCT train split의 구조화 claim에만 사용하고, test gold를 학습에
 쓰지 않는다. `PairSpecificity`는 맞는 activation-description 짝이 diagnosis와 cue
 수를 맞춘 shuffled 짝보다 높은 점수를 갖도록 하는 항이다. 이 결합 목적식은 제안안이며,
-각 항의 제거 실험이 필요하다. 특히 SFT-only와 full Medical-NLA의 차이가 Table 2뿐
+각 항의 제거 실험이 필요하다. 현재 `train_medical_nla_lora.py`는 SFT CE만 구현하며
+아래 full objective는 아직 코드로 구현되지 않았다. 구현된 뒤에만 실험군으로 부른다.
+특히 SFT-only와 full Medical-NLA의 차이가 Table 2뿐
 아니라 Table 3에서도 나타나야 reconstruction이 실제 역할을 했다고 말할 수 있다.
 
 참고: NLA 구조, MSE/FVE, AV-RL/AR-regression 정의는
@@ -412,73 +416,40 @@ R_AV = -log MSE(h, AR(z))
 
 ## 8. 최종 표 설계: 각 표가 답하는 질문, 열의 출처와 계산법
 
-### Table 1. Capability boundary: closed labels versus open readout
+### Table 1. Backbone behavior and internal readout capability
 
-이 표는 “probe보다 NLA가 진단을 더 잘 맞힌다”를 주장하기 위한 표가 아니다.
-**미리 정한 label을 찾는 닫힌 과제와, 미리 정하지 않은 내용을 문장으로 복원하는
-열린 과제의 경계**를 한 번에 보여준다. 두 패널의 분모와 metric이 다르므로 패널을
-분리한다.
+이 표는 “probe보다 NLA가 진단을 더 잘 맞힌다”를 주장하기 위한 표가 아니다. 서로 다른
+분모와 출력 공간을 한 점수로 합치지 않기 위해 두 panel로 분리한다.
 
-#### Panel A. Closed diagnosis decoding
+#### Panel A. Backbone diagnostic behavior on identical case IDs
 
-| Method | Separate task head | Seen-label Acc. | Patient-heldout Acc. | Diagnosis-heldout |
-|---|---:|---:|---:|---:|
-| Output-head likelihood | no | TBD | TBD | TBD (candidate ranking) |
-| Linear probe | yes | TBD | TBD | N/A |
-| Vanilla NLA | no | TBD | TBD | TBD |
-| Medical-AV, SFT only | no | TBD | TBD | TBD |
-| Medical-NLA | no | TBD | TBD | TBD |
-
-열의 의미와 출처:
-
-- **Separate task head**: 평가할 진단 label 집합을 알고 별도 weight를 학습해야 하는지다.
-  Probe는 `W h + b`의 class head를 학습하므로 `yes`다. NLA는 자연어 vocabulary로
-  생성하므로 별도 diagnosis head는 없다.
-- **Seen-label Acc.**: 학습과 test에 같은 진단 label 집합이 있고 환자만 다른 표준
-  top-1 classification accuracy다. DDXPlus 49-class 또는 사전등록한 clean subset에서
-  평가한다.
-- **Patient-heldout Acc.**: 같은 진단 label은 허용하지만 환자/base ID를 완전히
-  분리한 test accuracy다. 클래스 암기와 환자 중복을 구분한다.
-- **Diagnosis-heldout**: 특정 진단 label을 train에서 통째로 제거하고 그 이름 또는
-  동의어를 test에서 생성했는지다. Train classifier에 output node가 없는 probe에는
-  `0`이 아니라 **N/A**를 쓴다. 이는 실패 점수가 아니라 과제 정의 밖이라는 뜻이다.
-- **Output-head likelihood**: target model의 같은 hidden state를 원래 unembedding으로
-  투사한 기준선이다. 별도 probe보다 source model 자신의 출력층에 정보가 얼마나
-  직접 노출되는지를 보여준다.
-
-#### Panel B. Open natural-language recovery
-
-| Method | Held-out cue precision | Held-out cue recall | Held-out relation match | MCR source-answer fidelity | MCR gold match, source-wrong |
+| Method | n | Parse coverage | Strict PDD | Disease category | Official semantic diagnosis |
 |---|---:|---:|---:|---:|---:|
-| Linear probe | — | — | — | — | — |
-| CoT reasoning | TBD | TBD | TBD | TBD | TBD |
-| Vanilla NLA | TBD | TBD | TBD | TBD | TBD |
-| Medical-AV, SFT only | TBD | TBD | TBD | TBD | TBD |
-| Medical-NLA | TBD | TBD | TBD | TBD | TBD |
+| Direct, answer-prefilled | TBD | TBD | TBD | TBD | TBD |
+| Source CoT | TBD | TBD | TBD | TBD | TBD |
 
-- **Held-out cue precision/recall**은 DDXPlus native evidence ID/value 중 train target에
-  등장하지 않은 cue string을 test에 두고 계산한다. Precision은 출력 claim 중 gold
-  cue인 비율, recall은 gold cue 중 출력된 비율이다. 이는 DiReCT `Obspre/Obsrec`을
-  가져다 붙인 것이 아니라 DDXPlus 구조에 맞춘 별도 lexical/ontology score다.
-- **Held-out relation match**는 `finding-status`, `finding-location`, `finding-severity`
-  같은 dataset-native relation/value가 함께 맞았는지다. 사용할 relation은
-  `release_evidences.json`에 실제 value schema가 있는 항목으로 사전등록한다.
-- **MCR source-answer fidelity**는 MCR에서 backbone이 실제 생성한 진단과 판독 진단이
-  의미적으로 일치한 비율이다. 특히 source-wrong subset에서는 `readout=model answer`와
-  `readout=gold`를 나란히 보고한다. 전자가 높아야 vignette를 다시 푼 것이 아니라
-  model state를 읽었다는 근거가 된다.
-- **MCR gold match, source-wrong**은 같은 source-wrong 분모에서 판독이 gold를 말한
-  비율이다. Source-answer fidelity보다 이 값이 높으면 판독이 state를 충실히 서술했다기보다
-  note를 다시 풀거나 학습 prior로 gold를 보정했을 가능성을 먼저 검토한다.
+#### Panel B. CoT-P0 internal readout on identical activations
 
-Panel B에서 probe를 `—`로 두는 이유는 probe를 약하게 보이게 하려는 것이 아니다.
-각 cue·relation마다 classifier를 새로 만들면 일부 칸은 채울 수 있지만, 그것은
-“하나의 reader가 사전에 열거하지 않은 내용을 말하는가”라는 과제와 달라진다. 필요하면
-Appendix에 multi-label probe를 추가하되, output ontology와 head 수를 함께 보고한다.
+| Method | Coverage | Seen-PDD gold | Held-out-PDD gold | Category gold | Source-decision fidelity | Open evidence | Trained task head | Eval ontology |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Output-head candidate score | TBD | TBD | TBD | TBD | TBD | N/A | no | yes |
+| Linear PDD probe | TBD | TBD | N/A | TBD | TBD | N/A | yes | yes |
+| Vanilla NLA, default prompt | TBD | TBD | TBD | TBD | TBD | TBD | no | no |
+| Vanilla NLA, task-aligned prompt | TBD | TBD | TBD | TBD | TBD | TBD | no | no |
+| Medical-NLA | TBD | TBD | TBD | TBD | TBD | TBD | no | train text only |
 
-**통계**: accuracy는 case-level paired bootstrap 95% CI, 방법 간 차이는 같은 test ID의
-paired bootstrap을 사용한다. Diagnosis별 표본 불균형이 있으면 macro average와 micro
-average를 모두 보고한다.
+- **Strict PDD/category/official semantic**은 서로 다른 난이도이므로 합치지 않는다.
+- **Source-decision fidelity**는 gold가 아니라 backbone이 실제 생성한 answer를 판독했는지다.
+  Source-wrong subgroup에서 gold match와 나란히 보고해 state reading과 context 재풀이를 구분한다.
+- **Output-head candidate score**는 P0 뒤에 각 사전등록 PDD 문자열을 teacher-force하고 label
+  token 평균 log probability로 순위를 매긴다. 별도 head는 없지만 평가 ontology를 받으므로
+  열린 zero-shot 생성이 아니다.
+- **PDD probe의 held-out PDD**는 output node가 없으므로 0이 아니라 N/A다. Category가 train에
+  존재할 때 category probe는 별도로 평가할 수 있다.
+- **Open evidence**는 observation/rationale free text다. Probe에 없는 능력이므로 N/A이고,
+  필요하면 appendix에서 ontology와 head 수를 명시한 multi-label probe를 따로 평가한다.
+- 두 panel 모두 parse/extraction 실패를 삭제하지 않고 coverage와 함께 failure로 센다.
+- Accuracy와 방법 간 차이는 동일 case ID의 paired bootstrap 95% CI를 사용한다.
 
 ---
 
@@ -489,13 +460,17 @@ average를 모두 보고한다.
 diagnosis)`를 주석했다. 아래 metric은 새로 만든 것이 아니라 DiReCT 논문 Section 3.5의
 정의를 사용한다.
 
-| Method | Text source | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
-|---|---|---:|---:|---:|---:|---:|---:|
-| CoT reasoning | prompt + generated reasoning | TBD | TBD | TBD | TBD | TBD | TBD |
-| Diagnosis probe | P0 activation | TBD | — | — | — | — | — |
-| Vanilla NLA | P0 activation | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-AV, SFT only | P0 activation | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-NLA | P0 activation | TBD | TBD | TBD | TBD | TBD | TBD |
+| Method | Text source | n | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| CoT reasoning | generated reasoning | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Vanilla NLA | P0 activation | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, SFT only | P0 activation | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, full objective | P0 activation | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+
+Full objective 행은 AR reconstruction 또는 preference/RL objective가 실제 구현되고 smoke를
+통과한 경우에만 유지한다. 현재 학습 코드는 SFT-only다. 모든 method 출력은 동일한 claim
+extractor로 official schema에 맞추고, extractor는 원 note, gold annotation, method 이름을
+보지 않는다. Extraction 실패는 행 삭제가 아니라 failure이며 coverage를 함께 보고한다.
 
 기호를 먼저 고정한다.
 
@@ -762,7 +737,7 @@ Finding: chest pain | severity: severe
 E0 data/evaluator audit
   -> E1 source CoT + activation extraction
       -> E2 vanilla/probe baseline
-          -> E3 SFT-only vs full Medical-NLA
+          -> E3 SFT-only, full objective는 구현된 경우에만 추가
               -> E4 DiReCT explanation evaluation
               -> E5 DDXPlus grounding controls
                   -> E6 text patching (E5 통과 시에만)
@@ -854,11 +829,12 @@ Probe hyperparameter는 validation에서 선택하고 test diagnosis별로 macro
 
 ### E3. 의료 적응과 ablation
 
-최소 세 모델을 같은 train IDs와 token budget으로 학습한다.
+계획상 세 모델을 같은 train IDs와 token budget으로 학습한다. 현재 실행 가능한 것은
+첫 번째 SFT-only뿐이다.
 
 1. `Medical-AV SFT only`
-2. `Medical-NLA` without clinical reward: reconstruction만 의료 activation에 계속 학습
-3. `Medical-NLA full`: reconstruction + clinical match + pair specificity
+2. `Medical-NLA` without clinical reward: reconstruction만 의료 activation에 계속 학습 (미구현)
+3. `Medical-NLA full`: reconstruction + clinical match + pair specificity (미구현)
 
 각 모델은 최소 3 seeds를 사용하고 best checkpoint는 validation metric으로만 선택한다.
 Training curve에는 AV CE/reward, AR MSE, FVE, real-pair 대 shuffled-pair gap을 기록한다.

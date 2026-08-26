@@ -10,7 +10,7 @@
 
 ## 결과가 들어온 뒤 옮길 부분
 
-- E2 완료 후 Table 1과 primary layer 결정
+- E2 완료 후 Table 1 확정. 공개 AV/AR 호환 때문에 HS32가 primary이며 HS16/24는 sensitivity
 - E4 완료 후 Table 2와 Figure 2
 - E5 완료 후 Table 3과 Figure 3, `activation-grounded` 문구 확정
 - E6 완료 후 Table 4와 Figure 4, 성능 개선 문구 확정

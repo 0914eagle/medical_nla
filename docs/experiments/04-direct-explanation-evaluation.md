@@ -11,6 +11,10 @@ Official evaluator의 Accdiag, Obspre, Obsrec, Obscomp, Expcom, Expall을 사용
 같은 case, 같은 output schema, 같은 Llama-3-8B semantic judge를 사용한다. 공식 `+1`
 denominator를 유지한다.
 
+CoT와 각 NLA의 free text는 공통 claim extractor로 observation-rationale-diagnosis schema에
+변환한다. Extractor는 method 이름, gold annotation, 원 note를 받지 않는다. Parse 또는
+extraction 실패는 분모에서 삭제하지 않고 0점 처리하며 extraction coverage를 함께 보고한다.
+
 ## 보조 평가
 
 - Unsmooothed observation precision/recall

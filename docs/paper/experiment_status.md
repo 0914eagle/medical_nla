@@ -6,8 +6,8 @@
 |---|---|---|---|
 | E0 DiReCT audit/evaluator | 완료 | 496행 canonical split, official oracle smoke | E1-E4 |
 | E1 source/activation | 실행 중 | 496 source outputs, P0/P1/P2 x L16/24/32 | E2 |
-| E2 capability baselines | 실행 중 | test P0/L32 vanilla AV 171행 완료; output head/probe 대기 | E3-E5 |
-| E3 Medical-NLA train | 대기 | SFT-only, recon-only, full, 3 seeds | E4-E6 |
+| E2 capability baselines | 실행 중 | exploratory P0/HS32 vanilla AV 171행 완료; output head/probe 대기 | E3-E5 |
+| E3 Medical-NLA train | 설계 차단 | SFT-only 실행 가능; reconstruction/full objective 미구현 | E4-E6 |
 | E4 DiReCT explanation | 대기 | official metrics + human audit | Table 2 |
 | E5 DDX grounding | 대기 | shuffle/counterfactual/round-trip 통과 | RQ2, E6 gate |
 | E6 text patching | 조건부 | target change + no-op preservation | RQ3 |
@@ -20,8 +20,9 @@
 | `165.132.76.62` | `/data/heejae` | physical 2,3 | train + val_seen | 325, 실행 중 |
 | `165.132.76.125` | `/data1/heejae` | physical 0,1 | test_seen + PDD-heldout | 171, 완료 |
 
-공통 설정은 Gemma-3-12B-IT, greedy decoding, batch size 1,
-`max_new_tokens=2048`, forced answer 비활성화다. strict PDD accuracy는 실행 중
+공통 backbone은 Gemma-3-12B-IT이고 greedy decoding과 forced answer 비활성화를 쓴다.
+CoT는 batch size 1, `max_new_tokens=2048`; Direct는 batch size 4, answer prefill,
+`max_new_tokens=64`다. strict PDD accuracy는 실행 중
 약 0.16-0.24이나, DiReCT PDD가 세분화되어 있어 category accuracy와 official semantic
 evaluation을 함께 보지 않고 이 중간값만으로 모델 적합성을 판정하지 않는다.
 
@@ -70,11 +71,13 @@ official `Obs*`/`Exp*`로 별도 평가한다.
 2. 62번 완주 후 train/validation의 strict PDD, category, token-F1을 같은 방식으로 집계
 3. P1의 `diagnosis_alias_in_reasoning`에 따른 clean/leaky 민감도 분석
 4. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
-5. Validation에서 primary layer와 probe regularization을 선택하고 test에는 고정 적용
+5. 현재 171행은 exploratory로 동결하고 confirmatory split/protocol을 E3 전에 확정
+6. Confirmatory validation에서 primary index와 probe regularization을 선택하고 final test에는 고정 적용
+7. E3 전에 full objective를 RL/preference 방식으로 구현할지, SFT-only 논문으로 제한할지 결정
 
-## E2 vanilla AV test 상태
+## E2 vanilla AV exploratory 상태
 
-Test P0/L32 171행 생성은 완료됐다. `parsed_explanation_tag`는 171/171, 빈 출력은
+Pilot test P0/HS32 171행 생성은 완료됐다. `parsed_explanation_tag`는 171/171, 빈 출력은
 0/171이며 split은 test-seen 71, PDD-heldout 100으로 E1 test 모집단과 일치한다. 출력
 길이는 637--741자(중앙값 697, 평균 696.9)로 매우 좁다. 이는 generation 안정성은
 보이지만 사례별 내용 복원이나 faithfulness를 뜻하지 않는다. 동일 문구 반복률,
@@ -104,3 +107,7 @@ mention은 1/15=0.0667이었다. 따라서 P1의 높은 값은 대부분 CoT 안
 노출된 activation에서 사례별 source-answer 정보를 부분적으로 읽을 수 있음을 보이지만,
 P0의 생성 전 diagnosis recovery는 0이었다. P0가 evidence를 의미 수준에서 복원하는지는
 별도 claim extraction으로 평가한다.
+
+이 171행은 위치 선택과 vanilla prompt 진단에 이미 사용됐으므로 최종 untouched test가
+아니다. 이후 방법 선택의 근거로 수치를 계속 추가하지 않고 exploratory 결과로 보존한다.
+최종 주표는 새 confirmatory protocol에서 다시 계산한다.

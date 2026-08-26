@@ -14,6 +14,18 @@ activation에 의존하는가?
 5. Cue/value edit: DDXPlus가 정의한 attribute value만 변경
 6. AV->text->AR identity round-trip
 
+## Population split
+
+DDXPlus를 평가에만 쓸지 grounding 학습에도 쓸지를 E3 전에 고정한다. Primary transfer
+설정은 DiReCT-only adaptation 뒤 DDXPlus를 cross-corpus test로 사용하는 것이다. DDXPlus
+counterfactual을 학습에 쓰는 보조 설정에서는 base case, cue/value 조합과 donor pool을
+train/validation/test 사이에 분리한다. Test pair나 test cue/value로 prompt, reward weight,
+shuffle 난이도를 선택하지 않는다. 학습에 쓴 DDXPlus 행을 같은 Table 3 분모에 넣지 않는다.
+
+공개 AV/AR가 hidden-state extraction index 32용이므로 primary grounding과 round-trip은
+HS32로 고정한다. HS16/HS24를 같은 decoder에 넣는 값은 representation 차이와 decoder
+distribution shift를 분리하지 못해 appendix sensitivity로만 다룬다.
+
 ## 지표
 
 - Own-pair score와 shuffled score의 paired gap

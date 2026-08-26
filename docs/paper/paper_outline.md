@@ -33,8 +33,9 @@ MCR은 frozen external OOD로만 쓴다. Backbone은 Gemma-3-12B-IT이다.
 
 ## 4. Method
 
-P0/P1/P2와 L16/L24/L32 추출을 정의한다. P0가 주 입력이고 P2는 leakage control이다.
-Vanilla NLA에서 시작해 SFT-only, reconstruction-only, full Medical-NLA를 학습한다.
+P0/P1/P2와 hidden-state extraction index 16/24/32를 정의한다. P0가 주 입력이고 P2는
+leakage control이다. Vanilla NLA에서 시작해 SFT-only를 학습한다. Reconstruction과
+pair-specificity를 실제 objective로 구현한 경우에만 full Medical-NLA ablation을 추가한다.
 Full objective는 임상 text supervision, activation reconstruction, pair specificity를
 결합하되 각 항을 ablation으로 분리한다.
 

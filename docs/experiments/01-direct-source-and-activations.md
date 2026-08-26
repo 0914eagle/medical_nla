@@ -10,7 +10,7 @@
 - Backbone: `google/gemma-3-12b-it`
 - Decoding: greedy, `do_sample=false`
 - `max_new_tokens=2048`, batch size 1, forced answer 비활성화
-- Layers: 16, 24, 32
+- Hidden-state extraction indices: 16, 24, 32
 - P0: prompt 마지막 토큰, 생성 전
 - P1: assistant의 마지막 `The answer is` marker 마지막 subtoken, diagnosis 전
 - P2: parsed diagnosis 마지막 subtoken
@@ -66,7 +66,8 @@ Strict PDD 중간 정확도만으로 source model을 탈락시키지 않는다. 
 `1,539 = 171 cases x 3 positions x 3 layers`로 완전하다. P1 clean subset은 15행뿐이므로
 P1을 독립적인 pre-answer readout 결과로 일반화하지 않는다. P0를 primary로 사용한다.
 
-같은 171행에서 direct prefill baseline은 strict PDD 36/171 = 0.2105였다. CoT는
+같은 171행에서 direct prefill baseline은 batch 4, max new tokens 64로 생성했고 strict
+PDD 36/171 = 0.2105였다. CoT는 batch 1, max new tokens 2048로 생성했으며
 33/171 = 0.1930으로 -1.75%p였고, paired discordant cases는 CoT rescue 7 대 CoT break
 10, McNemar exact p=0.6291이었다. 이는 strict PDD상 CoT가 Direct보다 낫거나 나쁘다는
 증거가 없다는 뜻이다. Disease category는 Direct 0.5029, CoT 0.5088
@@ -80,3 +81,6 @@ Split별로도 같은 패턴이다. PDD-heldout 100행에서 Direct/CoT strict P
 71행에서는 strict PDD 0.2535/0.2254, category 0.3944/0.3803, token F1
 0.2921/0.2530이었다. Heldout과 seen은 label 및 category 구성이 다르므로 두 pool의
 절대 정확도를 난이도 차이로 단정하지 않는다.
+
+이 171행은 P0/P1/P2와 vanilla AV 진단에 이미 사용했으므로 exploratory pilot로 분류한다.
+최종 confirmatory test는 E3 학습 전에 새로 동결한다.

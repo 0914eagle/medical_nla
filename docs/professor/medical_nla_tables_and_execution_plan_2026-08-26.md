@@ -90,46 +90,43 @@ DiReCT는 PhysioNet Restricted Health Data License 1.5.0 대상이다.
 
 ## 2. 최종 Table 설계
 
-### Table 1. Closed-label detection versus open natural-language readout
+### Table 1. Backbone behavior and internal readout capability
 
-목적: probe보다 NLA가 무조건 정확하다고 주장하지 않고, 두 도구의 능력 경계를
-보인다.
+목적: Direct/CoT의 실제 행동과 P0 내부 판독을 분리하고, probe보다 NLA가 무조건
+정확하다고 주장하지 않으면서 두 도구의 능력 경계를 보인다.
 
-#### A. Closed diagnosis decoding
+#### A. Backbone behavior on identical case IDs
 
-| Method | Separate task head | Seen-label Acc. | Patient-heldout Acc. | Diagnosis-heldout |
-|---|---:|---:|---:|---:|
-| Output-head likelihood | no | TBD | TBD | candidate ranking |
-| Linear probe | yes | TBD | TBD | N/A |
-| Vanilla NLA | no | TBD | TBD | TBD |
-| Medical-AV, SFT only | no | TBD | TBD | TBD |
-| Medical-NLA | no | TBD | TBD | TBD |
+| Method | n | Parse coverage | Strict PDD | Disease category | Official semantic diagnosis |
+|---|---:|---:|---:|---:|---:|
+| Direct, answer-prefilled | TBD | TBD | TBD | TBD | TBD |
+| Source CoT | TBD | TBD | TBD | TBD | TBD |
 
-#### B. Open natural-language recovery
+#### B. CoT-P0 internal readout on identical activations
 
-| Method | Held-out cue P/R | Held-out relation match | MCR source-answer fidelity | MCR gold match on source-wrong |
-|---|---:|---:|---:|---:|
-| CoT reasoning | TBD | TBD | TBD | TBD |
-| Vanilla NLA | TBD | TBD | TBD | TBD |
-| Medical-AV, SFT only | TBD | TBD | TBD | TBD |
-| Medical-NLA | TBD | TBD | TBD | TBD |
+| Method | Coverage | Seen-PDD gold | Held-out-PDD gold | Category gold | Source-decision fidelity | Open evidence | Trained head | Eval ontology |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Output-head candidate score | TBD | TBD | TBD | TBD | TBD | N/A | no | yes |
+| Linear PDD probe | TBD | TBD | N/A | TBD | TBD | N/A | yes | yes |
+| Vanilla NLA, default prompt | TBD | TBD | TBD | TBD | TBD | TBD | no | no |
+| Vanilla NLA, task-aligned prompt | TBD | TBD | TBD | TBD | TBD | TBD | no | no |
+| Medical-NLA | TBD | TBD | TBD | TBD | TBD | TBD | no | train text only |
 
-Probe는 Panel B에서 `0`이 아니라 `N/A`다. 각 cue/relation별 별도 probe를 만들 수는
-있지만, 이는 하나의 open reader와 다른 과제다. Appendix에 multi-label probe를
-추가할 경우 output ontology와 head 수를 함께 보고한다.
+Output-head candidate score는 사전등록 PDD 문자열의 길이 정규화 sequence likelihood다.
+Probe는 held-out PDD output node와 open evidence output이 없으므로 해당 칸은 `N/A`다.
+Source-decision fidelity와 physician-gold alignment는 같은 점수로 합치지 않는다.
 
 ### Table 2. DiReCT clinical explanation quality
 
 목적: 교수님이 제안한 `정답을 얼마나 잘 맞추고 설명을 얼마나 잘하는가`를
 의사 annotation 기준으로 평가한다.
 
-| Method | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
-|---|---:|---:|---:|---:|---:|---:|
-| CoT reasoning | TBD | TBD | TBD | TBD | TBD | TBD |
-| Diagnosis probe | TBD | N/A | N/A | N/A | N/A | N/A |
-| Vanilla NLA | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-AV, SFT only | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-NLA | TBD | TBD | TBD | TBD | TBD | TBD |
+| Method | n | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| CoT reasoning | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Vanilla NLA | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, SFT only | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
 
 - `Accdiag`: 공식 코드 `acc_diag`; canonical PDD 문자열 exact match
 - `Obspre`: 공식 코드 `comp_pre = matched / (predicted + 1)`
@@ -139,7 +136,9 @@ Probe는 Panel B에서 `0`이 아니라 `N/A`다. 각 cue/relation별 별도 pro
 - `Expall`: 누락·추가·관계·진단 오류를 모두 포함한 end-to-end alignment
 
 이 표는 activation faithfulness가 아니라 `expert-reference clinical alignment`다.
-CoT와 NLA 출력은 동일한 claim schema로 정규화하고 method 이름을 judge에게 숨긴다.
+CoT와 NLA 출력은 동일한 claim schema로 정규화하고 method 이름, 원 note, gold annotation을
+extractor에게 숨긴다. 실패 행은 제거하지 않고 failure로 세며 coverage를 함께 보고한다.
+Full objective 행은 실제 objective 구현 후에만 유지한다.
 공식 평가는 Llama-3-8B가 observation/rationale 의미 대응을 `Yes`로 판정한 뒤
 `statistics.py`가 집계한다. Greedy observation matching의 순서 의존성, exact `Yes`
 판정, 누락 파일을 0으로 처리하는 동작은 공식 재현과 별도의 민감도 분석으로 감사한다.
@@ -262,11 +261,16 @@ P1: <answer> marker의 마지막 subtoken activation
 P2: diagnosis 생성 후 activation, positive control only
 ```
 
-L16/L24/L32를 추출하되 validation에서 primary layer를 선택하고 test에는 한 번만
+HS16/HS24/HS32를 추출하되 공개 AV/AR와 호환되는 HS32를 primary로 고정하고 test에는 한 번만
 적용한다. 설명 품질의 주 NLA 입력은 CoT 생성 전 P0다. P1은 reasoning 이후 trajectory
 분석이며, CoT reasoning에 final diagnosis alias가 먼저 등장한 행은 P1
 source-decision 분석에서 제외한다. 10행 smoke에서 이 누출이 8행이었으므로 P1 전체를
 CoT와의 주 비교에 사용하는 설계는 폐기한다.
+
+현재 test-seen 71행과 PDD-heldout 100행은 이미 이 위치 결정과 vanilla AV 점검에
+사용됐으므로 exploratory pilot이다. 이후 표의 최종 수치는 새 confirmatory split 또는
+nested patient/PDD-group protocol을 먼저 동결하고, 그 output을 보기 전 table schema와
+analysis code를 고정한 뒤 산출한다.
 
 ### E2 이후
 
@@ -274,7 +278,7 @@ CoT와의 주 비교에 사용하는 설계는 폐기한다.
 E0 dataset/evaluator audit
  -> E1 source CoT + P0/P1/P2 activation
  -> E2 output-head/probe/vanilla baseline
- -> E3 SFT-only vs full Medical-NLA
+ -> E3 SFT-only, full objective는 구현된 경우에만 추가
  -> E4 DiReCT Table 2
  -> E5 DDXPlus Table 3
  -> E6 text patching, E5 통과 시에만

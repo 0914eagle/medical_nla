@@ -42,7 +42,7 @@ Gemma-3-12B-IT에서 source CoT와 layer 16/24/32 activation을 추출 중이다
 위치, answer 뒤 P2는 positive control로 쓴다.
 
 - Server 62 `/data/heejae`: train+val 325행, GPU 2/3, 실행 중
-- Server 125 `/data1/heejae`: test 171행, GPU 0/1, 완료
+- Server 125 `/data1/heejae`: exploratory test 171행, GPU 0/1, 완료
 - Greedy, max new tokens 2048, batch size 1
 
 10행 smoke에서 answer parse는 100%, strict PDD alias는 0%, disease category는 60%였다.
@@ -59,14 +59,20 @@ leakage-free subset이 15행뿐이었다. 따라서 P1은 민감도 분석으로
 label token F1은 0.1850으로 Direct 0.1593보다 높았지만 이는 진단명 문자열 유사도이며
 설명 품질은 아니다. 최종 설명 비교는 official DiReCT `Obs*`/`Exp*`로 수행한다.
 
+단, 이 171행은 P0/P1/P2 위치 선택과 vanilla AV 진단에 이미 사용했으므로 untouched final
+test가 아니다. 위 수치는 pilot로만 보존한다. E3 학습 전 새로운 label-heldout split 또는
+nested patient/PDD-group protocol을 고정하고, ID hash와 분석 코드를 동결한 뒤 최종 주표를
+다시 계산한다.
+
 ## 다음 순서
 
 1. E1 source/activation 완주와 official source score
-2. Output head, linear probe, vanilla NLA baseline 및 primary layer 선택
-3. SFT-only, reconstruction-only, full Medical-NLA를 3 seeds로 학습
-4. DiReCT Table 2로 clinical alignment 평가
-5. DDXPlus Table 3으로 shuffle/counterfactual/round-trip 검증
-6. Table 3 통과 시에만 text patching과 성능 개선 평가
+2. Gold-label-in-note leakage 집계와 confirmatory population/ID hash 동결
+3. Output head, linear probe, default/task-aligned vanilla NLA baseline. 공개 AV/AR 호환 때문에 HS32를 primary로 사용
+4. SFT-only를 3 seeds로 학습. Reconstruction/full은 objective 구현 후에만 추가
+5. DiReCT Table 2로 clinical alignment 평가
+6. DDXPlus Table 3으로 shuffle/counterfactual/round-trip 검증
+7. Table 3 통과 시에만 text patching과 성능 개선 평가
 
 이 구조에서 설명 점수만 오르면 `좋은 의료 설명 생성기`, grounding까지 통과하면
 `내부 상태 판독기`, patching까지 성공하면 `설명과 성능을 함께 개선하는 방법`이라고

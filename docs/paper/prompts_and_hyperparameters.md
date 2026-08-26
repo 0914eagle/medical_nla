@@ -53,17 +53,24 @@ Direct arm은 assistant turn을 `The answer is`에서 prefill한다. 그렇지 �
 | CoT max new tokens | 2048 |
 | Direct prefilled max new tokens | 64 |
 | Forced answer | E1에서 비활성화 |
-| Batch size | 1 |
+| CoT batch size | 1 |
+| Direct batch size | 4 |
 | Seed | 17 |
 
 `configs/default.yaml`의 일반 generation default 256은 E1 CoT에 적용되지 않는다.
 `run_source_answers.py`가 condition별 기본값으로 CoT 2048을 사용한다.
 
+두 arm 모두 Hugging Face tokenizer의 checkpoint chat template에 user message 하나를 넣고
+`add_generation_prompt=true`로 렌더한다. Direct는 렌더된 assistant turn 뒤에
+`The answer is`를 prefill하고, 저장할 때 같은 cue를 response 앞에 복원한다. CoT는 prefill
+없이 자유 생성한다. `temperature`와 `top_p`는 전달하지 않으며 sampling도 사용하지 않는다.
+Padding은 left padding이고 pad token이 없으면 EOS를 pad token으로 사용한다.
+
 ## Activation extraction
 
 | 항목 | 값 |
 |---|---|
-| Layers | 16, 24, 32 |
+| Hidden-state extraction indices | 16, 24, 32 |
 | Hidden dimension | 3840 |
 | P0 | prompt final token |
 | P1 | last `The answer is` marker의 last subtoken |
@@ -72,6 +79,9 @@ Direct arm은 assistant turn을 `The answer is`에서 prefill한다. 그렇지 �
 
 P1/P2는 같은 source run의 정확한 transcript를 teacher-force하므로 별도 생성 run이 아니다.
 다만 CoT 본문에 answer alias가 먼저 등장한 행은 P1의 clean pre-answer 분석에서 제외한다.
+P0는 note 끝이 아니라 CoT instruction을 포함한 전체 user prompt의 마지막 토큰이다.
+공개 AV sidecar는 `extraction_layer_index: 32`를 명시하므로 index 32 입력은 checkpoint와
+호환된다. 논문에서는 embedding을 포함하는 hidden-state tuple convention을 캡션에 적는다.
 
 ## 보고할 추가 하이퍼파라미터
 

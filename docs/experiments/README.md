@@ -8,8 +8,8 @@
 |---|---|---|---|
 | E0 | DiReCT data/evaluator audit | 완료 | canonical split, evaluator smoke |
 | E1 | Source CoT and activation extraction | 실행 중 | P0/P1/P2 x L16/24/32 |
-| E2 | Capability baselines | 대기 | Table 1, primary layer |
-| E3 | Medical-NLA training | 대기 | SFT/recon/full checkpoints |
+| E2 | Capability baselines | 실행 중 | Table 1, HS32 primary baseline |
+| E3 | Medical-NLA training | 설계 차단 | SFT-only 가능, full objective 미구현 |
 | E4 | DiReCT explanation evaluation | 대기 | Table 2, Figure 2 |
 | E5 | DDXPlus activation grounding | 대기 | Table 3, Figure 3 |
 | E6 | Text patching | E5 조건부 | Table 4, Figure 4 |
@@ -31,6 +31,7 @@ E0 -> E1 -> E2 -> E3 -> E4
 - DiReCT 원문과 private artifact는 Git에 올리지 않는다.
 - CoT와 NLA의 비교는 같은 source case와 같은 evaluator를 사용한다.
 - P0가 primary activation이다. P1은 CoT 내 diagnosis leakage를 분리해 보조 분석한다.
+- 공개 AV/AR의 extraction index가 32이므로 primary NLA/round-trip은 HS32다. HS16/24는 sensitivity다.
 - Clinical alignment와 activation grounding을 하나의 점수로 합치지 않는다.
 - E5를 통과하지 못한 방법으로 E6 성능 개선 주장을 하지 않는다.
 

@@ -38,8 +38,9 @@ NLA가 필요한 이유는 probe를 이기기 위해서가 아니라 이 열린 
 ### H3. 단순 의료 SFT는 충분하지 않으며 검증 가능한 Medical-NLA가 필요하다
 
 정답 진단과 전형적 설명을 직접 생성하도록 SFT하면 seen-class 분류기나 의료 문구
-생성기로 붕괴할 수 있다. 따라서 SFT-only, reconstruction-only, 임상 supervision과
-activation grounding을 함께 쓰는 full method를 분리해 비교한다.
+생성기로 붕괴할 수 있다. 따라서 SFT-only를 먼저 측정하고, reconstruction/pair-specificity
+objective를 실제로 구현한 경우에만 full method라고 부른다. 현재 학습 코드는 SFT-only이며
+full objective는 아직 구현 전이다.
 
 ### H4. 검증된 판독만 인과적 개입에 사용해야 한다
 
@@ -65,11 +66,13 @@ backbone 행동을 선택적으로 바꾸는지 평가한다.
 
 ## Activation 위치
 
-E1에서는 Gemma-3-12B-IT의 layer 16/24/32에서 세 위치를 추출한다.
+E1에서는 Gemma-3-12B-IT의 hidden-state tuple index 16/24/32에서 세 위치를 추출한다.
+공개 AV sidecar의 `extraction_layer_index=32`와 같은 convention이다. 이하 표의 L16/L24/L32는
+편의상 쓰는 약칭이며 transformer block 번호라고 해석하지 않는다.
 
 | 위치 | 정의 | 논문 역할 |
 |---|---|---|
-| P0 | 임상 prompt 마지막 토큰, 생성 전 | CoT와 NLA의 주 비교 및 Medical-NLA 입력 |
+| P0 | CoT instruction까지 포함한 user prompt 마지막 토큰, 생성 전 | CoT와 NLA의 주 비교 및 Medical-NLA 입력 |
 | P1 | 생성된 CoT 뒤, 최종 answer 전 | reasoning 이후 상태의 보조 trajectory |
 | P2 | 최종 answer 뒤 | 정답 문자열 누출을 확인하는 positive control |
 
@@ -89,6 +92,11 @@ P1은 CoT 안에 최종 진단이 이미 등장할 수 있다. smoke 10건에서
 - E0 DiReCT 감사·환자 분리 split·공식 evaluator smoke: 완료
 - E1 source CoT와 P0/P1/P2 activation: 두 서버에서 실행 중
 - E2 이후 baseline, Medical-NLA 학습, 설명 평가, grounding, patching: 대기
+
+현재 171행 test 결과는 P0/P1/P2와 vanilla AV 설계 점검에 이미 사용했으므로
+`exploratory pilot`이다. 최종 confirmatory 모집단은 E3 학습 전에 별도로 동결한다.
+상세 감사와 표별 분모는
+[`design_and_population_audit_2026-08-26.md`](design_and_population_audit_2026-08-26.md)를 따른다.
 
 상세 상태는 [`experiment_status.md`](experiment_status.md), 표·그림은
 [`tables_and_figures.md`](tables_and_figures.md)를 따른다. 재현 설정은

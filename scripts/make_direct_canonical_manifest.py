@@ -38,6 +38,19 @@ def normalize_text(value: str) -> str:
     return " ".join(value.casefold().split())
 
 
+def normalized_words(value: str) -> str:
+    """Lowercase alphanumeric words with padded boundaries for phrase matching."""
+    return " " + " ".join(re.findall(r"[a-z0-9]+", value.casefold())) + " "
+
+
+def contains_label(text: str, label: str | None) -> bool:
+    """Exact normalized word-phrase containment, including short labels such as PE."""
+    if not label:
+        return False
+    needle = normalized_words(label).strip()
+    return bool(needle) and f" {needle} " in normalized_words(text)
+
+
 def clean_label(value: str) -> str:
     return " ".join(value.split())
 
@@ -192,6 +205,14 @@ def build_row(
         if official_pdds
         else annotation_root
     )
+    gold_label_aliases = sorted(
+        {label for label in (canonical_pdd, annotation_root) if label}
+    )
+    gold_label_sections = sorted(
+        section
+        for section, text in note_sections.items()
+        if any(contains_label(text, label) for label in gold_label_aliases)
+    )
 
     patient_match = PATIENT_RE.match(path.stem)
     patient_group = (
@@ -215,6 +236,8 @@ def build_row(
         "annotation_root_diagnosis": annotation_root,
         "canonical_pdd": canonical_pdd,
         "canonical_pdd_resolved": canonical_pdd is not None,
+        "gold_label_exact_in_note": bool(gold_label_sections),
+        "gold_label_exact_sections": gold_label_sections,
         "folder_root_conflict": bool(
             folder_pdd and folder_pdd.casefold() != annotation_root.casefold()
         ),
@@ -264,6 +287,10 @@ def write_summary(path: Path, rows: list[dict[str, Any]], failures: int) -> None
         patient for patient, labels in patient_categories.items() if len(labels) > 1
     }
     deductions = [item for row in rows for item in row["gold_deductions"]]
+    gold_label_rows = [row for row in rows if row["gold_label_exact_in_note"]]
+    gold_label_section_counts = Counter(
+        section for row in gold_label_rows for section in row["gold_label_exact_sections"]
+    )
     exact_grounded = sum(item["observation_exact_in_note"] for item in deductions)
     exact_in_annotated_section = sum(
         item["observation_exact_in_annotated_section"] for item in deductions
@@ -287,6 +314,8 @@ def write_summary(path: Path, rows: list[dict[str, Any]], failures: int) -> None
         f"- unresolved canonical PDD: **{sum(not row['canonical_pdd_resolved'] for row in rows)}**",
         f"- unique canonical PDD labels: **{len(canonical_counts) - int('<unresolved>' in canonical_counts)}**",
         f"- duplicate input rows: **{duplicate_rows}**",
+        f"- rows with exact normalized gold-label phrase in note: **{len(gold_label_rows)}/{len(rows)} ({len(gold_label_rows) / len(rows) if rows else 0:.4f})**",
+        f"- gold-label section hits: `{dict(sorted(gold_label_section_counts.items()))}`",
         f"- deductions: **{len(deductions)}**",
         f"- deductions missing rationale / diagnosis: **{missing_rationale} / {missing_diagnosis}**",
         f"- deductions per row: **min {min(deduction_counts, default=0)}, median {statistics.median(deduction_counts) if deduction_counts else 0}, max {max(deduction_counts, default=0)}**",
