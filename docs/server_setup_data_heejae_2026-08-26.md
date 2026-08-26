@@ -146,3 +146,33 @@ find /data/heejae/restricted/direct/e1/direct_e1_smoke10_v1/activations \
 ```
 
 Do not start `LIMIT=0` until the ten-row token-position audit is complete.
+
+### Parallel full E1 after the smoke gate
+
+The two authorized servers can process disjoint splits. Keep the roots and
+physical GPU IDs explicit; do not reuse one server's command on the other.
+
+Server `165.132.76.62` (`/data/heejae`, physical GPUs 2 and 3) owns the
+training and validation states:
+
+```bash
+DATA_ROOT=/data/heejae GPUS=2,3 LIMIT=0 BATCH_SIZE=1 \
+SPLITS="train val_seen" RUN_NAME=direct_e1_trainval_v1 FORCE=1 \
+nohup bash scripts/run_direct_e1_pipeline.sh \
+  > /data/heejae/medical_nla/logs/direct_e1_trainval_v1.log 2>&1 &
+```
+
+Server `165.132.76.125` (`/data1/heejae`, physical GPUs 0 and 1) owns the two
+test splits:
+
+```bash
+DATA_ROOT=/data1/heejae GPUS=0,1 LIMIT=0 BATCH_SIZE=1 \
+SPLITS="test_seen test_pdd_heldout" RUN_NAME=direct_e1_test_v1 FORCE=1 \
+nohup bash scripts/run_direct_e1_pipeline.sh \
+  > /data1/heejae/medical_nla/logs/direct_e1_test_v1.log 2>&1 &
+```
+
+These runs cover 325 and 171 source cases respectively. They are shards of one
+experiment, not replications. Keep their run roots distinct and preserve the
+private transcripts and activation manifests under each server's restricted
+tree.

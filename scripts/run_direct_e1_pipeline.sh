@@ -13,6 +13,7 @@ GPUS="${GPUS:-2,3}"
 LIMIT="${LIMIT:-10}"
 BATCH_SIZE="${BATCH_SIZE:-1}"
 LAYERS="${LAYERS:-16 24 32}"
+SPLITS="${SPLITS:-train val_seen test_seen test_pdd_heldout}"
 FORCE="${FORCE:-0}"
 
 if [[ "${LIMIT}" == "0" ]]; then
@@ -50,12 +51,18 @@ LIMIT_ARGS=()
 if [[ "${LIMIT}" != "0" ]]; then
   LIMIT_ARGS=(--limit "${LIMIT}" --sample-seed 17)
 fi
+read -r -a SPLIT_ARGS <<< "${SPLITS}"
+if [[ "${#SPLIT_ARGS[@]}" -eq 0 ]]; then
+  echo "[error] SPLITS must name at least one split" >&2
+  exit 1
+fi
 
-echo "[stage 1/4] build private DiReCT source cases"
+echo "[stage 1/4] build private DiReCT source cases: ${SPLITS}"
 python scripts/make_direct_e1_cases.py \
   --split-dir "${SPLIT_DIR}" \
   --output-jsonl "${CASES}" \
-  --summary-md "${REPORT_DIR}/cases_summary.md"
+  --summary-md "${REPORT_DIR}/cases_summary.md" \
+  --splits "${SPLIT_ARGS[@]}"
 
 if [[ "${FORCE}" == "1" || ! -s "${SOURCE_ANSWERS}" ]]; then
   echo "[stage 2/4] generate source CoT and diagnosis on visible GPUs ${GPUS}"
