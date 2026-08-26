@@ -44,15 +44,16 @@ Aggregate audit와 공식 공개 `data_list.csv` 대조에서 다음을 확인�
   값이므로 정본 PDD 수로 인용하지 않는다.
 - PDD별 표본 수는 1--41개, 중앙값 5개로 불균형하다. 따라서 단순 row-random
   split이나 PDD별 균등 성능 주장은 부적절하다.
-- 507개 파일에서 환자 그룹을 파싱했고, 31개 환자 그룹의 70개 note가 반복된다.
-  나머지 4개도 split 전에 별도 그룹 ID를 부여해야 하며 patient-disjoint split이
-  필수다.
-- 완전 동일 JSON/input-text 중복은 한 그룹, 두 행이다. 두 행은 제거하거나 반드시
-  같은 split에 둔다.
-- 폴더 PDD와 annotation root가 다른 파일이 43개다. 단순 복수형뿐 아니라
-  `STEMI -> NSTE-ACS`, `Hypothyroidism -> Hyperthyroidism`처럼 의미가 다른 경우도
-  포함된다. 공식 evaluator의 `Accdiag`는 annotation chain root를 사용하므로 이를
-  정본 재현 기준으로 따르되, 43건 제외 민감도 결과를 함께 보고한다.
+- 최종 canonical manifest에는 469개 환자 그룹이 있다. 환자 ID를 파싱하지 못한 4행은
+  primary split에서 제외했다. 14개 환자 그룹(37행)은 둘 이상의 resolved PDD에 걸치고,
+  1개 환자 그룹(4행)은 둘 이상의 disease category에 걸친다. 따라서 patient-disjoint
+  split과 함께, 같은 환자가 연결한 PDD들을 하나의 connected component로 묶었다.
+- 완전 동일 JSON/input-text 중복은 한 그룹, 두 행이다. 결정론적으로 한 행만 남기고
+  duplicate copy 한 행을 primary split에서 제외했다.
+- 폴더 PDD와 annotation root가 다른 파일은 43개다. 공백·개행·복수형을 공식 PDD
+  vocabulary로 정규화한 뒤 501/511행의 canonical PDD를 해결했다. 남은 10행은 모두
+  `Acute Coronary Syndrome / STEMI / NSTE-ACS`의 의미 충돌이므로 자동 보정하지 않고
+  primary split에서 제외했다. 43건 전체 제외가 아니라 이 10건 제외가 정본 규칙이다.
 - restricted KG archive에는 `Gastritis`가 빠져 24개지만 공식 GitHub KG에는
   `Gastritis.json`을 포함한 25개가 있다. 그러나 공통 24개 중 canonical JSON hash가
   일치한 것은 7개뿐이고 17개는 내용이 달라 두 release를 섞지 않는다. 주 설명 평가는
@@ -209,10 +210,16 @@ taxonomy, MCR OOD 사례, seed sensitivity를 둔다.
 
 이 단계의 산출물은 raw note가 아닌 aggregate JSON/Markdown이어야 한다.
 
-현재 1--5의 aggregate 감사, 공개 data list의 디렉터리 수준 정합성, KG provenance
-비교는 완료되었다. 공개 data list와 restricted note의 경로 기반 row 조인은 파일명
-전면 재명명 때문에 불가능함을 확인했다. 남은 E0 작업은 4개 미파싱 환자 행의 안전한
-그룹화, 공식 loader/evaluator 재현, canonical PDD 규칙과 split manifest 생성이다.
+현재 schema·중복·환자·PDD 감사와 canonical split manifest 생성은 완료되었다.
+511행 중 label conflict 10행, unparsed patient 4행, duplicate copy 1행을 제외한 496행을
+사용한다. seed 17의 pilot split은 train 263 / val-seen 62 / test-seen 71 /
+test-PDD-heldout 100행이며 모든 split이 patient-disjoint다. Held-out PDD는 `HFrEF`,
+`HFpEF`, `NSTEMI`, `Low-risk PE`, `Non-Allergic Asthma`다. 남은 E0 작업은 공식
+loader/evaluator 재현과 evaluator version·prompt hash 고정이다.
+
+이 split은 파이프라인을 여는 pilot 정본이지 최종 일반화 근거 하나로 고정하지 않는다.
+Held-out 100행이 심폐계에 치우치고 `Non-Allergic Asthma`는 3행뿐이므로, 최종 결과는
+connected-component 단위의 복수 seed 또는 group K-fold와 PDD별 macro 결과로 재확인한다.
 
 ### E0의 결정 게이트
 

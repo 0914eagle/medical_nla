@@ -761,9 +761,14 @@ E0 data/evaluator audit
 1. DiReCT의 511 note, 25 disease category, 공식 data list의 61 PDD 분포를
    로컬에서 재집계한다. 경로 기반 최초 감사에서 나온 62는 3-depth 경로의 PDD를
    annotation root로 추정한 값이므로 정본 수치로 사용하지 않는다.
-2. 동일 환자, note, PDD alias가 train/test에 겹치지 않는지 확인한다.
-3. 기본안은 PDD-disjoint split이고, 표본이 너무 작으면 disease-category-disjoint는
-   secondary stress test로 둔다. Split은 seed와 ID 목록을 파일로 고정한다.
+2. 동일 환자, note, PDD alias가 train/test에 겹치지 않는지 확인한다. 최종 manifest의
+   469개 환자 그룹 중 14개 그룹(37행)이 여러 resolved PDD에 걸치므로, 이 환자들이
+   연결한 PDD는 하나의 connected component로 묶어 함께 분할한다.
+3. seed 17 pilot은 511행 중 label conflict 10, unparsed patient 4, duplicate copy 1행을
+   제외한 496행으로 고정했다. 분할은 train 263 / val-seen 62 / test-seen 71 /
+   test-PDD-heldout 100이며 patient 및 held-out PDD leakage가 없다. Held-out은 4개
+   component, 5개 PDD다. 이 한 split의 심폐계 편중과 3행짜리 PDD 때문에 최종 보고는
+   connected-component 복수 seed 또는 group K-fold 및 PDD macro 결과를 추가한다.
 4. DiReCT official prediction schema `(observation: [rationale, note section, diagnosis])`를
    그대로 serialize할 수 있는지 sample에서 확인한다.
 5. 공개 baseline output 또는 sample에 official evaluator를 실행해 paper 범위와
@@ -774,9 +779,9 @@ E0 data/evaluator audit
    원 note span이 있는 사례의 sensitivity 결과를 내며, 그렇지 않으면 이 한계를
    명시한다. 의사가 plausible observation을 보충한 사례를 text-grounding과 같은
    것으로 세면 안 된다.
-7. 폴더/data-list PDD와 annotation chain root가 다른 43건은 공식 evaluator 재현에서는
-   root를 사용한다. 동시에 이 43건을 제외한 결과를 sensitivity analysis로 보고해
-   행정 라벨과 annotation 불일치에 결론이 의존하지 않는지 확인한다.
+7. 폴더 PDD와 annotation chain root가 다른 43건 중 공백·개행·복수형은 공식 PDD
+   vocabulary로 해결했다. 해결되지 않은 10건은 모두 `STEMI` 폴더와 `NSTE-ACS`
+   annotation root가 충돌하므로 자동 보정하지 않고 primary split에서 제외한다.
 8. restricted KG 24개와 공식 공개 KG 25개를 비교한 결과 공통 24개 중 7개만
    canonical JSON hash가 같고 17개는 내용이 달랐다. 따라서 공개 `Gastritis` KG를
    restricted release에 섞지 않는다. Sample annotation만 필요한 주 설명 평가는 KG
