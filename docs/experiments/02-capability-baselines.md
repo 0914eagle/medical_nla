@@ -40,6 +40,16 @@ Validation 실행은 `scripts/run_direct_e2_forced_answer_baseline.sh`로 고정
 추출해 candidate set을 고정한다. Primary ranking은 multi-token 길이를 정규화한
 `logprob_mean`이다.
 
+Wrapper의 기본값은 위 full-ontology/raw 실행을 그대로 보존한다. 공정 비교나 prior
+감사를 위해서는 다음 환경 변수를 명시할 수 있다.
+
+- `ONTOLOGY_MANIFEST`: candidate ontology를 만들 manifest. PDD probe와 맞춘 49-way
+  비교에는 frozen confirmatory `train.jsonl`을 사용한다.
+- `OUTPUT_NAME`: 기존 raw 결과를 덮어쓰지 않는 출력 디렉터리 이름.
+- `RANK_FIELD`: `logprob_mean` 또는 `calibrated_logprob_mean`.
+- `CALIBRATION_PROMPT`: calibrated ranking에서 차감할 content-free candidate prior를
+  만드는 고정 prompt.
+
 두 label space는 서로 독립이므로 두 서버에서 병렬 실행한다.
 
 ```bash
@@ -57,6 +67,34 @@ DATA_ROOT=/data/heejae GPUS=2,3 LABEL_FIELD=disease_category \
 두 실행 모두 validation 52행만 점수화한다. PDD와 category 결과는 후보 수와 label
 granularity가 다르므로 서로 정확도를 직접 비교하지 않고 각각 같은 label space의 probe와
 비교한다.
+
+### Early forced-answer validation 결과와 판정
+
+두 raw 실행은 52/52행을 완주했다.
+
+| Target | Candidates | Top-1 | Top-5 | MRR | Mean gold rank |
+|---|---:|---:|---:|---:|---:|
+| Disease category, raw likelihood | 25 | 0.4808 | 0.6731 | 0.5814 | 5.02 |
+| Canonical PDD, raw likelihood | 61 | 0.1538 | 0.4423 | 0.3168 | 8.77 |
+
+Category 25-way는 동일 label space의 HS24 probe보다 top-1 0.1154, top-5 0.2307,
+MRR 0.1470 낮았다. 이는 supervised probe와 무학습 candidate ranking의 비교이므로 동일
+학습량 우월성으로 해석하지 않고, closed-label activation readout의 capability boundary로
+해석한다.
+
+Raw PDD ranking은 52행 중 35행에서 corpus 빈도 1인
+`Arrhythmogenic Right Ventricular Cardiomyopathy`를 top-1으로 골랐다. 61개 후보 중 실제
+top-1으로 나온 label도 8개뿐이었다. 따라서 raw `logprob_mean`은 사례 정보뿐 아니라 후보
+문자열·tokenization prior에 크게 오염되어 있으며 primary method comparison에 그대로 쓰지
+않는다. 다음 두 validation 통제를 닫은 뒤 설정을 고정한다.
+
+1. content-free candidate prior를 차감한 calibrated 25-way category.
+2. train에서 정의된 49 PDD만 사용한 raw/calibrated PDD. 이 결과만 49-way probe와 직접
+   비교한다. 기존 61-way raw 결과는 full-ontology sensitivity로 보존한다.
+
+고정 calibration prompt는 임상 정보가 없는 동일 과제 형식인
+`Clinical case:\nN/A\n\nWhat is the most likely diagnosis?`로 한다. 이 보정은 모델의
+확률 calibration을 주장하는 절차가 아니라 후보명 prior 차감이다.
 
 ## 실행 상태
 

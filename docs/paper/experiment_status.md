@@ -6,7 +6,7 @@
 |---|---|---|---|
 | E0 DiReCT audit/evaluator | 완료 | 496행 canonical split, official oracle smoke | E1-E4 |
 | E1 source/activation | 완료 | pilot 496 source outputs, P0/P1/P2 x HS16/24/32 완전성 확인 | E2 |
-| E2 capability baselines | 실행 중 | validation vanilla AV prompt/layer 비교와 P0 probe 완료; output head 대기 | E3-E5 |
+| E2 capability baselines | 실행 중 | validation vanilla AV prompt/layer 비교와 P0 probe 완료; raw output-head 완료, prior 보정·49-way matched 통제 대기 | E3-E5 |
 | E3 Medical-NLA train | 설계 차단 | SFT-only 실행 가능; reconstruction/full objective 미구현 | E4-E6 |
 | E4 DiReCT explanation | 대기 | official metrics + human audit | Table 2 |
 | E5 DDX grounding | 대기 | shuffle/counterfactual/round-trip 통과 | RQ2, E6 gate |
@@ -81,7 +81,10 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
 ## 즉시 할 일
 
 1. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
-2. ~~Early forced-answer candidate sequence baseline 구현~~ 완료. PDD/category validation 실행
+2. ~~Early forced-answer candidate sequence baseline 구현 및 raw validation 실행~~ 완료.
+   Category 25-way `.4808/.6731/.5814`(top-1/top-5/MRR), PDD 61-way
+   `.1538/.4423/.3168`. PDD는 한 후보가 35/52 top-1인 candidate-prior 붕괴가 있어
+   calibrated category와 raw/calibrated train-ontology 49-way PDD를 validation에서 추가
 3. ~~HS16/HS24 vanilla AV prompt sensitivity 집계~~ 완료
 4. 기존 171행은 exploratory로 동결. 새 locked downstream split 266/52/72/106과 hash는 확정 완료
 5. 새 heldout artifact 감사 완료: backbone 106/106, vanilla AV 16/106
