@@ -100,7 +100,9 @@ default/HS32의 source answer, gold PDD, category는 모두 0/52였고, 전체�
 HS16 category 1/52가 두 prompt에 나타난 경우였다. 따라서 lexical 0은 단순 alias 누락이
 아니었다. 그러나 이 평가는 진단 target의 명시적 복원만 측정하며, physician observation과
 rationale의 임상 품질 또는 activation grounding을 대신하지 않는다. 자동 판정은 primary
-52행 수동 감사 후 확정한다.
+52행을 포함해 312/312 완료했으며, exact readout quote를 요구한 local Llama-3-8B
+LLM-as-a-judge 결과로 보고한다. 사람 검증 결과가 아니므로 single-judge 한계와 좁은 판정
+범위를 함께 명시한다.
 
 이 구조에서 설명 점수만 오르면 `좋은 의료 설명 생성기`, grounding까지 통과하면
 `내부 상태 판독기`, patching까지 성공하면 `설명과 성능을 함께 개선하는 방법`이라고

@@ -6,9 +6,9 @@
 |---|---|---|---|
 | E0 DiReCT audit/evaluator | 완료 | 496행 canonical split, official oracle smoke | E1-E4 |
 | E1 source/activation | 완료 | pilot 496 source outputs, P0/P1/P2 x HS16/24/32 완전성 확인 | E2 |
-| E2 capability baselines | 실행 중 | probe와 raw/calibrated output-head 완료; vanilla AV semantic audit 312/312 완료, primary 52 수동 감사 대기 | E3-E5 |
+| E2 capability baselines | 완료 | probe, raw/calibrated output-head, evidence-quoted AI semantic audit 312/312 | E3-E5 |
 | E3 Medical-NLA train | 설계 차단 | SFT-only 실행 가능; reconstruction/full objective 미구현 | E4-E6 |
-| E4 DiReCT explanation | 대기 | official metrics + human audit | Table 2 |
+| E4 DiReCT explanation | 대기 | official metrics + evidence-quoted LLM-as-a-judge | Table 2 |
 | E5 DDX grounding | 대기 | shuffle/counterfactual/round-trip 통과 | RQ2, E6 gate |
 | E6 text patching | 조건부 | target change + no-op preservation | RQ3 |
 | E7 MCR OOD | 후순위 | frozen checkpoint external test | generalization |
@@ -95,8 +95,9 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
 9. E3 전에 full objective를 RL/preference 방식으로 구현할지, SFT-only 논문으로 제한할지 결정
 10. ~~Vanilla AV P0 semantic audit 312행~~ 완료. Primary default/HS32에서 source answer,
     gold PDD, category 모두 0/52; HS16 category만 두 prompt에서 1/52. 이 결과는 진단 target의
-    명시적 의미 복원 실패이며 observation 설명 품질이나 grounding 결과가 아님. Primary
-    52행 수동 전수 감사 후 확정
+    명시적 의미 복원 실패이며 observation 설명 품질이나 grounding 결과가 아님. Exact
+    readout quote를 요구한 local Llama-3-8B 판정을 정본으로 사용하며 human-validated
+    score라고 부르지 않음
 
 ## 두 서버 병렬 실행 원칙
 
@@ -159,9 +160,9 @@ lexical diagnostic이므로 P0 정보 부재가 아니라 probe/output-head와�
 처리하지만 source answer/category의 약칭과 미등록 임상 동의어를 추론하지 않는다. 따라서
 `GERD`, `PE` 또는 표현 수준의 동의어가 false negative일 수 있다. Frozen validation P0는
 52 cases x 2 prompts x 3 layers = 312 readout이며, 이 312행 전체를 local Llama-3-8B judge로
-blinded semantic audit하고 primary default/HS32 52행을 전수 수동 감사한다. Judge에는 note를
-보이지 않고 세 target의 역할과 순서를 숨기며, 판정 근거로 readout 안의 exact quote를
-요구한다. 완료 전까지 0.0000은 lexical lower bound로만 인용한다.
+blinded semantic audit했다. Judge에는 note를 보이지 않고 세 target의 역할과 순서를 숨기며,
+판정 근거로 readout 안의 exact quote를 요구했다. 이 evidence-quoted semantic 판정을
+Table 1의 AI 평가로 사용하되, 사람 검증이나 activation grounding으로 해석하지 않는다.
 
 Validation에는 P1/P2 208행도 있어 총 520 readout을 생성했다. 별도의 old exploratory test는
 171 cases x P0/P1/P2 = 513행이다. 운영상 누적 1,033행을 하나의 평가 모집단으로 합치지 않는다.

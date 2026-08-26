@@ -165,10 +165,9 @@ Frozen validation에서 생성한 vanilla AV의 정확한 수는 다음과 같�
 약칭·동의어 누락을 닫기 위해 P0 312행 전부에 blinded semantic audit을 수행한다.
 Judge에는 환자 note를 주지 않고 readout과 순서를 무작위화한 source answer, gold PDD,
 disease category만 준다. `match=true`일 때 readout 안의 exact evidence quote를 의무화하고,
-인용이 실제 readout에서 확인되지 않으면 불일치로 처리한다. Primary 52행은 자동 판정에
-더해 연구자가 전수 수동 감사한다. 이 감사는 의미상 약칭/동의어 누락을 교정하지만,
-activation faithfulness 자체를 증명하지는 않는다. Faithfulness는 이후 own-vs-shuffled,
-counterfactual, patching 통제로 별도로 검증한다.
+인용이 실제 readout에서 확인되지 않으면 불일치로 처리한다. 이 LLM-as-a-judge 평가는
+의미상 약칭/동의어 누락을 보완하지만 activation faithfulness 자체를 증명하지는 않는다.
+Faithfulness는 이후 own-vs-shuffled, counterfactual, patching 통제로 별도로 검증한다.
 
 자동 semantic audit은 312/312행 parse에 성공했다. Exact evidence quote가 실제 readout에
 포함된 경우에만 semantic match를 인정했다.
@@ -185,13 +184,15 @@ counterfactual, patching 통제로 별도로 검증한다.
 따라서 primary `default_HS32/P0`의 lexical 0은 단순 약칭·임상 동의어 누락으로 설명되지
 않는다. Prompt suffix도 개선하지 않았다. 다만 이 audit은 readout이 세 진단 target을
 명시적으로 이름 붙였는지만 측정하며 physician observation/rationale의 품질이나 activation
-grounding을 측정하지 않는다. 자동 judge의 false negative를 감사하기 위해 생성된 primary
-52행의 수동 판정은 아직 비어 있으므로, 최종 표에는 수동 전수 감사 뒤 값을 확정한다.
+grounding을 측정하지 않는다. 따라서 Table 1의 semantic diagnostic 열은 위 AI 판정으로
+확정하되, 이를 human-validated score라고 부르지 않는다. 현재 판정자는 DiReCT 공식 평가에
+사용되는 local Llama-3-8B이고, single-judge validation이라는 한계를 함께 보고한다.
 
-`manual_default_hs32.jsonl`의 52행은 **검토 대기 행**이며 행 수 자체는 수동 감사 완료를
-뜻하지 않는다. `human_source`, `human_gold`, `human_category`가 모두 채워진 행만 완료로
-센다. 원본을 보존하면서 별도 reviewed 파일에 매 행 저장하고 중단 후 재개하려면 다음을
-실행한다.
+`manual_default_hs32.jsonl`은 자동 판정을 필요할 때 사람이 재감사할 수 있도록 만든 선택적
+보조 산출물이다. 이 파일의 `human_*` 필드는 현재 0/52로 비어 있지만, 더 이상 E2 완료나
+Table 1 확정의 필수 조건은 아니다. 향후 수동 감사 또는 독립된 두 번째 AI judge를 추가하면
+민감도 분석으로 보고하며 primary AI 판정을 사후 교체하지 않는다. 선택적으로 수동 감사할
+때만 다음을 실행한다.
 
 ```bash
 AUDIT=/data/heejae/restricted/direct/e2/direct_e2_val_v1/semantic_audit_v1
@@ -203,9 +204,8 @@ python scripts/review_direct_e2_semantic_audit.py \
 ```
 
 각 행에서 source answer, gold PDD, disease category가 readout에 의미상 나타나는지를 차례로
-`y n n`처럼 입력한다. `q`는 현재까지의 판정을 저장하고 종료한다. 자동 집계를 다시
-실행해도 기존 `manual_default_hs32.jsonl`에 이미 들어간 사람 판정은 보존하지만, 정본 수동
-결과는 위의 `*_reviewed.jsonl`로 고정한다. 두 파일 모두 restricted data이므로 커밋하지 않는다.
+`y n n`처럼 입력한다. `q`는 현재까지의 판정을 저장하고 종료한다. 두 파일 모두 restricted
+data이므로 커밋하지 않는다.
 
 Server 62에 여섯 P0 파일을 모은 뒤 다음처럼 실행한다. 먼저 `LIMIT=8`로 schema와 인용
 검증을 smoke-test하고, 같은 출력에 full run을 resume한다. Restricted readout과 judge

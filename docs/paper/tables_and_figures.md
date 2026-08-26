@@ -64,7 +64,9 @@ default/HS32/P0의 source answer, gold PDD, category match는 모두 0/52였으�
 HS32도 동일했다. HS16에서 category 1/52만 두 prompt에 관찰됐다. 따라서 약칭·동의어를
 허용해도 P0 진단 target 복원이 개선되지 않았다는 validation 진단은 유지된다. 이는 열린
 observation/rationale 점수나 activation grounding 점수가 아니므로 Table 2·3을 대신하지
-않으며, primary 52행 수동 감사 뒤 Table 1의 semantic diagnostic 열을 확정한다.
+않는다. Table 1의 semantic diagnostic 열은 exact readout quote를 요구한 local
+Llama-3-8B 판정으로 확정하며, 표 머리말에 `LLM-as-a-judge`임을 명시한다. 사람 검증 점수로
+부르지 않고 single-judge 한계는 limitations에 기록한다.
 
 ## Table 2. Clinical explanation alignment on DiReCT
 
