@@ -7,7 +7,7 @@
 | E0 DiReCT audit/evaluator | 완료 | 496행 canonical split, official oracle smoke | E1-E4 |
 | E1 source/activation | 완료 | pilot 496 source outputs, P0/P1/P2 x HS16/24/32 완전성 확인 | E2 |
 | E2 capability baselines | 완료 | probe, raw/calibrated output-head, evidence-quoted AI semantic audit 312/312 | E3-E5 |
-| E3 Medical-NLA train | 설계 차단 | SFT-only 실행 가능; reconstruction/full objective 미구현 | E4-E6 |
+| E3 Medical-NLA train | 실행 준비 | DiReCT P0 SFT-only 3 seeds; reconstruction/full objective는 주 큐에서 보류 | E4-E6 |
 | E4 DiReCT explanation | 대기 | official metrics + evidence-quoted LLM-as-a-judge | Table 2 |
 | E5 DDX grounding | 대기 | shuffle/counterfactual/round-trip 통과 | RQ2, E6 gate |
 | E6 text patching | 조건부 | target change + no-op preservation | RQ3 |
@@ -98,6 +98,27 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
     명시적 의미 복원 실패이며 observation 설명 품질이나 grounding 결과가 아님. Exact
     readout quote를 요구한 local Llama-3-8B 판정을 정본으로 사용하며 human-validated
     score라고 부르지 않음
+
+## 08-27 이후 실행 순서
+
+1. **E3 SFT-only 3 seeds**: train 266/validation 52의 HS32/P0만 읽고 gold-label-in-note
+   18/2행을 제외해 최대 248/50을 사용한다. Target 관찰은 note에 exact-grounded된 DiReCT
+   physician observation이고, `<answer>`는 gold가 아니라 같은 케이스에서 backbone이 실제로
+   낸 source answer다. Test 72+106은 읽지 않는다.
+2. **E4 validation 평가**: 세 seed의 readout을 같은 extractor와 official DiReCT evaluator로
+   평가한다. Epoch는 각 seed의 validation content loss로 고정하며, seed를 골라 버리지 않고
+   mean/SD를 보고한다.
+3. **방법 동결 후 test 1회**: seen 72와 PDD-heldout 106에서 vanilla/CoT/SFT-only를 같은
+   evaluator로 비교한다. 이 시점 이후 prompt, layer, target schema를 수정하지 않는다.
+4. **E5 DDXPlus grounding**: frozen SFT-only adapter에 matched/shuffled, zero/mean activation,
+   cue deletion/edit, AV-to-AR round-trip을 적용한다.
+5. **E6 조건부 patching**: E5의 pair gap과 cue-specific change가 통과할 때만 실행한다.
+6. **E7 MCR OOD**: 핵심 표가 닫힌 뒤 frozen checkpoint의 외적 일반화로만 실행한다.
+
+현재 주 큐에서 제외하는 작업은 human audit, calibrated likelihood 추가 실행, task-aligned
+prompt 및 HS16/24 추가 sweep, P1/P2 학습, full RL/reconstruction objective, E5 전 patching,
+MCR 조기 실행이다. SFT-only가 임상 정렬은 개선하지만 E5 grounding에 실패할 때만 full
+objective를 다시 설계한다.
 
 ## 두 서버 병렬 실행 원칙
 

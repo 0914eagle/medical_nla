@@ -1,0 +1,16 @@
+<concept>{injection_char}</concept>
+
+The vector above was extracted at the end of a patient presentation, before the model generated its diagnosis. Read the patient-specific clinical state represented by the vector.
+
+Report the concrete clinical findings represented by the vector and the diagnosis the source model is currently prepared to give. Do not correct the source model and do not add medical facts that are absent from the represented state.
+
+Return only this schema, with nothing before or after it:
+
+<explanation>
+<readout>
+<observed>
+- patient-specific clinical finding
+</observed>
+<answer>source model diagnosis</answer>
+</readout>
+</explanation>

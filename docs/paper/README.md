@@ -91,7 +91,8 @@ P1은 CoT 안에 최종 진단이 이미 등장할 수 있다. smoke 10건에서
 
 - E0 DiReCT 감사·환자 분리 split·공식 evaluator smoke: 완료
 - E1 source CoT와 P0/P1/P2 activation: 496행 및 4,464 tensors 완료
-- E2 capability baseline: 실행 중. Medical-NLA 학습, 설명 평가, grounding, patching은 대기
+- E2 capability baseline: 완료. DiReCT P0 SFT-only 3-seed 학습이 다음 실행이며, 설명 평가,
+  grounding, patching은 순차 게이트로 대기
 
 현재 171행 test 결과는 P0/P1/P2와 vanilla AV 설계 점검에 이미 사용했으므로
 `exploratory pilot`이다. E3 이후 downstream 평가용 split은 266 train / 52 validation /
