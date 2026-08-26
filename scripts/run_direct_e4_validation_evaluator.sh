@@ -77,7 +77,14 @@ python scripts/make_direct_e4_claim_requests.py \
   "${limit_args[@]}"
 
 echo "[stage 2/5] quote-constrained extraction via ${EXTRACTOR_BACKEND}"
-if [[ "${EXTRACTOR_BACKEND}" == "codex" ]]; then
+request_rows="$(wc -l < "${OUT}/extraction_requests.jsonl")"
+judgement_rows=0
+if [[ -s "${OUT}/extraction_judgements.jsonl" ]]; then
+  judgement_rows="$(wc -l < "${OUT}/extraction_judgements.jsonl")"
+fi
+if [[ "${judgement_rows}" -eq "${request_rows}" ]]; then
+  echo "[skip] extraction judgements complete: ${judgement_rows}/${request_rows}"
+elif [[ "${EXTRACTOR_BACKEND}" == "codex" ]]; then
   command -v "${CODEX_CMD%% *}" >/dev/null || {
     echo "[error] Codex command not found: ${CODEX_CMD}" >&2
     exit 2
