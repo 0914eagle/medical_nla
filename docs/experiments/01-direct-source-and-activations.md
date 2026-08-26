@@ -56,6 +56,8 @@ Strict PDD 중간 정확도만으로 source model을 탈락시키지 않는다. 
 | Answer parse | 171/171 (1.0000) |
 | Forced answer | 0/171 |
 | Strict PDD alias hit | 33/171 (0.1930) |
+| Disease-category hit | 87/171 (0.5088) |
+| Diagnosis-label token F1 | 0.1850 |
 | Model answer alias already in CoT | 156/171 (0.9123) |
 | Gold PDD alias already in CoT | 49/171 (0.2865) |
 | Extraction rows | 513 |
@@ -67,4 +69,14 @@ P1을 독립적인 pre-answer readout 결과로 일반화하지 않는다. P0를
 같은 171행에서 direct prefill baseline은 strict PDD 36/171 = 0.2105였다. CoT는
 33/171 = 0.1930으로 -1.75%p였고, paired discordant cases는 CoT rescue 7 대 CoT break
 10, McNemar exact p=0.6291이었다. 이는 strict PDD상 CoT가 Direct보다 낫거나 나쁘다는
-증거가 없다는 뜻이며 explanation quality 비교는 E4의 `Obs*`/`Exp*`로 별도 수행한다.
+증거가 없다는 뜻이다. Disease category는 Direct 0.5029, CoT 0.5088
+(CoT-Direct +0.0058, paired McNemar exact p=1.0000)로 사실상 같았다. Label token F1은
+Direct 0.1593, CoT 0.1850으로 CoT가 조금 높았지만, 이는 진단명 문자열 유사도일 뿐
+explanation quality가 아니다. 설명 품질 비교는 E4의 official `Obs*`/`Exp*`로 별도
+수행한다.
+
+Split별로도 같은 패턴이다. PDD-heldout 100행에서 Direct/CoT strict PDD는
+0.1800/0.1700, category는 0.5800/0.6000, token F1은 0.0650/0.1367이었다. Test-seen
+71행에서는 strict PDD 0.2535/0.2254, category 0.3944/0.3803, token F1
+0.2921/0.2530이었다. Heldout과 seen은 label 및 category 구성이 다르므로 두 pool의
+절대 정확도를 난이도 차이로 단정하지 않는다.

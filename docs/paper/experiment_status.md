@@ -39,6 +39,8 @@ evaluation을 함께 보지 않고 이 중간값만으로 모델 적합성을 �
 
 - 171/171 answer parse 성공, forced answer 0
 - strict PDD alias accuracy 33/171 = 0.1930
+- disease-category accuracy 87/171 = 0.5088
+- diagnosis-label token F1 = 0.1850
 - 모델 answer alias가 CoT reasoning에 등장: 156/171 = 0.9123
 - gold PDD alias가 CoT reasoning에 등장: 49/171 = 0.2865
 - Activation rows 513 = 171 x P0/P1/P2
@@ -47,19 +49,25 @@ evaluation을 함께 보지 않고 이 중간값만으로 모델 적합성을 �
 
 P1 leakage-free test subset은 15행뿐이므로 P1의 source-decision 결과는 정성·민감도
 분석으로 제한한다. P0가 주 설명 판독 위치라는 결정이 확정됐다. Strict PDD 0.193은
-세부 label exact/alias 점수이며, by-split category와 official semantic score가 나오기
-전에는 source model의 최종 진단 성능으로 해석하지 않는다.
+세부 label exact/alias 점수다. Category accuracy는 0.5088로 strict PDD보다 높았고,
+PDD-heldout에서도 0.6000이었다. 따라서 strict 실패에는 넓은 질병 범주는 맞지만 세부
+PDD 또는 표현이 다른 사례가 포함된다. 다만 category는 PDD보다 쉬운 계층적 지표이고,
+token F1은 진단명 문자열 유사도이지 설명 품질 지표가 아니다. Official semantic score가
+나오기 전에는 이 값만으로 source model의 최종 진단 성능을 확정하지 않는다.
 
 같은 171행의 prefilled Direct baseline도 완료됐다. Strict PDD는 Direct 36/171 =
 0.2105, CoT 33/171 = 0.1930이었다. 둘 다 맞은 사례 26, CoT만 맞은 사례 7,
 Direct만 맞은 사례 10, 둘 다 틀린 사례 128이며 CoT-Direct는 -0.0175,
-McNemar exact p=0.6291이다. Strict PDD 기준으로 CoT 우열의 증거는 없다. Category와
-official semantic score를 계산한 뒤 임상 성능을 해석한다.
+McNemar exact p=0.6291이다. Category는 Direct 0.5029, CoT 0.5088로 +0.0058이었고
+paired McNemar exact p=1.0000이었다. Diagnosis-label token F1은 Direct 0.1593,
+CoT 0.1850이었다. 따라서 CoT가 진단명 어휘에는 조금 더 가까웠지만 strict PDD나
+category 정확도를 개선했다는 증거는 없다. CoT 설명 품질은 이 결과가 아니라 E4의
+official `Obs*`/`Exp*`로 별도 평가한다.
 
 ## 즉시 할 일
 
 1. 62번 train+val 실행의 `source_cot_answers.jsonl`, activation, manifest 완주 확인
-2. 두 서버 결과를 합쳐 strict PDD, category, token-F1을 split별로 집계
+2. 62번 완주 후 train/validation의 strict PDD, category, token-F1을 같은 방식으로 집계
 3. P1의 `diagnosis_alias_in_reasoning`에 따른 clean/leaky 민감도 분석
 4. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
 5. Validation에서 primary layer와 probe regularization을 선택하고 test에는 고정 적용

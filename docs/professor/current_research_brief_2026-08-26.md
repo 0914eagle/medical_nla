@@ -50,11 +50,14 @@ Gemma-3-12B-IT에서 source CoT와 layer 16/24/32 activation을 추출 중이다
 category를 함께 본다. 중요한 설계 결과는 모델 answer alias가 CoT에 8/10 등장했다는
 점이다. 그래서 P1이 아니라 P0를 주 Medical-NLA 입력으로 확정했다.
 
-Test 171행에서는 parse 100%, strict PDD alias accuracy 19.30%였고 activation tensor
-1,539개가 모두 생성됐다. 모델 answer alias는 CoT에 156/171(91.23%) 등장해 P1의
+Test 171행에서는 parse 100%, strict PDD alias accuracy 19.30%, disease-category
+accuracy 50.88%, diagnosis-label token F1 0.1850이었고 activation tensor 1,539개가
+모두 생성됐다. 모델 answer alias는 CoT에 156/171(91.23%) 등장해 P1의
 leakage-free subset이 15행뿐이었다. 따라서 P1은 민감도 분석으로만 두고 P0를 주
-비교 위치로 확정한다. Strict PDD 점수는 category 및 official semantic score와 함께
-최종 해석한다.
+비교 위치로 확정한다. 같은 사례의 Direct/CoT strict PDD는 21.05%/19.30%
+(McNemar p=.6291), category는 50.29%/50.88%(p=1.0)로 우열의 증거가 없다. CoT의
+label token F1은 0.1850으로 Direct 0.1593보다 높았지만 이는 진단명 문자열 유사도이며
+설명 품질은 아니다. 최종 설명 비교는 official DiReCT `Obs*`/`Exp*`로 수행한다.
 
 ## 다음 순서
 
