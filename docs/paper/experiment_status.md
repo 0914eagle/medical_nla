@@ -7,8 +7,8 @@
 | E0 DiReCT audit/evaluator | 완료 | 496행 canonical split, official oracle smoke | E1-E4 |
 | E1 source/activation | 완료 | pilot 496 source outputs, P0/P1/P2 x HS16/24/32 완전성 확인 | E2 |
 | E2 capability baselines | 완료 | probe, raw/calibrated output-head, evidence-quoted AI semantic audit 312/312 | E3-E5 |
-| E3 Medical-NLA train | 실행 준비 | DiReCT P0 SFT-only 3 seeds; reconstruction/full objective는 주 큐에서 보류 | E4-E6 |
-| E4 DiReCT explanation | 대기 | official metrics + evidence-quoted LLM-as-a-judge | Table 2 |
+| E3 Medical-NLA train | 완료 | DiReCT P0 SFT-only seeds 17/29/43, content-loss checkpoint 선택 | E4-E6 |
+| E4 DiReCT explanation | validation readout 실행 가능 | common 50-row readout + official metrics + evidence-quoted judge | Table 2 |
 | E5 DDX grounding | 데이터 빌더 완료, 실행 대기 | official validate/test 각 49x100, native counterfactual, shuffle/round-trip 통과 | RQ2, E6 gate |
 | E6 text patching | 조건부 | target change + no-op preservation | RQ3 |
 | E7 MCR OOD | 후순위 | frozen checkpoint external test | generalization |
