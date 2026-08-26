@@ -14,8 +14,9 @@
 
 다만 현재 DiReCT 171행 결과는 이미 P0/P1/P2와 vanilla AV 분석에 사용됐다. 따라서 이
 171행을 앞으로의 최종 confirmatory test라고 부르면 안 된다. 현재 결과는
-`exploratory pilot`으로 동결하고, 최종 모델 선택 전에 새로운 confirmatory split 또는
-nested patient-group evaluation을 별도로 고정해야 한다.
+`exploratory pilot`으로 동결했다. Downstream Medical-NLA용 새 split은
+266/52/72/106으로 동결했지만, 과거 source artifact와의 overlap을 집계하기 전에는
+`dataset-level untouched`라고 부르지 않는다.
 
 ## 2. 현재 모집단
 
@@ -50,10 +51,10 @@ Non-Allergic Asthma 3이다. HFrEF와 HFpEF는 같은 환자 연결 성분이어
 
 ## 3. Confirmatory protocol
 
-현재 171행은 파일과 수치를 그대로 보존하되 논문에서 pilot로 표시한다. 최종 실험은 다음
-중 하나를 E3 학습 전에 선택하고 ID hash와 설정을 기록한다.
+현재 171행은 파일과 수치를 그대로 보존하되 논문에서 pilot로 표시한다. 다음 권장안 A를
+선택해 E3 학습 전에 ID hash와 설정을 기록했다.
 
-### 권장안 A: 새 label-heldout confirmatory split
+### 선택안 A: 새 label-heldout downstream-confirmatory split
 
 현재 pilot에서 holdout하지 않은 PDD connected component를 새 confirmatory holdout으로
 선택한다. 새 split으로 모든 모델을 처음부터 학습하고 다음을 금지한다.
@@ -65,7 +66,18 @@ Non-Allergic Asthma 3이다. HFrEF와 HFpEF는 같은 환자 연결 성분이어
 
 장점은 주표가 단순하다는 점이고, 단점은 DiReCT가 작아 train이 더 줄 수 있다는 점이다.
 
-### 권장안 B: nested patient/PDD group evaluation
+동결 결과는 train 266, val-seen 52, test-seen 72, PDD-heldout 106이다. Held-out은
+12 PDD, 10 disease categories이며 pilot-heldout 5 PDD component와 겹치지 않는다.
+Logical population SHA-256은
+`7d0a89a880fa868959099b7146c369cccaac5e7701d7ce5d8f01356ecfb68894`다.
+Split별 exact gold-label-in-note는 18/266, 2/52, 3/72, 5/106이다.
+
+단, 새 106행이 과거 pilot split의 train/validation/seen test에 포함됐을 수 있고, source
+output이 이미 materialize됐을 수 있다. 이는 E3 이후 downstream 선택을 지금부터 동결하는
+용도에는 사용할 수 있지만, 데이터셋 수준의 pristine external test라는 주장은 막는다.
+`audit_direct_confirmatory_exposure.py`로 실제 artifact overlap을 기록한다.
+
+### 보류안 B: nested patient/PDD group evaluation
 
 외부 fold는 patient group 또는 PDD connected component로 만들고, 각 외부 fold 안에서
 validation을 다시 나눠 hyperparameter를 선택한다. 평균과 fold-level interval을 보고한다.
@@ -174,7 +186,8 @@ Medical-NLA의 이득은 2번보다 높아야 의료 supervision의 기여로 �
 
 ## 9. 실행 전 필수 체크리스트
 
-- [ ] confirmatory protocol과 ID hash 동결
+- [x] downstream-confirmatory protocol과 ID hash 동결
+- [ ] confirmatory heldout과 과거 materialized artifact overlap 집계
 - [ ] train/val/test patient 및 PDD 교집합 0 재검사
 - [ ] DiReCT raw leakage 28/511 확인 완료. Confirmatory split별 비율과 sensitivity cohort 동결
 - [ ] 각 표의 expected IDs 파일 생성

@@ -224,6 +224,13 @@ loader/evaluator 재현과 evaluator version·prompt hash 고정이다.
 Held-out 100행이 심폐계에 치우치고 `Non-Allergic Asthma`는 3행뿐이므로, 최종 결과는
 connected-component 단위의 복수 seed 또는 group K-fold와 PDD별 macro 결과로 재확인한다.
 
+이후 pilot-heldout 5 PDD component를 재선택하지 못하게 하고 downstream-confirmatory
+split을 동결했다. 크기는 train 266 / val-seen 52 / test-seen 72 /
+test-PDD-heldout 106이며, heldout은 12 PDD와 10 categories다. Logical population
+SHA-256은 `7d0a89a880fa868959099b7146c369cccaac5e7701d7ce5d8f01356ecfb68894`다.
+다만 같은 496행 universe에서 과거 source output이 생성됐을 수 있으므로, artifact overlap
+감사 전에는 이를 dataset-level untouched test라고 부르지 않는다.
+
 공식 evaluator smoke test 코드는 준비되었다.
 
 - `make_direct_oracle_predictions.py`: 공식 `cal_a_json()`과
@@ -268,9 +275,9 @@ source-decision 분석에서 제외한다. 10행 smoke에서 이 누출이 8행�
 CoT와의 주 비교에 사용하는 설계는 폐기한다.
 
 현재 test-seen 71행과 PDD-heldout 100행은 이미 이 위치 결정과 vanilla AV 점검에
-사용됐으므로 exploratory pilot이다. 이후 표의 최종 수치는 새 confirmatory split 또는
-nested patient/PDD-group protocol을 먼저 동결하고, 그 output을 보기 전 table schema와
-analysis code를 고정한 뒤 산출한다.
+사용됐으므로 exploratory pilot이다. 이후 표의 최종 수치는 동결한 72행 seen test와
+106행 PDD-heldout test를 분리해 보고한다. 두 test의 readout output을 보기 전 table schema와
+analysis code를 고정하며, 178행 pooled 값은 보조 요약으로만 둔다.
 
 ### E2 이후
 

@@ -32,8 +32,10 @@
 | 2. Activation grounding | DDXPlus | 해당 사례 activation에 실제로 의존하는가 |
 | 3. Causal utility | DDXPlus | text edit가 목표 상태와 행동을 선택적으로 바꾸는가 |
 
-DiReCT는 511개 raw note 중 충돌·식별 실패·중복 15행을 제외한 496행을 쓴다. Train 263,
-val 62, seen test 71, PDD-heldout test 100이며 환자는 split 사이에 겹치지 않는다.
+DiReCT는 511개 raw note 중 충돌·식별 실패·중복 15행을 제외한 496행을 쓴다. 최초
+263/62/71/100 split의 test 171행은 설계 pilot로 사용했다. 최종 downstream protocol은
+train 266, validation 52, seen test 72, PDD-heldout test 106으로 다시 동결했으며 환자와
+held-out PDD component는 split 사이에 겹치지 않는다.
 Gold PDD/root의 정규화된 완전 구문이 note에 직접 등장한 행은 raw 28/511(5.48%)였다.
 이를 주 모집단에서 사후 제거하지 않고, split별 gold-label-absent 민감도 분석을 병기한다.
 
@@ -62,19 +64,22 @@ label token F1은 0.1850으로 Direct 0.1593보다 높았지만 이는 진단명
 설명 품질은 아니다. 최종 설명 비교는 official DiReCT `Obs*`/`Exp*`로 수행한다.
 
 단, 이 171행은 P0/P1/P2 위치 선택과 vanilla AV 진단에 이미 사용했으므로 untouched final
-test가 아니다. 위 수치는 pilot로만 보존한다. E3 학습 전 새로운 label-heldout split 또는
-nested patient/PDD-group protocol을 고정하고, ID hash와 분석 코드를 동결한 뒤 최종 주표를
-다시 계산한다.
+test가 아니다. 위 수치는 pilot로만 보존한다. 새 106행 PDD-heldout은 pilot-heldout 5개
+PDD를 금지하고 선택했으며, logical population SHA-256과 split ID SHA-256을 동결했다.
+다만 이 106행 중 일부는 과거 train/validation source 실행에서 output이 이미 생성됐을 수
+있다. 그러므로 정확한 overlap을 집계하기 전에는 `dataset-level untouched`라고 하지 않고,
+이 시점 이후 Medical-NLA 선택과 평가에 대해 고정한 downstream-confirmatory split이라고 한다.
 
 ## 다음 순서
 
 1. E1 source/activation 완주와 official source score
-2. Gold-label-in-note leakage 집계와 confirmatory population/ID hash 동결
-3. Output head, linear probe, default/task-aligned vanilla NLA baseline. 공개 AV/AR 호환 때문에 HS32를 primary로 사용
-4. SFT-only를 3 seeds로 학습. Reconstruction/full은 objective 구현 후에만 추가
-5. DiReCT Table 2로 clinical alignment 평가
-6. DDXPlus Table 3으로 shuffle/counterfactual/round-trip 검증
-7. Table 3 통과 시에만 text patching과 성능 개선 평가
+2. 새 confirmatory heldout 106행이 과거 artifact에 얼마나 materialize됐는지 aggregate 감사
+3. 62번에서 같은 logical population/split ID hash 재현 후 서버별 source path 정규화
+4. Output head, linear probe, default/task-aligned vanilla NLA baseline. 공개 AV/AR 호환 때문에 HS32를 primary로 사용
+5. SFT-only를 3 seeds로 학습. Reconstruction/full은 objective 구현 후에만 추가
+6. DiReCT Table 2로 clinical alignment 평가
+7. DDXPlus Table 3으로 shuffle/counterfactual/round-trip 검증
+8. Table 3 통과 시에만 text patching과 성능 개선 평가
 
 이 구조에서 설명 점수만 오르면 `좋은 의료 설명 생성기`, grounding까지 통과하면
 `내부 상태 판독기`, patching까지 성공하면 `설명과 성능을 함께 개선하는 방법`이라고

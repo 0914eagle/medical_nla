@@ -94,7 +94,10 @@ P1은 CoT 안에 최종 진단이 이미 등장할 수 있다. smoke 10건에서
 - E2 이후 baseline, Medical-NLA 학습, 설명 평가, grounding, patching: 대기
 
 현재 171행 test 결과는 P0/P1/P2와 vanilla AV 설계 점검에 이미 사용했으므로
-`exploratory pilot`이다. 최종 confirmatory 모집단은 E3 학습 전에 별도로 동결한다.
+`exploratory pilot`이다. E3 이후 downstream 평가용 split은 266 train / 52 validation /
+72 seen test / 106 PDD-heldout test로 동결했다. 다만 raw 496행 전체가 과거 source 실행의
+universe였으므로, 과거 materialized output과의 overlap 감사 전에는 이를
+`dataset-level untouched test`라고 부르지 않는다.
 상세 감사와 표별 분모는
 [`design_and_population_audit_2026-08-26.md`](design_and_population_audit_2026-08-26.md)를 따른다.
 

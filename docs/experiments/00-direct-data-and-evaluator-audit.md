@@ -15,7 +15,7 @@
 - 최종 eligible 496행
 - raw note에서 normalized gold-label phrase 직접 노출 28/511 = 0.0548
 
-## Split
+## Exploratory pilot split
 
 | split | rows | patient groups | PDDs | categories |
 |---|---:|---:|---:|---:|
@@ -43,4 +43,23 @@ canonical PDD 또는 annotation-root 진단명이 정규화된 완전 구문으�
 primary eligibility를 결과에 맞춰 다시 바꾸는 데 사용하지 않는다.
 
 현재 71+100행은 E1/E2 설계 점검에 이미 사용됐으므로 exploratory pilot이다. E3 이후의
-최종 주표는 별도로 동결한 confirmatory protocol을 사용한다.
+최종 주표에 그대로 재사용하지 않는다.
+
+## Downstream-confirmatory split freeze
+
+Pilot-heldout 5개 PDD component를 재선택하지 못하게 한 seed 17 split을 동결했다.
+
+| split | rows | patient groups | PDDs | categories | ID SHA-256 prefix |
+|---|---:|---:|---:|---:|---|
+| train | 266 | 244 | 49 | 25 | `0fb3e49a` |
+| val_seen | 52 | 47 | 24 | 18 | `5e1e6ce1` |
+| test_seen | 72 | 64 | 25 | 21 | `48d3c0be` |
+| test_pdd_heldout | 106 | 103 | 12 | 10 | `12d25949` |
+
+논리 모집단 hash는 `7d0a89a880fa868959099b7146c369cccaac5e7701d7ce5d8f01356ecfb68894`다.
+Split별 gold-label-in-note는 18/266, 2/52, 3/72, 5/106이다. Patient/PDD component
+disjoint invariant와 train에서 모든 seen PDD가 최소 한 번 등장하는 invariant를 통과했다.
+
+이 split은 E3 이후 downstream 분석에 대해 prospective하게 동결됐지만, raw 496행 중 일부는
+기존 pilot source 실행에서 출력이 이미 생성됐을 수 있다. 따라서 별도 overlap 감사 전에는
+`완전히 보지 않은 데이터셋 test`가 아니라 `frozen downstream-confirmatory split`이라고 쓴다.

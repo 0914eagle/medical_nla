@@ -66,7 +66,7 @@ Expected environment lines include:
 ```text
 [env] data root /data/heejae
 [env] hf cache  /data/heejae/hf_cache
-[env] gpus      CUDA_VISIBLE_DEVICES=0,1
+[env] gpus      CUDA_VISIBLE_DEVICES=2,3
 ```
 
 Do not set `TRANSFORMERS_CACHE`. `env.sh` deliberately uses only `HF_HOME` to
@@ -176,3 +176,49 @@ These runs cover 325 and 171 source cases respectively. They are shards of one
 experiment, not replications. Keep their run roots distinct and preserve the
 private transcripts and activation manifests under each server's restricted
 tree.
+
+These commands use `direct_patient_pdd_v1` and are now classified as the
+exploratory pilot. Do not silently reuse their outputs as the frozen
+downstream-confirmatory result.
+
+## 7. Reproduce the frozen confirmatory split on server 62
+
+Regenerate the private manifest locally so `source_path` uses `/data/heejae`
+rather than server 125's `/data1/heejae`. Then reproduce the split with the
+same seed and forbidden pilot labels.
+
+```bash
+python scripts/make_direct_canonical_manifest.py \
+  --samples-root /data/heejae/restricted/direct/samples \
+  --data-list /data/heejae/restricted/direct/official_repo/utils/data_loading_analysisi/data_list.csv \
+  --output-jsonl /data/heejae/restricted/direct/manifests/direct_canonical_v3_private.jsonl \
+  --summary-md /data/heejae/restricted/direct/audit/direct_canonical_v3_summary.md
+
+python scripts/make_direct_patient_pdd_splits.py \
+  --manifest /data/heejae/restricted/direct/manifests/direct_canonical_v3_private.jsonl \
+  --out-dir /data/heejae/restricted/direct/splits/direct_patient_pdd_confirmatory_v1 \
+  --seed 17 \
+  --heldout-fraction 0.20 \
+  --train-fraction 0.70 \
+  --val-fraction 0.15 \
+  --min-heldout-label-rows 3 \
+  --min-remaining-category-rows 3 \
+  --forbid-heldout-pdds HFrEF HFpEF NSTEMI "Low-risk PE" "Non-Allergic Asthma"
+```
+
+The server-local manifest file hash may differ because absolute paths differ.
+The logical population hash and all split ID hashes must match server 125:
+
+```text
+population:       7d0a89a880fa868959099b7146c369cccaac5e7701d7ce5d8f01356ecfb68894
+train:            0fb3e49aa8a3dd5f853399967fe2739423ceffc9ce1522533b32505c628f722c
+val_seen:         5e1e6ce1b687b4f20dc9803004d3ae3b971018b166c8bdc08b283860c731068e
+test_seen:        48d3c0beb2ffc13e86f5875e00415accf36154ec740f5e0a59dd770036346ed9
+test_pdd_heldout: 12d2594951bbf32e20d0d140dab9f50ffdfb6e42e863aea4187ea0f903b3da7a
+```
+
+Future confirmatory E1 runs must set the split directory explicitly:
+
+```bash
+SPLIT_DIR=/data/heejae/restricted/direct/splits/direct_patient_pdd_confirmatory_v1
+```

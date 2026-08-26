@@ -71,9 +71,11 @@ official `Obs*`/`Exp*`로 별도 평가한다.
 2. 62번 완주 후 train/validation의 strict PDD, category, token-F1을 같은 방식으로 집계
 3. P1의 `diagnosis_alias_in_reasoning`에 따른 clean/leaky 민감도 분석
 4. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
-5. 현재 171행은 exploratory로 동결하고 confirmatory split/protocol을 E3 전에 확정
-6. Confirmatory validation에서 primary index와 probe regularization을 선택하고 final test에는 고정 적용
-7. E3 전에 full objective를 RL/preference 방식으로 구현할지, SFT-only 논문으로 제한할지 결정
+5. 기존 171행은 exploratory로 동결. 새 downstream-confirmatory split 266/52/72/106과 hash는 확정 완료
+6. 새 heldout 106행과 과거 source/readout artifact의 materialization overlap 집계
+7. 62번에서 logical population/split hash가 125번과 동일한지 확인
+8. Confirmatory validation에서 primary index와 probe regularization을 선택하고 final test에는 고정 적용
+9. E3 전에 full objective를 RL/preference 방식으로 구현할지, SFT-only 논문으로 제한할지 결정
 
 Gold-label-in-note audit은 raw 511행 중 28행(0.0548)으로 완료됐다. 기존 test CoT 171행에는
 formatted answer marker가 여러 번 등장한 행이 0개여서 final-answer parser 수정이 pilot
@@ -116,3 +118,14 @@ P0의 생성 전 diagnosis recovery는 0이었다. P0가 evidence를 의미 수�
 이 171행은 위치 선택과 vanilla prompt 진단에 이미 사용됐으므로 최종 untouched test가
 아니다. 이후 방법 선택의 근거로 수치를 계속 추가하지 않고 exploratory 결과로 보존한다.
 최종 주표는 새 confirmatory protocol에서 다시 계산한다.
+
+## Downstream-confirmatory split freeze
+
+Seed 17, pilot-heldout PDD component 금지 조건으로 266 train / 52 val-seen /
+72 test-seen / 106 test-PDD-heldout을 동결했다. Logical population SHA-256은
+`7d0a89a880fa868959099b7146c369cccaac5e7701d7ce5d8f01356ecfb68894`다. Held-out은
+12 PDD와 10 categories로 구성되고 gold-label-in-note는 5/106이다.
+
+이 split은 앞으로의 downstream Medical-NLA 선택과 평가에는 고정됐지만, 과거 source
+실행 universe와 같은 496행을 재분할한 것이다. 과거 output artifact와 실제로 겹치는
+행 수를 감사하기 전에는 `dataset-level untouched`라고 쓰지 않는다.

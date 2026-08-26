@@ -768,6 +768,11 @@ E0 data/evaluator audit
    test-PDD-heldout 100이며 patient 및 held-out PDD leakage가 없다. Held-out은 4개
    component, 5개 PDD다. 이 한 split의 심폐계 편중과 3행짜리 PDD 때문에 최종 보고는
    connected-component 복수 seed 또는 group K-fold 및 PDD macro 결과를 추가한다.
+   이 171개 test case는 위치와 vanilla AV 설계에 이미 사용했으므로 pilot로만 남긴다.
+   Pilot-heldout 5 PDD component를 금지한 downstream-confirmatory split은
+   266/52/72/106으로 동결했고, heldout은 12 PDD와 10 categories다. 단, 같은 496행에서
+   과거 source output이 생성됐을 수 있으므로 artifact overlap 감사 전에는
+   `dataset-level untouched`라는 표현을 쓰지 않는다.
 4. DiReCT official prediction schema `(observation: [rationale, note section, diagnosis])`를
    그대로 serialize할 수 있는지 sample에서 확인한다.
 5. 공개 baseline output 또는 sample에 official evaluator를 실행해 paper 범위와

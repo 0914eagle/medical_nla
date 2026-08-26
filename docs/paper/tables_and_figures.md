@@ -9,10 +9,12 @@
 
 ### Panel A. Backbone diagnostic behavior on identical case IDs
 
-| Method | n | Parse coverage | Strict PDD | Disease category | Official semantic diagnosis |
-|---|---:|---:|---:|---:|---:|
-| Direct, answer-prefilled |  |  |  |  |  |
-| Source CoT |  |  |  |  |  |
+| Method | Pool | n | Parse coverage | Strict PDD | Disease category | Official semantic diagnosis |
+|---|---|---:|---:|---:|---:|---:|
+| Direct, answer-prefilled | Seen PDD | 72 |  |  |  |  |
+| Direct, answer-prefilled | Held-out PDD | 106 |  |  |  |  |
+| Source CoT | Seen PDD | 72 |  |  |  |  |
+| Source CoT | Held-out PDD | 106 |  |  |  |  |
 
 ### Panel B. CoT-P0 internal readout on identical activations
 
@@ -34,12 +36,16 @@ ontology를 제공받으므로 열린 생성 기준선이 아니다. Panel A와 
 
 ## Table 2. Clinical explanation alignment on DiReCT
 
-| Method | n | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Source CoT |  |  |  |  |  |  |  |  |
-| Vanilla NLA |  |  |  |  |  |  |  |  |
-| Medical-NLA, SFT only |  |  |  |  |  |  |  |  |
-| Medical-NLA, full objective |  |  |  |  |  |  |  |  |
+| Method | Pool | n | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | Seen PDD | 72 |  |  |  |  |  |  |  |
+| Source CoT | Held-out PDD | 106 |  |  |  |  |  |  |  |
+| Vanilla NLA | Seen PDD | 72 |  |  |  |  |  |  |  |
+| Vanilla NLA | Held-out PDD | 106 |  |  |  |  |  |  |  |
+| Medical-NLA, SFT only | Seen PDD | 72 |  |  |  |  |  |  |  |
+| Medical-NLA, SFT only | Held-out PDD | 106 |  |  |  |  |  |  |  |
+| Medical-NLA, full objective | Seen PDD | 72 |  |  |  |  |  |  |  |
+| Medical-NLA, full objective | Held-out PDD | 106 |  |  |  |  |  |  |  |
 
 - `Accdiag`: 생성한 세부 진단과 의사 주석 진단의 의미 일치
 - `Obspre`: 생성 관찰 중 의사 observation과 일치하는 정도
@@ -94,7 +100,8 @@ DiReCT note -> Gemma source run -> P0/P1/P2 activations -> CoT/vanilla NLA/Medic
 
 ## 공통 population caption
 
-주표는 confirmatory protocol에서 동결한 동일 case ID만 사용한다. Parse 또는 claim
+주표는 confirmatory protocol에서 동결한 test-seen 72행과 PDD-heldout 106행을 사용하고
+두 pool을 분리해 보고한다. 178행 pooled 값은 보조 요약으로만 둔다. Parse 또는 claim
 extraction 실패는 행을 삭제하지 않고 failure로 처리하며 coverage를 함께 보고한다.
 `source-correct`와 `source-wrong`은 subgroup 분석이지 primary eligibility 조건이 아니다.
 

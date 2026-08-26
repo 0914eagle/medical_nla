@@ -34,7 +34,7 @@ strict/category/official semantic correct 수를 각각 기록한다.
 ## 필수 통제
 
 - Patient-disjoint split
-- PDD-heldout 5개는 train에서 완전 제외
+- confirmatory PDD-heldout 12개는 train에서 완전 제외
 - 3 random seeds
 - 동일 LoRA rank/target modules/token budget
 - Early stopping은 val_seen

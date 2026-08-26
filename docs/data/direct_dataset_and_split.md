@@ -34,7 +34,7 @@ root를 정규화한 뒤 official canonical PDD 61개를 사용한다.
 따라서 primary split에는 496행이 남는다. 원본 511행을 모델 선택이나 주표의 분모로
 섞지 않는다.
 
-## Patient/PDD-disjoint split
+## Exploratory pilot split
 
 | split | notes | patient groups | 역할 |
 |---|---:|---:|---|
@@ -49,9 +49,35 @@ group이 빠지므로 두 숫자는 모순이 아니다.
 같은 환자가 여러 PDD에 걸치는 경우 PDD를 connected component로 묶었다. Held-out PDD는
 HFrEF, HFpEF, NSTEMI, Low-risk PE, Non-Allergic Asthma이며 train에는 등장하지 않는다.
 
-## 263 train rows로 가능한 범위
+이 split의 71+100 test rows는 P0/P1/P2 위치 선택과 vanilla AV 진단에 이미 사용했으므로
+최종 주표의 confirmatory test가 아니다.
 
-LoRA 기반 domain adaptation과 feasibility test는 가능하다. 그러나 263행만으로 범용 의료
+## Frozen downstream-confirmatory split
+
+Pilot held-out 5개 PDD component를 다시 held-out으로 선택하지 못하게 막고, Medical-NLA
+학습과 최종 평가 전에 다음 split을 seed 17로 동결했다.
+
+| split | notes | patient groups | PDDs | categories | gold label in note |
+|---|---:|---:|---:|---:|---:|
+| train | 266 | 244 | 49 | 25 | 18/266 |
+| val_seen | 52 | 47 | 24 | 18 | 2/52 |
+| test_seen | 72 | 64 | 25 | 21 | 3/72 |
+| test_pdd_heldout | 106 | 103 | 12 | 10 | 5/106 |
+
+Held-out PDD는 UA, Hemorrhagic Stroke, Bacterial Pneumonia, Submassive PE, Mild COPD,
+Severe COPD, Type I Diabetes, Hyperthyroidism, STEMI-ACS, HFmrEF, Dilated Cardiomyopathy,
+Severe Asthma다. Logical population SHA-256은
+`7d0a89a880fa868959099b7146c369cccaac5e7701d7ce5d8f01356ecfb68894`다.
+
+이 split은 **E3 이후 downstream Medical-NLA 평가를 지금부터 고정하는 protocol**이다.
+496행 전체가 과거 source 실행의 universe였으므로, 과거 artifact와 겹치는 행이 있으면
+`dataset-level untouched test`라고 부르지 않는다. 대신 과거 출력 materialization overlap을
+aggregate-only로 감사하고, 이 시점 이후 test readout을 보고 prompt, layer, epoch,
+threshold를 바꾸지 않는다.
+
+## 266 confirmatory train rows로 가능한 범위
+
+LoRA 기반 domain adaptation과 feasibility test는 가능하다. 그러나 266행만으로 범용 의료
 판독기를 학습했다고 주장할 수 없다. 그래서 다음을 함께 사용한다.
 
 - 환자 분리와 PDD-heldout으로 암기 여부 확인
