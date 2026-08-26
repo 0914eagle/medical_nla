@@ -32,6 +32,19 @@ zero-shot open generation이 아니라 ontology-given ranking으로 표기한다
 
 ## 실행 상태
 
+Frozen validation 52행의 HS32/P0 prompt comparison은 다음과 같다.
+
+| Prompt | Parse | Source-answer mention | Gold-PDD mention | Category mention | Own-donor source gap | Prompt trigram gap |
+|---|---:|---:|---:|---:|---:|---:|
+| Default | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+| Task-aligned suffix | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | +0.0007 |
+
+Task-aligned suffix가 literal/case-specific diagnostic을 개선하지 않아 default를 vanilla
+primary로 유지한다. P1/P2 validation에서는 source-answer mention이 각각
+default 0.5192/0.5962, task-aligned 0.5577/0.5000이었지만, P1 leakage-free subset은
+5행이고 두 prompt 모두 0/5였다. P1은 CoT 문자열 누출 분석, P2는 answer-exposed positive
+control로만 사용한다.
+
 Test P0/L32 vanilla AV는 171/171행 생성 및 `<explanation>` parsing에 성공했고 빈 출력은
 없었다. 출력 길이는 637--741자(중앙값 697, 평균 696.9)였다. 길이 안정성은 내용의
 사례 특이성과 별개다. 길이 범위가 매우 좁으므로 exact/normalized 반복률과

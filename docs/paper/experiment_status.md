@@ -109,6 +109,22 @@ formatted answer marker가 여러 번 등장한 행이 0개여서 final-answer p
 
 ## E2 vanilla AV exploratory 상태
 
+Frozen validation 52행의 HS32/P0에서도 default와 task-aligned prompt를 직접 비교했다.
+두 조건 모두 parse 1.0이었지만 source answer, gold PDD, disease category의 literal
+phrase/alias mention은 전부 0이었다. Same-category/different-source donor 대비 source-answer
+gap도 0이고 prompt trigram gap은 default 0.0000, task-aligned +0.0007이었다. 따라서 generic
+medical suffix만으로 vanilla AV가 생성 전 의료 판독기로 바뀌었다는 증거는 없다. Default를
+vanilla primary prompt로 유지하고 task-aligned는 prompt sensitivity로 남긴다. 이 결과는
+lexical diagnostic이므로 P0 정보 부재가 아니라 probe/output-head와의 판독 능력 차이로
+검증한다.
+
+같은 validation의 P1/P2 positive control에서는 source-answer mention이 default
+0.5192/0.5962, task-aligned 0.5577/0.5000이었다. Same-category donor 대비 gap도
++0.4091~+0.5000으로 사례별 source answer와 연결됐다. 그러나 P1에서 CoT reasoning에
+source-answer alias가 없던 행은 5건뿐이었고 두 prompt 모두 0/5였다. 따라서 P1 전체
+결과는 주로 이미 생성된 CoT 문자열 누출로 보고, P2는 answer-exposed positive control로만
+사용한다. P0/P1/P2를 서로 독립적인 내부 판독 성능처럼 비교하지 않는다.
+
 Pilot test P0/HS32 171행 생성은 완료됐다. `parsed_explanation_tag`는 171/171, 빈 출력은
 0/171이며 split은 test-seen 71, PDD-heldout 100으로 E1 test 모집단과 일치한다. 출력
 길이는 637--741자(중앙값 697, 평균 696.9)로 매우 좁다. 이는 generation 안정성은
