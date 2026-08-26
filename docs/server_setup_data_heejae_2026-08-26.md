@@ -222,3 +222,43 @@ Future confirmatory E1 runs must set the split directory explicitly:
 ```bash
 SPLIT_DIR=/data/heejae/restricted/direct/splits/direct_patient_pdd_confirmatory_v1
 ```
+
+## 8. Reindex the completed pilot activations to the frozen split
+
+Do not rerun the backbone. The old pilot split already covers the same 496
+eligible cases. First copy the 171-case test artifact from server 125 to server
+62, where the 325-case train/validation artifact already lives.
+
+```bash
+rsync -a --info=progress2 \
+  eagle0914@165.132.76.125:/data1/heejae/restricted/direct/e1/direct_e1_test_v1/ \
+  /data/heejae/restricted/direct/e1/direct_e1_test_v1/
+```
+
+Then merge the two activation universes, replace the old `/data1` prefix, and
+assign every tensor to the frozen split.
+
+```bash
+python scripts/reindex_direct_activations.py \
+  --manifest-roots \
+    /data/heejae/restricted/direct/e1/direct_e1_trainval_v1/activations \
+    /data/heejae/restricted/direct/e1/direct_e1_test_v1/activations \
+  --split-dir /data/heejae/restricted/direct/splits/direct_patient_pdd_confirmatory_v1 \
+  --out-dir /data/heejae/restricted/direct/e1/direct_e1_reindexed_confirmatory_v1/activations \
+  --path-map /data1/heejae=/data/heejae \
+  --expected-layers 16 24 32
+```
+
+Expected aggregate counts are fixed by the complete case x position x layer
+grid:
+
+| split | cases | activation rows |
+|---|---:|---:|
+| train | 266 | 2,394 |
+| val_seen | 52 | 468 |
+| test_seen | 72 | 648 |
+| test_pdd_heldout | 106 | 954 |
+| total | 496 | 4,464 |
+
+The command fails on any duplicate, missing case/layer/position combination,
+selection mismatch, or nonexistent remapped tensor path.
