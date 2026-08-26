@@ -575,7 +575,7 @@ def main() -> None:
                             "target_text_strategy": selection,
                             "target_token_span": row.get("target_token_span"),
                             "target_char_span": row.get("target_char_span"),
-                            "prompt_token_count": int(encodings[prompt]["n_tokens"]),
+                            "prompt_token_count": int(encodings[input_key]["n_tokens"]),
                         }
                         for field in PASSTHROUGH_FIELDS:
                             if field in row:
