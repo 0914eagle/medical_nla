@@ -46,3 +46,20 @@ subset 또는 leakage sensitivity로만 보고하고 P2는 positive control이�
 
 Strict PDD 중간 정확도만으로 source model을 탈락시키지 않는다. PDD가 매우 세분화되어
 있으므로 category와 official semantic evaluator를 함께 본다.
+
+## 125번 test 실행 결과
+
+2026-08-26에 test_seen + test_pdd_heldout 171행이 완료됐다.
+
+| 항목 | 결과 |
+|---|---:|
+| Answer parse | 171/171 (1.0000) |
+| Forced answer | 0/171 |
+| Strict PDD alias hit | 33/171 (0.1930) |
+| Model answer alias already in CoT | 156/171 (0.9123) |
+| Gold PDD alias already in CoT | 49/171 (0.2865) |
+| Extraction rows | 513 |
+| Stored tensors | 1,539 |
+
+`1,539 = 171 cases x 3 positions x 3 layers`로 완전하다. P1 clean subset은 15행뿐이므로
+P1을 독립적인 pre-answer readout 결과로 일반화하지 않는다. P0를 primary로 사용한다.

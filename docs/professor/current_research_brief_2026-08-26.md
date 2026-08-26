@@ -41,14 +41,20 @@ Gemma-3-12B-IT에서 source CoT와 layer 16/24/32 activation을 추출 중이다
 마지막 토큰 P0를 주 비교 위치로 쓰고, CoT 뒤 P1은 answer 문자열 누출을 분석하는 보조
 위치, answer 뒤 P2는 positive control로 쓴다.
 
-- Server 62 `/data/heejae`: train+val 325행, GPU 2/3
-- Server 125 `/data1/heejae`: test 171행, GPU 0/1
+- Server 62 `/data/heejae`: train+val 325행, GPU 2/3, 실행 중
+- Server 125 `/data1/heejae`: test 171행, GPU 0/1, 완료
 - Greedy, max new tokens 2048, batch size 1
 
 10행 smoke에서 answer parse는 100%, strict PDD alias는 0%, disease category는 60%였다.
 세부 PDD가 매우 좁아 strict 값만으로 모델을 판단하지 않고 official semantic evaluator와
 category를 함께 본다. 중요한 설계 결과는 모델 answer alias가 CoT에 8/10 등장했다는
 점이다. 그래서 P1이 아니라 P0를 주 Medical-NLA 입력으로 확정했다.
+
+Test 171행에서는 parse 100%, strict PDD alias accuracy 19.30%였고 activation tensor
+1,539개가 모두 생성됐다. 모델 answer alias는 CoT에 156/171(91.23%) 등장해 P1의
+leakage-free subset이 15행뿐이었다. 따라서 P1은 민감도 분석으로만 두고 P0를 주
+비교 위치로 확정한다. Strict PDD 점수는 category 및 official semantic score와 함께
+최종 해석한다.
 
 ## 다음 순서
 
