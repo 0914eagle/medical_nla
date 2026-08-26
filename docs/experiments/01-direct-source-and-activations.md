@@ -84,3 +84,19 @@ Split별로도 같은 패턴이다. PDD-heldout 100행에서 Direct/CoT strict P
 
 이 171행은 P0/P1/P2와 vanilla AV 진단에 이미 사용했으므로 exploratory pilot로 분류한다.
 최종 confirmatory test는 E3 학습 전에 새로 동결한다.
+
+## Pilot universe 전체 완주
+
+62번 train+validation 325행도 source generation과 activation extraction을 완료했다.
+
+| artifact | 62 train+val | 125 test | total |
+|---|---:|---:|---:|
+| Source CoT answers | 325 | 171 | 496 |
+| P0/P1/P2 rows | 975 | 513 | 1,488 |
+| HS16/24/32 tensors | 2,925 | 1,539 | 4,464 |
+
+62번의 각 index에서 P0 manifest는 325행, P1+P2 manifest는 650행이며 누락 tensor는 없다.
+이 완주는 기존 pilot split의 계산 자산을 완성한 것이며, 새 266/52/72/106 split의
+통계적 독립성을 새로 만들지는 않는다. Split membership은 source forward pass를 바꾸지
+않으므로 activation을 재생성하지 않고 ID로 재색인하되, join 100%와 path 존재를 다시
+검사한다.

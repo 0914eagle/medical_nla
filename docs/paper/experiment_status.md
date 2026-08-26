@@ -5,7 +5,7 @@
 | 단계 | 상태 | 완료 조건 | 다음 단계 의존성 |
 |---|---|---|---|
 | E0 DiReCT audit/evaluator | 완료 | 496행 canonical split, official oracle smoke | E1-E4 |
-| E1 source/activation | 실행 중 | 496 source outputs, P0/P1/P2 x L16/24/32 | E2 |
+| E1 source/activation | 완료 | pilot 496 source outputs, P0/P1/P2 x HS16/24/32 완전성 확인 | E2 |
 | E2 capability baselines | 실행 중 | exploratory P0/HS32 vanilla AV 171행 완료; output head/probe 대기 | E3-E5 |
 | E3 Medical-NLA train | 설계 차단 | SFT-only 실행 가능; reconstruction/full objective 미구현 | E4-E6 |
 | E4 DiReCT explanation | 대기 | official metrics + human audit | Table 2 |
@@ -17,7 +17,7 @@
 
 | 서버 | data root | GPU | split | 행 |
 |---|---|---|---|---:|
-| `165.132.76.62` | `/data/heejae` | physical 2,3 | train + val_seen | 325, 실행 중 |
+| `165.132.76.62` | `/data/heejae` | physical 2,3 | train + val_seen | 325, 완료 |
 | `165.132.76.125` | `/data1/heejae` | physical 0,1 | test_seen + PDD-heldout | 171, 완료 |
 
 공통 backbone은 Gemma-3-12B-IT이고 greedy decoding과 forced answer 비활성화를 쓴다.
@@ -65,16 +65,24 @@ CoT 0.1850이었다. 따라서 CoT가 진단명 어휘에는 조금 더 가까�
 category 정확도를 개선했다는 증거는 없다. CoT 설명 품질은 이 결과가 아니라 E4의
 official `Obs*`/`Exp*`로 별도 평가한다.
 
+## E1 전체 완주
+
+62번 train+validation도 완료됐다. Source answers 325, activation rows 975,
+tensor 2,925개가 생성됐다. 125번 test의 171/513/1,539와 합치면 pilot universe 전체에서
+source answers 496, activation rows 1,488, tensor 4,464개다. 각 case마다 P0/P1/P2 세
+위치와 HS16/HS24/HS32 세 index가 모두 존재한다. Train+validation prompt token 최대는
+4,834였고 tensor 저장 dtype은 float32다.
+
 ## 즉시 할 일
 
-1. 62번 train+val 실행의 `source_cot_answers.jsonl`, activation, manifest 완주 확인
-2. 62번 완주 후 train/validation의 strict PDD, category, token-F1을 같은 방식으로 집계
-3. P1의 `diagnosis_alias_in_reasoning`에 따른 clean/leaky 민감도 분석
-4. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
-5. 기존 171행은 exploratory로 동결. 새 downstream-confirmatory split 266/52/72/106과 hash는 확정 완료
-6. 새 heldout 106행과 과거 artifact overlap 집계 완료: backbone 106/106, vanilla AV 16/106
-7. 62번에서 logical population/split hash가 125번과 동일한지 확인
-8. Confirmatory validation에서 primary index와 probe regularization을 선택하고 final test에는 고정 적용
+1. Train/validation의 strict PDD, category, token-F1을 같은 방식으로 집계
+2. P1의 `diagnosis_alias_in_reasoning`에 따른 clean/leaky 민감도 분석
+3. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
+4. 기존 171행은 exploratory로 동결. 새 locked downstream split 266/52/72/106과 hash는 확정 완료
+5. 새 heldout artifact 감사 완료: backbone 106/106, vanilla AV 16/106
+6. 62번에서 logical population/split hash가 125번과 동일한지 확인
+7. 기존 activation을 새 split ID로 재색인하고 join/completeness 100% 확인
+8. Validation에서 primary index와 probe regularization을 선택하고 locked test에는 고정 적용
 9. E3 전에 full objective를 RL/preference 방식으로 구현할지, SFT-only 논문으로 제한할지 결정
 
 Gold-label-in-note audit은 raw 511행 중 28행(0.0548)으로 완료됐다. 기존 test CoT 171행에는

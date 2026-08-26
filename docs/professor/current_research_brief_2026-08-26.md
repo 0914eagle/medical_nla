@@ -41,13 +41,17 @@ Gold PDD/root의 정규화된 완전 구문이 note에 직접 등장한 행은 r
 
 ## 현재 실행
 
-Gemma-3-12B-IT에서 source CoT와 layer 16/24/32 activation을 추출 중이다. 생성 전 prompt
+Gemma-3-12B-IT에서 source CoT와 layer 16/24/32 activation 추출을 완료했다. 생성 전 prompt
 마지막 토큰 P0를 주 비교 위치로 쓰고, CoT 뒤 P1은 answer 문자열 누출을 분석하는 보조
 위치, answer 뒤 P2는 positive control로 쓴다.
 
-- Server 62 `/data/heejae`: train+val 325행, GPU 2/3, 실행 중
+- Server 62 `/data/heejae`: train+val 325행, GPU 2/3, 완료
 - Server 125 `/data1/heejae`: exploratory test 171행, GPU 0/1, 완료
 - Greedy, max new tokens 2048, batch size 1
+
+두 서버를 합쳐 source answers 496행, P0/P1/P2 activation rows 1,488행,
+HS16/HS24/HS32 tensor 4,464개가 생성됐다. 새 locked split은 source forward pass를
+바꾸지 않으므로 이 tensor들을 ID로 재색인해 사용하고, 100% join을 확인한다.
 
 10행 smoke에서 answer parse는 100%, strict PDD alias는 0%, disease category는 60%였다.
 세부 PDD가 매우 좁아 strict 값만으로 모델을 판단하지 않고 official semantic evaluator와
