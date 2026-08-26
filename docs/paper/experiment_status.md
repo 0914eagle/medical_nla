@@ -90,6 +90,18 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
 8. Validation 52행에서 primary index와 probe regularization을 선택하고 locked test에는 고정 적용
 9. E3 전에 full objective를 RL/preference 방식으로 구현할지, SFT-only 논문으로 제한할지 결정
 
+## 두 서버 병렬 실행 원칙
+
+| lane | server | GPU | 우선 작업 |
+|---|---|---|---|
+| A | 62, `/data/heejae` | physical 2,3 | primary Medical-NLA/AV 학습·생성 |
+| B | 125, `/data1/heejae` | physical 0,1 | output-head, 위치 통제, official evaluator, grounding control |
+
+두 lane은 같은 population/split hash와 checkpoint를 사용한다. Validation으로 설정을 고르는
+동안 locked test 72+106행은 어느 lane에서도 추가 생성하지 않는다. 한 lane이 장시간 GPU
+작업을 수행할 때 다른 lane에는 그 결과에 의존하지 않는 baseline 또는 positive/negative
+control을 배정한다. 동일 출력을 두 서버에서 중복 생성하지 않는다.
+
 Gold-label-in-note audit은 raw 511행 중 28행(0.0548)으로 완료됐다. 기존 test CoT 171행에는
 formatted answer marker가 여러 번 등장한 행이 0개여서 final-answer parser 수정이 pilot
 수치를 바꾸지 않는다. 다음 split은 이 leakage flag를 eligibility에서 제거하지 않고 split별
