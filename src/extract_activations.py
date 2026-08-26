@@ -105,6 +105,13 @@ PASSTHROUGH_FIELDS = [
     "hint_variant",
     "hint_diagnosis_name",
     "gold_in_prompt",
+    "split",
+    "disease_category",
+    "canonical_pdd",
+    "patient_group",
+    "position_label",
+    "source_correct",
+    "answer_forced",
 ]
 
 # Every fourth block, plus the last one before the final norm. 48 (post-norm)
@@ -138,18 +145,54 @@ def encode_chat(tokenizer, prompt: str) -> dict[str, Any]:
     }
 
 
+def encode_messages(tokenizer, messages: list[dict[str, str]]) -> dict[str, Any]:
+    """Tokenize a complete user/assistant transcript for teacher forcing."""
+    text = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=False,
+    )
+    encoded = tokenizer(text, return_offsets_mapping=True, add_special_tokens=False)
+    return {
+        "text": text,
+        "input_ids": list(encoded["input_ids"]),
+        "offset_mapping": [tuple(pair) for pair in encoded["offset_mapping"]],
+        "n_tokens": len(encoded["input_ids"]),
+    }
+
+
+def encode_row(tokenizer, row: dict[str, Any]) -> dict[str, Any]:
+    messages = row.get("chat_messages")
+    if messages is not None:
+        if not isinstance(messages, list) or not messages:
+            raise ValueError(f"Row {row.get('id')} has invalid chat_messages.")
+        return encode_messages(tokenizer, messages)
+    prompt = row.get("prompt")
+    if not prompt:
+        raise ValueError(f"Row {row.get('id')} has no prompt.")
+    return encode_chat(tokenizer, str(prompt))
+
+
 def substring_char_span(text: str, needle: str, occurrence: int = 0) -> tuple[int, int]:
     if not needle:
         raise ValueError("target_text must be non-empty.")
     text_l = text.lower()
     needle_l = needle.lower()
-    start = -1
-    search_from = 0
-    for _ in range(int(occurrence) + 1):
-        start = text_l.find(needle_l, search_from)
+    occurrence = int(occurrence)
+    if occurrence == -1:
+        start = text_l.rfind(needle_l)
         if start < 0:
             raise ValueError(f"target_text {needle!r} not found in chat text.")
-        search_from = start + len(needle_l)
+    elif occurrence >= 0:
+        start = -1
+        search_from = 0
+        for _ in range(occurrence + 1):
+            start = text_l.find(needle_l, search_from)
+            if start < 0:
+                raise ValueError(f"target_text {needle!r} not found in chat text.")
+            search_from = start + len(needle_l)
+    else:
+        raise ValueError("target_text_occurrence must be -1 or non-negative.")
     return start, start + len(needle)
 
 
@@ -275,10 +318,15 @@ class SelectionWriter:
 def group_by_prompt(rows: list[dict[str, Any]]) -> "OrderedDict[str, list[dict[str, Any]]]":
     groups: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
     for row in rows:
-        prompt = row.get("prompt")
-        if not prompt:
-            raise ValueError(f"Row {row.get('id')} has no prompt.")
-        groups.setdefault(str(prompt), []).append(row)
+        messages = row.get("chat_messages")
+        if messages is not None:
+            key = "messages:" + json.dumps(messages, ensure_ascii=False, sort_keys=True)
+        else:
+            prompt = row.get("prompt")
+            if not prompt:
+                raise ValueError(f"Row {row.get('id')} has no prompt.")
+            key = str(prompt)
+        groups.setdefault(key, []).append(row)
     return groups
 
 
@@ -287,6 +335,15 @@ def main() -> None:
     parser.add_argument("--config", default="configs/default.yaml")
     parser.add_argument("--input", required=True, nargs="+", help="One or more row JSONL files.")
     parser.add_argument("--run-name", default=None)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Exact output directory. Use this for restricted inputs whose manifests "
+            "must not be written under the ordinary artifact tree."
+        ),
+    )
     parser.add_argument(
         "--layers",
         nargs="+",
@@ -345,7 +402,9 @@ def main() -> None:
         )
     batch_size = int(args.batch_size or activation_cfg.get("batch_size") or 8)
 
-    out_dir = ensure_dir(Path(cfg["paths"]["activation_dir"]) / run_name)
+    out_dir = ensure_dir(
+        args.output_dir or (Path(cfg["paths"]["activation_dir"]) / run_name)
+    )
     shutil.copy2(args.config, out_dir / "config.yaml")
 
     rows: list[dict[str, Any]] = []
@@ -390,9 +449,9 @@ def main() -> None:
     # rather than after a several-minute load.
     encodings: dict[str, dict[str, Any]] = {}
     plans: list[tuple[str, list[dict[str, Any]]]] = []
-    for prompt, group in groups.items():
-        encoded = encode_chat(tokenizer, prompt)
-        encodings[prompt] = encoded
+    for input_key, group in groups.items():
+        encoded = encode_row(tokenizer, group[0])
+        encodings[input_key] = encoded
         planned = []
         for row in group:
             row = dict(row)
@@ -407,7 +466,7 @@ def main() -> None:
                 )
             row["target_token_span"] = [int(span[0]), int(span[1])]
             planned.append({"row": row, "span": span, "selections": selections})
-        plans.append((prompt, planned))
+        plans.append((input_key, planned))
 
     token_counts = [int(e["n_tokens"]) for e in encodings.values()]
     print(
@@ -489,7 +548,7 @@ def main() -> None:
             # One host transfer per (batch, layer); float32 here so nothing
             # downstream sees bfloat16's 8 mantissa bits.
             layer_hidden = hidden_states[layer].to("cpu", torch.float32)
-            for index, (prompt, planned_rows) in enumerate(batch):
+            for index, (input_key, planned_rows) in enumerate(batch):
                 seq_hidden = layer_hidden[index]
                 for planned in planned_rows:
                     row, span = planned["row"], planned["span"]
@@ -505,8 +564,8 @@ def main() -> None:
                         manifest_row = {
                             "id": row_id,
                             "base_id": row.get("base_id", row_id),
-                            "prompt": prompt,
-                            "chat_text": encodings[prompt]["text"],
+                            "prompt": row.get("prompt"),
+                            "chat_text": encodings[input_key]["text"],
                             "model_id": model_cfg["model_id"],
                             "position": position,
                             "position_family": row.get("position_family"),

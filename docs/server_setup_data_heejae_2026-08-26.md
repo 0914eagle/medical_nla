@@ -112,3 +112,37 @@ cat /data/heejae/restricted/direct/evaluator_smoke/oracle_10/reports/official_me
 
 Only aggregate summaries may be shared. Prediction, evaluation, manifest, and
 error JSONL files contain or derive from restricted clinical text.
+
+## 6. DiReCT E1 source-run smoke on physical GPUs 2 and 3
+
+After the evaluator smoke passes, run ten cases through the exact E1 path. The
+script generates one source CoT/diagnosis and teacher-forces that same response
+to extract P0 (prompt boundary), P1 (answer boundary before the diagnosis), and
+P2 (diagnosis token) at hidden-state indices 16, 24, and 32. All prompt,
+transcript, manifest, and tensor files remain under the restricted tree.
+
+```bash
+cd /home/eagle0914/medical_nla
+source /data/heejae/uv/medical_nla/bin/activate
+
+DATA_ROOT=/data/heejae GPUS=2,3 LIMIT=10 BATCH_SIZE=1 \
+nohup bash scripts/run_direct_e1_pipeline.sh \
+  > /data/heejae/medical_nla/logs/direct_e1_smoke10_v1.log 2>&1 &
+
+tail -f /data/heejae/medical_nla/logs/direct_e1_smoke10_v1.log
+```
+
+The expected number of extraction rows is three times the number of naturally
+parsed source answers. Forced answer completion is disabled because it would
+create a second source run. With ten parsed answers there are 30 rows; at each
+layer their entries are divided between the `last_token` P0 manifest and the
+`last_subtoken` P1/P2 manifest.
+
+```bash
+cat /data/heejae/restricted/direct/e1/direct_e1_smoke10_v1/reports/activation_rows_summary.md
+
+find /data/heejae/restricted/direct/e1/direct_e1_smoke10_v1/activations \
+  -name manifest.jsonl -print -exec wc -l {} \;
+```
+
+Do not start `LIMIT=0` until the ten-row token-position audit is complete.

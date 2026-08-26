@@ -102,6 +102,10 @@ CARRIED_FIELDS = (
     "sex",
     "source",
     "patient_id",
+    "split",
+    "disease_category",
+    "canonical_pdd",
+    "patient_group",
 )
 
 

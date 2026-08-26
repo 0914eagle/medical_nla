@@ -18,6 +18,20 @@ def test_substring_char_span_occurrence():
     assert substring_char_span("pain, no pain, more pain", "pain", occurrence=1) == (9, 13)
 
 
+def test_substring_char_span_last_occurrence():
+    text = "The answer is <diagnosis>. The answer is Pneumonia."
+    start = text.rfind("The answer is")
+    assert substring_char_span(text, "The answer is", occurrence=-1) == (
+        start,
+        start + len("The answer is"),
+    )
+
+
+def test_substring_char_span_rejects_other_negative_occurrences():
+    with pytest.raises(ValueError, match="must be -1"):
+        substring_char_span("pain", "pain", occurrence=-2)
+
+
 def test_token_span_for_char_span_overlap():
     offsets = [(0, 0), (0, 3), (3, 7), (8, 12), (12, 15)]
     assert token_span_for_char_span(offsets, 2, 10) == (1, 4)
@@ -66,6 +80,20 @@ def test_group_by_prompt_collapses_rows_sharing_a_forward_pass():
 def test_group_by_prompt_refuses_a_row_without_a_prompt():
     with pytest.raises(ValueError, match="no prompt"):
         group_by_prompt([{"id": "a"}])
+
+
+def test_group_by_prompt_collapses_rows_sharing_teacher_forced_messages():
+    messages = [
+        {"role": "user", "content": "question"},
+        {"role": "assistant", "content": "The answer is Pneumonia."},
+    ]
+    rows = [
+        {"id": "p1", "prompt": "question", "chat_messages": messages},
+        {"id": "p2", "prompt": "question", "chat_messages": messages},
+    ]
+    groups = group_by_prompt(rows)
+    assert len(groups) == 1
+    assert [row["id"] for row in next(iter(groups.values()))] == ["p1", "p2"]
 
 
 def test_shard_dir_name_is_stable_and_bounded():
