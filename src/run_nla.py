@@ -7,6 +7,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import torch
 
@@ -72,6 +73,8 @@ PASSTHROUGH_FIELDS = [
     "patient_group",
     "position_label",
     "source_correct",
+    "source_answer",
+    "target_style",
     "answer_forced",
     "diagnosis_alias_in_reasoning",
     "gold_alias_in_reasoning",
@@ -91,6 +94,29 @@ PASSTHROUGH_FIELDS = [
     "random_seed",
     "random_strategy",
 ]
+
+
+def manifest_output_context(row: dict[str, Any]) -> dict[str, Any]:
+    """Fields copied from extraction or activation-only manifests.
+
+    Training/evaluation manifests can point directly at a stored activation and
+    therefore need neither the original source prompt nor a token-position
+    integer. Those fields are provenance when present, not generation inputs.
+    """
+    return {
+        "id": row["id"],
+        "base_id": row.get("base_id", row["id"]),
+        "prompt": row.get("prompt"),
+        "layer": row.get("layer"),
+        "position": row.get("position"),
+        "position_family": row.get("position_family"),
+        "position_mode": row.get("position_mode"),
+        "target_text": row.get("target_text"),
+        "target_text_strategy": row.get("target_text_strategy"),
+        "target_token_span": row.get("target_token_span"),
+        "target_char_span": row.get("target_char_span"),
+        "activation_path": row["activation_path"],
+    }
 
 
 def generation_kwargs(cfg: dict, max_new_tokens: int | None = None) -> dict:
@@ -299,9 +325,7 @@ def main() -> None:
         for row, result, raw_text in zip(batch_rows, results, texts, strict=True):
             explanation, parsed_explanation = extract_explanation(raw_text)
             result_row = {
-                    "id": row["id"],
-                    "base_id": row.get("base_id", row["id"]),
-                    "prompt": row["prompt"],
+                    **manifest_output_context(row),
                     "query": result.prompt_text,
                     "actor_prompt_template_file": args.actor_prompt_template_file,
                     "actor_prompt_suffix_file": args.actor_prompt_suffix_file,
@@ -310,15 +334,6 @@ def main() -> None:
                     "raw_nla_output": raw_text,
                     "parsed_explanation_tag": parsed_explanation,
                     "cjk_fraction": cjk_fraction(raw_text),
-                    "layer": row["layer"],
-                    "position": row["position"],
-                    "position_family": row.get("position_family"),
-                    "position_mode": row.get("position_mode"),
-                    "target_text": row.get("target_text"),
-                    "target_text_strategy": row.get("target_text_strategy"),
-                    "target_token_span": row.get("target_token_span"),
-                    "target_char_span": row.get("target_char_span"),
-                    "activation_path": row["activation_path"],
                     "activation_norm": result.activation_norm,
                     "scaled_activation_norm": result.scaled_activation_norm,
                     "injection_position": result.injection_position,
