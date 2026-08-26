@@ -171,6 +171,18 @@ def format_rate(value: float | None) -> str:
     return "N/A" if value is None else f"{value:.4f}"
 
 
+def split_position_families(
+    name: str, rows: list[dict[str, Any]]
+) -> dict[str, list[dict[str, Any]]]:
+    families: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        family = str(row.get("position_family") or "unknown")
+        families[family].append(row)
+    if len(families) == 1:
+        return {name: rows}
+    return {f"{name}_{family}": family_rows for family, family_rows in sorted(families.items())}
+
+
 def write_summary(path: Path, summaries: dict[str, dict[str, Any]]) -> None:
     lines = [
         "# DiReCT E2 Readout Comparison",
@@ -223,24 +235,27 @@ def main() -> None:
     expected_ids: set[str] | None = None
     for value in args.readout:
         name, path = parse_named_path(value)
-        if name in named_rows:
-            raise ValueError(f"Duplicate arm name: {name}")
         rows = list(read_jsonl(path))
-        ids = [base_id(row) for row in rows]
-        if not all(ids) or len(set(ids)) != len(ids):
-            raise ValueError(f"Missing or duplicate base_id in {path}")
-        current_ids = set(ids)
-        if expected_ids is None:
-            expected_ids = current_ids
-        elif current_ids != expected_ids:
-            raise ValueError(
-                f"Arm {name} has a different population: "
-                f"missing={len(expected_ids - current_ids)} extra={len(current_ids - expected_ids)}"
-            )
-        missing_sources = current_ids - sources.keys()
-        if missing_sources:
-            raise ValueError(f"Arm {name} has {len(missing_sources)} rows without source answers")
-        named_rows[name] = rows
+        for expanded_name, expanded_rows in split_position_families(name, rows).items():
+            if expanded_name in named_rows:
+                raise ValueError(f"Duplicate arm name: {expanded_name}")
+            ids = [base_id(row) for row in expanded_rows]
+            if not all(ids) or len(set(ids)) != len(ids):
+                raise ValueError(f"Missing or duplicate base_id in {path} ({expanded_name})")
+            current_ids = set(ids)
+            if expected_ids is None:
+                expected_ids = current_ids
+            elif current_ids != expected_ids:
+                raise ValueError(
+                    f"Arm {expanded_name} has a different population: "
+                    f"missing={len(expected_ids - current_ids)} extra={len(current_ids - expected_ids)}"
+                )
+            missing_sources = current_ids - sources.keys()
+            if missing_sources:
+                raise ValueError(
+                    f"Arm {expanded_name} has {len(missing_sources)} rows without source answers"
+                )
+            named_rows[expanded_name] = expanded_rows
 
     summaries = {
         name: summarize_arm(rows, sources) for name, rows in named_rows.items()

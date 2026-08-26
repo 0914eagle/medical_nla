@@ -1,4 +1,8 @@
-from scripts.summarize_direct_e2_readouts import parse_named_path, summarize_arm
+from scripts.summarize_direct_e2_readouts import (
+    parse_named_path,
+    split_position_families,
+    summarize_arm,
+)
 
 
 def test_summary_uses_same_category_different_answer_donor() -> None:
@@ -63,3 +67,13 @@ def test_named_path_keeps_path_after_first_equals() -> None:
     name, path = parse_named_path("aligned=/tmp/a=b.jsonl")
     assert name == "aligned"
     assert str(path) == "/tmp/a=b.jsonl"
+
+
+def test_multiple_positions_expand_to_separate_arms() -> None:
+    rows = [
+        {"base_id": "a", "position_family": "P1"},
+        {"base_id": "a", "position_family": "P2"},
+    ]
+    groups = split_position_families("default", rows)
+    assert set(groups) == {"default_P1", "default_P2"}
+    assert groups["default_P1"][0]["position_family"] == "P1"
