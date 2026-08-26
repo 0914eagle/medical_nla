@@ -188,6 +188,25 @@ counterfactual, patching 통제로 별도로 검증한다.
 grounding을 측정하지 않는다. 자동 judge의 false negative를 감사하기 위해 생성된 primary
 52행의 수동 판정은 아직 비어 있으므로, 최종 표에는 수동 전수 감사 뒤 값을 확정한다.
 
+`manual_default_hs32.jsonl`의 52행은 **검토 대기 행**이며 행 수 자체는 수동 감사 완료를
+뜻하지 않는다. `human_source`, `human_gold`, `human_category`가 모두 채워진 행만 완료로
+센다. 원본을 보존하면서 별도 reviewed 파일에 매 행 저장하고 중단 후 재개하려면 다음을
+실행한다.
+
+```bash
+AUDIT=/data/heejae/restricted/direct/e2/direct_e2_val_v1/semantic_audit_v1
+python scripts/review_direct_e2_semantic_audit.py \
+  --input-jsonl "$AUDIT/manual_default_hs32.jsonl" \
+  --output-jsonl "$AUDIT/manual_default_hs32_reviewed.jsonl" \
+  --summary-md "$AUDIT/manual_default_hs32_reviewed_summary.md" \
+  --reviewer heejae
+```
+
+각 행에서 source answer, gold PDD, disease category가 readout에 의미상 나타나는지를 차례로
+`y n n`처럼 입력한다. `q`는 현재까지의 판정을 저장하고 종료한다. 자동 집계를 다시
+실행해도 기존 `manual_default_hs32.jsonl`에 이미 들어간 사람 판정은 보존하지만, 정본 수동
+결과는 위의 `*_reviewed.jsonl`로 고정한다. 두 파일 모두 restricted data이므로 커밋하지 않는다.
+
 Server 62에 여섯 P0 파일을 모은 뒤 다음처럼 실행한다. 먼저 `LIMIT=8`로 schema와 인용
 검증을 smoke-test하고, 같은 출력에 full run을 resume한다. Restricted readout과 judge
 response는 모두 `${DATA_ROOT}/restricted` 아래에 남기며 커밋하지 않는다.

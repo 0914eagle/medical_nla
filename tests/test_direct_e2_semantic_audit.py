@@ -1,4 +1,8 @@
-from scripts.analyze_direct_e2_semantic_audit import parse_object, supported_match
+from scripts.analyze_direct_e2_semantic_audit import (
+    parse_object,
+    preserve_human_reviews,
+    supported_match,
+)
 from scripts.make_direct_e2_semantic_audit import shuffled_targets
 from scripts.run_direct_local_llama_judge import completion_batch
 from src.answer_matching import is_correct
@@ -53,3 +57,27 @@ def test_local_judge_batches_dialogs() -> None:
 def test_existing_lexical_scorer_does_not_expand_clinical_abbreviations() -> None:
     assert not is_correct("GERD", "Gastro-oesophageal Reflux Disease", [])
     assert not is_correct("PE", "Pulmonary Embolism", [])
+
+
+def test_existing_manual_reviews_survive_reaggregation() -> None:
+    rows = [
+        {
+            "id": "a",
+            "human_source": None,
+            "human_gold": None,
+            "human_category": None,
+        }
+    ]
+    existing = [
+        {
+            "id": "a",
+            "human_source": True,
+            "human_gold": False,
+            "human_category": False,
+            "human_reviewer": "reviewer",
+        }
+    ]
+    merged = preserve_human_reviews(rows, existing)
+    assert merged[0]["human_source"] is True
+    assert merged[0]["human_gold"] is False
+    assert merged[0]["human_reviewer"] == "reviewer"

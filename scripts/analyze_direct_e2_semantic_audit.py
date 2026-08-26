@@ -34,6 +34,26 @@ def supported_match(value: Any, readout: str) -> tuple[bool, bool, str]:
     return match and evidence_supported, evidence_supported, evidence
 
 
+def preserve_human_reviews(
+    rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    existing = {str(row["id"]): row for row in existing_rows}
+    if len(existing) != len(existing_rows):
+        raise ValueError("Duplicate manual-audit IDs")
+    for row in rows:
+        prior = existing.get(str(row["id"]), {})
+        for field in (
+            "human_source",
+            "human_gold",
+            "human_category",
+            "human_reviewer",
+            "human_reviewed_at",
+        ):
+            if prior.get(field) is not None:
+                row[field] = prior[field]
+    return rows
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--index", type=Path, required=True)
@@ -91,6 +111,10 @@ def main() -> None:
         for row in audit
         if row["arm"] == args.primary_arm and row["id"] in judged
     ]
+    if args.manual_primary_jsonl.exists():
+        primary = preserve_human_reviews(
+            primary, list(read_jsonl(args.manual_primary_jsonl))
+        )
     write_jsonl(args.manual_primary_jsonl, primary)
 
     lines = [
