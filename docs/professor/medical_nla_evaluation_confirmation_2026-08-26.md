@@ -1,5 +1,9 @@
 # Medical-NLA 평가 설계 (2026-08-26)
 
+현재 논문 전체 정본은 [`../paper/README.md`](../paper/README.md), 실행 상태는
+[`../paper/experiment_status.md`](../paper/experiment_status.md)를 따른다. 이 문서는
+평가 설계를 상세히 설명하는 교수님 보고용 문서다.
+
 ## 0. 핵심 결정
 
 현재 제안은 다음 한 문장이다.

@@ -5,9 +5,10 @@
 
 8월 19일에 확인받은 연구 방향인 `CoT의 한계 -> 닫힌 내부 도구의 한계 ->
 검증된 Medical-NLA`는 유지한다. 후속 pilot에서 반증된 세부 기제와 계측
-confound를 반영해 평가 방법을 갱신했다. 과거 표의 처분 근거는
-[`hypothesis_disposition_2026-08-22.md`](hypothesis_disposition_2026-08-22.md)와
-[`RETRACTIONS.md`](../experiments/RETRACTIONS.md)에 기록되어 있다.
+confound를 반영해 평가 방법을 갱신했다. 과거 표의 처분 근거는 archive의
+[`hypothesis_disposition_2026-08-22.md`](../archive/legacy_wrong_note_2026-08-25/professor/hypothesis_disposition_2026-08-22.md)와
+[`RETRACTIONS.md`](../archive/legacy_wrong_note_2026-08-25/experiments/RETRACTIONS.md)에 기록되어 있다.
+현재 논문 정본은 [`../paper/README.md`](../paper/README.md)다.
 
 ## 1. 데이터셋 역할
 

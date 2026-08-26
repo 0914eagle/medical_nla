@@ -1,42 +1,47 @@
-# docs/ 안내
+# Medical-NLA 문서 안내
 
-## experiments/ — 실험 하나당 문서 하나 (재현용)
-- `RESULTS_CANONICAL_2026-08-24.md` — **숫자의 원장.** 논문에 들어가는 모든
-  실측치 + 출처. 값이 어긋나면 여기가 기준
-- `AUDIT_2026-08-24.md` — 인용 전 점검 목록, 채점기 수정 기록
-- `README.md` — 목록 + **모든 실험이 공유하는 설정**: 모델·하드웨어·활성값
-  추출 지점·LoRA 하이퍼파라미터·채점 규칙·공통 용어
-- `01`–`15` — 실험별로 질문·설정·표본·절차·실측값·**의미하지 않는 것**·재현 명령
-- `docs/paper/`가 조판용 정본이고, 여기는 그 값이 **어떻게 나왔는지**를 적는다
+이 디렉터리의 활성 문서는 2026-08-26에 확정한 연구 방향을 기준으로 한다.
 
-## paper/ — 논문 작업의 살아있는 문서
-- `README.md` — **현재 정본 안내**: 테제, 확정 근거, 주장 금지선, 제출 전 관문. 처음에는 이 파일만 보면 됨
-- `table_camera_ready_2026-08-25.md` — **표 5종 조판용 원고** (영문 캡션·실측치·설계 규칙·남은 ▢)
-- `judge_jobs_2026-08-24.md` — **판정자 작업 8종 전체 목록**: 우선순위·비용(~$6–30)·예상 결과·실행 절차. API 키 오면 여기부터
-- `prior_work_2026-08-24.md` — **선행 연구 정독 12편, 신규성 판정의 정본**. 조항 A–E별로 정리: 무엇이 우리 기여가 아닌지, 어디에 한정어가 필요한지, 무엇이 그대로 서는지. §2 인용 목록과 §4.4의 4범주 표 포함
-- `experiment_summary_2026-08-25.md` — **한 장 현황**: 실험별 무엇을 보이는지·실측치·상태, 선행 연구 지도와 우리 몫, 논문이 성립하는 이유. 처음 보는 사람은 여기부터
-- `paper_outline_2026-08-24.md` — **논문 골격**: RQ 3개, 절별 문단 계획 (4+4 구조)
-- `reading_catching_rationalization.md` — 탐지 축 쌍둥이(2603.17199) 정독 노트: 겹침과 결정적 차이
-- `reading_when_truth_is_overridden.md` — 최근접 선행(AAAI'26) 정독 노트: 충돌 문장과 그 해소
-- `related_work_2026-08-23.md` — 문헌 조사 전체 (필수 인용, 계열별 포지셔닝, 논문 일람, DDXPlus 선행, SHAP/LIME 방어)
-- `draft_related_work_2026-08-24.md` — Related Work 산문 초안 (영문)
-- `related_work.tex` — 위 초안의 LaTeX판 (\cite 키 + 키→논문 매핑)
+> 의료 LLM의 CoT와 activation 기반 자연어 판독을 같은 임상 기준에서 비교하고,
+> Medical-NLA가 임상적으로 정렬된 설명을 만들 뿐 아니라 해당 사례의 activation에
+> 실제로 근거하며, 검증을 통과한 판독이 선택적 개입에 유용한지 평가한다.
 
-## professor/ — 교수님 대면 문서
-- `professor_update_2026-08-24.md` — **최신 보고** (주말 결과 + 정정 1건 + 결정 요청)
-- `professor_report_2026-08-17_to_22.md` — 8/17–22 진행 보고
-- `hypothesis_disposition_2026-08-22.md` — 8/19 명제 13개의 생사
-- `project_history_2026-08-22.md` — 첫 독자용 프로젝트 역사
-- `professor_presentation_2026-08-17.md` — 초기 발표 자료
+과거의 `wrong referral note` 연구는 재현성과 연구 이력을 위해
+[`archive/legacy_wrong_note_2026-08-25/`](archive/legacy_wrong_note_2026-08-25/README.md)에
+보존한다. 그 문서와 수치는 현재 논문의 주 근거로 사용하지 않는다.
 
-## data/ — 데이터셋 문서
-- 스펙, 구축 로그, DDXPlus 벤치마크 성질, 소스 답·likelihood 노트
+## 처음 읽는 순서
 
-## results/ — 1기 실험 결과 기록 (계기 검증 시절)
-- layer/position sweep, counterfactual faithfulness, cue-position 판독,
-  수동 라벨 tsv 등 — Table 2의 근거 문서들
+1. [`paper/README.md`](paper/README.md): 현재 주장, 가설, RQ, 주장 금지선
+2. [`paper/tables_and_figures.md`](paper/tables_and_figures.md): 최종 표와 그림의 구조
+3. [`experiments/README.md`](experiments/README.md): E0-E7 실행 순서와 상태
+4. [`data/direct_dataset_and_split.md`](data/direct_dataset_and_split.md): DiReCT 구조와 split
+5. [`professor/current_research_brief_2026-08-26.md`](professor/current_research_brief_2026-08-26.md): 교수님 보고용 요약
 
-## archive/ — 대체된 문서 (참고용)
-- 옛 표 설계(8/18·8/19), 옛 가설·스토리라인(8/22), 세션 인수인계,
-  상태 스냅샷, `paper_tables_worklog_2026-08-23.md` — 최신 내용은
-  `paper/README.md`가 가리키는 정본에 흡수됨
+## 디렉터리 역할
+
+| 디렉터리 | 역할 | 정본 |
+|---|---|---|
+| `paper/` | 논문 주장, 구성, 표·그림, Overleaf 이전 계획 | `paper/README.md` |
+| `experiments/` | E0-E7 질문·입력·출력·평가·중단 조건 | `experiments/README.md` |
+| `data/` | 데이터셋 구조, 분할, 구축 기록 | `data/direct_dataset_and_split.md` |
+| `professor/` | 현재 연구 방향과 상세 실행 계획 | `professor/README.md` |
+| `results/` | 8월 13-21일 DDXPlus pilot 결과 | 참고 근거이며 최종 표 수치가 아님 |
+| `archive/` | 폐기·대체된 가설, 표, 소견서 연구 | 현재 주장에 인용 금지 |
+
+## 현재 연구의 세 평가 층
+
+| 층 | 질문 | 데이터 | 통과해야 주장 가능한 것 |
+|---|---|---|---|
+| Clinical alignment | 설명이 의사 주석의 관찰·관계·진단과 맞는가 | DiReCT | 임상 설명 품질 |
+| Activation grounding | 설명이 해당 activation과 사례별로 연결되는가 | DDXPlus | 내부 상태에 근거한 판독 |
+| Causal utility | 판독을 편집·복원하면 목표 상태와 행동이 선택적으로 바뀌는가 | DDXPlus | text patching과 성능 개선 가능성 |
+
+DiReCT 점수만 높다고 `faithful`이라고 부르지 않는다. DDXPlus의 짝 깨기,
+증거 반사실, round-trip 통제를 통과해야 activation-grounded라는 표현을 사용한다.
+
+## 데이터 보안
+
+DiReCT는 제한 데이터다. 원문, 추출 JSON, patient identifier, private manifest,
+모델 입출력의 원문 사례는 Git에 커밋하지 않는다. 문서에는 aggregate 수치와 공개가
+허용된 스키마만 기록한다.
