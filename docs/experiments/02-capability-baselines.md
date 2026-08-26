@@ -45,6 +45,23 @@ trigram 검사는 사례 특이성을 찾지 못했다. P1의 절대 overlap 증
 label이 1--2단어인 경우 trigram에 기여하지 않으므로, 이 결과만으로 positive control
 실패를 확정하지 않고 phrase-level source-answer recovery를 다음 검사로 둔다.
 
+Phrase-level 결과는 다음과 같다.
+
+| Position | Source-answer mention | Gold-PDD mention | Category mention | Own-vs-donor source gap |
+|---|---:|---:|---:|---:|
+| P0 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+| P1 | 0.4912 | 0.1404 | 0.5848 | +0.4146 |
+| P2 | 0.3918 | 0.0819 | 0.4854 | +0.3598 |
+
+Own-vs-donor는 같은 disease category이되 다른 source answer를 가진 164행에서 계산했다.
+P1은 source answer alias가 reasoning에 없던 15행에서는 1/15=0.0667만 source answer를
+언급했다. 따라서 P1 전체의 높은 specificity는 pre-answer 내부 판독보다 CoT 문자열
+누출 상한으로 해석한다. P2의 양의 gap은 answer-exposed positive control을 통과한
+것으로, vanilla AV가 모든 DiReCT activation에서 무조건 실패하는 것은 아님을 보인다.
+반면 생성 전 P0의 diagnosis/category phrase recovery는 0/171이다. 이것은 Medical-NLA가
+개선해야 할 baseline failure지만, P0 evidence/rationale의 semantic recovery까지 0이라는
+뜻은 아니므로 Table 2 claim extraction과 E5 grounding을 계속 분리한다.
+
 ## Model selection
 
 Primary layer와 probe regularization은 train/val_seen으로 정한다. Test_seen과

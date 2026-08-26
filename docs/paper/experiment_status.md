@@ -93,3 +93,14 @@ Same-category lexical pilot은 P1 own/shuffled 0.0067/0.0064(gap +0.0003), P2
 거의 그대로 나타나 CoT의 공유 임상 어휘 효과로 보인다. P2에서도 사례 특이적 trigram
 gap은 확인되지 않았다. 단, 짧은 진단명은 trigram을 만들지 못하므로 source-answer 및
 gold-PDD phrase mention과 semantic extraction을 별도로 검사한다.
+
+Phrase-level 검사는 위치 차이를 분리했다. P0에서는 source answer, gold PDD, disease
+category mention이 모두 0/171이었다. P1은 source answer 0.4912, gold PDD 0.1404,
+category 0.5848이었고 same-category donor answer 대비 source-answer mention gap은
++0.4146(164행)이었다. 그러나 P1 leakage-free subset은 15행뿐이며 source-answer
+mention은 1/15=0.0667이었다. 따라서 P1의 높은 값은 대부분 CoT 안에 이미 등장한 답
+문자열의 영향으로 해석한다. P2는 source answer 0.3918, gold PDD 0.0819, category
+0.4854였고 donor 대비 gap은 +0.3598이었다. P2 positive control은 vanilla AV가 답이
+노출된 activation에서 사례별 source-answer 정보를 부분적으로 읽을 수 있음을 보이지만,
+P0의 생성 전 diagnosis recovery는 0이었다. P0가 evidence를 의미 수준에서 복원하는지는
+별도 claim extraction으로 평가한다.
