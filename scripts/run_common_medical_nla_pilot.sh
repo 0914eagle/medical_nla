@@ -70,7 +70,7 @@ for seed in ${SEEDS}; do
     --batch-size 1 \
     --grad-accum-steps 8 \
     --max-eval-rows 100 \
-    --select-on content \
+    --select-on source_macro_content \
     --seed "${seed}" \
     "${extra_args[@]}"
 done

@@ -36,6 +36,7 @@ adapter가 아니라 하나의 HS32 adapter를 학습하는 mixed pilot이다. D
 - DDXPlus original arm만 학습/validation에 사용
 - rendered native value는 finding 문장 안에 유지하지만 value-edit response는 별도 gate로 보고한다
 - source별 행 수를 동일하게 해 DDXPlus 4,655행이 DiReCT를 압도하지 않게 한다
+- best epoch은 source별 content-token loss를 먼저 계산한 뒤 두 source의 macro mean으로 선택한다
 
 이 pilot은 schema와 학습 가능성을 고정하는 development run이다. DDXPlus locked test는 이미
 closed-probe 설계 판단에 사용됐으므로, mixed NLA의 최종 confirmatory 성능은 별도의 미사용

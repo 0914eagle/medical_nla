@@ -60,6 +60,40 @@ class EvalMetrics:
     scaffold_tokens: int
 
 
+def aggregate_eval_metrics(metrics: list[EvalMetrics]) -> EvalMetrics:
+    """Combine independently evaluated groups using their token counts."""
+    if not metrics:
+        raise ValueError("No validation metrics to aggregate")
+
+    def weighted(field: str, count_field: str) -> tuple[float, int]:
+        count = sum(int(getattr(item, count_field)) for item in metrics)
+        if not count:
+            return float("nan"), 0
+        total = sum(
+            float(getattr(item, field)) * int(getattr(item, count_field))
+            for item in metrics
+        )
+        return total / count, count
+
+    # Total loss also includes scaffold tokens, so reconstruct its denominator
+    # separately from the two reported token groups.
+    total_tokens = sum(item.content_tokens + item.scaffold_tokens for item in metrics)
+    loss = float("nan")
+    if total_tokens:
+        loss = sum(
+            item.loss * (item.content_tokens + item.scaffold_tokens) for item in metrics
+        ) / total_tokens
+    content_loss, content_tokens = weighted("content_loss", "content_tokens")
+    scaffold_loss, scaffold_tokens = weighted("scaffold_loss", "scaffold_tokens")
+    return EvalMetrics(
+        loss=loss,
+        content_loss=content_loss,
+        scaffold_loss=scaffold_loss,
+        content_tokens=content_tokens,
+        scaffold_tokens=scaffold_tokens,
+    )
+
+
 
 
 def split_rows(rows: list[dict[str, Any]], *, val_frac: float, seed: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -308,11 +342,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--select-on",
-        choices=("content", "total"),
+        choices=("content", "total", "source_macro_content"),
         default="content",
         help=(
             "Which validation loss picks the best epoch. 'content' uses only "
-            "the tokens of the clinical finding; 'total' also counts the fixed "
+            "the tokens of the clinical finding; 'source_macro_content' averages "
+            "content loss across source_dataset groups so a corpus with longer "
+            "targets does not dominate checkpoint selection; 'total' also counts the fixed "
             "XML scaffold, which is most of every target and is learned in the "
             "first hundred steps."
         ),
@@ -473,7 +509,7 @@ def main() -> None:
     # at every epoch -- so the loop trains to the end and saves no adapter at
     # all. That cost one full MCR conclusion run. Two rows are enough: the
     # spans come from the target's shape, which is constant within a split.
-    if args.select_on == "content":
+    if args.select_on in {"content", "source_macro_content"}:
         probe_rows = (train_rows + eval_rows)[:2]
         if probe_rows and not any(
             content_char_spans(str(row.get("target_text") or "")) for row in probe_rows
@@ -492,6 +528,7 @@ def main() -> None:
     # out_dir now always holds the best epoch, and best.json says which.
     best_val_loss = float("inf")
     best_val: EvalMetrics | None = None
+    best_source_val: dict[str, EvalMetrics] = {}
     best_epoch: int | None = None
     metrics_path = out_dir / "metrics.jsonl"
     if metrics_path.exists():
@@ -536,20 +573,48 @@ def main() -> None:
                 )
                 if args.max_steps is not None and optimizer_step >= args.max_steps:
                     break
-        val = evaluate(
-            rows=eval_rows,
-            model=model,
-            tokenizer=tokenizer,
-            embed_layer=embed_layer,
-            sidecar=sidecar,
-            actor_prompt_template=actor_prompt_template,
-            batch_size=args.batch_size,
-        )
+        source_val: dict[str, EvalMetrics] = {}
+        if args.select_on == "source_macro_content":
+            grouped_rows: dict[str, list[dict[str, Any]]] = {}
+            for row in eval_rows:
+                source = str(row.get("source_dataset") or "<missing>")
+                grouped_rows.setdefault(source, []).append(row)
+            if len(grouped_rows) < 2:
+                raise ValueError(
+                    "--select-on source_macro_content requires at least two "
+                    "source_dataset groups in validation"
+                )
+            for source, rows in sorted(grouped_rows.items()):
+                source_val[source] = evaluate(
+                    rows=rows,
+                    model=model,
+                    tokenizer=tokenizer,
+                    embed_layer=embed_layer,
+                    sidecar=sidecar,
+                    actor_prompt_template=actor_prompt_template,
+                    batch_size=args.batch_size,
+                )
+            val = aggregate_eval_metrics(list(source_val.values()))
+        else:
+            val = evaluate(
+                rows=eval_rows,
+                model=model,
+                tokenizer=tokenizer,
+                embed_layer=embed_layer,
+                sidecar=sidecar,
+                actor_prompt_template=actor_prompt_template,
+                batch_size=args.batch_size,
+            )
         # Selected on the finding's tokens, not on the whole target. Six of
         # every seven target lines are the same XML in every row, so the mean
         # is a constant the adapter has already learned; ranking epochs by it
         # ranks them by rounding error.
-        selector = val.content_loss if args.select_on == "content" else val.loss
+        if args.select_on == "source_macro_content":
+            selector = sum(item.content_loss for item in source_val.values()) / len(source_val)
+        elif args.select_on == "content":
+            selector = val.content_loss
+        else:
+            selector = val.loss
         if selector != selector:  # NaN, and NaN < anything is False
             # The startup check should have caught this; if something else
             # produced a NaN mid-run, fall back rather than silently declining
@@ -564,10 +629,25 @@ def main() -> None:
             + (" (best so far, saving)" if improved else f" (best {best_val_loss:.4f})"),
             flush=True,
         )
+        for source, metrics in sorted(source_val.items()):
+            print(
+                f"[eval:{source}] content={metrics.content_loss:.4f} "
+                f"scaffold={metrics.scaffold_loss:.4f} "
+                f"({metrics.content_tokens:,} content tokens)",
+                flush=True,
+            )
         with metrics_path.open("a", encoding="utf-8") as f:
             f.write(
                 json.dumps(
-                    {"epoch": epoch, "step": optimizer_step, **asdict(val)},
+                    {
+                        "epoch": epoch,
+                        "step": optimizer_step,
+                        "selection_loss": selector,
+                        "source_metrics": {
+                            source: asdict(metrics) for source, metrics in source_val.items()
+                        },
+                        **asdict(val),
+                    },
                     sort_keys=True,
                 )
                 + "\n"
@@ -575,6 +655,7 @@ def main() -> None:
         if improved:
             best_val_loss, best_epoch = selector, epoch
             best_val = val
+            best_source_val = dict(source_val)
             model.save_pretrained(out_dir)
             tokenizer.save_pretrained(out_dir)
             save_av_prompt(out_dir, actor_prompt_template, sidecar)
@@ -595,6 +676,14 @@ def main() -> None:
                     "best_val_loss": round(best_val.loss, 6),
                     "best_val_content_loss": round(best_val.content_loss, 6),
                     "best_val_scaffold_loss": round(best_val.scaffold_loss, 6),
+                    "best_selection_loss": round(best_val_loss, 6),
+                    "best_source_metrics": {
+                        source: {
+                            key: round(value, 6) if isinstance(value, float) else value
+                            for key, value in asdict(metrics).items()
+                        }
+                        for source, metrics in best_source_val.items()
+                    },
                     "selected_on": args.select_on,
                     "epochs_run": epoch,
                     "n_val_rows_used": len(eval_rows),
