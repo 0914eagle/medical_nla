@@ -92,16 +92,25 @@ internal tool과 open explanation의 간극 -> 검증 가능한 Medical-NLA -> �
 
 | 가설 | 핵심 주장 | 대응 연구 질문 |
 |---|---|---|
-| H1 | CoT의 임상적 그럴듯함은 내부 상태 충실성을 보장하지 않는다 | RQ1: 생성 전 내부에는 무엇이 있고 기존 채널은 무엇을 읽는가 |
-| H2 | Closed-label probe와 open-text NLA는 다른 능력이며 vanilla NLA는 통합 설명에 실패할 수 있다 | RQ2: Medical-NLA가 clinically aligned하고 activation-grounded한 설명을 만들 수 있는가 |
-| H3 | 두 검증을 통과한 판독만 선택적 개입에 사용해야 한다 | RQ3: 검증된 판독이 정답 보존과 순수 교정을 동시에 달성하는가 |
+| H1 | Medical-NLA는 CoT와 vanilla NLA보다 의사가 표시한 관찰과 관찰-진단 연결을 더 잘 복원한다 | RQ1: Medical-NLA가 CoT·vanilla NLA보다 임상 설명을 잘 복원하는가? |
+| H2 | 임상적으로 그럴듯한 문장만으로는 내부 판독이라 할 수 없으며, Medical-NLA 설명은 해당 사례 activation에 의존해야 한다 | RQ2: 설명이 해당 사례 activation에 의존하는가? |
+| H3 | Activation-grounded한 설명은 dataset-native claim 편집을 통해 내부 상태와 진단 출력을 선택적으로 바꿀 수 있다 | RQ3: 설명을 편집해 상태와 진단을 선택적으로 바꿀 수 있는가? |
 
 ### 발표 줄글
 
-세 질문은 병렬 체크리스트가 아니라 의존 관계를 가진다. RQ1에서 P0에 읽을 정보가 없거나
-baseline이 이미 충분하다면 Medical-NLA의 필요성이 약해진다. RQ2에서 임상 설명 품질과
-activation grounding을 모두 통과하지 못하면 그 판독으로 성능을 고치는 RQ3를 강하게 주장할
-수 없다. 따라서 결과도 RQ1, RQ2, RQ3 순서로 제시한다.
+세 질문은 병렬 체크리스트가 아니라 단계적 자격 조건이다. RQ1만 통과하면 Medical-NLA는
+의사 기준에 잘 맞는 **의료 설명 생성기**다. RQ2까지 통과해야 그 설명이 현재 사례의 내부
+상태에서 읽혔다고 말할 수 있는 **내부 판독기**가 된다. RQ3까지 통과해야 판독을 이용해
+내부 상태와 진단을 선택적으로 제어하는 **성능 개선 방법**이라고 부를 수 있다. CoT의 한계,
+probe의 closed-label 능력, P0의 정보 존재 여부는 이 세 RQ를 정당화하고 해석하기 위한 선행
+근거이지 별도의 RQ가 아니다.
+
+| 단계 | 표 | 통과했을 때 가능한 주장 |
+|---|---|---|
+| 선행 capability baseline | Table 1 | P0에 어떤 정보가 있고 기존 방법이 어디까지 읽는지 설명 가능 |
+| RQ1: clinical explanation quality | Table 2 | Medical-NLA는 임상 설명 생성기로서 CoT·vanilla NLA보다 우수 |
+| RQ2: activation grounding | Table 3 | Medical-NLA는 해당 사례 activation을 읽는 내부 판독기 |
+| RQ3: text-mediated intervention | Table 4 | Medical-NLA는 상태와 진단을 선택적으로 바꾸는 성능 개선 방법 |
 
 ---
 
@@ -375,7 +384,7 @@ round-trip의 primary는 HS32로 고정한다. HS16/24 NLA는 다른 layer activ
 
 ---
 
-## Slide 11. RQ1에서 비교하는 내부 측정 채널
+## Slide 11. RQ에 앞서 비교하는 내부 측정 채널
 
 | Method | 입력 | 출력 공간 | 할 수 있는 것 | 구조적 한계 |
 |---|---|---|---|---|
@@ -385,7 +394,7 @@ round-trip의 primary는 HS32로 고정한다. HS16/24 NLA는 다른 layer activ
 | Medical-NLA | P0 activation | 구조화 임상 자연어 | observation·관계·source answer 판독 목표 | 별도 grounding 검증이 필요 |
 
 네 방법의 숫자는 모두 같은 종류의 accuracy가 아니다. Likelihood와 probe는 닫힌 후보 공간,
-NLA는 열린 생성 공간을 사용한다. 따라서 Table 1에서 한 평균 점수로 순위를 만들지 않고,
+NLA는 열린 생성 공간을 사용한다. 따라서 선행 Table 1에서 한 평균 점수로 순위를 만들지 않고,
 closed diagnosis signal과 open evidence를 분리한다.
 
 ---
@@ -452,14 +461,16 @@ builder의 Direct-P0 표기는 activation 추출 전에 수정하며, Direct-P0�
 
 # Part III. Experimental Results
 
-결과는 RQ 순서로 읽는다. 현재 값이 있는 exploratory/validation 결과와 아직 비어 있는 locked-test
-주표를 같은 종류의 증거처럼 섞지 않는다.
+결과는 먼저 capability baseline을 확인한 뒤 RQ1, RQ2, RQ3 순서로 읽는다. 현재 값이 있는
+exploratory/validation 결과와 아직 비어 있는 locked-test 주표를 같은 종류의 증거처럼 섞지
+않는다.
 
-## RQ1. 생성 전 내부에는 무엇이 있으며 기존 채널은 무엇을 읽는가
+## Preliminary baseline. 생성 전 내부에는 무엇이 있으며 기존 채널은 무엇을 읽는가
 
-**왜 RQ1부터 시작하는가.** P0 activation에 임상·진단 정보가 없거나 vanilla NLA가 이미
-통합 설명을 충분히 복원한다면 새로운 Medical-NLA를 만들 이유가 약하다. 먼저 backbone 행동,
-closed-label decodability, open readout의 성공과 실패 범위를 같은 사례에서 확인한다.
+**왜 세 RQ 전에 이 분석이 필요한가.** P0 activation에 임상·진단 정보가 없거나 vanilla NLA가
+이미 통합 설명을 충분히 복원한다면 새로운 Medical-NLA를 만들 이유가 약하다. 먼저 backbone
+행동, closed-label decodability, open readout의 성공과 실패 범위를 같은 사례에서 확인한다.
+이 분석은 Medical-NLA의 필요성과 비교 기준을 세우지만, 그 자체가 RQ1의 답은 아니다.
 
 ## Slide 15. E1 backbone behavior: 현재 나온 exploratory 결과
 
@@ -583,7 +594,7 @@ DiReCT P0의 integrated clinical state로 확장하고, shuffled/counterfactual 
 
 ---
 
-## Slide 20. RQ1 최종 Table 1: backbone과 readout capability
+## Slide 20. 선행 Table 1: backbone과 readout capability
 
 ### Panel A. Backbone behavior on locked identical case IDs
 
@@ -607,26 +618,26 @@ DiReCT P0의 integrated clinical state로 확장하고, shuffled/counterfactual 
 Panel A는 모델이 실제로 무엇을 답했는지, Panel B는 생성 전 activation에서 각 방법이 무엇을
 읽을 수 있는지를 묻는다. 서로 다른 질문과 출력 공간이므로 하나의 평균 점수로 합치지 않는다.
 
-**RQ1의 현재 답.** Validation에서는 P0에 닫힌 category/PDD 정보가 선형적으로 decode되며,
+**선행 baseline의 현재 답.** Validation에서는 P0에 닫힌 category/PDD 정보가 선형적으로 decode되며,
 HS24 probe가 forced-answer likelihood보다 강했다. Vanilla AV는 token-local cue를 읽는 positive
 control은 통과했지만 DiReCT CoT-P0의 통합 진단을 명시적으로 복원하지 못했다. 따라서
 `P0에 정보가 없다`가 아니라 **closed-label signal은 있으나 기존 open reader가 이를 안정적인
 통합 설명으로 꺼내지 못한다**가 현재 결론이다.
 
-**RQ2로 넘어가는 이유.** RQ1은 Medical-NLA가 필요한 간극을 확인했지만 새로운 reader가 그
-간극을 실제로 메웠다는 증거는 아니다. 다음에는 Medical-NLA가 CoT와 vanilla NLA보다 의사
-annotation을 잘 설명하는지, 그리고 그 설명이 paired activation에 실제로 의존하는지를 함께
-검증한다.
+**RQ1로 넘어가는 이유.** Table 1은 Medical-NLA가 필요한 간극을 확인했지만 새로운 reader가
+그 간극을 실제로 메웠다는 증거는 아니다. 이제 Medical-NLA가 CoT와 vanilla NLA보다 의사
+annotation의 관찰과 관찰-진단 연결을 더 잘 복원하는지 직접 평가한다.
 
 ---
 
-## RQ2. Medical-NLA는 clinically aligned하고 activation-grounded한 설명을 만드는가
+## RQ1. Medical-NLA가 CoT·vanilla NLA보다 임상 설명을 잘 복원하는가
 
-RQ2는 두 시험을 모두 요구한다. DiReCT 점수만 높으면 좋은 의료 설명 생성기일 수 있지만 내부
-판독기라고 할 수 없고, shuffled gap만 높지만 임상 내용이 틀리면 충실한 오류 설명으로 사용할 수
-없다. 따라서 Table 2의 clinical alignment와 Table 3의 activation grounding을 순서대로 본다.
+RQ1은 설명의 **임상적 내용**만 평가한다. 같은 DiReCT 사례에서 CoT, vanilla NLA,
+Medical-NLA가 의사가 표시한 observation, rationale, diagnosis 구조를 얼마나 복원하는지
+Table 2로 비교한다. 여기서 Medical-NLA가 가장 높더라도 아직 activation을 읽었다는 뜻은
+아니다. RQ1만 통과하면 좋은 의료 설명 생성기라고 부를 수 있다.
 
-## Slide 21. RQ2-A: DiReCT clinical explanation quality
+## Slide 21. RQ1: DiReCT clinical explanation quality
 
 | Method | Pool | n | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -805,9 +816,26 @@ Gold annotation에서 만든 oracle prediction 10건을 전체 evaluator에 넣�
 - 따라서 prediction-order permutation, normalized-Yes, alternative matching, extractor backend,
   일부 human/clinician audit은 보조 민감도로 보고하고 primary official score를 사후 교체하지 않는다.
 
+**RQ1의 현재 답.** 공식 evaluator 재현과 공통 extraction protocol, vanilla/pilot baseline은
+준비됐지만, 동일한 locked test에서 CoT·vanilla NLA·Medical-NLA 3 seeds를 비교한 Table 2는
+아직 완성되지 않았다. 따라서 현재 Medical-NLA가 임상 설명을 더 잘 복원한다고 결론 내리지
+않는다. Table 2에서 Medical-NLA가 observation과 explanation 지표를 개선하면 RQ1을 통과하며,
+이때의 자격은 **임상 설명 생성기**까지다.
+
+**RQ2로 넘어가는 이유.** 전문가 설명과 잘 맞는 출력도 언어 모델이 의학 지식으로 그럴듯하게
+만든 문장일 수 있다. 다음에는 설명과 activation의 짝을 깨고 evidence를 바꾸어, 그 설명이
+해당 사례 내부 상태에 실제로 의존하는지를 검사한다.
+
 ---
 
-## Slide 23. RQ2-B: activation grounding
+## RQ2. 설명이 해당 사례 activation에 의존하는가
+
+RQ2는 설명의 **activation faithfulness**를 평가한다. RQ1의 physician-reference 점수를 반복하지
+않고, matched-vs-shuffled, cue deletion, activation swap, AV-AR round-trip으로 같은 설명이
+자기 사례 activation에만 결합되는지를 시험한다. RQ2까지 통과해야 Medical-NLA를 내부 판독기라고
+부를 수 있다.
+
+## Slide 23. RQ2: activation grounding
 
 | Method | Own pair | Hard shuffle | Pair gap | Cue deletion | Untouched retention | Round-trip FVE |
 |---|---:|---:|---:|---:|---:|---:|
@@ -821,10 +849,10 @@ Cue deletion은 evidence 하나를 prompt에서 삭제한 뒤 해당 판독 내�
 Untouched retention은 삭제하지 않은 evidence가 보존되는지 측정한다. Round-trip FVE는 판독을
 AR로 다시 activation으로 만들었을 때 원 activation의 분산을 얼마나 설명하는지 측정한다.
 
-**RQ2의 현재 답.** Vanilla AV의 local-cue positive control과 DiReCT baseline 감사는 완료됐지만,
-Medical-NLA 3 seeds의 공통 official Table 2와 DDXPlus CoT-P0 matched/shuffled Table 3은 아직
-완료되지 않았다. 따라서 현재는 `Medical-NLA가 CoT보다 더 좋은 faithful explanation을
-만들었다`고 결론 내리지 않는다. RQ2는 이 두 locked 평가가 모두 채워져야 닫힌다.
+**RQ2의 현재 답.** Vanilla AV의 local-cue positive control은 완료됐지만 DDXPlus CoT-P0의
+Medical-NLA matched/shuffled, cue deletion, untouched retention, round-trip Table 3은 아직
+완료되지 않았다. 따라서 현재는 Medical-NLA 설명이 자기 activation에 의존한다고 결론 내리지
+않는다. RQ1의 Table 2와 별개로 Table 3의 grounding 통제를 통과해야 RQ2가 닫힌다.
 
 **RQ3로 넘어가는 조건.** Table 2만 높은 방법은 임상 문장 생성기일 수 있고, Table 3만 높은
 방법은 의미가 빈약한 activation 식별기일 수 있다. 두 관문을 모두 통과한 방법만 text patching
@@ -832,10 +860,12 @@ Medical-NLA 3 seeds의 공통 official Table 2와 DDXPlus CoT-P0 matched/shuffle
 
 ---
 
-## RQ3. 검증된 readout이 설명가능성과 진단 성능을 함께 개선하는가
+## RQ3. 설명을 편집해 상태와 진단을 선택적으로 바꿀 수 있는가
 
-RQ3는 자연어를 생성했다는 사실이 아니라 **그 자연어를 이용한 개입의 순이득**을 묻는다.
-개입으로 기존 오답이 줄더라도 원래 정답을 더 많이 깨뜨리면 성능 개선이 아니다.
+RQ3는 grounding을 통과한 설명의 dataset-native claim을 편집하고 AR을 통해 activation으로
+되돌렸을 때, 목표 속성과 진단 likelihood가 선택적으로 변하는지를 묻는다. 먼저 표상 수준의
+선택성을 확인하고 그 다음 최종 진단 행동과 순이득을 본다. 개입으로 기존 오답이 줄더라도 원래
+정답을 더 많이 깨뜨리면 성능 개선 방법이라고 부르지 않는다.
 
 ## Slide 24. RQ3: text patching과 selective correction
 
@@ -883,15 +913,15 @@ Conclusion에서는 빈 표를 숨기지 않는다. 현재 확립된 답, 아직
 
 | RQ | 현재 답 | 가장 강한 현재 근거 | 아직 필요한 증거 |
 |---|---|---|---|
-| RQ1: P0 정보와 기존 채널 | 부분적으로 확인 | HS24 probe category `.5962`, PDD `.4423`; local AV `.7247` vs shuffle `.0880` | locked 72/106 Table 1 |
-| RQ2: clinically aligned + grounded Medical-NLA | 미결 | evaluator smoke와 vanilla/pilot baseline 완료 | Medical-NLA 3 seeds의 Table 2와 DDXPlus Table 3 |
-| RQ3: 설명과 성능의 동시 개선 | 미결 | 개입 protocol과 policy metric 고정 | identity, patching, selective correction의 locked net gain |
+| RQ1: CoT·vanilla NLA 대비 임상 설명 복원 | 미결 | official evaluator smoke와 공통 extraction protocol 완료 | Locked 72/106에서 Medical-NLA 3 seeds의 Table 2 |
+| RQ2: 해당 사례 activation 의존성 | 미결 | local AV `.7247` vs shuffle `.0880` positive control | DDXPlus CoT-P0 matched/shuffled·counterfactual Table 3 |
+| RQ3: 설명 편집을 통한 선택적 상태·진단 제어 | 미결 | 개입 protocol과 policy metric 고정 | Identity, target-selective patching, positive net correction Table 4 |
 
-**발표자 노트.** RQ1에서 내부 진단 신호의 존재와 vanilla reader의 범위는 확인했다. 그러나
-RQ2는 새 Medical-NLA가 CoT보다 더 좋은 임상 설명이면서 activation에도 근거한다는 두 결과가
-모두 필요하다. RQ3는 그 후에만 평가한다. 따라서 오늘 발표의 결론은 완성된 성능 향상이 아니라,
-가설을 무너뜨리지 않고 검증할 수 있는 모집단·baseline·평가기를 만들고 RQ1의 핵심 간극을
-확인했다는 것이다.
+**발표자 노트.** Table 1의 선행 baseline에서는 P0 내부 진단 신호와 vanilla reader의 범위를
+확인했다. 그러나 이것은 RQ1의 성공 결과가 아니다. RQ1은 Medical-NLA가 CoT와 vanilla NLA보다
+임상 설명을 잘 복원해야 닫히고, RQ2는 그 개선된 설명이 자기 activation에 의존해야 닫힌다.
+RQ3는 그 후 설명 편집이 목표 상태와 진단을 선택적으로 바꾸면서 비목표 정보와 기존 정답을
+보존할 때 닫힌다.
 
 ---
 
@@ -977,10 +1007,10 @@ MCR 또는 추가 natural-text OOD가 필요하다.
 > 선택적 개입이 기존 정답을 보존하면서 positive net correction을 만들 때에만 설명가능성과
 > 진단 성능을 함께 개선했다고 결론 내린다.
 
-**발표자 노트.** 첫 문장은 현재 RQ1과 연구 설계를 요약한다. 둘째 문장은 RQ2·RQ3의 성공
-조건이며 아직 결과가 아니라 사전 고정한 판정 기준이다. 최종 제출에서는 Table 2와 Table 3이
-성공하면 강한 결론으로 전환하고, 실패하면 RQ1과 검증 protocol, failure analysis를 중심으로
-주장 범위를 줄인다.
+**발표자 노트.** 첫 문장은 세 RQ에 앞선 capability baseline과 연구 필요성을 요약한다. 둘째
+문장은 RQ1·RQ2·RQ3의 단계적 성공 조건이며 아직 결과가 아니라 사전 고정한 판정 기준이다.
+Table 2만 통과하면 임상 설명 생성기, Table 3까지 통과하면 내부 판독기, Table 4까지 통과하면
+선택적 성능 개선 방법이라고 결론 내린다.
 
 ---
 
