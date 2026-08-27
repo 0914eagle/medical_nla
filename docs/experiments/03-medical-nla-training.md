@@ -24,6 +24,26 @@ Probe score를 자유 산문 target으로 그대로 복사하지는 않는다. P
 cross-entropy만 계산하며 AR reconstruction과 pair-specificity objective는 구현하지 않았다.
 따라서 Full Medical-NLA는 아래 구현 게이트를 통과하기 전에는 실행 이름으로 사용하지 않는다.
 
+### 08-28 common-schema mixed pilot
+
+DDXPlus locked probe에서 CoT-P0에 finding 정보가 있음을 확인했으므로, 다음 실행은 데이터셋별
+adapter가 아니라 하나의 HS32 adapter를 학습하는 mixed pilot이다. DiReCT와 DDXPlus 모두
+동일한 `<observed>` bullet schema를 쓰고 diagnosis `<answer>` supervision은 제거한다.
+
+- train: DiReCT 248 + DDXPlus 248 (진단 strata round-robin 표본)
+- validation: DiReCT 50 + DDXPlus 50
+- activation: CoT-P0/HS32/last-token으로 고정
+- DDXPlus original arm만 학습/validation에 사용
+- rendered native value는 finding 문장 안에 유지하지만 value-edit response는 별도 gate로 보고한다
+- source별 행 수를 동일하게 해 DDXPlus 4,655행이 DiReCT를 압도하지 않게 한다
+
+이 pilot은 schema와 학습 가능성을 고정하는 development run이다. DDXPlus locked test는 이미
+closed-probe 설계 판단에 사용됐으므로, mixed NLA의 최종 confirmatory 성능은 별도의 미사용
+prospective holdout을 만든 뒤 한 번만 평가해야 한다.
+
+실행 wrapper는 `scripts/run_common_medical_nla_pilot.sh`이다. 먼저 `MAX_STEPS=5` smoke를
+통과시키고, 그 결과 디렉터리를 지운 새 run name에서 full three-seed 실행을 시작한다.
+
 Clinical text는 DiReCT의 physician deduction structure에서 만든다. Activation은 P0를
 주 입력으로 한다. Source-wrong 행에서 gold physician text를 activation의 현재 결론처럼
 무조건 매핑하면 misalignment가 생기므로 다음을 분리한다.

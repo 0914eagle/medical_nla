@@ -1,0 +1,15 @@
+<concept>{injection_char}</concept>
+
+The vector above was extracted after a clinical presentation and a reasoning instruction, immediately before the source model began its response. Read the patient-specific clinical state represented by the vector.
+
+Report only concrete clinical findings represented by the vector. Do not infer a diagnosis, add background medical knowledge, or complete a typical disease template. If no specific clinical finding is represented, say so in one bullet.
+
+Return only this schema, with nothing before or after it:
+
+<explanation>
+<readout>
+<observed>
+- patient-specific clinical finding
+</observed>
+</readout>
+</explanation>
