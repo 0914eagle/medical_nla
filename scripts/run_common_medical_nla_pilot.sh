@@ -14,9 +14,9 @@ unset MEDICAL_NLA_DATA_ROOT HF_HOME TRANSFORMERS_CACHE
 source scripts/env.sh "${DATA_ROOT}"
 export PYTHONPATH=/home/eagle0914/medical_nla
 
-DIRECT="${DATA_ROOT}/restricted/direct/e3/direct_e3_sft_v1"
-DDX_TRAIN="${DATA_ROOT}/medical_nla/data/ddxplus_probe_train_v1/activations/ddxplus_probe_train_cot_p0_merged_v1/layer32/last_token/manifest.jsonl"
-DDX_VAL="${DATA_ROOT}/medical_nla/data/ddxplus_e5_canonical_v1/activations/ddxplus_e5_validation_cot_p0_merged_v1/layer32/last_token/manifest.jsonl"
+DIRECT="${DIRECT:-${DATA_ROOT}/restricted/direct/e3/direct_e3_sft_v1}"
+DDX_TRAIN="${DDX_TRAIN:-${DATA_ROOT}/medical_nla/data/ddxplus_probe_train_v1/activations/ddxplus_probe_train_cot_p0_merged_v1/layer32/last_token/manifest.jsonl}"
+DDX_VAL="${DDX_VAL:-${DATA_ROOT}/medical_nla/data/ddxplus_e5_canonical_v1/activations/ddxplus_e5_validation_cot_p0_merged_v1/layer32/last_token/manifest.jsonl}"
 ROOT="${DATA_ROOT}/restricted/direct/e3/${RUN_NAME}"
 DATASET="${ROOT}/dataset"
 mkdir -p "${ROOT}/adapters" "${DATA_ROOT}/medical_nla/logs"

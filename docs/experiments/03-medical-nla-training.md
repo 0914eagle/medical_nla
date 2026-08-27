@@ -47,6 +47,10 @@ prospective holdout을 만든 뒤 한 번만 평가해야 한다.
 `RUN_NAME=common_medical_nla_pilot_v1`로 full three-seed 실행을 시작한다. 두 실행은 서로
 다른 디렉터리를 사용한다.
 
+두 서버의 storage prefix가 다르므로 복사한 activation manifest는 반드시 path remap 후
+사용한다. wrapper의 `DDX_TRAIN`, `DDX_VAL`, `DIRECT` 환경변수로 서버별 canonical manifest를
+명시할 수 있으며, 기본값은 해당 서버의 `DATA_ROOT` 아래 merged-v1 manifest다.
+
 Clinical text는 DiReCT의 physician deduction structure에서 만든다. Activation은 P0를
 주 입력으로 한다. Source-wrong 행에서 gold physician text를 activation의 현재 결론처럼
 무조건 매핑하면 misalignment가 생기므로 다음을 분리한다.
