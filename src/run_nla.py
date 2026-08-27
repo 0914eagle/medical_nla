@@ -57,6 +57,7 @@ PASSTHROUGH_FIELDS = [
     "nonspecific_aliases",
     "diagnosis_aliases",
     "source",
+    "source_dataset",
     "patient_id",
     "diagnosis_id",
     # Which case and which arm of an experiment this readout is. Dropped once:
@@ -82,6 +83,8 @@ PASSTHROUGH_FIELDS = [
     "cue_types",
     "cue_evidence_ids",
     "cue_evidence_entries",
+    "cue_value_ids",
+    "cue_value_labels",
     "notes",
     "control_type",
     "original_id",

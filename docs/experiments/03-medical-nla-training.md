@@ -51,6 +51,11 @@ prospective holdout을 만든 뒤 한 번만 평가해야 한다.
 사용한다. wrapper의 `DDX_TRAIN`, `DDX_VAL`, `DIRECT` 환경변수로 서버별 canonical manifest를
 명시할 수 있으며, 기본값은 해당 서버의 `DATA_ROOT` 아래 merged-v1 manifest다.
 
+학습 후 `scripts/run_common_medical_nla_validation.sh`가 같은 100행과 같은 common prompt로
+vanilla 및 각 seed의 readout을 생성한다. 이 단계의 lexical cue recall/precision은 빠른
+development screen이며, 최종 explanation 점수는 method-blind semantic extraction과
+DDXPlus paired counterfactual 평가로 확정한다.
+
 Clinical text는 DiReCT의 physician deduction structure에서 만든다. Activation은 P0를
 주 입력으로 한다. Source-wrong 행에서 gold physician text를 activation의 현재 결론처럼
 무조건 매핑하면 misalignment가 생기므로 다음을 분리한다.
