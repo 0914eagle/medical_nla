@@ -709,50 +709,28 @@ exploratory/validation 결과와 아직 비어 있는 locked-test 주표를 같�
 행동, closed-label decodability, open readout의 성공과 실패 범위를 같은 사례에서 확인한다.
 이 분석은 Medical-NLA의 필요성과 비교 기준을 세우지만, 그 자체가 RQ1의 답은 아니다.
 
-## Slide 15. E1 backbone behavior: 현재 나온 exploratory 결과
+## Slide 15. 설명을 평가하기 전에 모델이 실제로 내린 판단을 고정한다
 
-이 표는 현재 locked 72/106 split 이전에 실행한 exploratory pilot의 전체 pool별 결과다.
+이 슬라이드의 목적은 Direct와 CoT 중 승자를 정하는 것이 아니다. 이후 CoT와 Medical-NLA를
+비교하려면 먼저 **동일한 source run이 어떤 진단을 냈는지**, 그리고 CoT instruction이 Direct
+조건과 다른 사례를 맞히거나 틀리게 만드는지를 확인해야 한다. 이 표는 locked 72/106 split을
+고정하기 전에 실행한 exploratory 171건의 descriptive baseline이다.
 
-### A. Overall exploratory pool, n=171
+### A. Overall source behavior, n=171
 
 | Generation | Parse | Strict PDD | Disease category | Diagnosis token F1 |
 |---|---:|---:|---:|---:|
 | Direct, answer-prefilled | 1.0000 | .2105 | .5029 | .1593 |
 | Source CoT | 1.0000 | .1930 | .5088 | .1850 |
 
-### B. Pilot seen-PDD pool, n=71
-
-| Generation | Parse | Strict PDD | Disease category | Diagnosis token F1 |
-|---|---:|---:|---:|---:|
-| Direct, answer-prefilled | 1.0000 | .2535 | .3944 | .2921 |
-| Source CoT | 1.0000 | .2254 | .3803 | .2530 |
-
-### C. Pilot PDD-heldout pool, n=100
-
-| Generation | Parse | Strict PDD | Disease category | Diagnosis token F1 |
-|---|---:|---:|---:|---:|
-| Direct, answer-prefilled | 1.0000 | .1800 | .5800 | .0650 |
-| Source CoT | 1.0000 | .1700 | .6000 | .1367 |
-
-### D. Paired Direct-versus-CoT breakdown, n=171
+### B. Paired Direct-versus-CoT breakdown, n=171
 
 | Target | Both correct | Direct only | CoT only | Neither | CoT-Direct | McNemar exact p |
 |---|---:|---:|---:|---:|---:|---:|
 | Strict PDD | 26 | 10 | 7 | 128 | -.0175 | .6291 |
 | Disease category | 77 | 9 | 10 | 75 | +.0058 | 1.0000 |
 
-### E. E1 source/activation artifact completeness
-
-| Artifact universe | Source answers | Position rows | Stored tensors | Positions | HS indices | Max prompt tokens |
-|---|---:|---:|---:|---|---|---:|
-| Train + validation | 325 | 975 | 2,925 | P0/P1/P2 | 16/24/32 | 4,834 |
-| Exploratory test | 171 | 513 | 1,539 | P0/P1/P2 | 16/24/32 | 4,304 |
-| **Merged eligible population** | **496** | **1,488** | **4,464** | **P0/P1/P2** | **16/24/32** | **4,834** |
-
-재색인된 confirmatory split에서도 266/52/72/106 cases가 2,394/468/648/954 tensors와 정확히
-대응하며 전체 case x position x layer grid의 누락과 중복은 0이다.
-
-### 왜 CoT strict PDD가 Direct보다 낮았는가
+### 이 결과가 이후 평가를 어떻게 바꾸는가
 
 현재 결과만으로 CoT가 진단을 악화시켰다고 말할 수 없다.
 
@@ -767,11 +745,53 @@ exploratory/validation 결과와 아직 비어 있는 locked-test 주표를 같�
 5. CoT의 diagnosis token F1은 오히려 더 높아, 단순히 gold label에서 더 멀어진 것으로도
    해석할 수 없다.
 
+더 중요한 결과는 CoT가 Direct와 같은 정답 사례를 그대로 유지하지 않았다는 점이다. CoT는
+Direct가 틀린 7건을 맞혔지만 Direct가 맞힌 10건을 틀렸다. 따라서 CoT는 Direct 답에 설명만
+붙이는 채널이 아니라 source decision 자체를 사례별로 바꿀 수 있다. 이후 Medical-NLA의
+`source-decision fidelity`는 physician gold나 Direct answer가 아니라 **동일한 CoT source
+run이 실제 생성한 answer**에 맞춰 평가한다.
+
+```text
+Physician gold alignment  -> 임상적으로 올바른 내용을 말했는가?
+Source-decision fidelity  -> 바로 이 CoT-P0 activation의 실제 결정을 읽었는가?
+```
+
+Disease-category 열은 현재 category 명칭의 lexical/alias hit이므로, 최종 본문에서는 model answer를
+canonical PDD에 매핑한 뒤 PDD-to-category ontology로 변환하거나 official semantic matcher로
+재채점한다. Diagnosis token F1은 세부 PDD 이름과의 부분적 단어 중첩을 보는 scorer audit이며
+주 정확도 지표로 사용하지 않는다.
+
 따라서 발표 문장은 다음으로 제한한다.
 
 > 이 exploratory cohort에서는 Direct와 CoT의 진단 성능 차이가 확인되지 않았다. CoT는
 > 정답 사례의 구성을 바꾸었지만 strict PDD와 category 모두 통계적 우열이 없었다. CoT의
 > 설명 품질과 faithfulness는 이 정확도 표가 아니라 Table 2와 grounding 실험에서 평가한다.
+
+## Backup 15A. E1 세부 split과 artifact completeness
+
+### Pilot split별 source behavior
+
+| Pool | Generation | Parse | Strict PDD | Disease category | Diagnosis token F1 |
+|---|---|---:|---:|---:|---:|
+| Seen PDD, n=71 | Direct, answer-prefilled | 1.0000 | .2535 | .3944 | .2921 |
+| Seen PDD, n=71 | Source CoT | 1.0000 | .2254 | .3803 | .2530 |
+| PDD held-out, n=100 | Direct, answer-prefilled | 1.0000 | .1800 | .5800 | .0650 |
+| PDD held-out, n=100 | Source CoT | 1.0000 | .1700 | .6000 | .1367 |
+
+Heldout과 seen은 label 및 category 구성이 다르므로 두 pool의 절대 정확도를 난이도 차이로
+해석하지 않는다. 이 71/100은 과거 pilot split이며 최종 downstream 72/106 split과 구분한다.
+
+### E1 source/activation artifact completeness
+
+| Artifact universe | Source answers | Position rows | Stored tensors | Positions | HS indices | Max prompt tokens |
+|---|---:|---:|---:|---|---|---:|
+| Train + validation | 325 | 975 | 2,925 | P0/P1/P2 | 16/24/32 | 4,834 |
+| Exploratory test | 171 | 513 | 1,539 | P0/P1/P2 | 16/24/32 | 4,304 |
+| **Merged eligible population** | **496** | **1,488** | **4,464** | **P0/P1/P2** | **16/24/32** | **4,834** |
+
+재색인된 downstream split에서도 266/52/72/106 cases가 2,394/468/648/954 tensors와 정확히
+대응하며 전체 case x position x layer grid의 누락과 중복은 0이다. E1의 주 역할은 이 공통
+source transcript와 activation universe를 E2-E5에 공급하는 것이다.
 
 ---
 
