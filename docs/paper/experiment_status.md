@@ -6,10 +6,10 @@
 |---|---|---|---|
 | E0 DiReCT audit/evaluator | 완료 | 496행 canonical split, official oracle smoke | E1-E4 |
 | E1 source/activation | 완료 | pilot 496 source outputs, P0/P1/P2 x HS16/24/32 완전성 확인 | E2 |
-| E2 P0 representation audit | 부분 완료 | diagnosis/category probe와 output-head 완료; source-decision/finding/value probe 대기 | E3-E5 |
+| E2 P0 representation audit | 대부분 완료 | diagnosis/category 및 DDXPlus finding/value locked probe 완료; source-decision 대기 | E3-E5 |
 | E3 Medical-NLA train | SFT-only 완료 | DiReCT P0 seeds 17/29/43 완료; reconstruction/full objective 대기 | E4-E6 |
 | E4 DiReCT explanation | validation 완료 | 공통 50-case official-compatible 평가 완료; locked 72/106 대기 | Table 2 |
-| E5 DDX grounding | 데이터 빌더 완료, 실행 대기 | official validate/test 각 49x100, native counterfactual, shuffle/round-trip 통과 | RQ2, E6 gate |
+| E5 DDX grounding | closed-probe gate 완료, NLA 대기 | finding availability 통과; native-value counterfactual 실패; NLA/round-trip 미실행 | RQ2, E6 gate |
 | E6 text patching | 조건부 | target change + no-op preservation | RQ3 |
 | E7 MCR OOD | 후순위 | frozen checkpoint external test | generalization |
 
@@ -93,8 +93,11 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
 6. ~~62번에서 logical population/split hash가 125번과 동일한지 확인~~ 완료
 7. ~~기존 activation을 새 split ID로 재색인하고 join/completeness 100% 확인~~ 완료
 8. ~~Validation 52행에서 probe regularization을 선택~~ 완료. Locked test 평가 전 checkpoint와 분석 코드를 고정
-9. Source-decision/finding-presence/finding-value P0 probe를 validation에서 구현·실행하고
-   Medical-NLA가 책임질 수 있는 target family를 고정
+9. ~~Finding-presence/finding-value P0 probe 구현·locked test~~ 완료. Finding F1
+   `.9562` vs same-diagnosis shuffle `.7938`, gap `+.1624 [.1576,.1672]`; conditional value
+   accuracy `.7659` vs `.5791`, gap `+.1868 [.1650,.2091]`. 다만 native value edit은
+   replacement hit `.1466`, old persistence `.5955`, clean switch `.0804`로 실패. Source-decision
+   ontology audit은 대기
 10. ~~Vanilla AV P0 semantic audit 312행~~ 완료. Primary default/HS32에서 source answer,
     gold PDD, category 모두 0/52; HS16 category만 두 prompt에서 1/52. 이 결과는 진단 target의
     명시적 의미 복원 실패이며 observation 설명 품질이나 grounding 결과가 아님. Exact
@@ -103,8 +106,8 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
 
 ## 08-27 이후 실행 순서
 
-1. **E2 target audit 완결**: source decision, finding presence, finding value가 CoT-P0에서
-   decode 가능한지 probe와 shuffle control로 확인한다. HS16/24/32는 validation에서만 비교한다.
+1. **E2 target audit 완결**: finding/value probe는 완료했고 source decision ontology만 남았다.
+   Finding availability는 통과했지만 value counterfactual은 실패했으므로 두 결론을 분리한다.
 2. **E3 full objective 구현**: SFT-only 3-seed 실패를 기준선으로 두고 reconstruction과
    pair-specificity를 추가한다. DDXPlus를 학습에 쓸 경우 evaluation pair와 완전히 분리한다.
 3. **E4 validation 재평가**: reconstruction/full 후보를 같은 50-case extractor와 official

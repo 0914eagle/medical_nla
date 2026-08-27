@@ -95,11 +95,13 @@ P1은 CoT 안에 최종 진단이 이미 등장할 수 있다. smoke 10건에서
 
 - E0 DiReCT 감사·환자 분리 split·공식 evaluator smoke: 완료
 - E1 source CoT와 P0/P1/P2 activation: 496행 및 4,464 tensors 완료
-- E2 representation audit: diagnosis/category probe와 output-head 완료;
-  source-decision/finding/value probe 대기
+- E2 representation audit: diagnosis/category 및 DDXPlus finding/value locked probe 완료;
+  source-decision ontology 대기. Finding availability는 통과했지만 native-value edit clean
+  switch `.0804`로 counterfactual faithfulness는 실패
 - E3 Medical-NLA: SFT-only seeds 17/29/43 완료; reconstruction/full objective 대기
 - E4 explanation evaluation: 공통 50-case validation 완료; locked 72/106 평가 대기
-- E5 grounding과 E6 patching: 아직 주 결과 미실행
+- E5 Medical-NLA grounding은 아직 주 결과 미실행. Closed-probe gate만 완료했으며 value-edit
+  E6 patching은 현재 중단
 
 현재 171행 test 결과는 P0/P1/P2와 vanilla AV 설계 점검에 이미 사용했으므로
 `exploratory pilot`이다. E3 이후 downstream 평가용 split은 266 train / 52 validation /

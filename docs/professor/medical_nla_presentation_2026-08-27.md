@@ -883,8 +883,8 @@ Table 1은 probe 기반 decodability만 보고한다. 서로 다른 출력 공�
 | Gold disease category | 25-way linear probe | HS24 Top-1 .5962 | TBD | layer 선택 완료 |
 | Gold canonical PDD | 49-way linear probe | HS24 Top-1 .4423 | TBD | layer 선택 완료 |
 | Source decision | multiclass probe | label-space audit 중 | TBD | 자유 생성 답의 ontology 정규화율을 먼저 확인 |
-| Finding presence | multi-label probe | DDXPlus validation 예정 | DDXPlus test TBD | evidence ID 고정, 구현·실행 필요 |
-| Finding value | conditional probe | DDXPlus validation 예정 | DDXPlus test TBD | native value ID 고정, 구현·실행 필요 |
+| Finding presence | multi-label probe | HS24 micro F1 .9607 | **.9562** | hard shuffle .7938; gap +.1624 [.1576,.1672] |
+| Finding value | conditional probe | HS24 accuracy .7700 | **.7659** | 6 tasks/32 classes; shuffle .5791; gap +.1868 [.1650,.2091] |
 
 각 행은 서로 다른 target을 묻는다. `Gold disease category/PDD`는 physician label이 P0에
 decode되는지, `Source decision`은 backbone이 같은 run에서 실제로 생성할 진단이 P0에
@@ -1063,12 +1063,14 @@ pair/counterfactual objective를 구현한 뒤, 같은 validation에서 SFT-only
 
 | Target | Decoder | Output space | Validation | Locked test | Control |
 |---|---|---|---:|---:|---|
-| Finding presence | Multi-label probe | frozen evidence IDs | TBD | TBD | label/hard shuffle |
-| Finding value | Conditional probe | native values per evidence ID | TBD | TBD | value shuffle |
+| Finding presence | Multi-label probe | 91 frozen evidence IDs | .9607 | **.9562** | same-diagnosis hard shuffle .7938 |
+| Finding value | Conditional probe | 6 tasks / 32 native values | .7700 | **.7659** | same-diagnosis hard shuffle .5791 |
 
 `Layer`는 validation에서 고정하므로 주표 열에서 제외한다. Figure 2에는 HS16/24/32 validation
 sensitivity를 모두 보여주고, caption에는 target별 선택 mapping을 적는다. 현재 category와
-canonical PDD는 HS24이며 source decision/finding/value는 아직 TBD다. `N/A`는 실패가 아니라 closed probe에 unseen output node가 없어
+canonical PDD와 finding/value는 HS24이며 source decision은 아직 TBD다. Finding HS16과 HS24의
+validation pair-gap 차이는 .0002에 불과하므로 HS24가 압도적으로 우세하다고 해석하지 않는다.
+`N/A`는 실패가 아니라 closed probe에 unseen output node가 없어
 과제가 정의되지 않았다는 뜻이다.
 
 **RQ1로 넘어가는 이유.** Table 1은 P0에서 어떤 의료 정보가 decode 가능한지 확인하는
@@ -1307,8 +1309,10 @@ RQ2의 primary controlled testbed는 DDXPlus다. 최신 primary 설정에서는 
 DiReCT에만 적응하고 DDXPlus를 cross-corpus grounding test로 사용한다. DDXPlus
 `validate.csv`는 scoring threshold, hard-shuffle 규칙, counterfactual 생성 규칙과 mean
 activation control을 고정하는 데 사용하고, `test.csv`는 locked Table 3에만 사용한다.
-`train.csv`는 primary에서 사용하지 않으며, 향후 DDXPlus grounding-adaptation ablation에서만
-별도 사용한다. MCR은 정확한 finding/value annotation이 없으므로 Table 3 전체가 아니라
+`train.csv`는 **Medical-NLA primary adaptation에는 사용하지 않는다**. 다만 선행 closed-probe
+availability audit에는 official train 4,655건을 사용해 91개 finding ID와 6개 multi-value task의
+head를 학습했다. 이 probe supervision을 Medical-NLA 학습으로 혼동하지 않는다. 향후 DDXPlus
+grounding-adaptation은 별도 ablation이다. MCR은 정확한 finding/value annotation이 없으므로 Table 3 전체가 아니라
 natural-text OOD 보조 평가만 담당한다.
 
 DDXPlus의 `value`는 본 연구가 임의로 만든 label이 아니다. 환자 CSV의 `EVIDENCES`에는 다음
@@ -1397,6 +1401,19 @@ Hard-shuffle score는 낮고 Pair gap은 높아야 한다. Pair gap의 case-leve
 
 ### Panel B. Counterfactual response and reconstruction
 
+먼저 실행한 closed linear-probe gate는 다음과 같다. 이는 자연어 Medical-NLA 결과가 아니라
+P0 target availability와 반사실 민감도의 상한/통제다.
+
+| Probe intervention | eligible | locked-test response | 판정 |
+|---|---:|---:|---|
+| Cue deletion | 4,540 | probability drop +.6103; removal success .6407 | 부분 통과 |
+| Native value edit | 539 | replacement hit .1466; old persistence .5955 | 실패 |
+| Native value clean switch | 398 | .0804 | 실패 |
+
+정적 own-vs-shuffled value accuracy가 높아도 value를 바꿨을 때 probe가 새 값으로 전환하지
+않았다. 따라서 “P0에 자연 분포의 value 정보가 decode된다”와 “value 변화에 충실하게
+반응한다”를 분리한다.
+
 | Method | Edited-finding response | Untouched retention | Matched FVE | Shuffled FVE | FVE gap |
 |---|---:|---:|---:|---:|---:|
 | CoT | TBD | TBD | N/A | N/A | N/A |
@@ -1460,10 +1477,11 @@ edited-finding response, 높은 untouched retention, 그리고 AR 모델의 matc
 함께 필요하다. Panel A는 **자기 환자의 내용을 읽었는가**, Panel B는 **상태를 바꾸면 설명이
 선택적으로 따라 변하고 그 설명이 activation 정보를 보존하는가**를 답한다.
 
-**RQ2의 현재 답.** DDXPlus CoT-P0에서 Medical-NLA matched/shuffled, finding edit,
-untouched retention, round-trip Table 3은 아직
-완료되지 않았다. 따라서 현재는 Medical-NLA 설명이 자기 activation에 의존한다고 결론 내리지
-않는다. RQ1의 Table 2와 별개로 Table 3의 grounding 통제를 통과해야 RQ2가 닫힌다.
+**RQ2의 현재 답.** Closed probe는 finding availability와 정적 case specificity를 통과했다
+(`F1 .9562`, gap `+.1624 [.1576,.1672]`). 제한된 native-value subset도 정적 gap은 양수였지만,
+value edit clean switch가 `.0804`여서 반사실 추종은 실패했다. Medical-NLA matched/shuffled,
+untouched retention, round-trip Table 3은 아직 완료되지 않았다. 따라서 현재는 Medical-NLA
+설명이 자기 activation에 의존한다고 결론 내리지 않으며 value-edit patching으로 넘어가지 않는다.
 
 **RQ3로 넘어가는 조건.** Table 2만 높은 방법은 임상 문장 생성기일 수 있고, Table 3만 높은
 방법은 의미가 빈약한 activation 식별기일 수 있다. 두 관문을 모두 통과한 방법만 text patching

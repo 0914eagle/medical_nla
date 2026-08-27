@@ -8,10 +8,10 @@
 |---|---|---|---|
 | E0 | DiReCT data/evaluator audit | 완료 | canonical split, evaluator smoke |
 | E1 | Source CoT and activation extraction | 완료 | 496 cases, P0/P1/P2 x HS16/24/32 |
-| E2 | P0 representation audit | 부분 완료 | diagnosis/category probe 완료; source-decision/finding/value probe 대기 |
+| E2 | P0 representation audit | 대부분 완료 | diagnosis/category 및 DDXPlus finding/value locked probe 완료; source-decision 대기 |
 | E3 | Medical-NLA training | SFT-only 완료 | DiReCT P0 seeds 17/29/43 완료; reconstruction/full objective 대기 |
 | E4 | DiReCT explanation evaluation | validation 완료 | 50-case 공통 평가 완료; locked 72/106 Table 2 대기 |
-| E5 | DDXPlus activation grounding | 정본 빌더 완료, 실행 대기 | Table 3, Figure 3 |
+| E5 | DDXPlus activation grounding | closed-probe gate 완료, NLA 대기 | finding availability 통과; value counterfactual 실패; Table 3 NLA 대기 |
 | E6 | Text patching | E5 조건부 | Table 4, Figure 4 |
 | E7 | MCR external OOD | 후순위 | frozen-checkpoint OOD table |
 
@@ -33,6 +33,6 @@ E0 -> E1 -> E2 -> E3 -> E4
 - P0가 primary activation이다. P1은 CoT 내 diagnosis leakage를 분리해 보조 분석한다.
 - 공개 AV/AR의 extraction index가 32이므로 primary NLA/round-trip은 HS32다. HS16/24는 sensitivity다.
 - Clinical alignment와 activation grounding을 하나의 점수로 합치지 않는다.
-- E5를 통과하지 못한 방법으로 E6 성능 개선 주장을 하지 않는다.
+- E5를 통과하지 못한 방법으로 E6 성능 개선 주장을 하지 않는다. 현재 value-edit E6는 중단한다.
 
 각 실험의 상세는 `00`-`07` 문서를 따른다.

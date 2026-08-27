@@ -334,6 +334,37 @@ official test activation은 probe, Medical-NLA objective, threshold, checkpoint�
 Test에서 pair gap과 finding-specific change가 0을 배제하고 untouched retention이 유지되어야
 grounding 통과로 판정한다. AR absolute cosine만으로 faithfulness를 판정하지 않는다.
 
+## 2026-08-28 locked-test probe gate 결과
+
+이 결과는 Medical-NLA 자연어 판독 점수가 아니라, train-supervised closed linear probe가
+CoT-P0에 target information이 존재하는지 확인한 선행 감사다. Official train 4,655건으로
+학습하고 validation에서 HS24와 threshold를 고정한 뒤, official test에서 재선택 없이
+4,543 original cases와 paired counterfactual을 평가했다.
+
+| target | own | same-diagnosis shuffled | gap | paired bootstrap 95% CI | coverage |
+|---|---:|---:|---:|---:|---:|
+| Finding micro F1, 91 evidence IDs | .9562 | .7938 | +.1624 | [.1576, .1672] | .9996 |
+| Conditional native-value accuracy, 6 tasks/32 classes | .7659 | .5791 | +.1868 | [.1650, .2091] | .7161 |
+
+정적 own-vs-shuffled 결과는 finding과 제한된 native-value subset 모두 P0에서 사례 특이적으로
+decode 가능함을 보인다. 그러나 value 결과는 전체 99개 evidence가 아니라 train support를
+충족한 6개 multi-value evidence task에만 해당한다.
+
+| intervention | eligible | result |
+|---|---:|---|
+| Cue deletion | 4,540 | target probability drop +.6103; original-hit 조건 removal success .6407 |
+| Native value edit | 539 | replacement hit .1466; old-value persistence .5955 |
+| Native value clean switch | 398 | original old-value hit 조건 switch .0804 |
+
+따라서 **finding availability gate는 통과**했지만 **native-value counterfactual faithfulness는
+실패**했다. 정적 value accuracy를 “값 변화까지 충실하게 추적한다”로 확대 해석하지 않는다.
+이 결과만으로 P0 information이 backbone 결정에 인과적으로 사용됐다고 말할 수도 없다.
+
+논문에서 이 probe는 Table 1B와 Figure 2의 representation audit/control로 보고한다. 자연어
+Medical-NLA의 Table 3은 별도 matched/shuffled 및 counterfactual 평가가 필요하다. Value edit을
+사용하는 E6 patching은 현재 실행 관문을 통과하지 못했으며, finding-only readout 개발과
+untouched-finding retention 검증을 먼저 수행한다.
+
 ## 산출물
 
 Table 3과 Figure 3. 실패하면 E4 결과를 좋은 explanation generation으로만 해석하고

@@ -43,8 +43,8 @@ AR의 primary index는 공개 checkpoint 호환 때문에 HS32로 유지한다. 
 | Disease category, 25-way | .5000 | **.5962** | .5192 | .0577 | validation 완료 |
 | Canonical PDD, 49-way | .3846 | **.4423** | .3846 | .0962 | validation 완료 |
 | Source decision | TBD | TBD | TBD | TBD | 실행 필요 |
-| Finding presence | TBD | TBD | TBD | TBD | 구현·실행 필요 |
-| Finding value | TBD | TBD | TBD | TBD | 구현·실행 필요 |
+| Finding presence, micro F1 | .9636 | **.9607** | .9607 | N/A | validation 및 locked test 완료 |
+| Finding value, conditional accuracy | .7641 | **.7700** | .6990 | N/A | 6 evidence tasks에서 완료 |
 
 `Source decision`은 source model의 자유 생성 문자열을 그대로 class ID로 쓰지 않는다. 먼저
 train/validation에서 normalized answer 재사용률과 frozen PDD/category ontology의 unique mapping
@@ -64,6 +64,14 @@ python scripts/audit_direct_source_decision_labels.py \
 Finding presence/value는 DiReCT physician deduction을 임의의 fixed label로 바꾸지 않고,
 evidence/value ID가 원자료에 정의된 DDXPlus CoT-P0에서 평가한다. 따라서 Table 1B는 DiReCT
 diagnosis/source-decision panel과 DDXPlus finding/value panel을 분리한다.
+
+Validation에서 HS24를 고정한 locked test 결과는 finding F1 `.9562`, 같은 진단 hard-shuffle
+`.7938`, gap `+.1624 [.1576,.1672]`다. Conditional native-value accuracy는 `.7659`, shuffle
+`.5791`, gap `+.1868 [.1650,.2091]`이며 train-supported 6 evidence task/32 value class와 test
+single-value target의 `.7161`만 포괄한다. Cue deletion은 target probability drop `+.6103`,
+removal success `.6407`이었지만 native value edit replacement hit는 `.1466`, clean switch는
+`.0804`였다. 따라서 finding availability는 통과, value counterfactual faithfulness는 실패로
+분리 판정한다.
 
 Candidate-likelihood baseline은 단일 다음-token logit이나 저장된 P0 벡터의 unembedding이
 아니다. P0 prompt가 먼저 추론하라고 요구하므로 `The answer is`를 강제로 붙인 뒤 각

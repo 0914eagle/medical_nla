@@ -16,15 +16,20 @@ Seen PDD 72행과 held-out PDD 106행은 같은 열 구조의 두 패널로 보�
 | Direct, answer-prefilled | TBD | TBD | TBD | TBD |
 | Source CoT | TBD | TBD | TBD | TBD |
 
-### Panel B. CoT-P0 decodability audit
+### Panel B1. DiReCT CoT-P0 diagnosis decodability audit
 
-| Target | Decoder | Output space | Test seen | Test OOD | Required control |
+| Target | Decoder | Output space | Validation | Test seen | Test PDD-OOD | Required control |
+|---|---|---|---:|---:|---:|---|
+| Gold disease category | Linear probe | 25-way | .5962 | TBD | N/A | label shuffle |
+| Gold canonical PDD | Linear probe | 49-way train labels | .4423 | TBD | N/A | label shuffle |
+| Source decision | Linear probe | frozen source-answer ontology | TBD | TBD | TBD | answer shuffle |
+
+### Panel B2. DDXPlus CoT-P0 finding/value decodability audit
+
+| Target | Decoder | Output space | Validation | Locked test | Required control |
 |---|---|---|---:|---:|---|
-| Gold disease category | Linear probe | 25-way | TBD | N/A | label shuffle |
-| Gold canonical PDD | Linear probe | 49-way train labels | TBD | N/A | label shuffle |
-| Source decision | Linear probe | frozen source-answer ontology | TBD | TBD | answer shuffle |
-| Finding presence | Multi-label probe | frozen evidence IDs | TBD | TBD | same-diagnosis hard shuffle |
-| Finding value | Conditional probe | frozen native values | TBD | TBD | within-finding value shuffle |
+| Finding presence | Multi-label probe | 91 frozen evidence IDs | .9607 | **.9562** | same-diagnosis shuffled .7938; gap +.1624 [.1576,.1672] |
+| Finding value | Conditional probe | 6 evidence tasks / 32 native values | .7700 | **.7659** | same-diagnosis shuffled .5791; gap +.1868 [.1650,.2091] |
 
 `N/A`는 0점이 아니라 closed probe에 unseen output node가 없어 과제가 정의되지 않았다는 뜻이다.
 Finding/value head는 diagnosis별로 따로 만들지 않는다. Gold diagnosis와 source decision도
@@ -38,14 +43,22 @@ HS16/24/32를 모두 보고한다.
 | Disease category | .5000 | **.5962** | .5192 | .0577 |
 | Canonical PDD | .3846 | **.4423** | .3846 | .0962 |
 | Source decision | TBD | TBD | TBD | TBD |
-| Finding presence | TBD | TBD | TBD | TBD |
-| Finding value | TBD | TBD | TBD | TBD |
+| Finding presence, micro F1 | .9636 | **.9607** | .9607 | N/A |
+| Finding value, conditional accuracy | .7641 | **.7700** | .6990 | N/A |
 
 각 target은 validation에서 선택된 index 하나로 locked test를 한 번 평가하고, Table 1B
-caption에 `category=HS24`, `PDD=HS24`처럼 mapping을 명시한다. 아직 실행하지 않은 target의
-index는 미리 HS24로 간주하지 않는다. 이 값은 test 결과가 아니며, AV/AR 호환 때문에 HS32로 고정한 Medical-NLA primary index를
+caption에 `category=HS24`, `PDD=HS24`, `finding/value=HS24`처럼 mapping을 명시한다.
+Finding/value HS24는 validation의 own-minus-shuffled 우선 규칙으로 고정했다. Finding HS16과
+HS24 gap 차이는 .0002에 불과하므로 HS24가 압도적으로 우세하다고 해석하지 않는다. 이 값은
+test 결과가 아니며, AV/AR 호환 때문에 HS32로 고정한 Medical-NLA primary index를
 바꾸는 근거로 사용하지 않는다. Table 1B의 probe는 설정을 동결한 뒤 locked test에서 한 번
 계산한다.
+
+Locked test의 cue deletion은 target probability를 평균 `+.6103` 낮추고 original-hit 조건
+removal success `.6407`을 보였다. 반면 native value edit은 replacement hit `.1466`, old-value
+persistence `.5955`, clean switch `.0804`였다. 따라서 정적 value decodability는 통과했지만
+value counterfactual faithfulness는 실패했다. 이 probe 결과는 Table 3의 자연어 NLA 행을
+대신하지 않는다.
 
 Validation의 matched raw early forced-answer 결과는 category 25-way
 `.4808/.6731/.5814`, PDD 49-way `.1538/.5192/.3250`(top-1/top-5/MRR)이었다. PDD는
