@@ -56,6 +56,25 @@ vanilla 및 각 seed의 readout을 생성한다. 이 단계의 lexical cue recal
 development screen이며, 최종 explanation 점수는 method-blind semantic extraction과
 DDXPlus paired counterfactual 평가로 확정한다.
 
+#### Mixed-pilot validation 결과
+
+세 seed의 동일한 100행 validation 출력이 완료됐다. 아래 값은 locked test가 아닌 lexical
+development screen이다. 각 source는 50행이며 cue recall/precision은 해당 source 안에서
+계산했다.
+
+| method | DDX parse | DDX cue recall | DDX cue precision | DiReCT parse | DiReCT cue recall | DiReCT cue precision |
+|---|---:|---:|---:|---:|---:|---:|
+| Vanilla NLA | 0 | 0 | 0 | 0 | 0 | 0 |
+| Common SFT, seed 17 | 1.00 | .1501 | .2133 | 1.00 | 0 | 0 |
+| Common SFT, seed 29 | 1.00 | .1784 | .2533 | 1.00 | 0 | 0 |
+| Common SFT, seed 43 | 1.00 | .1604 | .1520 | .08 | 0 | 0 |
+
+Mixed SFT는 DDXPlus cue를 일부 복원했지만 DiReCT physician observation은 세 seed 모두
+lexical hit가 없었다. Seed 17/29는 출력 schema만 안정적으로 학습했고, seed 43은
+DiReCT에서 schema도 붕괴했다. 따라서 이 checkpoint들은 locked test 또는 text patching으로
+승격하지 않는다. 다음 gate는 동일한 DiReCT 50행을 method-blind quote extraction과 공식
+semantic evaluator로 채점해 의역 실패와 내용 실패를 구분하는 것이다.
+
 Clinical text는 DiReCT의 physician deduction structure에서 만든다. Activation은 P0를
 주 입력으로 한다. Source-wrong 행에서 gold physician text를 activation의 현재 결론처럼
 무조건 매핑하면 misalignment가 생기므로 다음을 분리한다.

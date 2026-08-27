@@ -4,9 +4,11 @@ set -euo pipefail
 # Validation-only E4 extraction and official evaluation. All generated artifacts
 # contain private clinical text and stay under restricted/direct/e4.
 
-DATA_ROOT="${DATA_ROOT:?Set DATA_ROOT to /data/heejae on server 62}"
+DATA_ROOT="${DATA_ROOT:?Set DATA_ROOT to /data/heejae or /data1/heejae}"
 GPU="${GPU:-2}"
 RUN_NAME="${RUN_NAME:-validation_full_v1}"
+READOUTS_DIR="${READOUTS_DIR:-}"
+READOUT_SOURCE_DATASET="${READOUT_SOURCE_DATASET:-}"
 LIMIT_CASES="${LIMIT_CASES:-0}"
 EXPECTED_CASES="${EXPECTED_CASES:-50}"
 OVERWRITE_EVAL="${OVERWRITE_EVAL:-0}"
@@ -21,8 +23,8 @@ unset MEDICAL_NLA_DATA_ROOT HF_HOME TRANSFORMERS_CACHE
 source scripts/env.sh "${DATA_ROOT}"
 export PYTHONPATH=/home/eagle0914/medical_nla
 
-if [[ "${DATA_ROOT}" != "/data/heejae" ]]; then
-  echo "[error] gather all E4 validation outputs on server 62 under /data/heejae" >&2
+if [[ "${DATA_ROOT}" != "/data/heejae" && "${DATA_ROOT}" != "/data1/heejae" ]]; then
+  echo "[error] DATA_ROOT must be /data/heejae or /data1/heejae" >&2
   exit 2
 fi
 
@@ -31,7 +33,7 @@ OFFICIAL="${DIRECT}/official_repo"
 SPLITS="${DIRECT}/splits/direct_patient_pdd_confirmatory_v1"
 E1="${DIRECT}/e1"
 E3="${DIRECT}/e3/direct_e3_sft_v1"
-READOUTS="${DIRECT}/e4/validation_readouts_v1"
+READOUTS="${READOUTS_DIR:-${DIRECT}/e4/validation_readouts_v1}"
 OUT="${DIRECT}/e4/${RUN_NAME}"
 JUDGE="${DATA_ROOT}/models/Meta-Llama-3-8B-Instruct/original"
 
@@ -53,10 +55,14 @@ for path in \
 done
 
 limit_args=()
+readout_filter_args=()
 effective_cases="${EXPECTED_CASES}"
 if [[ "${LIMIT_CASES}" -gt 0 ]]; then
   limit_args=(--limit-cases "${LIMIT_CASES}")
   effective_cases="${LIMIT_CASES}"
+fi
+if [[ -n "${READOUT_SOURCE_DATASET}" ]]; then
+  readout_filter_args=(--readout-source-dataset "${READOUT_SOURCE_DATASET}")
 fi
 
 echo "[stage 1/5] build ${effective_cases}-case x 5-method extraction requests"
@@ -75,6 +81,7 @@ python scripts/make_direct_e4_claim_requests.py \
   --private-index "${OUT}/private_index.jsonl" \
   --summary-md "${OUT}/requests_summary.md" \
   --expected-cases "${EXPECTED_CASES}" \
+  "${readout_filter_args[@]}" \
   "${limit_args[@]}"
 
 if [[ "${PREPARE_ONLY}" == "1" ]]; then

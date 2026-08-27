@@ -118,6 +118,13 @@ def main() -> None:
         type=parse_named_path,
         metavar="METHOD=PATH",
     )
+    parser.add_argument(
+        "--readout-source-dataset",
+        help=(
+            "Optionally retain only readout rows whose source_dataset matches "
+            "this value before enforcing exact cohort equality."
+        ),
+    )
     parser.add_argument("--requests", required=True, type=Path)
     parser.add_argument("--private-index", required=True, type=Path)
     parser.add_argument("--summary-md", required=True, type=Path)
@@ -153,7 +160,15 @@ def main() -> None:
     for method, path in args.readout:
         if method == "cot" or method in readouts:
             raise ValueError(f"Duplicate or reserved method label: {method}")
-        rows = index_unique(list(read_jsonl(path)), method)
+        raw_rows = list(read_jsonl(path))
+        if args.readout_source_dataset is not None:
+            raw_rows = [
+                row
+                for row in raw_rows
+                if str(row.get("source_dataset") or "")
+                == args.readout_source_dataset
+            ]
+        rows = index_unique(raw_rows, method)
         if set(rows) != set(cohort):
             raise ValueError(
                 f"{method} population mismatch: "

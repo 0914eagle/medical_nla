@@ -143,3 +143,87 @@ def test_request_builder_balances_methods_and_hides_method_label(tmp_path, monke
         prompt = request_by_id[row["id"]]["prompt"]
         assert set(request_by_id[row["id"]]) == {"id", "prompt"}
         assert row["base_id"] not in prompt
+
+
+def test_request_builder_filters_common_readouts_to_direct(tmp_path, monkeypatch):
+    cohort = tmp_path / "cohort.jsonl"
+    cases = tmp_path / "cases.jsonl"
+    candidates = tmp_path / "candidates.jsonl"
+    sources = tmp_path / "sources.jsonl"
+    mixed = tmp_path / "mixed.jsonl"
+    requests = tmp_path / "requests.jsonl"
+    private_index = tmp_path / "index.jsonl"
+    summary = tmp_path / "summary.md"
+
+    write_jsonl(cohort, [{"base_id": "direct-a"}])
+    write_jsonl(
+        cases,
+        [
+            {
+                "base_id": "direct-a",
+                "source_relative_path": "Category/PDD/direct-a.json",
+            }
+        ],
+    )
+    write_jsonl(
+        candidates,
+        [
+            {
+                "canonical_pdd": "NSTEMI",
+                "disease_category": "ACS",
+                "annotation_chain": ["NSTEMI"],
+            }
+        ],
+    )
+    write_jsonl(sources, [{"base_id": "direct-a", "response": "Chest pain."}])
+    write_jsonl(
+        mixed,
+        [
+            {
+                "id": "direct::direct-a",
+                "base_id": "direct-a",
+                "source_dataset": "direct",
+                "nla_output": "Direct finding",
+            },
+            {
+                "id": "ddxplus::ddx-a",
+                "base_id": "ddx-a",
+                "source_dataset": "ddxplus",
+                "nla_output": "DDXPlus finding",
+            },
+        ],
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "make_direct_e4_claim_requests.py",
+            "--cohort",
+            str(cohort),
+            "--case-manifest",
+            str(cases),
+            "--candidate-manifest",
+            str(candidates),
+            "--source-answers",
+            str(sources),
+            "--readout",
+            f"medical_nla_seed17={mixed}",
+            "--readout-source-dataset",
+            "direct",
+            "--requests",
+            str(requests),
+            "--private-index",
+            str(private_index),
+            "--summary-md",
+            str(summary),
+            "--expected-cases",
+            "1",
+        ],
+    )
+    make_requests()
+
+    index_rows = [json.loads(line) for line in private_index.read_text().splitlines()]
+    assert len(index_rows) == 2
+    assert {row["base_id"] for row in index_rows} == {"direct-a"}
+    assert {row["method"] for row in index_rows} == {"cot", "medical_nla_seed17"}

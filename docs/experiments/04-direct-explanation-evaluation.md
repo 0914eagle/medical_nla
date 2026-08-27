@@ -49,3 +49,15 @@ SFT-only는 structured observation을 생성하게 했지만 CoT보다 임상 �
 컸다. 현재 target에 rationale가 없으므로 `Expcom/Expall=0`은 구조상 예상되지만 observation
 계열도 충분하지 않다. 따라서 이 결과를 Medical-NLA 성공으로 쓰지 않고, reconstruction과
 pair-specificity objective가 필요한 근거로 사용한다.
+
+## Common-schema mixed pilot 후속 의미 채점
+
+Common validation readout은 DiReCT 50행과 DDXPlus 50행을 함께 담는다. 임의의 앞 50행을
+사용하지 않고 `source_dataset=direct`를 먼저 적용한 뒤, 기존 DiReCT validation cohort와
+base ID 집합이 정확히 같을 때만 request를 만든다. `READOUTS_DIR`와
+`READOUT_SOURCE_DATASET=direct`를 지정해 같은 E4 extractor/evaluator를 재사용한다.
+
+이 검사는 약칭과 의역 때문에 lexical cue score가 0이 된 경우를 찾기 위한 validation
+diagnostic이다. 여기서도 observation 계열이 개선되지 않으면 mixed SFT v1은 내용 판독에
+실패한 것으로 판정한다. 성공 여부와 관계없이 locked test와 text patching은 다음 objective를
+고정하기 전까지 실행하지 않는다.
