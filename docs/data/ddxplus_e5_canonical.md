@@ -16,10 +16,10 @@ arbitrary finding from another evidence type.
 
 The new builder reads the official files separately:
 
-| official split | planned population | role |
+| official split | population rule | role |
 |---|---:|---|
-| `validate.csv` | 49 diagnoses x 100 = 4,900 | thresholds, control choices, validation mean activation |
-| `test.csv` | 49 diagnoses x 100 = 4,900 | locked Table 3 and Figure 3 |
+| `validate.csv` | common eligible diagnoses, capped at 100 each | thresholds, control choices, validation mean activation |
+| `test.csv` | same diagnosis support, capped at 100 each | locked Table 3 and Figure 3 |
 | `train.csv` | not used in primary | optional DDX grounding-adaptation ablation only |
 
 Within each split, cases are reservoir-sampled independently by diagnosis with
@@ -27,13 +27,18 @@ seed 17. A primary case must have at least three clean rendered cues and must no
 literally contain the gold diagnosis or an accepted alias. Every derived variant
 of a case remains in the same official split.
 
-The builder requires exactly 49 diagnoses to fill the quota. It fails instead of
-choosing the 49 largest buckets if the release schema differs, so the locked test
-distribution cannot decide which diagnoses enter the benchmark.
+The diagnosis set is the intersection of labels with at least one eligible case
+in every supplied official split. The builder then takes up to 100 rows per
+diagnosis in each split. It does not choose the largest buckets or require every
+diagnosis to reach the cap. This rule is fixed from input eligibility only and
+does not inspect model outputs, activations, or evaluation scores.
 
-This gives a large validation population and a separate 4,900-case final test;
-the 52-row DiReCT validation set is not being reused as the DDXPlus grounding
-sample.
+The first release audit showed that validation contains 47 eligible diagnoses:
+44 reach the 100-case cap, while `bronchiolitis`, `cluster_headache`, and `ebola`
+provide 28, 8, and 89 eligible rows. The former 4,900-case expectation was
+therefore impossible under the frozen leakage filters. Final validation and test
+counts are recorded only after both official files have been scanned and common
+support has been applied.
 
 ## Derived variants
 
@@ -105,9 +110,9 @@ Monitor:
 tail -f /data/heejae/medical_nla/logs/ddxplus_e5_data_prep_v1.log
 ```
 
-Expected base-case counts are 4,900 validation and 4,900 test. Counterfactual
-and pair counts are printed only after scanning the actual release; native value
-edit coverage is an empirical property and is not assumed to be 4,900.
+Expected counts are intentionally not hard-coded. `summary.md` reports common
+diagnosis support, per-split base cases, counterfactuals, and pair coverage after
+both official files are scanned. Native value-edit coverage is also empirical.
 
 ## Verify
 

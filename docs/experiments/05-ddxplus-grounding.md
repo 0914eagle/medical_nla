@@ -31,11 +31,13 @@ primary 분모와 locked test에는 넣지 않는다. HS16/HS24를 같은 decode
 representation 차이와 decoder distribution shift를 분리하지 못해 appendix
 sensitivity로만 다룬다.
 
-정본 데이터는 공식 `validate.csv`와 `test.csv`에서 각각 독립적으로 진단당 100건을
-reservoir sampling한다(seed 17; 최대 49 diagnosis). 적격 조건은 clean rendered cue가
-3개 이상이고 prompt에 gold diagnosis/alias가 직접 나오지 않는 것이다. 따라서 계획 분모는
-validation 4,900과 locked test 4,900이며, 실제 값은 빌더가 49개 diagnosis의 quota를 모두
-채웠을 때만 확정한다. 세부 생성 규칙과 실행 명령은
+정본 데이터는 공식 `validate.csv`와 `test.csv` 양쪽에서 eligible row가 한 건 이상 존재하는
+diagnosis의 교집합을 먼저 고정하고, 각 split에서 diagnosis당 최대 100건을 독립적으로
+reservoir sampling한다(seed 17). 적격 조건은 clean rendered cue가 3개 이상이고 prompt에
+gold diagnosis/alias가 직접 나오지 않는 것이다. 가장 큰 bucket만 고르지 않으며 모든
+diagnosis가 100건을 채운다고 가정하지 않는다. 첫 validation 감사에서는 47개 eligible
+diagnosis 중 44개만 100건을 채웠고 short bucket은 28/8/89건이었다. 최종 분모는 두 official
+split 스캔 후 protocol에 고정한다. 세부 생성 규칙과 실행 명령은
 [`docs/data/ddxplus_e5_canonical.md`](../data/ddxplus_e5_canonical.md)에 고정한다.
 
 Finding deletion은 모든 적격 case에 만들고, value edit은 같은 `evidence_id`에 release가
@@ -135,7 +137,7 @@ python scripts/merge_activation_shards.py \
   --expected-layers 16 24 32
 ```
 
-Direct-P0 control은 primary CoT-P0가 끝난 뒤 validation base 4,900행에만 실행한다. Locked
+Direct-P0 control은 primary CoT-P0가 끝난 뒤 validation base population에만 실행한다. Locked
 official test activation은 probe, Medical-NLA objective, threshold, checkpoint를 validation에서
 동결하기 전에는 생성하지 않는다.
 

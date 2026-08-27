@@ -146,9 +146,8 @@ def sample_split(
     evidence_meta: dict[str, Any],
     seed: int,
     quota: int,
-    max_diagnoses: int,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Reservoir-sample eligible cases within each diagnosis."""
+    """Reservoir-sample up to ``quota`` eligible cases per diagnosis."""
     rng = random.Random(f"ddxplus-e5:{seed}:{split}")
     reservoirs: dict[str, list[dict[str, Any]]] = defaultdict(list)
     eligible_seen: Counter[str] = Counter()
@@ -195,17 +194,7 @@ def sample_split(
                 flush=True,
             )
 
-    complete = sorted(label for label, rows in reservoirs.items() if len(rows) >= quota)
-    if len(complete) != max_diagnoses:
-        short = sorted(
-            (label, len(rows)) for label, rows in reservoirs.items() if len(rows) < quota
-        )
-        raise ValueError(
-            f"{split}: {len(complete)} diagnoses have {quota} eligible rows; "
-            f"expected exactly {max_diagnoses}. Refusing a data-dependent diagnosis "
-            f"selection. Short buckets: {short[:12]}"
-        )
-    selected_diagnoses = complete
+    selected_diagnoses = sorted(reservoirs)
     cases = [
         row
         for label in sorted(selected_diagnoses)
@@ -215,12 +204,33 @@ def sample_split(
         **dict(counters),
         "eligible_rows": sum(eligible_seen.values()),
         "diagnoses_observed": len(reservoirs),
-        "diagnoses_selected": len(selected_diagnoses),
-        "cases_selected": len(cases),
-        "examples_per_diagnosis": quota,
-        "selected_diagnoses": selected_diagnoses,
+        "diagnoses_with_eligible_cases": len(selected_diagnoses),
+        "cases_sampled_before_common_filter": len(cases),
+        "examples_per_diagnosis_cap": quota,
+        "eligible_counts_by_diagnosis": dict(sorted(eligible_seen.items())),
+        "sampled_counts_by_diagnosis": {
+            label: len(reservoirs[label]) for label in selected_diagnoses
+        },
+        "short_diagnoses": {
+            label: len(reservoirs[label])
+            for label in selected_diagnoses
+            if len(reservoirs[label]) < quota
+        },
     }
     return cases, summary
+
+
+def common_diagnosis_support(
+    sampled_by_split: dict[str, list[dict[str, Any]]],
+) -> list[str]:
+    """Return diagnosis labels represented by an eligible case in every split."""
+    if not sampled_by_split:
+        return []
+    supports = [
+        {str(row["diagnosis_id"]) for row in rows}
+        for rows in sampled_by_split.values()
+    ]
+    return sorted(set.intersection(*supports))
 
 
 def make_activation_row(
@@ -462,8 +472,8 @@ def write_summary(path: Path, protocol: dict[str, Any]) -> None:
         "Public synthetic data only. Official validation and test files remain disjoint.",
         "",
         f"- seed: **{protocol['seed']}**",
-        f"- diagnosis quota: **{protocol['examples_per_diagnosis']} per split**",
-        f"- selected diagnoses: **{protocol['max_diagnoses']}**",
+        f"- per-diagnosis cap: **{protocol['examples_per_diagnosis_cap']} per split**",
+        f"- common eligible diagnoses: **{protocol['common_diagnosis_count']}**",
         "- primary training role: **none (DiReCT-only adaptation)**",
         "- validation role: threshold/control selection",
         "- test role: locked Table 3/Figure 3 evaluation",
@@ -492,7 +502,14 @@ def write_summary(path: Path, protocol: dict[str, Any]) -> None:
             "",
             "## Frozen Rules",
             "",
-            "- Cases are reservoir-sampled independently inside each official split and diagnosis.",
+            (
+                "- The diagnosis set is the intersection of labels with at least one "
+                "eligible case in every supplied official split; no top-k label selection is used."
+            ),
+            (
+                "- Cases are reservoir-sampled independently inside each official split "
+                "and diagnosis, up to the fixed per-diagnosis cap."
+            ),
             (
                 "- Eligibility requires at least three clean rendered cues and no literal "
                 "gold diagnosis/alias in the prompt."
@@ -531,23 +548,29 @@ def main() -> None:
     parser.add_argument("--evidences", required=True, type=Path)
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--examples-per-diagnosis", type=int, default=100)
-    parser.add_argument("--max-diagnoses", type=int, default=49)
+    parser.add_argument("--expected-common-diagnoses", type=int)
     parser.add_argument("--seed", type=int, default=17)
     args = parser.parse_args()
 
     split_paths = dict(args.split)
     if len(split_paths) != len(args.split):
         raise ValueError("Duplicate --split name.")
+    if set(split_paths) != {"validation", "test"}:
+        raise ValueError(
+            "E5 requires exactly --split validation=... and --split test=...."
+        )
+    if args.examples_per_diagnosis <= 0:
+        raise ValueError("--examples-per-diagnosis must be positive.")
     evidence_meta = read_json(args.evidences)
     if not isinstance(evidence_meta, dict):
         raise ValueError("--evidences must be a JSON object keyed by evidence ID.")
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     protocol: dict[str, Any] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "seed": args.seed,
-        "examples_per_diagnosis": args.examples_per_diagnosis,
-        "max_diagnoses": args.max_diagnoses,
+        "examples_per_diagnosis_cap": args.examples_per_diagnosis,
+        "diagnosis_support_rule": "eligible diagnosis intersection across supplied splits",
         "primary_adaptation_data": "DiReCT only",
         "mean_activation_control_split": "validation",
         "primary_hidden_state": "CoT-P0/HS32/last_token",
@@ -560,14 +583,58 @@ def main() -> None:
     }
     provided_patient_ids: dict[str, set[str]] = {}
 
+    sampled_by_split: dict[str, list[dict[str, Any]]] = {}
+    scans_by_split: dict[str, dict[str, Any]] = {}
     for split, source_path in split_paths.items():
-        cases, scan = sample_split(
+        sampled, scan = sample_split(
             source_path,
             split=split,
             evidence_meta=evidence_meta,
             seed=args.seed,
             quota=args.examples_per_diagnosis,
-            max_diagnoses=args.max_diagnoses,
+        )
+        sampled_by_split[split] = sampled
+        scans_by_split[split] = scan
+
+    common_diagnoses = common_diagnosis_support(sampled_by_split)
+    if not common_diagnoses:
+        raise ValueError("No eligible diagnosis is represented in every supplied split.")
+    if (
+        args.expected_common_diagnoses is not None
+        and len(common_diagnoses) != args.expected_common_diagnoses
+    ):
+        raise ValueError(
+            f"Found {len(common_diagnoses)} diagnoses on common eligible support; "
+            f"expected {args.expected_common_diagnoses}."
+        )
+    protocol["common_diagnosis_count"] = len(common_diagnoses)
+    protocol["common_diagnoses"] = common_diagnoses
+    print(
+        f"[population] common eligible diagnoses={len(common_diagnoses)} "
+        f"cap={args.examples_per_diagnosis}",
+        flush=True,
+    )
+
+    common_set = set(common_diagnoses)
+    for split, source_path in split_paths.items():
+        cases = [
+            row
+            for row in sampled_by_split[split]
+            if str(row["diagnosis_id"]) in common_set
+        ]
+        scan = dict(scans_by_split[split])
+        split_support = {
+            str(row["diagnosis_id"]) for row in sampled_by_split[split]
+        }
+        scan.update(
+            {
+                "diagnoses_selected": len(common_diagnoses),
+                "cases_selected": len(cases),
+                "selected_diagnoses": common_diagnoses,
+                "diagnoses_excluded_outside_common_support": sorted(
+                    split_support - common_set
+                ),
+            }
         )
         counterfactuals = [
             derived

@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 from scripts.prepare_ddxplus_e5 import (
+    common_diagnosis_support,
     counterfactual_cases,
     gold_named,
     make_activation_row,
@@ -67,12 +68,39 @@ def test_sampling_is_balanced_and_split_namespaced(tmp_path):
         evidence_meta=evidence_meta(),
         seed=17,
         quota=3,
-        max_diagnoses=2,
     )
     assert len(cases) == 6
-    assert summary["diagnoses_selected"] == 2
+    assert summary["diagnoses_with_eligible_cases"] == 2
     assert all(row["base_id"].startswith("ddxplus_validation_") for row in cases)
     assert all(row["cue_count"] == 3 for row in cases)
+
+
+def test_sampling_keeps_short_diagnosis_buckets(tmp_path):
+    path = tmp_path / "validate.csv"
+    write_patients(path, n_per_label=2)
+    cases, summary = sample_split(
+        path,
+        split="validation",
+        evidence_meta=evidence_meta(),
+        seed=17,
+        quota=3,
+    )
+    assert len(cases) == 4
+    assert summary["short_diagnoses"] == {"condition_a": 2, "condition_b": 2}
+
+
+def test_common_support_excludes_split_specific_diagnoses():
+    sampled = {
+        "validation": [
+            {"diagnosis_id": "condition_a"},
+            {"diagnosis_id": "condition_b"},
+        ],
+        "test": [
+            {"diagnosis_id": "condition_b"},
+            {"diagnosis_id": "condition_c"},
+        ],
+    }
+    assert common_diagnosis_support(sampled) == ["condition_b"]
 
 
 def test_counterfactual_uses_same_evidence_native_value(tmp_path):
@@ -84,7 +112,6 @@ def test_counterfactual_uses_same_evidence_native_value(tmp_path):
         evidence_meta=evidence_meta(),
         seed=17,
         quota=2,
-        max_diagnoses=2,
     )
     rows = counterfactual_cases(cases[0], evidence_meta(), seed=17)
     deleted = next(row for row in rows if row["variant"] == "cue_deleted")
@@ -115,7 +142,6 @@ def test_primary_activation_row_is_cot_p0_and_direct_is_separate(tmp_path):
         evidence_meta=evidence_meta(),
         seed=17,
         quota=2,
-        max_diagnoses=2,
     )
     case = cases[0]
 
@@ -146,7 +172,6 @@ def test_hard_shuffle_is_same_diagnosis_and_a_derangement(tmp_path):
         evidence_meta=evidence_meta(),
         seed=17,
         quota=5,
-        max_diagnoses=2,
     )
     by_id = {row["base_id"]: row for row in cases}
     pairs = pair_hard_shuffles(cases)
