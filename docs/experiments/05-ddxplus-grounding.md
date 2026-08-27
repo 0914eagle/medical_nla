@@ -174,6 +174,84 @@ OUT_DIR=/data/heejae/restricted/direct/e2/ddxplus_finding_value_probe_val_v1 \
 근거가 없으므로, 같은 target으로 Medical-NLA SFT를 확장하지 않는다. 통과하면 validation-selected
 layer와 train-supported ontology를 동결한 뒤에만 E5 test activation과 최종 평가를 실행한다.
 
+### 4. Validation-selected probe를 동결한 뒤 locked test 실행
+
+2026-08-28 validation 결과는 HS24를 선택했다. Finding F1은 HS16과 사실상 동률이지만,
+사전 고정한 own-minus-shuffled 우선 규칙과 native-value gap 모두 HS24를 선택하므로 test에서는
+HS24만 추출한다. Test에서 layer, threshold, ontology, checkpoint를 다시 고르지 않는다.
+
+Server 62에서 test counterfactual rows를 `base_id`로 분할하고 frozen artifact와 함께 server 125에
+복사한다. Original/deletion/value-edit가 반드시 같은 shard에 남는다.
+
+```bash
+E5=/data/heejae/medical_nla/data/ddxplus_e5_canonical_v1
+PROBE=/data/heejae/medical_nla/results/ddxplus_finding_value_probe_val_v1
+
+python scripts/shard_jsonl_by_key.py \
+  --input "$E5/activation_rows_test.jsonl" \
+  --out-dir "$E5/activation_shards_test_cot_p0_hs24_v1" \
+  --num-shards 2 \
+  --key base_id
+
+rsync -a --info=progress2 \
+  "$E5/activation_shards_test_cot_p0_hs24_v1/" \
+  eagle0914@165.132.76.125:/data1/heejae/medical_nla/data/ddxplus_e5_canonical_v1/activation_shards_test_cot_p0_hs24_v1/
+
+scp "$PROBE/finding_value_hs24.pt" \
+  eagle0914@165.132.76.125:/data1/heejae/medical_nla/results/frozen_ddxplus_finding_value_hs24.pt
+```
+
+```bash
+# Server 62
+E5=/data/heejae/medical_nla/data/ddxplus_e5_canonical_v1
+PROBE=/data/heejae/medical_nla/results/ddxplus_finding_value_probe_val_v1
+DATA_ROOT=/data/heejae GPUS=2,3 \
+INPUT_FILE="$E5/activation_shards_test_cot_p0_hs24_v1/shard_000_of_002.jsonl" \
+RUN_NAME=ddxplus_e5_test_cot_p0_hs24_shard0_v1 \
+OUT_DIR="$E5/activations/ddxplus_e5_test_cot_p0_hs24_shard0_v1" \
+FROZEN_ARTIFACT="$PROBE/finding_value_hs24.pt" \
+  nohup bash scripts/run_ddxplus_e5_locked_test_activations.sh \
+  > /data/heejae/medical_nla/logs/ddxplus_e5_test_cot_p0_hs24_shard0_v1.log 2>&1 &
+
+# Server 125
+E5=/data1/heejae/medical_nla/data/ddxplus_e5_canonical_v1
+DATA_ROOT=/data1/heejae GPUS=0,1 \
+INPUT_FILE="$E5/activation_shards_test_cot_p0_hs24_v1/shard_001_of_002.jsonl" \
+RUN_NAME=ddxplus_e5_test_cot_p0_hs24_shard1_v1 \
+OUT_DIR="$E5/activations/ddxplus_e5_test_cot_p0_hs24_shard1_v1" \
+FROZEN_ARTIFACT=/data1/heejae/medical_nla/results/frozen_ddxplus_finding_value_hs24.pt \
+  nohup bash scripts/run_ddxplus_e5_locked_test_activations.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_e5_test_cot_p0_hs24_shard1_v1.log 2>&1 &
+```
+
+완료 후 shard 1을 server 62로 가져와 HS24 manifest를 병합하고 frozen evaluator를 실행한다.
+
+```bash
+# Server 62
+E5=/data/heejae/medical_nla/data/ddxplus_e5_canonical_v1
+PROBE=/data/heejae/medical_nla/results/ddxplus_finding_value_probe_val_v1
+
+rsync -a --info=progress2 \
+  eagle0914@165.132.76.125:/data1/heejae/medical_nla/data/ddxplus_e5_canonical_v1/activations/ddxplus_e5_test_cot_p0_hs24_shard1_v1/ \
+  "$E5/activations/ddxplus_e5_test_cot_p0_hs24_shard1_v1/"
+
+python scripts/merge_activation_shards.py \
+  --shard-roots \
+    "$E5/activations/ddxplus_e5_test_cot_p0_hs24_shard0_v1" \
+    "$E5/activations/ddxplus_e5_test_cot_p0_hs24_shard1_v1" \
+  --out-dir "$E5/activations/ddxplus_e5_test_cot_p0_hs24_merged_v1" \
+  --path-map /data1/heejae=/data/heejae \
+  --expected-layers 24
+
+DATA_ROOT=/data/heejae GPU=2 \
+ARTIFACT="$PROBE/finding_value_hs24.pt" \
+MANIFEST="$E5/activations/ddxplus_e5_test_cot_p0_hs24_merged_v1/layer24/last_token/manifest.jsonl" \
+HARD_PAIRS="$E5/hard_shuffle_pairs_test.jsonl" \
+OUT_DIR=/data/heejae/medical_nla/results/ddxplus_finding_value_probe_locked_test_v1 \
+  nohup bash scripts/run_ddxplus_finding_value_locked_test.sh \
+  > /data/heejae/medical_nla/logs/ddxplus_finding_value_probe_locked_test_v1.log 2>&1 &
+```
+
 ## Validation activation extraction
 
 Locked test를 열기 전에 official validation의 CoT-P0만 HS16/24/32에서 추출한다. Wrapper에는

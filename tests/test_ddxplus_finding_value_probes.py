@@ -3,6 +3,10 @@ import json
 import torch
 
 from scripts.prepare_ddxplus_probe_train import cue_statistics
+from scripts.evaluate_ddxplus_finding_value_probes import (
+    paired_counterfactual_metrics,
+    value_coverage,
+)
 from scripts.train_ddxplus_finding_value_probes import (
     binary_auroc,
     donor_targets,
@@ -111,3 +115,45 @@ def test_binary_auroc_and_population_statistics():
 
     targets = finding_targets(rows, ["fever", "pain"])
     assert targets.tolist() == [[1.0, 1.0], [1.0, 0.0]]
+
+
+def test_locked_evaluator_scores_deletion_and_native_value_edit():
+    rows = [
+        {
+            **row("a", ["fever"], ["high"]),
+            "variant": "original",
+        },
+        {
+            **row("a", [], []),
+            "id": "a__cue_deleted",
+            "variant": "cue_deleted",
+            "cf_original_evidence_id": "fever",
+        },
+        {
+            **row("a", ["fever"], ["low"]),
+            "id": "a__value_edited",
+            "variant": "value_edited",
+            "cf_original_evidence_id": "fever",
+            "cf_original_value_id": "high",
+            "cf_replacement_value_id": "low",
+        },
+    ]
+    finding_logits = torch.tensor([[5.0], [-5.0], [5.0]])
+    value_logits = torch.tensor([[5.0, 0.0], [0.0, 0.0], [0.0, 5.0]])
+
+    metrics = paired_counterfactual_metrics(
+        rows,
+        finding_logits,
+        value_logits,
+        ["fever"],
+        {"fever": ["high", "low"]},
+        {"fever": (0, 2)},
+        0.5,
+    )
+
+    assert metrics["deletion"]["removal_success_given_original_hit"] == 1.0
+    assert metrics["value_edit"]["replacement_hit"] == 1.0
+    assert metrics["value_edit"]["old_value_persistence"] == 0.0
+    assert metrics["value_edit"]["clean_switch_given_original_old"] == 1.0
+    coverage = value_coverage(rows[:1], {"fever": ["high", "low"]})
+    assert coverage["target_coverage"] == 1.0
