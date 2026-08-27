@@ -8,9 +8,9 @@
 |---|---|---|---|
 | E0 | DiReCT data/evaluator audit | 완료 | canonical split, evaluator smoke |
 | E1 | Source CoT and activation extraction | 완료 | 496 cases, P0/P1/P2 x HS16/24/32 |
-| E2 | Capability baselines | 완료 | Table 1, HS32 primary baseline |
-| E3 | Medical-NLA training | 완료 | DiReCT P0 SFT-only 3 seeds; full objective 보류 |
-| E4 | DiReCT explanation evaluation | validation readout 실행 가능 | Table 2, Figure 2 |
+| E2 | P0 representation audit | 부분 완료 | diagnosis/category probe 완료; source-decision/finding/value probe 대기 |
+| E3 | Medical-NLA training | SFT-only 완료 | DiReCT P0 seeds 17/29/43 완료; reconstruction/full objective 대기 |
+| E4 | DiReCT explanation evaluation | validation 완료 | 50-case 공통 평가 완료; locked 72/106 Table 2 대기 |
 | E5 | DDXPlus activation grounding | 정본 빌더 완료, 실행 대기 | Table 3, Figure 3 |
 | E6 | Text patching | E5 조건부 | Table 4, Figure 4 |
 | E7 | MCR external OOD | 후순위 | frozen-checkpoint OOD table |

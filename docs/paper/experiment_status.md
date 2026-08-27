@@ -6,9 +6,9 @@
 |---|---|---|---|
 | E0 DiReCT audit/evaluator | 완료 | 496행 canonical split, official oracle smoke | E1-E4 |
 | E1 source/activation | 완료 | pilot 496 source outputs, P0/P1/P2 x HS16/24/32 완전성 확인 | E2 |
-| E2 capability baselines | 완료 | probe, raw/calibrated output-head, evidence-quoted AI semantic audit 312/312 | E3-E5 |
-| E3 Medical-NLA train | 완료 | DiReCT P0 SFT-only seeds 17/29/43, content-loss checkpoint 선택 | E4-E6 |
-| E4 DiReCT explanation | validation readout 실행 가능 | common 50-row readout + official metrics + evidence-quoted judge | Table 2 |
+| E2 P0 representation audit | 부분 완료 | diagnosis/category probe와 output-head 완료; source-decision/finding/value probe 대기 | E3-E5 |
+| E3 Medical-NLA train | SFT-only 완료 | DiReCT P0 seeds 17/29/43 완료; reconstruction/full objective 대기 | E4-E6 |
+| E4 DiReCT explanation | validation 완료 | 공통 50-case official-compatible 평가 완료; locked 72/106 대기 | Table 2 |
 | E5 DDX grounding | 데이터 빌더 완료, 실행 대기 | official validate/test 각 49x100, native counterfactual, shuffle/round-trip 통과 | RQ2, E6 gate |
 | E6 text patching | 조건부 | target change + no-op preservation | RQ3 |
 | E7 MCR OOD | 후순위 | frozen checkpoint external test | generalization |
@@ -80,7 +80,8 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
 
 ## 즉시 할 일
 
-1. CoT를 DiReCT official prediction schema로 변환한 뒤 official semantic matching 실행
+1. ~~CoT와 네 NLA arm의 validation claim extraction 및 official semantic matching~~ 완료.
+   SFT-only는 CoT보다 낮아 최종 방법이 아니라 실패 ablation으로 고정
 2. ~~Early forced-answer candidate sequence baseline과 validation 통제~~ 완료. Raw category
    25-way `.4808/.6731/.5814`, raw PDD 61-way `.1538/.4423/.3168`, matched raw PDD
    49-way `.1538/.5192/.3250`(top-1/top-5/MRR). PDD의 한 후보 35/52 쏠림은 49-way에서도
@@ -92,7 +93,8 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
 6. ~~62번에서 logical population/split hash가 125번과 동일한지 확인~~ 완료
 7. ~~기존 activation을 새 split ID로 재색인하고 join/completeness 100% 확인~~ 완료
 8. ~~Validation 52행에서 probe regularization을 선택~~ 완료. Locked test 평가 전 checkpoint와 분석 코드를 고정
-9. E3 전에 full objective를 RL/preference 방식으로 구현할지, SFT-only 논문으로 제한할지 결정
+9. Source-decision/finding-presence/finding-value P0 probe를 validation에서 구현·실행하고
+   Medical-NLA가 책임질 수 있는 target family를 고정
 10. ~~Vanilla AV P0 semantic audit 312행~~ 완료. Primary default/HS32에서 source answer,
     gold PDD, category 모두 0/52; HS16 category만 두 prompt에서 1/52. 이 결과는 진단 target의
     명시적 의미 복원 실패이며 observation 설명 품질이나 grounding 결과가 아님. Exact
@@ -101,26 +103,24 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
 
 ## 08-27 이후 실행 순서
 
-1. **E3 SFT-only 3 seeds**: train 266/validation 52의 HS32/P0만 읽고 gold-label-in-note
-   18/2행을 제외해 최대 248/50을 사용한다. Target 관찰은 note에 exact-grounded된 DiReCT
-   physician observation이고, `<answer>`는 gold가 아니라 같은 케이스에서 backbone이 실제로
-   낸 source answer다. Test 72+106은 읽지 않는다.
-2. **E4 validation 평가**: 세 seed의 readout을 같은 extractor와 official DiReCT evaluator로
-   평가한다. Epoch는 각 seed의 validation content loss로 고정하며, seed를 골라 버리지 않고
-   mean/SD를 보고한다.
-3. **방법 동결 후 test 1회**: seen 72와 PDD-heldout 106에서 vanilla/CoT/SFT-only를 같은
+1. **E2 target audit 완결**: source decision, finding presence, finding value가 CoT-P0에서
+   decode 가능한지 probe와 shuffle control로 확인한다. HS16/24/32는 validation에서만 비교한다.
+2. **E3 full objective 구현**: SFT-only 3-seed 실패를 기준선으로 두고 reconstruction과
+   pair-specificity를 추가한다. DDXPlus를 학습에 쓸 경우 evaluation pair와 완전히 분리한다.
+3. **E4 validation 재평가**: reconstruction/full 후보를 같은 50-case extractor와 official
+   evaluator로 비교해 method를 고정한다. Seed를 골라 버리지 않고 mean/SD를 보고한다.
+4. **방법 동결 후 test 1회**: seen 72와 PDD-heldout 106에서 CoT/vanilla/SFT-only/full을 같은
    evaluator로 비교한다. 이 시점 이후 prompt, layer, target schema를 수정하지 않는다.
-4. **E5 DDXPlus grounding**: `prepare_ddxplus_e5.py`로 official validation/test를 분리한
+5. **E5 DDXPlus grounding**: `prepare_ddxplus_e5.py`로 official validation/test를 분리한
    정본 population을 먼저 만들고, frozen SFT-only adapter에 matched/shuffled, zero/validation-
-   mean activation, cue deletion/native-value edit, AV-to-AR round-trip을 적용한다. Test에서
+   mean activation, finding deletion/native-value edit, AV-to-AR round-trip을 적용한다. Test에서
    population, donor 또는 threshold를 다시 선택하지 않는다.
-5. **E6 조건부 patching**: E5의 pair gap과 cue-specific change가 통과할 때만 실행한다.
-6. **E7 MCR OOD**: 핵심 표가 닫힌 뒤 frozen checkpoint의 외적 일반화로만 실행한다.
+6. **E6 조건부 patching**: E5의 pair gap과 finding-specific change가 통과할 때만 실행한다.
+7. **E7 MCR OOD**: 핵심 표가 닫힌 뒤 frozen checkpoint의 외적 일반화로만 실행한다.
 
 현재 주 큐에서 제외하는 작업은 human audit, calibrated likelihood 추가 실행, task-aligned
-prompt 및 HS16/24 추가 sweep, P1/P2 학습, full RL/reconstruction objective, E5 전 patching,
-MCR 조기 실행이다. SFT-only가 임상 정렬은 개선하지만 E5 grounding에 실패할 때만 full
-objective를 다시 설계한다.
+prompt 및 HS16/24 추가 sweep, P1/P2 학습, E5 전 patching, MCR 조기 실행이다. Full objective는
+SFT-only가 이미 임상 정렬에 실패했으므로 선택적 후속이 아니라 다음 방법 개발 단계다.
 
 ## 두 서버 병렬 실행 원칙
 

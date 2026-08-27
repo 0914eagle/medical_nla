@@ -1,8 +1,9 @@
 # Medical-NLA 평가 설계 (2026-08-26)
 
-현재 논문 전체 정본은 [`../paper/README.md`](../paper/README.md), 실행 상태는
+현재 논문 전체 정본은 [`../paper/README.md`](../paper/README.md), 표·그림 형식은
+[`../paper/tables_and_figures.md`](../paper/tables_and_figures.md), 실행 상태는
 [`../paper/experiment_status.md`](../paper/experiment_status.md)를 따른다. 이 문서는
-평가 설계를 상세히 설명하는 교수님 보고용 문서다.
+평가 산식과 설계 근거를 상세히 설명하는 교수님 보고용 문서다.
 
 ## 0. 핵심 결정
 
@@ -423,31 +424,34 @@ R_AV = -log MSE(h, AR(z))
 
 #### Panel A. Backbone diagnostic behavior on identical case IDs
 
-| Method | n | Parse coverage | Strict PDD | Disease category | Official semantic diagnosis |
-|---|---:|---:|---:|---:|---:|
-| Direct, answer-prefilled | TBD | TBD | TBD | TBD | TBD |
-| Source CoT | TBD | TBD | TBD | TBD | TBD |
+Seen PDD 72행과 held-out PDD 106행은 별도 panel로 제시한다. 공통 분모는 panel 제목에 적는다.
 
-#### Panel B. CoT-P0 internal readout on identical activations
+| Generation | Parse coverage | Strict PDD | Disease category | Official semantic diagnosis |
+|---|---:|---:|---:|---:|
+| Direct, answer-prefilled | TBD | TBD | TBD | TBD |
+| Source CoT | TBD | TBD | TBD | TBD |
 
-| Method | Coverage | Seen-PDD gold | Held-out-PDD gold | Category gold | Source-decision fidelity | Open evidence | Trained task head | Eval ontology |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Output-head candidate score | TBD | TBD | TBD | TBD | TBD | N/A | no | yes |
-| Linear PDD probe | TBD | TBD | N/A | TBD | TBD | N/A | yes | yes |
-| Vanilla NLA, default prompt | TBD | TBD | TBD | TBD | TBD | TBD | no | no |
-| Vanilla NLA, task-aligned prompt | TBD | TBD | TBD | TBD | TBD | TBD | no | no |
-| Medical-NLA | TBD | TBD | TBD | TBD | TBD | TBD | no | train text only |
+#### Panel B. CoT-P0 decodability audit
+
+| Target | Decoder | Output space | Test seen | Test OOD | Required control |
+|---|---|---|---:|---:|---|
+| Gold disease category | Linear probe | 25-way | TBD | N/A | label shuffle |
+| Gold canonical PDD | Linear probe | 49-way train labels | TBD | N/A | label shuffle |
+| Source decision | Linear probe | frozen source-answer ontology | TBD | TBD | answer shuffle |
+| Finding presence | Multi-label probe | frozen evidence IDs | TBD | TBD | same-diagnosis hard shuffle |
+| Finding value | Conditional probe | frozen native values | TBD | TBD | within-finding value shuffle |
 
 - **Strict PDD/category/official semantic**은 서로 다른 난이도이므로 합치지 않는다.
 - **Source-decision fidelity**는 gold가 아니라 backbone이 실제 생성한 answer를 판독했는지다.
   Source-wrong subgroup에서 gold match와 나란히 보고해 state reading과 context 재풀이를 구분한다.
-- **Output-head candidate score**는 P0 뒤에 각 사전등록 PDD 문자열을 teacher-force하고 label
+- **Output-head candidate score**는 주표가 아니라 validation 행동 기준선이다. P0 뒤에 각 사전등록 PDD 문자열을 teacher-force하고 label
   token 평균 log probability로 순위를 매긴다. 별도 head는 없지만 평가 ontology를 받으므로
   열린 zero-shot 생성이 아니다.
 - **PDD probe의 held-out PDD**는 output node가 없으므로 0이 아니라 N/A다. Category가 train에
   존재할 때 category probe는 별도로 평가할 수 있다.
-- **Open evidence**는 observation/rationale free text다. Probe에 없는 능력이므로 N/A이고,
-  필요하면 appendix에서 ontology와 head 수를 명시한 multi-label probe를 따로 평가한다.
+- Finding presence/value probe는 NLA를 대체하는 설명기가 아니라 해당 target이 P0에서
+  decode 가능한지 확인하는 feasibility audit이다.
+- Layer는 `val_seen=52`에서 HS16/24/32를 모두 비교해 고정하고 주표 열에서 반복하지 않는다.
 - 두 panel 모두 parse/extraction 실패를 삭제하지 않고 coverage와 함께 failure로 센다.
 - Accuracy와 방법 간 차이는 동일 case ID의 paired bootstrap 95% CI를 사용한다.
 
@@ -460,12 +464,16 @@ R_AV = -log MSE(h, AR(z))
 diagnosis)`를 주석했다. 아래 metric은 새로 만든 것이 아니라 DiReCT 논문 Section 3.5의
 정의를 사용한다.
 
-| Method | Text source | n | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| CoT reasoning | generated reasoning | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| Vanilla NLA | P0 activation | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-NLA, SFT only | P0 activation | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-NLA, full objective | P0 activation | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+Seen PDD 72행과 held-out PDD 106행은 별도 panel로 제시하며 `Pool`, `n`, `Text source`는
+caption에서 고정한다.
+
+| Method | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Vanilla NLA | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-AV, SFT only | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, reconstruction | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
 
 Full objective 행은 AR reconstruction 또는 preference/RL objective가 실제 구현되고 smoke를
 통과한 경우에만 유지한다. 현재 학습 코드는 SFT-only다. 모든 method 출력은 동일한 claim
@@ -537,29 +545,41 @@ reasoning에 diagnosis alias가 이미 적힌 행을 제외한 결과와 전체 
 위해 사전등록하는 operational metric**이다. 따라서 논문에서 출처를 “ours”로
 명시하고 산식·shuffle 제약·분모를 함께 공개한다.
 
-| Method | Information channel | Own-case evidence F1 | Shuffled evidence F1 | Case gap | Removed-cue deletion | Untouched-cue retention | Round-trip FVE |
-|---|---|---:|---:|---:|---:|---:|---:|
-| CoT reasoning | input text | TBD | TBD | TBD | TBD | TBD | N/A |
-| Vanilla NLA | activation | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-AV, SFT only | activation | TBD | TBD | TBD | TBD | TBD | N/A 또는 고정 AR |
-| Medical-NLA | activation | TBD | TBD | TBD | TBD | TBD | TBD |
+#### Panel A. Claim grounding and pair specificity
+
+| Method | Finding F1 | Value accuracy | Source-decision fidelity | Hard shuffle | Pair gap |
+|---|---:|---:|---:|---:|---:|
+| CoT | TBD | TBD | TBD | TBD | TBD |
+| Vanilla NLA | TBD | TBD | TBD | TBD | TBD |
+| Medical-AV, SFT only | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, reconstruction | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD |
+
+#### Panel B. Counterfactual response and reconstruction
+
+| Method | Edited-finding response | Untouched retention | Matched FVE | Shuffled FVE | FVE gap |
+|---|---:|---:|---:|---:|---:|
+| Vanilla NLA | TBD | TBD | TBD | TBD | TBD |
+| Medical-AV, SFT only | TBD | TBD | N/A | N/A | N/A |
+| Medical-NLA, reconstruction | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD |
 
 각 열의 정의:
 
-- **Own-case evidence F1**: activation `h_i`에서 생성한 claim `z_i`를 같은 환자의
+- **Finding F1**: activation `h_i`에서 생성한 claim `z_i`를 같은 환자의
   native evidence set `E_i`와 비교한 micro-F1.
-- **Shuffled evidence F1**: 같은 `z_i`를 다른 환자 `E_j`와 비교한 F1. `j`는 같은
+- **Hard shuffle**: 같은 `z_i`를 다른 환자 `E_j`와 비교한 score. `j`는 같은
   diagnosis, 같은 arm, 비슷한 cue count에서 뽑아 질환명·길이 shortcut을 막는다.
-- **Case gap = mean(F1_own - F1_shuffled)**: 양수이고 paired CI가 0을 배제해야 사례
+- **Pair gap = mean(score_own - score_shuffled)**: 양수이고 paired CI가 0을 배제해야 사례
   고유 정보가 있다고 판정한다. 전체 평균 둘을 따로 빼지 않고 행별 차이를 bootstrap한다.
-- **Removed-cue deletion**: 원 판독에서 cue `e`가 읽힌 행 중, 입력 prompt에서 `e`를
-  제거하고 activation을 재추출했을 때 판독에서도 `e`가 사라진 비율.
-- **Untouched-cue retention**: cue `e`를 제거한 뒤에도 나머지 gold cues가 유지된 비율.
+- **Edited-finding response**: 원 판독에서 finding `e`가 읽힌 행 중, 입력 prompt에서 `e`를
+  제거하거나 native value를 바꾸고 activation을 재추출했을 때 해당 claim이 따라 변한 비율.
+- **Untouched retention**: finding `e`를 바꾼 뒤에도 나머지 gold findings가 유지된 비율.
   삭제 성공만 보면 모든 내용을 지운 reader가 높은 점수를 받으므로 반드시 함께 본다.
 - **Round-trip FVE**: AV 문장만 받은 AR이 원 activation을 얼마나 복원하는지다.
   산식은 §7의 NLA FVE를 그대로 쓴다.
 
-CoT 행의 case gap과 cue-removal 값은 **input-text specificity**다. CoT는 prompt를 직접
+CoT 행의 pair gap과 finding-edit 값은 **input-text specificity**다. CoT는 prompt를 직접
 보므로 이 값이 높아도 activation grounding이라고 부르지 않는다. 반대로 NLA 행은 AV가
 원문을 받지 않고 activation만 받는 설정에서 계산하므로 case gap과 반사실 추적이
 activation 의존성의 증거가 된다. 이 공통 열은 “설명 텍스트가 사례 변화에 얼마나
@@ -571,10 +591,10 @@ activation 의존성의 증거가 된다. 이 공통 열은 “설명 텍스트�
 2. patient 간 activation swap
 3. text만 유지하고 activation을 shuffled한 AV-SFT loss/control
 4. diagnosis가 같은 환자끼리의 hard shuffle
-5. 원 cue가 AV 출력에 애초에 없었던 행을 deletion 성공으로 세지 않는 조건부 분모
+5. 원 finding이 AV 출력에 애초에 없었던 행을 edit 성공으로 세지 않는 조건부 분모
 
-**통과 기준**은 test 전에 고정한다. 최소 조건은 NLA에서 `(a) case gap의 95% CI > 0`,
-`(b) removed-cue deletion이 matched control보다 높음`, `(c) untouched retention이
+**통과 기준**은 test 전에 고정한다. 최소 조건은 NLA에서 `(a) pair gap의 95% CI > 0`,
+`(b) edited-finding response가 matched control보다 높음`, `(c) untouched retention이
 사전등록한 하한 이상`, `(d) Medical-NLA FVE가 mean baseline보다 높음`이다.
 
 ---
@@ -585,15 +605,25 @@ activation 의존성의 증거가 된다. 이 공통 열은 “설명 텍스트�
 실행한다. 자연어를 prompt에 추가하는 것과 activation을 자연어 bottleneck을 통해
 수정하는 것을 구분해야 한다.
 
-| Intervention | No-op top-1 preservation | No-op KL | Edited-value decoding | Target logit delta | Off-target KL | Target behavior rate |
-|---|---:|---:|---:|---:|---:|---:|
-| Plain-text prompt edit | N/A | N/A | TBD | TBD | TBD | TBD |
-| Raw activation patch | TBD | TBD | TBD | TBD | TBD | TBD |
-| Vanilla NLA text patch | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-NLA text patch | TBD | TBD | TBD | TBD | TBD | TBD |
+#### Panel A. Identity preservation and target selectivity
 
-- **Plain-text prompt edit**: 같은 문장을 user prompt에 직접 넣는 baseline이다. 이것이
-  없으면 효과가 NLA patching 때문인지 단순 힌트 때문인지 구분할 수 없다.
+| Intervention | Identity preservation | Edited-value decoding | Target logit delta | Off-target KL |
+|---|---:|---:|---:|---:|
+| Raw activation patch | TBD | TBD | TBD | TBD |
+| Vanilla NLA round-trip | TBD | TBD | TBD | TBD |
+| Medical-NLA round-trip | TBD | TBD | TBD | TBD |
+| Oracle counterfactual activation | TBD | TBD | TBD | TBD |
+
+#### Panel B. Final behavioral utility
+
+| Policy | Overall accuracy | Wrong-to-right | Right-to-wrong | Net correction | Intervention rate |
+|---|---:|---:|---:|---:|---:|
+| No intervention | TBD | TBD | TBD | 0 | 0 |
+| Patch all | TBD | TBD | TBD | TBD | 1.0 |
+| Probe-gated | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA-gated | TBD | TBD | TBD | TBD | TBD |
+| Oracle-gated | TBD | TBD | TBD | TBD | TBD |
+
 - **Raw activation patch**: 실제 counterfactual prompt에서 추출한 activation을 원 run에
   직접 patch하는 oracle/상한이다.
 - **NLA text patch**: `h -> AV text -> native-value edit -> AR -> h_edit` 후 같은
@@ -611,6 +641,8 @@ activation 의존성의 증거가 된다. 이 공통 열은 “설명 텍스트�
   작을수록 선택적인 개입이다.
 - **Target behavior rate**: 실제 생성 답이 목표 방향으로 바뀐 비율. 반사실 gold가 없는
   경우 이를 accuracy improvement라고 부르지 않는다.
+- **Net correction**: `wrong-to-right - right-to-wrong`이다. Validation에서 threshold를
+  고정한 뒤 locked test에서 paired CI가 0을 배제해야 전체 성능 개선을 주장한다.
 
 주 분석은 case-level paired bootstrap CI를 쓰고, edit type별로 `present/absent`, location,
 severity를 분리한다. 많은 edit를 한 평균 하나로 합치면 쉬운 present/absent가 어려운
@@ -645,34 +677,20 @@ Clinical note ──> target medical LLM ──> CoT ──> diagnosis
 그림 안에서 `clinical alignment != activation grounding`을 두 개의 별도 gate로
 표시한다. 이 그림은 숫자를 담지 않고 논문의 전체 논리를 한 번에 설명한다.
 
-### Figure 2. 한 DiReCT 사례의 설명 비교
+### Figure 2. P0 decodability and layer sensitivity
 
-Table 2의 평균을 막대그래프로 반복하지 않는다. 동일 clinical note 한 건에 대해
-다음을 열로 배치한다.
-
-```text
-Physician gold tree | CoT | Vanilla NLA | SFT-only | Medical-NLA
-```
-
-- 초록: gold observation/rationale/diagnosis edge와 대응
-- 회색: gold에는 있으나 누락
-- 빨강: note 또는 gold tree에 근거 없는 claim
-- 주황: observation은 맞지만 rationale나 diagnosis edge가 틀림
-
-사례는 test 결과를 본 뒤 가장 예쁜 예시를 고르지 않는다. 본문 정성 그림은 validation
-사례에서 고른다. 예: `CoT와 Medical-NLA의 Expall 차이가 중앙값에 가장 가까우면서 gold
-observation 수가 전체 중앙값에 가까운 사례`. 성공 사례 하나와 failure 사례 하나를
-두 panel로 두고, test 사례를 꼭 쓸 경우에는 method output을 보기 전에 note 길이와 gold
-observation 수만으로 ID를 사전등록한다.
+Validation `val_seen=52`의 target x HS16/24/32 probe 성능을 heatmap 또는 grouped point
+plot으로 표시한다. Majority와 shuffled-label control을 함께 두고, locked-test 값은 넣지
+않는다. 이 그림은 Table 1B가 선택된 layer 하나만 보고하는 이유를 시각적으로 설명한다.
 
 ### Figure 3. Activation-grounding counterfactual
 
 두 panel을 권장한다.
 
-1. **사례 panel**: 원 prompt/activation/readout과 cue 하나를 제거한
-   prompt/CoT 및 activation/NLA readout을 나란히 보여준다. 삭제 cue와 유지 cue를
+1. **사례 panel**: 원 prompt/activation/readout과 finding 하나를 제거한
+   prompt/CoT 및 activation/NLA readout을 나란히 보여준다. 삭제 finding과 유지 finding을
    색으로 표시해 같은 반사실에 두 설명 채널이 어떻게 반응하는지 비교한다.
-2. **분포 panel**: 모든 test pair의 `F1_own - F1_shuffled`, removed-cue deletion,
+2. **분포 panel**: 모든 test pair의 `F1_own - F1_shuffled`, edited-finding response,
    untouched retention을 CoT/vanilla/SFT-only/full별 violin/ECDF로 보여준다.
 
 Table 3는 평균과 CI를 제공하고, Figure 3는 소수 outlier가 평균을 만든 것이 아니라
@@ -694,12 +712,13 @@ Table 4가 통과했을 때만 본문에 넣는다.
 
 | Figure | 내용 | 부록으로 보내는 이유 |
 |---|---|---|
-| A1 | P0/P1/cue-token x L16/L24/L32 heatmap | 위치 선택 ablation이지 주 결론이 아님 |
-| A2 | diagnosis/cue별 held-out 성능 | 본문 평균의 이질성 감사 |
+| A1 | P0/P1/P2 position sensitivity | P0 선택과 answer leakage 감사 |
+| A2 | diagnosis/finding별 held-out 성능 | 본문 평균의 이질성 감사 |
 | A3 | AV CE, AR MSE, FVE, shuffled-control 학습 곡선 | 최적화 안정성·overfit 감사 |
 | A4 | hallucination/omission/wrong-relation failure taxonomy | 정성 실패 분석 |
 | A5 | MCR external-OOD 사례 | gold reasoning tree가 없어 주 설명 Figure와 분리 |
 | A6 | seed와 layer sensitivity | test layer 선택·분산 감사 |
+| S1 | 공개 가능한 DiReCT 설명 비교 | 제한 데이터 노출을 피하면서 오류 유형만 예시 |
 
 ---
 
@@ -870,16 +889,16 @@ DDXPlus native evidence에서 다음 paired set을 만든다.
 
 ```text
 original prompt / original activation
-cue-e removed prompt / counterfactual activation
+finding-e removed prompt / counterfactual activation
 same-diagnosis other-patient activation
 mean activation
 ```
 
-원문 cue가 tokenizer에서 차지하는 span과 삭제 후 prompt의 형식 동일성을 검사한다.
+원문 finding이 tokenizer에서 차지하는 span과 삭제 후 prompt의 형식 동일성을 검사한다.
 삭제 때문에 문법이 깨지지 않도록 template slot 단위로 제거한다. Hard shuffle은 같은
-diagnosis와 cue-count bin 안에서 derangement permutation을 고정한다.
+diagnosis와 finding-count bin 안에서 derangement permutation을 고정한다.
 
-**H3 grounding 통과 조건**: Table 3의 case gap CI가 0보다 크고, cue deletion과
+**H3 grounding 통과 조건**: Table 3의 pair gap CI가 0보다 크고, edited-finding response와
 untouched retention이 함께 통과하며, full NLA FVE가 mean baseline보다 높다. 하나라도
 실패하면 “clinically aligned readout”까지만 주장하고 “activation-grounded”는 철회한다.
 

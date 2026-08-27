@@ -12,7 +12,7 @@ E5에서 주 Medical-NLA가 사례별 pair와 evidence counterfactual을 읽는�
 1. Identity: 판독 text를 수정하지 않고 AR로 복원
 2. No-op preservation: 원 answer, target logits, non-target distribution 보존
 3. Dataset-native edit: DDXPlus evidence value 하나만 변경
-4. Targeted state test: edited attribute probe/readout 변화
+4. Targeted state test: edited finding-value probe/readout 변화
 5. Behavior test: diagnosis likelihood와 final answer 변화
 
 ## 비교군
@@ -25,6 +25,8 @@ E5에서 주 Medical-NLA가 사례별 pair와 evidence counterfactual을 읽는�
 
 ## 지표
 
-No-op preservation, edited attribute success, target logit delta, off-target KL, diagnosis change,
-wrong-to-right와 right-to-wrong을 모두 보고한다. 성능 개선은 net correction과 paired CI가
-0을 배제할 때만 주장한다.
+Table 4A는 identity preservation, edited-value decoding, target logit delta, off-target KL을
+보고한다. Table 4B는 no intervention, patch-all, probe-gated, Medical-NLA-gated,
+oracle-gated policy에 대해 overall accuracy, wrong-to-right, right-to-wrong, net correction,
+intervention rate를 보고한다. 성능 개선은 net correction의 paired CI가 0을 배제할 때만
+주장한다.

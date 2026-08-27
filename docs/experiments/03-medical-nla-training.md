@@ -5,15 +5,22 @@
 의료 설명 supervision이 vanilla NLA를 개선하면서도 분류기 붕괴와 activation 무시를
 피할 수 있는가?
 
+## 학습 전 게이트
+
+E2에서 P0에 decode 가능하다고 확인된 target family만 Medical-NLA의 필수 내용으로 평가한다.
+Probe score를 자유 산문 target으로 그대로 복사하지는 않는다. Probe는 정보 존재와 layer를
+감사하고, AV의 개별 claim faithfulness는 E5의 matched/shuffled, counterfactual, AR로 검증한다.
+
 ## 학습군
 
 | Method | Clinical text | Reconstruction | Pair specificity |
 |---|---:|---:|---:|
 | Vanilla NLA | No | pretrained | No |
 | SFT only | Yes | No | No |
+| Reconstruction Medical-NLA | Yes | Yes | No |
 | Full Medical-NLA | Yes | Yes | Yes |
 
-현재 주 실험으로 실행하는 것은 `SFT only`뿐이다. `train_medical_nla_lora.py`는 target token
+현재 완료된 것은 `SFT only` 세 seed뿐이다. `train_medical_nla_lora.py`는 target token
 cross-entropy만 계산하며 AR reconstruction과 pair-specificity objective는 구현하지 않았다.
 따라서 Full Medical-NLA는 아래 구현 게이트를 통과하기 전에는 실행 이름으로 사용하지 않는다.
 
@@ -33,7 +40,7 @@ strict/category/official semantic correct 수를 각각 기록한다.
 
 ### 08-27 SFT-only v1 target
 
-첫 실행은 목표 충돌을 피하기 위해 두 필드만 학습한다.
+첫 실행은 목표 충돌을 줄이기 위해 두 필드만 학습했다.
 
 - `<observed>`: `observation_exact_in_note=true`인 physician observation만 사용한다.
 - `<answer>`: physician gold가 아니라 같은 P0 trajectory에서 backbone이 실제로 생성한
@@ -62,6 +69,20 @@ DATA_ROOT=/data1/heejae GPUS=0,1 SEEDS="29" EPOCHS=3 \
 각 서버의 builder가 만든 `summary.md`에서 train/validation 행 수, source-correct/wrong 수,
 ID hash를 먼저 출력한 뒤 GPU 학습을 시작한다. 두 서버의 ID hash가 다르면 학습 결과를
 합치지 않는다.
+
+## 최종 출력 계약
+
+Final Medical-NLA는 데이터셋별 고정 slot이나 정확히 세 개의 claim을 강제하지 않는다.
+
+```xml
+<explanation>
+- zero or more concise, activation-supported clinical claims
+</explanation>
+```
+
+임상 내용이 안정적으로 읽히지 않으면 abstain할 수 있어야 한다. Observation, value, diagnosis,
+relation 분류는 method-blind post-hoc extractor가 수행한다. 현재 SFT-only v1의
+`<observed>/<answer>` schema는 warm-start ablation이며 최종 자유 판독 계약과 구분한다.
 
 ## 필수 통제
 

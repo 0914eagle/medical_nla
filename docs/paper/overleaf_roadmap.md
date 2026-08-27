@@ -11,7 +11,8 @@
 ## 결과가 들어온 뒤 옮길 부분
 
 - E2 완료 후 Table 1 확정. 공개 AV/AR 호환 때문에 HS32가 primary이며 HS16/24는 sensitivity
-- E4 완료 후 Table 2와 Figure 2
+- E2 target probe 완료 후 Table 1과 Figure 2 확정
+- E4 locked test 완료 후 Table 2
 - E5 완료 후 Table 3과 Figure 3, `activation-grounded` 문구 확정
 - E6 완료 후 Table 4와 Figure 4, 성능 개선 문구 확정
 
@@ -22,7 +23,7 @@
 - layer/position sweep와 P1 leakage sensitivity
 - 모든 prompt, decoding, LoRA hyperparameter
 - 추가 seed, by-category/PDD 결과, human audit rubric
-- 실패한 SFT-only/classifier-collapse 및 vanilla NLA 사례
+- 실패한 SFT-only/classifier-collapse 및 vanilla NLA 사례와 DiReCT 정성 Figure S1
 
 ## 제출 전 일관성 검사
 

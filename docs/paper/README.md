@@ -52,9 +52,13 @@ backbone 행동을 선택적으로 바꾸는지 평가한다.
 
 | RQ | 질문 | 핵심 산출물 |
 |---|---|---|
-| RQ1 | CoT, output head, probe, vanilla NLA의 능력 경계는 무엇인가 | Table 1 |
-| RQ2 | Medical-NLA가 임상 정렬과 activation grounding을 함께 개선하는가 | Tables 2-3, Figures 2-3 |
+| RQ1 | Medical-NLA가 CoT와 vanilla NLA보다 임상 설명을 잘 복원하는가 | Table 2 |
+| RQ2 | 그 설명이 실제 activation과 사례별 finding 변화에 근거하는가 | Table 3, Figure 3 |
 | RQ3 | 검증된 판독을 편집·복원해 안전하게 행동을 개선할 수 있는가 | Table 4, Figure 4 |
+
+Table 1과 Figure 2는 세 RQ 전에 수행하는 P0 representation audit이다. 닫힌 정보가 실제로
+decode 가능한지 확인하고 layer를 validation에서 고정하지만, 그 자체를 Medical-NLA의
+설명 성능이나 faithfulness 결과로 부르지 않는다.
 
 ## 데이터셋 역할
 
@@ -91,8 +95,11 @@ P1은 CoT 안에 최종 진단이 이미 등장할 수 있다. smoke 10건에서
 
 - E0 DiReCT 감사·환자 분리 split·공식 evaluator smoke: 완료
 - E1 source CoT와 P0/P1/P2 activation: 496행 및 4,464 tensors 완료
-- E2 capability baseline: 완료. DiReCT P0 SFT-only 3-seed 학습이 다음 실행이며, 설명 평가,
-  grounding, patching은 순차 게이트로 대기
+- E2 representation audit: diagnosis/category probe와 output-head 완료;
+  source-decision/finding/value probe 대기
+- E3 Medical-NLA: SFT-only seeds 17/29/43 완료; reconstruction/full objective 대기
+- E4 explanation evaluation: 공통 50-case validation 완료; locked 72/106 평가 대기
+- E5 grounding과 E6 patching: 아직 주 결과 미실행
 
 현재 171행 test 결과는 P0/P1/P2와 vanilla AV 설계 점검에 이미 사용했으므로
 `exploratory pilot`이다. E3 이후 downstream 평가용 split은 266 train / 52 validation /

@@ -26,35 +26,26 @@ extraction 실패는 분모에서 삭제하지 않고 0점 처리하며 extracti
 LLM-as-a-judge는 official semantic matching에만 사용한다. 독립적인 faithfulness 판정자로
 간주하지 않는다. Judge agreement는 일부 표본에서 수동 검사한다.
 
-## Validation readout 실행
-
-세 seed를 동일한 SFT validation 50행에서 생성한다. 이 50행은 frozen `val_seen` 52행 중
-gold label이 note에 정확히 적힌 2행을 E3와 같은 규칙으로 제외한 집합이다. Seed별 best
-epoch는 이미 validation content loss로 선택됐으며, 여기서 seed 하나를 골라 test를 보고하지
-않는다. 세 seed의 평균과 표준편차를 보고한다.
-
-서버 62는 seed 17/43과 공통 vanilla를 생성한다.
-
-```bash
-DATA_ROOT=/data/heejae GPUS=2,3 SEEDS="17 43" RUN_VANILLA=1 \
-  nohup bash scripts/run_direct_e4_validation_readouts.sh \
-  > /data/heejae/medical_nla/logs/direct_e4_validation_17_43.log 2>&1 &
-```
-
-서버 125는 seed 29만 생성한다.
-
-```bash
-DATA_ROOT=/data1/heejae GPUS=0,1 SEEDS="29" RUN_VANILLA=0 \
-  nohup bash scripts/run_direct_e4_validation_readouts.sh \
-  > /data1/heejae/medical_nla/logs/direct_e4_validation_29.log 2>&1 &
-```
-
-각 Medical-NLA 파일은 정확히 50행이어야 한다. Vanilla도 같은 50행을 사용하므로 과거
-52행 E2 prompt audit 값과 직접 섞지 않는다. 이 단계는 생성까지만 담당하며 official schema
-claim extraction과 Llama-3 semantic matching은 별도 E4 evaluator 단계에서 모든 방법에
-동일하게 적용한다.
-
 ## 해석
 
 Table 2가 개선되면 `clinically aligned`라고 말할 수 있다. 하지만 해당 문장이 activation을
 읽었다는 결론은 E5가 통과해야 한다.
+
+## 현재 validation 결과
+
+동일한 50-case validation에서 CoT, vanilla NLA, Medical-AV SFT seeds 17/29/43을 공통
+quote-constrained extractor와 official-compatible evaluator로 평가했다. 이 값은 방법 진단용이며
+locked `test_seen=72`와 `test_pdd_heldout=106`의 Table 2 결과가 아니다.
+
+| Method | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | 50/50 | 0 | .3009 | .3903 | .2349 | .0573 | .0144 |
+| Vanilla NLA | 0/50 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Medical-AV SFT, seed 17 | 50/50 | 0 | .0771 | .0435 | .0343 | 0 | 0 |
+| Medical-AV SFT, seed 29 | 50/50 | 0 | .0133 | .0047 | .0047 | 0 | 0 |
+| Medical-AV SFT, seed 43 | 50/50 | 0 | .0200 | .0029 | .0032 | 0 | 0 |
+
+SFT-only는 structured observation을 생성하게 했지만 CoT보다 임상 정렬이 낮고 seed 편차가
+컸다. 현재 target에 rationale가 없으므로 `Expcom/Expall=0`은 구조상 예상되지만 observation
+계열도 충분하지 않다. 따라서 이 결과를 Medical-NLA 성공으로 쓰지 않고, reconstruction과
+pair-specificity objective가 필요한 근거로 사용한다.

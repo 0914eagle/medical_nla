@@ -2,27 +2,68 @@
 
 ## 질문
 
-생성 전 P0 activation에서 닫힌 진단 label과 열린 임상 내용을 각 방법이 얼마나 읽는가?
+생성 전 P0 activation에서 Medical-NLA가 설명하려는 진단, source decision, finding presence,
+finding value가 먼저 decode 가능한가?
 
 ## 비교 방법
 
-1. Source early forced-answer candidate sequence likelihood
-2. Linear probe
-3. Source CoT
-4. Vanilla NLA/AV
-5. P2 positive leakage control
+1. Source early forced-answer candidate sequence likelihood: backbone 행동 기준선
+2. Gold diagnosis/category linear probe: 현재 완료된 closed-label audit
+3. Source-decision linear probe: 모델이 실제로 낼 답의 사전 상태 audit
+4. Finding-presence multi-label probe: evidence ID별 표현 audit
+5. Finding-value conditional probe: native value/polarity 표현 audit
+6. Vanilla NLA/AV: open-text baseline이며 probe와 같은 accuracy로 합치지 않음
 
 ## 평가
 
-- PDD/category top-1, top-k, MRR
-- Seen vs PDD-heldout
-- Source answer와 gold를 분리한 decision fidelity
-- Open observation/rationale는 DiReCT official evaluator의 호환 가능한 열
-- P0/P1/P2 및 HS16/HS24/HS32 sensitivity
+- PDD/category/source-decision: top-1, top-k, MRR
+- Finding presence: micro/macro AUROC, F1, precision, recall
+- Finding value: conditional accuracy와 macro F1
+- Seen vs PDD-heldout 또는 value-combination OOD
+- Label shuffle, answer shuffle, same-diagnosis hard shuffle
+- HS16/HS24/HS32 validation sensitivity
 
-Probe는 closed-label upper bound다. Open evidence text 열은 `N/A`이며 실패 0점으로
-처리하지 않는다. Vanilla NLA의 자연어 점수가 낮아도 P0 activation에 정보가 없다는
-결론을 바로 내리지 않고 probe와 output head를 같이 본다.
+Probe는 Medical-NLA 학습 전 feasibility audit이자 closed-label 기준선이다. 진단마다 별도
+probe를 만들지 않는다. Diagnosis/category는 하나의 multiclass head, finding presence는 하나의
+multi-label head, finding value는 충분한 표본이 있는 native value를 대상으로 한 conditional
+head를 사용한다. Open evidence text는 probe에 정의되지 않으므로 `N/A`이며 실패 0점으로
+처리하지 않는다. Vanilla NLA의 자연어 결과는 Table 2와 Table 3에서 별도로 평가한다.
+
+## Table 1 보고 규칙
+
+Table 1A에는 동일 locked IDs의 Direct/CoT 행동을 보고한다. Table 1B에는 validation에서 고정한
+decoder의 locked-test decodability를 보고한다. `Layer`는 주표의 반복 열이 아니다.
+HS16/HS24/HS32 세 값은 아래 validation sensitivity 표와 Figure 2에 모두 제시하고, 주표에는
+선택된 layer 하나만 사용한다. 현재 diagnosis/category에서는 HS24가 선택됐지만 Medical-NLA와
+AR의 primary index는 공개 checkpoint 호환 때문에 HS32로 유지한다. 이 둘을 같은 결과라고
+부르지 않는다.
+
+| Target | HS16 | HS24 | HS32 | Majority | 상태 |
+|---|---:|---:|---:|---:|---|
+| Disease category, 25-way | .5000 | **.5962** | .5192 | .0577 | validation 완료 |
+| Canonical PDD, 49-way | .3846 | **.4423** | .3846 | .0962 | validation 완료 |
+| Source decision | TBD | TBD | TBD | TBD | 실행 필요 |
+| Finding presence | TBD | TBD | TBD | TBD | 구현·실행 필요 |
+| Finding value | TBD | TBD | TBD | TBD | 구현·실행 필요 |
+
+`Source decision`은 source model의 자유 생성 문자열을 그대로 class ID로 쓰지 않는다. 먼저
+train/validation에서 normalized answer 재사용률과 frozen PDD/category ontology의 unique mapping
+coverage를 감사한다. Validation label이 train에 충분히 나타나지 않거나 unmatched/ambiguous 비율이
+높으면 이 target은 closed probe에서 제외하고 Table 3의 open-text source fidelity로만 평가한다.
+
+```bash
+python scripts/audit_direct_source_decision_labels.py \
+  --split-dir "$DATA_ROOT/restricted/direct/splits/direct_patient_pdd_confirmatory_v1" \
+  --answers \
+    "$DATA_ROOT/restricted/direct/e1/direct_e1_trainval_v1/source_cot_answers.jsonl" \
+    "$DATA_ROOT/restricted/direct/e1/direct_e1_test_v1/source_cot_answers.jsonl" \
+  --output-json "$DATA_ROOT/restricted/direct/e2/source_decision_label_audit_v1.json" \
+  --summary-md "$DATA_ROOT/restricted/direct/e2/source_decision_label_audit_v1_summary.md"
+```
+
+Finding presence/value는 DiReCT physician deduction을 임의의 fixed label로 바꾸지 않고,
+evidence/value ID가 원자료에 정의된 DDXPlus CoT-P0에서 평가한다. 따라서 Table 1B는 DiReCT
+diagnosis/source-decision panel과 DDXPlus finding/value panel을 분리한다.
 
 Candidate-likelihood baseline은 단일 다음-token logit이나 저장된 P0 벡터의 unembedding이
 아니다. P0 prompt가 먼저 추론하라고 요구하므로 `The answer is`를 강제로 붙인 뒤 각

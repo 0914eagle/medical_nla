@@ -41,17 +41,17 @@ Full objective는 임상 text supervision, activation reconstruction, pair speci
 
 ## 5. Experiments
 
-### 5.1 RQ1: Capability boundary
+### 5.1 Preliminary audit: P0 capability boundary
 
 Output head, probe, CoT, vanilla NLA가 진단과 열린 관찰 정보를 얼마나 복원하는지 본다.
 
-### 5.2 RQ2a: Clinical alignment
+### 5.2 RQ1: Clinical alignment
 
 DiReCT official evaluator와 제한된 human audit로 Table 2를 채운다.
 
-### 5.3 RQ2b: Activation grounding
+### 5.3 RQ2: Activation grounding
 
-DDXPlus hard shuffle, cue deletion, retention, round-trip으로 Table 3을 채운다.
+DDXPlus hard shuffle, finding deletion/value edit, retention, round-trip으로 Table 3을 채운다.
 
 ### 5.4 RQ3: Causal utility
 

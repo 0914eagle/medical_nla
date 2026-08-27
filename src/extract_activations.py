@@ -97,6 +97,17 @@ PASSTHROUGH_FIELDS = [
     "cue_types",
     "cue_evidence_ids",
     "cue_evidence_entries",
+    "cue_value_ids",
+    "cue_value_labels",
+    "cue_polarities",
+    "cue_merged_value_counts",
+    "official_split",
+    "cf_target_index",
+    "cf_original_evidence_id",
+    "cf_original_value_id",
+    "cf_replacement_evidence_id",
+    "cf_replacement_value_id",
+    "cf_replacement_value_label",
     "notes",
     # Which case and which arm of an experiment this row is. Without them a
     # manifest of several arms is one undifferentiated pile, and the analysis
