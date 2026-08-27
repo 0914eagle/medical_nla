@@ -371,7 +371,7 @@ Final recipe에서는 source-correct 행에만 physician clinical target을 적�
 
 ---
 
-## Slide 9B. SFT-only와 Full Medical-NLA는 무엇이 다른가
+## Slide 9B. Vanilla, SFT-only, Reconstruction, Full은 무엇이 다른가
 
 ### Clinical supervision이 뜻하는 것
 
@@ -397,15 +397,46 @@ Reconstruction:       그 설명이 원 activation 정보를 보존하는가?
 Pair specificity:     다른 비슷한 환자가 아니라 바로 이 activation에 해당하는가?
 ```
 
-| Method | Clinical supervision | Reconstruction | Pair specificity | 실험상 역할 |
+| Method | Clinical supervision | AV-AR reconstruction | Pair/counterfactual grounding | 실험상 역할 |
 |---|---:|---:|---:|---|
-| Vanilla NLA | No | pretrained | No | 공개 baseline |
-| Medical-NLA SFT only | Yes | No | No | 의료 SFT만의 효과와 classifier collapse 검사 |
-| Full Medical-NLA | Yes | Yes | Yes | reconstruction/contrastive grounding의 추가 가치 |
+| Vanilla NLA | No | 일반 도메인 pretrained | No | 의료 적응 전 공개 baseline |
+| Medical-AV, SFT only | Yes | No | No | 의료 문장 supervision만의 효과와 classifier collapse 검사 |
+| Medical-NLA, reconstruction | Yes | Yes | No | 자연어가 원 activation 정보를 보존하도록 강제하는 ablation |
+| Medical-NLA, full | Yes | Yes | Yes | 사례 특이성과 evidence 변화 추종까지 강제하는 제안법 |
 
 표의 `No`는 해당 능력이 절대로 없다는 뜻이 아니라, 현재 의료 학습 objective가 그 능력을
-명시적으로 강제하지 않는다는 뜻이다. `Full Medical-NLA`의 `Yes`도 현재 완료된 결과가 아니라
-아래 reconstruction과 hard-negative objective를 구현했을 때의 제안 설계다.
+명시적으로 강제하지 않는다는 뜻이다. `Medical-NLA, reconstruction`과 `Medical-NLA, full`의
+`Yes`도 현재 완료된 결과가 아니라 아래 objective를 실제로 구현했을 때의 제안 설계다.
+
+### Reconstruction과 Full의 핵심 차이
+
+Reconstruction 모델은 생성한 자연어 `z`만으로 원 activation `h`를 복원하도록 AV와 AR을
+학습한다.
+
+```text
+h -> AV -> z -> AR -> h_hat
+L_recon = ||h - h_hat||^2
+```
+
+이 objective는 설명이 activation 복원에 필요한 정보를 담도록 강제한다. 그러나 같은 질환의
+여러 환자에게 비슷한 전형적 설명을 생성하거나, AR이 질환별 평균 activation을 복원해도 matched
+reconstruction이 높을 수 있다. 따라서 reconstruction만 통과했다고 해서 그 설명이 바로 해당
+환자의 activation에 고유하다고 말하지 않는다.
+
+Full 모델은 같은 clinical supervision과 reconstruction 위에 다음 grounding objective를
+추가한다.
+
+1. 같은 activation-text pair가 같은 진단의 shuffled pair보다 높은 점수를 받아야 함
+2. Finding을 삭제하면 해당 claim이 감소해야 함
+3. DDXPlus native value를 바꾸면 해당 value claim이 같은 방향으로 바뀌어야 함
+4. 편집하지 않은 finding은 유지되어야 함
+5. Zero, mean activation과 activation swap이 실제 matched activation보다 낮아야 함
+
+따라서 두 모델의 차이는 다음 한 문장으로 요약한다.
+
+> Reconstruction은 자연어가 activation 정보를 보존하도록 학습하고, Full은 그 정보가 질환별
+> 상투 문구가 아니라 해당 사례의 activation에 고유하며 evidence 변화에 반응하도록 추가로
+> 학습한다.
 
 Full Medical-NLA의 제안 학습은 두 데이터 역할을 결합한다.
 
@@ -416,10 +447,11 @@ Full Medical-NLA의 제안 학습은 두 데이터 역할을 결합한다.
 | AV-AR reconstruction | DiReCT/DDXPlus의 train activation-text pair | `h -> text -> h_hat` | 자연어가 원 activation 정보를 보존하도록 강제 |
 | Locked evaluation only | DiReCT 72/106, DDXPlus heldout, MCR | 학습에 사용하지 않음 | Seen/PDD-OOD, grounding, natural-text OOD 평가 |
 
-원 NLA 구조는 `h -> AV -> text -> AR -> h_hat`이다. Full Medical-NLA는 clinical text를 잘
-생성하는 것뿐 아니라, 생성 text로부터 원 activation을 복원하고 matched pair가 shuffled pair보다
-높은 점수를 받도록 해야 한다. Reconstruction은 FVE로, pair specificity는 matched-shuffled와
-counterfactual 변화로 평가한다.
+원 NLA 구조는 `h -> AV -> text -> AR -> h_hat`이다. Reconstruction 모델은 clinical text를 잘
+생성하는 것뿐 아니라 생성 text로부터 원 activation을 복원해야 한다. Full 모델은 여기에 matched
+pair가 shuffled pair보다 높은 점수를 받고 evidence counterfactual을 따라가도록 하는 조건을
+추가한다. Reconstruction은 FVE로, pair specificity는 matched-shuffled와 counterfactual 변화로
+평가한다.
 
 현재 구현된 코드는 **DiReCT SFT-only의 CE loss까지**다. DDXPlus paired training,
 AR regression, reconstruction reward, pair-specific objective는 아직 구현·smoke 전이다. 그러므로
@@ -908,6 +940,12 @@ Medical-NLA가 의사가 표시한 observation, rationale, diagnosis 구조를 �
 Table 2로 비교한다. 여기서 Medical-NLA가 가장 높더라도 아직 activation을 읽었다는 뜻은
 아니다. RQ1만 통과하면 좋은 의료 설명 생성기라고 부를 수 있다.
 
+이 표의 reconstruction과 full은 clinical supervision의 양을 달리한 이름이 아니다.
+Reconstruction은 AV-AR 정보 보존 objective까지 추가한 모델이고, full은 여기에 pair specificity와
+evidence counterfactual grounding까지 추가한 모델이다. RQ1에서는 grounding objective가 임상
+설명 품질을 손상시키지 않거나 개선하는지를 함께 확인한다. 두 방법의 결정적 차이는 다음 RQ2에서
+평가한다.
+
 ## Slide 21. RQ1: DiReCT clinical explanation quality
 
 ### Panel A. Test seen PDD, n=72
@@ -1223,6 +1261,12 @@ Hard-shuffle score는 낮고 Pair gap은 높아야 한다. Pair gap의 case-leve
 | Medical-NLA, reconstruction | TBD | TBD | TBD | TBD | TBD |
 | Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD |
 
+이 Panel에서 reconstruction과 full의 차이가 직접 검증된다. Reconstruction 모델은 matched FVE가
+높아도 shuffled FVE가 함께 높거나 finding edit에 반응하지 않을 수 있다. Full 모델은 양의 FVE
+gap, 더 높은 edited-finding response, 높은 untouched retention을 함께 보여야 한다. 즉
+reconstruction은 **자연어가 activation 정보를 담는가**, full은 **그 정보가 바로 이 사례에
+고유하고 evidence 변화에 선택적으로 반응하는가**를 묻는다.
+
 ### Edited-finding response
 
 같은 base case에서 finding 하나만 삭제하거나 native value 하나만 바꾼 뒤 CoT-P0 activation을
@@ -1293,6 +1337,10 @@ RQ3는 grounding을 통과한 설명의 dataset-native claim을 편집하고 AR�
 ## Slide 24. RQ3: text patching과 selective correction
 
 Table 3 grounding을 통과한 방법만 평가한다.
+Reconstruction 모델이 FVE만 통과하고 pair specificity 또는 counterfactual grounding에 실패하면
+비교군으로는 남길 수 있지만 faithful text intervention의 주 방법으로 사용하지 않는다. RQ2에서
+clinical alignment와 사례 특이적 grounding을 모두 통과한 full 모델만 RQ3의 주 text-patching
+방법이 된다.
 
 ### Panel A. Identity preservation and target selectivity
 
