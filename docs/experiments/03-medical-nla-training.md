@@ -75,6 +75,12 @@ DiReCT에서 schema도 붕괴했다. 따라서 이 checkpoint들은 locked test 
 승격하지 않는다. 다음 gate는 동일한 DiReCT 50행을 method-blind quote extraction과 공식
 semantic evaluator로 채점해 의역 실패와 내용 실패를 구분하는 것이다.
 
+8시간 무인 validation queue는 두 독립 작업만 실행한다. Server 125는
+`run_overnight_common_direct_semantic.sh`로 Direct 50행 의미 채점을 완료한다. Server 62는
+`run_overnight_common_ddx_grounding.sh`로 DDXPlus validation manifest를 base ID hash로 40등분한
+뒤 고정 shard 0--3의 약 1,000행에서 original/deletion/value-edit 반응을 점수화한다. 후자는
+validation diagnostic이며 locked test가 아니다. 두 작업 모두 E6 text patching은 호출하지 않는다.
+
 Clinical text는 DiReCT의 physician deduction structure에서 만든다. Activation은 P0를
 주 입력으로 한다. Source-wrong 행에서 gold physician text를 activation의 현재 결론처럼
 무조건 매핑하면 misalignment가 생기므로 다음을 분리한다.
