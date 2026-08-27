@@ -373,11 +373,39 @@ Final recipe에서는 source-correct 행에만 physician clinical target을 적�
 
 ## Slide 9B. SFT-only와 Full Medical-NLA는 무엇이 다른가
 
+### Clinical supervision이 뜻하는 것
+
+여기서 `Clinical supervision`은 단순히 의료 용어를 유창하게 말하게 하는 것보다 구체적이다.
+Activation을 입력받았을 때 **어떤 환자 관찰과 진단을 어떤 임상 구조로 출력해야 하는지**를
+DiReCT physician annotation으로 가르치는 것이다.
+
+| Supervision target | 모델에게 가르치는 것 | 이것만으로 보장되지 않는 것 |
+|---|---|---|
+| `<observed>` physician observations | 환자별 임상 finding을 짧고 구조적으로 표현 | Source model이 그 finding을 실제 판단에 사용했는지 |
+| `<answer>` source-model diagnosis | 현재 backbone이 내릴 준비가 된 진단을 명시 | 진단에 이른 내부 근거 전체가 충실하게 설명됐는지 |
+| XML output schema | 일관된 형식, 짧은 출력, 자동 평가 가능성 | 설명 내용의 사례 특이성과 activation 의존성 |
+
+따라서 clinical supervision이 통과하면 “의학적으로 적절한 내용을 구조화해 말할 수 있다”고
+할 수 있지만, “바로 이 activation을 읽어서 말했다”고 할 수는 없다. 질환별 전형적인 문장이나
+학습에서 자주 본 PDD 표현을 암기해도 SFT cross-entropy는 낮아질 수 있기 때문이다.
+
+이 때문에 아래 표의 세 열은 서로 다른 질문이다.
+
+```text
+Clinical supervision: 무엇을 어떤 의료 언어로 말해야 하는가?
+Reconstruction:       그 설명이 원 activation 정보를 보존하는가?
+Pair specificity:     다른 비슷한 환자가 아니라 바로 이 activation에 해당하는가?
+```
+
 | Method | Clinical supervision | Reconstruction | Pair specificity | 실험상 역할 |
 |---|---:|---:|---:|---|
 | Vanilla NLA | No | pretrained | No | 공개 baseline |
 | Medical-NLA SFT only | Yes | No | No | 의료 SFT만의 효과와 classifier collapse 검사 |
 | Full Medical-NLA | Yes | Yes | Yes | reconstruction/contrastive grounding의 추가 가치 |
+
+표의 `No`는 해당 능력이 절대로 없다는 뜻이 아니라, 현재 의료 학습 objective가 그 능력을
+명시적으로 강제하지 않는다는 뜻이다. `Full Medical-NLA`의 `Yes`도 현재 완료된 결과가 아니라
+아래 reconstruction과 hard-negative objective를 구현했을 때의 제안 설계다.
 
 Full Medical-NLA의 제안 학습은 두 데이터 역할을 결합한다.
 
