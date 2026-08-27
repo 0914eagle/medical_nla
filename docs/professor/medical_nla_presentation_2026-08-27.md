@@ -116,9 +116,21 @@ probe의 closed-label 능력, P0의 정보 존재 여부는 이 세 RQ를 정당
 
 # Part II. Methodology
 
-Methodology에서는 세 RQ를 채점할 공통 모집단과 측정 채널을 고정한다. 특히 physician
-annotation과 activation ground truth를 혼동하지 않고, DiReCT와 DDXPlus에 서로 다른 역할을
-준다.
+Methodology는 도구를 나열하는 순서가 아니라 다음 논리로 전개한다.
+
+```text
+무엇을 성공으로 부를 것인가
+ -> 어떤 데이터가 각 성공 조건의 정답을 제공하는가
+ -> 어떤 환자와 label을 학습/검증/시험에 배치하는가
+ -> source model의 어느 시점과 layer를 읽는가
+ -> 무엇으로 Medical-NLA를 학습하는가
+ -> 어떤 평가와 개입으로 세 RQ를 닫는가
+```
+
+핵심은 physician annotation과 activation ground truth를 혼동하지 않는 것이다. DiReCT는 좋은
+임상 설명의 reference를 제공하지만 activation의 정답은 아니며, DDXPlus는 activation 반사실을
+만들 수 있지만 자연 임상 설명 품질의 최종 reference는 아니다. 이 구분 때문에 데이터셋,
+activation 위치, 학습 target, 평가기를 차례로 고정한다.
 
 ## Slide 4. 평가 프로토콜
 
@@ -133,18 +145,26 @@ annotation과 activation ground truth를 혼동하지 않고, DiReCT와 DDXPlus�
 생성기라고 말할 수 있지만 내부 판독기라고 부르지 않는다. Grounding까지 통과해야 내부
 판독기라고 말하며, utility까지 통과해야 설명과 성능을 함께 개선한다고 주장한다.
 
+**왜 다음에 데이터셋을 설명하는가.** 세 조건은 하나의 점수로 측정할 수 없다. Physician
+reference가 필요한 RQ1과 activation pair를 직접 바꿔야 하는 RQ2·RQ3의 정답 구조가 다르므로,
+각 질문에 맞는 데이터셋 역할부터 분리해야 한다.
+
 ---
 
 ## Slide 5. 데이터셋별 역할
 
 | 데이터셋 | 원래 제공하는 정보 | 본 연구의 역할 | 사용하지 않을 주장 |
 |---|---|---|---|
-| DiReCT | 임상 note, physician observation, rationale, diagnosis tree | 주 임상 설명 품질, seen/PDD-heldout 평가 | activation ground truth |
-| DDXPlus | pathology, evidence ID/value, differential | matched/shuffled, cue 반사실, patching | 자연 임상 산문의 최종 품질 |
+| DiReCT | 임상 note, physician observation, rationale, diagnosis tree | Clinical warm-start와 RQ1 설명 품질, seen/PDD-heldout 평가 | activation ground truth |
+| DDXPlus | pathology, evidence ID/value, differential | Grounding objective 개발, matched/shuffled, cue 반사실, patching | 자연 임상 산문의 최종 품질 |
 | MedCaseReasoning | case-report 산문과 diagnosis/reasoning | 향후 frozen natural-text OOD | 정확한 gold evidence span |
 
 Intro에서는 “임상 설명과 activation grounding을 서로 다른 적합한 데이터로 검증한다”는
 한 문장만 말한다. 이 역할표와 데이터 구조는 Methodology에서 설명한다.
+
+**왜 DiReCT를 먼저 자세히 보는가.** DiReCT는 RQ1 평가 자료일 뿐 아니라 현재 실행 중인
+Medical-NLA의 clinical warm-start 자료다. 따라서 note의 입력 섹션, physician deduction,
+PDD label이 각각 backbone 입력과 학습 target에서 무엇이 되는지 먼저 정의해야 한다.
 
 ---
 
@@ -259,6 +279,10 @@ Clinical alignment: 설명이 의사 주석과 임상적으로 일치하는가?
 Source-decision fidelity: 설명이 실제 source model의 현재 판단을 충실하게 읽는가?
 ```
 
+**왜 다음에 split을 고정하는가.** 같은 환자의 반복 note나 같은 PDD가 학습과 시험에 함께
+들어가면 Medical-NLA가 activation을 읽은 것이 아니라 환자 표현이나 label 문구를 외운 결과가
+될 수 있다. 데이터 구조를 확인한 뒤 patient-disjoint와 PDD-heldout split을 먼저 동결한다.
+
 ---
 
 ## Slide 7. DiReCT 모집단과 split
@@ -278,6 +302,11 @@ Canonical PDD 의미 충돌 10행, patient ID parse 실패 4행, duplicate copy 
 과거 backbone output이 일부 또는 전부 materialize되어 완전히 untouched dataset test라고
 부르지는 않는다. 하지만 이 시점 이후 test readout을 보고 prompt, layer, epoch, threshold를
 바꾸지 않는다.
+
+**왜 다음에 backbone prompt를 공개하는가.** Medical-NLA가 읽는 activation은 입력 note만의
+함수가 아니라 source model의 instruction과 generation trajectory에도 의존한다. 따라서 split을
+고정한 다음, 어떤 instruction으로 source answer와 CoT를 만들었는지 명시해야 P0/P1/P2의 의미가
+정해진다.
 
 ---
 
@@ -321,6 +350,10 @@ You MUST end your response with exactly "The answer is <diagnosis>."
 
 두 조건은 임상 note까지 byte-identical한 prefix를 공유하고 instruction suffix만 다르다.
 
+**왜 Direct와 CoT를 둘 다 생성하는가.** Direct는 진단 행동 기준선이고 CoT는 RQ1의 설명
+기준선이다. 두 arm이 같은 사례에서 어떤 답을 내는지 기록해야 CoT 설명 품질과 단순 진단 정확도를
+혼동하지 않고, instruction이 P0 상태를 바꾸는지도 sensitivity로 확인할 수 있다.
+
 ---
 
 ## Slide 8B. Source generation 실행 설정
@@ -336,9 +369,24 @@ You MUST end your response with exactly "The answer is <diagnosis>."
 | Answer parser | 마지막 `The answer is <diagnosis>.` | 동일 |
 | Forced second answer | 없음 | 이번 E1에서는 비활성화 |
 
+Greedy decoding을 사용한 이유는 sampling variance를 설명 방법의 차이로 오인하지 않기 위해서다.
+Direct와 CoT의 token budget이 다른 것은 두 arm의 목적이 다르기 때문이다. Direct는 진단명만
+완성하고, CoT는 자연스러운 reasoning과 마지막 진단까지 생성한다.
+
+**왜 다음에 P0/P1/P2가 필요한가.** “Activation을 읽었다”는 주장은 activation을 어느 token에서
+뽑았는지에 따라 완전히 달라진다. 특히 CoT나 진단명이 이미 출력된 뒤의 activation을 읽으면,
+내부 판단을 발견한 것이 아니라 방금 생성된 문자열을 재독해한 것일 수 있다.
+
 ---
 
 ## Slide 9. P0, P1, P2는 무엇인가
+
+### 이 슬라이드가 필요한 이유
+
+NLA 성능은 같은 layer라도 **언제 뽑은 activation인가**에 따라 다른 질문에 답한다. 생성 전
+상태를 읽는 것과, CoT나 진단명이 이미 context에 적힌 뒤 그 문자열을 읽는 것은 같은
+faithfulness 증거가 아니다. Slide 9는 좋은 결과가 output leakage에서 생겼다는 반론을 막고,
+논문의 primary readout 위치를 사전에 고정하기 위해 필요하다.
 
 ```text
 [clinical note + CoT instruction]  <- P0: prompt의 마지막 token
@@ -353,12 +401,27 @@ You MUST end your response with exactly "The answer is <diagnosis>."
 | P1 | assistant의 마지막 `The answer is` marker 직후, diagnosis 전 | reasoning을 마친 뒤 답을 쓰기 직전 상태 | leakage sensitivity |
 | P2 | parsed diagnosis의 마지막 subtoken | 답 문자열이 이미 생성된 상태 | positive control |
 
-P1과 P2는 source CoT response를 teacher-force하여 동일한 source trajectory에서 추출한다.
-171행 pilot에서 모델이 최종 선택한 diagnosis alias가 이미 CoT reasoning 안에 등장한 경우가
-156/171(.9123)이었다. 따라서 P1에서 높은 진단 판독률이 나와도 내부 결론을 새로 읽은 것인지,
-이미 적힌 진단 문자열을 읽은 것인지 분리하기 어렵다. `diagnosis_alias_in_reasoning=false`인
-P1 clean subset은 15행뿐이었다. 이 때문에 P0를 primary로 고정하고 P2를 positive control로
-사용한다.
+P0는 모델이 note와 instruction을 모두 읽었지만 아직 한 글자도 답하지 않은 시점이다. 따라서
+P0에서 복원된 정보는 출력 문자열의 직접적인 흔적만으로 설명할 수 없다. P1과 P2는 source CoT
+response를 teacher-force하여 같은 trajectory에서 추출한다. P1에는 최종 diagnosis token이 아직
+없지만 앞선 reasoning에 진단명이 이미 적혔을 수 있고, P2에는 진단명 자체가 있다.
+
+실제로 171행 pilot에서 모델이 최종 선택한 diagnosis alias가 CoT reasoning에 이미 등장한
+사례가 156/171(.9123)이었다. `diagnosis_alias_in_reasoning=false`인 P1 clean subset은 15행뿐이다.
+따라서 P1/P2의 높은 진단 회수율을 곧바로 내부 추론 판독 능력으로 해석하지 않는다.
+
+### 본 논문의 위치 규칙
+
+- **Primary:** CoT instruction을 본 직후의 `P0/HS32`. RQ1의 CoT와 같은 source condition에서
+  아직 CoT가 출력되기 전 내부 상태를 읽는다.
+- **Instruction sensitivity:** Direct instruction의 P0. P0 자체가 CoT 전용 위치는 아니지만,
+  instruction suffix가 다르면 activation도 달라지므로 primary와 섞지 않는다.
+- **Leakage sensitivity:** P1과 diagnosis alias가 reasoning에 없던 P1 clean subset.
+- **Positive control:** P2. 이미 출력된 진단 정보를 NLA가 읽을 수 있는지 확인한다.
+
+**왜 다음에 HS32를 설명하는가.** P0/P1/P2가 시간축의 선택이라면 HS16/24/32는 network 깊이축의
+선택이다. Token 위치를 고정한 뒤 어느 layer의 벡터를 AV에 넣는지 정해야 동일한 NLA checkpoint와
+공정하게 비교할 수 있다.
 
 ---
 
@@ -382,6 +445,10 @@ probe에서는 HS24가 가장 좋았지만 공개 `nla-gemma3-12b-L32-av/ar`가 
 round-trip의 primary는 HS32로 고정한다. HS16/24 NLA는 다른 layer activation을 HS32 decoder에
 넣는 distribution-shift sensitivity이지 공정한 primary 비교가 아니다.
 
+**왜 다음에 baseline을 비교하는가.** 이제 동일한 P0에서 likelihood, probe, vanilla NLA가 각각
+무엇을 출력할 수 있는지 비교해야 Medical-NLA가 해결하려는 간극이 closed-label detection인지
+open-text explanation인지 명확해진다.
+
 ---
 
 ## Slide 11. RQ에 앞서 비교하는 내부 측정 채널
@@ -397,9 +464,62 @@ round-trip의 primary는 HS32로 고정한다. HS16/24 NLA는 다른 layer activ
 NLA는 열린 생성 공간을 사용한다. 따라서 선행 Table 1에서 한 평균 점수로 순위를 만들지 않고,
 closed diagnosis signal과 open evidence를 분리한다.
 
+**왜 다음에 학습을 설명하는가.** Baseline 분석은 P0에 정보가 있다는 것과 vanilla NLA의 한계를
+보여줄 뿐이다. 그 간극을 메우려면 어떤 activation-text pair로 AV를 적응시키고, 어떤 데이터는
+평가에만 남기는지 공개해야 한다.
+
 ---
 
-## Slide 12. Medical-NLA 학습 변형
+## Slide 12A. Medical-NLA를 어떤 데이터로 학습하는가
+
+### 현재 실행 가능한 SFT-only v1
+
+| 항목 | 현재 설정 |
+|---|---|
+| 데이터 | DiReCT confirmatory `train`과 `val_seen`만 사용 |
+| 원 split | Train 266 / validation 52 |
+| Primary 학습 분모 | Gold PDD 문자열이 note에 직접 노출된 18/2행 제외 후 248/50 |
+| Activation 입력 | 같은 사례 source trajectory의 P0/HS32, 3,840차원 |
+| `<observed>` target | Note에서 exact substring으로 확인된 physician observations, 최대 12개 |
+| `<answer>` target | Physician gold가 아니라 backbone이 같은 source run에서 실제 생성한 진단 |
+| 사용하지 않는 데이터 | Locked `test_seen=72`, `test_pdd_heldout=106`, DDXPlus heldout, MCR |
+| 현재 loss | Target token next-token cross-entropy, LoRA SFT |
+| Checkpoint 선택 | `val_seen`의 `<observed>` content-token loss |
+| 반복 | 동일 ID와 recipe로 seeds 17, 29, 43 |
+
+실제 target schema는 다음과 같다.
+
+```text
+<explanation>
+<readout>
+<observed>
+- note에 문자 그대로 근거한 physician observation 1
+- note에 문자 그대로 근거한 physician observation 2
+</observed>
+<answer>backbone source answer</answer>
+</readout>
+</explanation>
+```
+
+`<answer>`에 physician gold를 넣지 않는 이유는 source model이 틀린 사례의 activation을 정답
+상태처럼 강제로 설명하지 않기 위해서다. 하지만 현재 v1은 source-wrong 행의 `<observed>`에도
+physician gold observations를 사용한다. Observation이 note에 존재한다는 사실은 source model이
+그 정보를 실제로 사용했다는 뜻이 아니므로, 이 부분에는 여전히 clinical target과 source-state
+target의 충돌 가능성이 있다.
+
+따라서 SFT-only v1은 최종 faithful reader가 아니라 다음을 확인하는 **ablation**이다.
+
+1. 의료 형식과 physician observation supervision이 vanilla NLA의 설명 품질을 높이는가
+2. Seen PDD 문구나 상투적인 임상 표현을 암기하는 분류기로 붕괴하는가
+3. RQ1은 좋아지지만 RQ2의 shuffled/counterfactual grounding에는 실패하는가
+
+Final recipe에서는 source-correct 행에만 physician clinical target을 적용하거나, source-wrong
+행의 observation loss를 mask하고 source-answer/grounding loss만 적용하는 field-level ablation을
+비교해야 한다. 현재 코드에는 이 field mask가 구현돼 있지 않으므로 완료된 방법처럼 말하지 않는다.
+
+---
+
+## Slide 12B. SFT-only와 Full Medical-NLA는 무엇이 다른가
 
 | Method | Clinical supervision | Reconstruction | Pair specificity | 실험상 역할 |
 |---|---:|---:|---:|---|
@@ -407,14 +527,32 @@ closed diagnosis signal과 open evidence를 분리한다.
 | Medical-NLA SFT only | Yes | No | No | 의료 SFT만의 효과와 classifier collapse 검사 |
 | Full Medical-NLA | Yes | Yes | Yes | reconstruction/contrastive grounding의 추가 가치 |
 
-SFT-only는 DiReCT `train=266`, `val=52`만 사용하고 locked test 72/106을 보지 않는다.
-Gold label이 note에 exact phrase로 노출된 행을 제외한 실제 SFT 입력은 train 248, validation
-50이다. `<observed>`는 note에서 exact-grounded한 physician observation, `<answer>`는 physician
-gold가 아니라 같은 CoT-P0 trajectory에서 backbone이 실제 생성한 source answer다.
+Full Medical-NLA의 제안 학습은 두 데이터 역할을 결합한다.
 
-Source-wrong 사례에 gold를 현재 내부 상태인 것처럼 강제로 넣지 않는 이유는 clinical target과
-source-decision target을 구분하기 위해서다. SFT-only가 임상적으로 그럴듯한 상투 문구나 seen
-class 생성기로 붕괴하면 full objective로 넘어가며, 이름만 full Medical-NLA라고 미리 붙이지 않는다.
+| 학습 단계 | 데이터 | 제공하는 supervision | 목적 |
+|---|---|---|---|
+| Medical warm-start | DiReCT train/val | Physician observations와 source decision text | 임상적으로 읽을 수 있는 출력 형식과 내용 |
+| Grounding development | DDXPlus train/validation | Evidence ID/value, matched activation, hard negative와 cue counterfactual | Case specificity와 evidence 변화 추종 |
+| AV-AR reconstruction | DiReCT/DDXPlus의 train activation-text pair | `h -> text -> h_hat` | 자연어가 원 activation 정보를 보존하도록 강제 |
+| Locked evaluation only | DiReCT 72/106, DDXPlus heldout, MCR | 학습에 사용하지 않음 | Seen/PDD-OOD, grounding, natural-text OOD 평가 |
+
+원 NLA 구조는 `h -> AV -> text -> AR -> h_hat`이다. Full Medical-NLA는 clinical text를 잘
+생성하는 것뿐 아니라, 생성 text로부터 원 activation을 복원하고 matched pair가 shuffled pair보다
+높은 점수를 받도록 해야 한다. Reconstruction은 FVE로, pair specificity는 matched-shuffled와
+counterfactual 변화로 평가한다.
+
+현재 구현된 코드는 **DiReCT SFT-only의 CE loss까지**다. DDXPlus paired training,
+AR regression, reconstruction reward, pair-specific objective는 아직 구현·smoke 전이다. 그러므로
+논문의 full row는 이 objective가 실제 구현되고 다음 조건을 통과한 뒤에만 유지한다.
+
+1. Matched text가 shuffled text보다 activation을 더 잘 복원함
+2. Mean/zero activation이 실제 matched activation보다 높은 reward를 받지 않음
+3. Cue를 제거하거나 값을 바꾸면 해당 설명 claim만 따라 변함
+4. SFT-only보다 RQ1 설명 점수와 RQ2 grounding을 모두 개선함
+
+**왜 다음에 평가기를 설명하는가.** 학습 target의 physician observation과 source answer는 서로
+다른 의미를 갖는다. 따라서 결과도 하나의 loss나 accuracy로 합치지 않고 DiReCT clinical
+alignment와 DDXPlus activation grounding으로 다시 분리해 채점한다.
 
 ---
 
@@ -441,6 +579,10 @@ top-p 1, exact `Yes`, official prompt와 greedy one-to-one matching을 유지한
 DiReCT는 physician-reference clinical alignment를, DDXPlus는 paired activation dependence를
 평가한다. 어느 한 데이터셋의 점수를 다른 축의 ground truth로 부르지 않는다.
 
+**왜 다음에 개입 규칙을 미리 정하는가.** 설명이 좋아 보인 뒤 사후적으로 유리한 patch 사례만
+고르면 RQ3가 성립한 것처럼 보일 수 있다. RQ2 grounding 결과를 보기 전에 identity 보존,
+target selectivity, net correction의 순서와 중단 기준을 고정한다.
+
 ---
 
 ## Slide 14. RQ3 개입은 grounding 통과 후에만 평가한다
@@ -456,6 +598,11 @@ DDXPlus primary activation은 DiReCT 학습과 동일한 **CoT-P0/HS32**로 맞�
 builder의 Direct-P0 표기는 activation 추출 전에 수정하며, Direct-P0는 instruction sensitivity로
 분리한다. P1/P2는 grounding 주결과가 아니라 leakage/positive control이므로 필요 시 subset에서
 추가한다.
+
+**Methodology에서 Results로 넘어가는 논리.** 이제 모집단, source prompt, activation 위치,
+hidden-state index, 학습 데이터, 평가기, 중단 기준이 고정됐다. Results에서는 먼저 Table 1의
+capability baseline으로 P0에 정보가 있는지 확인하고, 그 다음 Table 2의 RQ1, Table 3의 RQ2,
+Table 4의 RQ3를 순서대로 판정한다.
 
 ---
 
