@@ -50,6 +50,9 @@ def diagnosis_aliases(row: dict[str, Any]) -> list[str]:
     diagnosis_id = clean_text(row.get("diagnosis_id") or row.get("gold_diagnosis_id"))
     if diagnosis_id:
         aliases.append(diagnosis_id.replace("_", " "))
+    canonical_pdd = clean_text(row.get("canonical_pdd"))
+    if canonical_pdd:
+        aliases.append(canonical_pdd)
     deduped = []
     for alias in aliases:
         if alias and alias.lower() not in {item.lower() for item in deduped}:
@@ -163,6 +166,7 @@ def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
     parsed_readout = sum(bool(row["parsed_readout"]) for row in rows)
     parsed_answer = sum(bool(row["parsed_answer"]) for row in rows)
     parsed_cues = sum(bool(row["parsed_supporting_cues"]) for row in rows)
+    parsed_observed = sum(bool(row["parsed_observed"]) for row in rows)
     answer_hits = sum(bool(row["answer_hit"]) for row in rows)
     output_answer_hits = sum(bool(row["output_answer_hit"]) for row in rows)
     cue_recalls = [float(row["cue_recall"]) for row in rows if row["cue_recall"] is not None]
@@ -182,6 +186,7 @@ def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
         f.write(f"- parsed_readout: {parsed_readout}/{n}\n")
         f.write(f"- parsed_answer: {parsed_answer}/{n}\n")
         f.write(f"- parsed_supporting_cues: {parsed_cues}/{n}\n")
+        f.write(f"- parsed_observed: {parsed_observed}/{n}\n")
         f.write(f"- answer_hit: {answer_hits}/{n}\n")
         f.write(f"- answer_hit_rate: {answer_hits / n if n else 0:.4f}\n")
         f.write(f"- output_answer_hit: {output_answer_hits}/{n}\n")
@@ -195,6 +200,36 @@ def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
             f"- mean_cue_precision: {mean(cue_precisions) if cue_precisions else 0:.4f}\n"
         )
         f.write(f"- cue_precision_n: {len(cue_precisions)}\n\n")
+
+        if any(row.get("source_dataset") for row in rows):
+            f.write("## By Source Dataset\n\n")
+            f.write(
+                "| source | n | parsed observed | diagnosis mention | "
+                "mean cue recall | mean cue precision |\n"
+            )
+            f.write("|---|---:|---:|---:|---:|---:|\n")
+            by_source: dict[str, list[dict[str, Any]]] = defaultdict(list)
+            for row in rows:
+                by_source[str(row.get("source_dataset") or "<missing>")].append(row)
+            for source, items in sorted(by_source.items()):
+                recalls = [
+                    float(row["cue_recall"])
+                    for row in items
+                    if row.get("cue_recall") is not None
+                ]
+                precisions = [
+                    float(row["cue_precision"])
+                    for row in items
+                    if row.get("cue_precision") is not None
+                ]
+                f.write(
+                    f"| {source} | {len(items)} | "
+                    f"{sum(bool(row['parsed_observed']) for row in items) / len(items):.4f} | "
+                    f"{sum(bool(row['output_answer_hit']) for row in items) / len(items):.4f} | "
+                    f"{mean(recalls) if recalls else 0:.4f} | "
+                    f"{mean(precisions) if precisions else 0:.4f} |\n"
+                )
+            f.write("\n")
 
         f.write("## By Gold Diagnosis\n\n")
         f.write("| diagnosis_id | n | answer_hit_rate | answer_hits | mean_cue_recall |\n")
@@ -221,11 +256,14 @@ def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
         f.write("|---|---|---|---:|---:|---|\n")
         for row in rows[:100]:
             answer = (row["answer_readout"] or "-").replace("\n", " ")
-            cues = (row["supporting_cues_readout"] or "-").replace("\n", " ")
+            cues = (
+                row["supporting_cues_readout"] or row["observed_readout"] or "-"
+            ).replace("\n", " ")
             if len(cues) > 160:
                 cues = cues[:157] + "..."
             f.write(
-                f"| {row['id']} | {row.get('diagnosis_name') or row.get('gold_diagnosis_name')} | "
+                f"| {row['id']} | "
+                f"{row.get('diagnosis_name') or row.get('gold_diagnosis_name') or row.get('canonical_pdd') or row.get('disease_category')} | "
                 f"{answer} | {'Y' if row['answer_hit'] else 'N'} | "
                 f"{row['cue_recall'] if row['cue_recall'] is not None else '-'} | {cues} |\n"
             )

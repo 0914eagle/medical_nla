@@ -41,3 +41,16 @@ def test_score_row_parses_answer_and_cue_recall():
     assert scored["answer_hits"] == ["PE"]
     assert scored["cue_hit_count"] == 2
     assert scored["cue_recall"] == 2 / 3
+
+
+def test_direct_canonical_pdd_is_a_diagnosis_leakage_alias():
+    row = {
+        "id": "direct_case",
+        "canonical_pdd": "Unstable angina",
+        "cue_targets": ["chest pain at rest"],
+        "nla_output": (
+            "<readout><observed>- Unstable angina</observed></readout>"
+        ),
+    }
+    scored = score_row(row)
+    assert scored["output_answer_hit"] is True
