@@ -137,6 +137,9 @@ python scripts/merge_activation_shards.py \
   --expected-layers 16 24 32
 ```
 
+병합 결과는 `summary.md`가 아니라
+`activations/ddxplus_e5_validation_cot_p0_merged_v1/summary.json`에 기록된다.
+
 Direct-P0 control은 primary CoT-P0가 끝난 뒤 validation base population에만 실행한다. Locked
 official test activation은 probe, Medical-NLA objective, threshold, checkpoint를 validation에서
 동결하기 전에는 생성하지 않는다.

@@ -151,6 +151,9 @@ rsync -a --info=progress2 \
 After the copy, compare `protocol.json` and every JSONL hash before dividing GPU
 activation extraction across servers.
 
+The activation merge utility writes `summary.json` in the merged activation
+directory; it does not emit a Markdown summary.
+
 ## Next gate
 
 Data preparation alone does not fill Table 3. After the three DiReCT SFT seeds
