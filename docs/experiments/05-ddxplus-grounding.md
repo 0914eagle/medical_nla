@@ -68,6 +68,112 @@ Table 3은 서로 다른 의미를 하나의 `Own-case F1`로 합치지 않고 �
 Round-trip cosine과 MSE는 보조 지표다. Diagnosis만 같고 evidence가 다른 hard negative 구분과
 paired bootstrap CI를 함께 보고한다.
 
+## Finding/value probe gate
+
+Natural-language readout을 더 튜닝하기 전에, 같은 CoT-P0 activation에 annotated finding과
+native value가 선형적으로 읽히는지 먼저 확인한다. 이 단계는 Medical-NLA 성능 비교가 아니라
+**target information availability audit**이다. Official `train.csv`로만 probe를 학습하고,
+official validation은 layer, regularization, finding threshold 선택에만 사용한다. E5 official test는
+이 단계에서 읽지 않는다.
+
+Finding head는 train에서 일정 횟수 이상 관찰된 `evidence_id`를 한 번에 예측하는 multi-label
+linear map이다. Value head는 하나의 linear map을 사용하되, 각 `evidence_id`에 DDXPlus release가
+허용한 value들 사이에서만 conditional cross-entropy를 계산한다. 따라서 diagnosis별 probe를
+여러 개 만드는 실험이 아니다. Validation score에는 train ontology coverage를 함께 쓰고,
+같은 diagnosis의 다른 case label을 붙인 hard-shuffle 점수와 own-minus-shuffled gap을 반드시
+보고한다.
+
+### 1. Server 62에서 train-only population 생성 및 분할
+
+기존 E5 validation/test 정본은 수정하지 않는다. Frozen E5 protocol의 47개 diagnosis support와
+동일 eligibility만 official train에 적용한다.
+
+```bash
+cd /home/eagle0914/medical_nla
+source /data/heejae/uv/medical_nla/bin/activate
+export PYTHONPATH=/home/eagle0914/medical_nla
+
+E5=/data/heejae/medical_nla/data/ddxplus_e5_canonical_v1
+TRAIN=/data/heejae/medical_nla/data/ddxplus_probe_train_v1
+
+python scripts/prepare_ddxplus_probe_train.py \
+  --train-csv /data/heejae/ddxplus/train.csv \
+  --evidences /data/heejae/ddxplus/release_evidences.json \
+  --e5-protocol "$E5/protocol.json" \
+  --reference-cases "$E5/cases_validation.jsonl" \
+  --reference-cases "$E5/cases_test.jsonl" \
+  --out-dir "$TRAIN" \
+  --examples-per-diagnosis 100 \
+  --seed 17
+
+python scripts/shard_jsonl_by_key.py \
+  --input "$TRAIN/activation_rows_train.jsonl" \
+  --out-dir "$TRAIN/activation_shards_cot_p0_v1" \
+  --num-shards 2 \
+  --key base_id
+```
+
+`summary.md`, `protocol.json`, 두 shard를 server 125로 복사한다.
+
+```bash
+rsync -a --info=progress2 \
+  /data/heejae/medical_nla/data/ddxplus_probe_train_v1/ \
+  eagle0914@165.132.76.125:/data1/heejae/medical_nla/data/ddxplus_probe_train_v1/
+```
+
+### 2. 두 서버에서 train CoT-P0 activation 병렬 추출
+
+```bash
+# Server 62: physical GPUs 2,3
+TRAIN=/data/heejae/medical_nla/data/ddxplus_probe_train_v1
+DATA_ROOT=/data/heejae GPUS=2,3 \
+INPUT_FILE="$TRAIN/activation_shards_cot_p0_v1/shard_000_of_002.jsonl" \
+RUN_NAME=ddxplus_probe_train_cot_p0_shard0_v1 \
+OUT_DIR="$TRAIN/activations/ddxplus_probe_train_cot_p0_shard0_v1" \
+  nohup bash scripts/run_ddxplus_probe_train_activations.sh \
+  > /data/heejae/medical_nla/logs/ddxplus_probe_train_cot_p0_shard0_v1.log 2>&1 &
+
+# Server 125: physical GPUs 0,1
+TRAIN=/data1/heejae/medical_nla/data/ddxplus_probe_train_v1
+DATA_ROOT=/data1/heejae GPUS=0,1 \
+INPUT_FILE="$TRAIN/activation_shards_cot_p0_v1/shard_001_of_002.jsonl" \
+RUN_NAME=ddxplus_probe_train_cot_p0_shard1_v1 \
+OUT_DIR="$TRAIN/activations/ddxplus_probe_train_cot_p0_shard1_v1" \
+  nohup bash scripts/run_ddxplus_probe_train_activations.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_probe_train_cot_p0_shard1_v1.log 2>&1 &
+```
+
+### 3. Server 62에서 병합하고 probe 학습
+
+```bash
+TRAIN=/data/heejae/medical_nla/data/ddxplus_probe_train_v1
+E5=/data/heejae/medical_nla/data/ddxplus_e5_canonical_v1
+
+rsync -a --info=progress2 \
+  eagle0914@165.132.76.125:/data1/heejae/medical_nla/data/ddxplus_probe_train_v1/activations/ddxplus_probe_train_cot_p0_shard1_v1/ \
+  "$TRAIN/activations/ddxplus_probe_train_cot_p0_shard1_v1/"
+
+python scripts/merge_activation_shards.py \
+  --shard-roots \
+    "$TRAIN/activations/ddxplus_probe_train_cot_p0_shard0_v1" \
+    "$TRAIN/activations/ddxplus_probe_train_cot_p0_shard1_v1" \
+  --out-dir "$TRAIN/activations/ddxplus_probe_train_cot_p0_merged_v1" \
+  --path-map /data1/heejae=/data/heejae \
+  --expected-layers 16 24 32
+
+DATA_ROOT=/data/heejae GPU=2 \
+TRAIN_ROOT="$TRAIN/activations/ddxplus_probe_train_cot_p0_merged_v1" \
+VALIDATION_ROOT="$E5/activations/ddxplus_e5_validation_cot_p0_merged_v1" \
+VALIDATION_HARD_PAIRS="$E5/hard_shuffle_pairs_validation.jsonl" \
+OUT_DIR=/data/heejae/restricted/direct/e2/ddxplus_finding_value_probe_val_v1 \
+  nohup bash scripts/run_ddxplus_finding_value_probes.sh \
+  > /data/heejae/medical_nla/logs/ddxplus_finding_value_probe_val_v1.log 2>&1 &
+```
+
+이 probe gate가 own-case에서 hard-shuffle보다 높지 않으면 P0에 target information이 있다는
+근거가 없으므로, 같은 target으로 Medical-NLA SFT를 확장하지 않는다. 통과하면 validation-selected
+layer와 train-supported ontology를 동결한 뒤에만 E5 test activation과 최종 평가를 실행한다.
+
 ## Validation activation extraction
 
 Locked test를 열기 전에 official validation의 CoT-P0만 HS16/24/32에서 추출한다. Wrapper에는
