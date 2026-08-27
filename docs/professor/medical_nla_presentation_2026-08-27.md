@@ -1119,7 +1119,50 @@ RQ2는 설명의 **activation faithfulness**를 평가한다. RQ1의 physician-r
 자기 사례 activation에만 결합되는지를 시험한다. RQ2까지 통과해야 Medical-NLA를 내부 판독기라고
 부를 수 있다.
 
-## Slide 23. RQ2: activation grounding
+## Slide 23A. RQ2 데이터와 DDXPlus native value
+
+RQ2의 primary controlled testbed는 DDXPlus다. 최신 primary 설정에서는 Medical-NLA를
+DiReCT에만 적응하고 DDXPlus를 cross-corpus grounding test로 사용한다. DDXPlus
+`validate.csv`는 scoring threshold, hard-shuffle 규칙, counterfactual 생성 규칙과 mean
+activation control을 고정하는 데 사용하고, `test.csv`는 locked Table 3에만 사용한다.
+`train.csv`는 primary에서 사용하지 않으며, 향후 DDXPlus grounding-adaptation ablation에서만
+별도 사용한다. MCR은 정확한 finding/value annotation이 없으므로 Table 3 전체가 아니라
+natural-text OOD 보조 평가만 담당한다.
+
+DDXPlus의 `value`는 본 연구가 임의로 만든 label이 아니다. 환자 CSV의 `EVIDENCES`에는 다음
+두 형태가 있고, `release_evidences.json`이 evidence 질문과 가능한 value ID의 의미를 정의한다.
+
+```text
+E_DYSPNEA             값 없는 bare evidence ID: 해당 이진 finding이 기록됨
+E_TRAVEL_@_N          evidence ID와 native value ID가 함께 기록됨
+
+release_evidences.json 예시
+E_TRAVEL.value_meaning = {N: "no", Y: "yes"}
+```
+
+Value edit은 현재 case에 실제 value ID가 있고, **같은 evidence ID의 사전에 다른 value가 명시돼
+있으며**, 두 값을 모두 정상적인 cue 문장으로 렌더링할 수 있을 때만 만든다.
+
+```text
+같은 base case, 같은 evidence ID
+E_TRAVEL: N -> Y
+나머지 findings는 모두 그대로 유지
+```
+
+값 없이 bare ID로만 등장하는 binary evidence는 absence를 원자료가 기록하지 않는다. 따라서
+`E_DYSPNEA -> no dyspnea`처럼 음성 값을 발명하지 않고 해당 cue를 삭제하는 deletion만 적용한다.
+결과적으로 value accuracy와 value-edit response의 분모는 모든 test case가 아니라 **native
+value가 실제로 선언되고 대안 값이 존재하는 적격 subset**이다. Deletion과 value edit은 별도
+분모로 보고하고, 하나의 평균으로 합친 값은 보조 분석으로만 둔다.
+
+Population은 official validation과 test 모두에 적격 사례가 존재하는 diagnosis 교집합으로
+고정한다. 각 split에서 diagnosis별 최대 100건을 seed 17로 독립 sampling하고, clean rendered
+findings가 3개 이상이며 prompt에 gold diagnosis/alias가 직접 노출되지 않은 사례만 사용한다.
+최종 분모는 두 split 전체 audit 후 protocol에 기록하며 4,900건이라고 미리 가정하지 않는다.
+
+---
+
+## Slide 23B. Claim grounding and pair specificity
 
 ### Panel A. Claim grounding and pair specificity
 
@@ -1131,19 +1174,103 @@ RQ2는 설명의 **activation faithfulness**를 평가한다. RQ1의 physician-r
 | Medical-NLA, reconstruction | TBD | TBD | TBD | TBD | TBD |
 | Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD |
 
+### Finding F1
+
+Readout에서 추출한 finding ID 집합을 같은 case의 DDXPlus gold evidence ID 집합과 비교한다.
+Precision은 생성한 finding 중 맞는 비율, recall은 gold finding을 회수한 비율이며 F1은 두 값의
+조화평균이다. 누락과 불필요한 finding을 동시에 감점한다.
+
+### Native value accuracy
+
+서로 대응된 value-bearing finding에서 readout이 DDXPlus 사전의 정확한 native value를
+복원했는지 본다. Finding 종류를 맞히고 `mild`를 `severe`로 읽은 경우 finding hit는 맞지만
+value는 오답이다. Bare binary evidence와 대안 값이 없는 evidence는 이 분모에 넣지 않는다.
+
+### Source-decision fidelity
+
+Readout의 진단이 physician gold가 아니라 같은 source backbone run이 실제 생성한 진단과
+일치하는지 본다. Backbone이 gold를 틀렸더라도 readout이 backbone 답을 정확히 읽었다면 이
+지표에서는 성공이다. RQ2는 정답 교정 전에 현재 내부 판단의 충실한 판독을 먼저 묻기 때문이다.
+
+### Hard shuffle과 Pair gap
+
+Hard shuffle은 case `i`의 readout을 같은 diagnosis, 비슷한 finding 수와 prompt 길이를 가진
+다른 case `j`의 finding/value target에 대조한다. 같은 진단 안에서 섞어 질환명과 설명 길이만으로
+점수를 얻는 shortcut을 막는다.
+
+```text
+own_i      = score(readout_i, findings_i)
+shuffled_i = score(readout_i, findings_j)
+pair_gap_i = own_i - shuffled_i
+Pair gap   = mean_i(pair_gap_i)
+```
+
+Hard-shuffle score는 낮고 Pair gap은 높아야 한다. Pair gap의 case-level paired bootstrap CI가
+0을 배제해야 사례 특이성의 근거로 인정한다. Finding F1이 높더라도 Pair gap이 0이면 같은 질환의
+전형적인 설명을 생성했을 가능성이 남는다.
+
+---
+
+## Slide 23C. Counterfactual response and reconstruction
+
 ### Panel B. Counterfactual response and reconstruction
 
 | Method | Edited-finding response | Untouched retention | Matched FVE | Shuffled FVE | FVE gap |
 |---|---:|---:|---:|---:|---:|
+| CoT | TBD | TBD | N/A | N/A | N/A |
 | Vanilla NLA | TBD | TBD | TBD | TBD | TBD |
 | Medical-AV, SFT only | TBD | TBD | N/A | N/A | N/A |
 | Medical-NLA, reconstruction | TBD | TBD | TBD | TBD | TBD |
 | Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD |
 
-Hard shuffle은 같은 진단과 비슷한 finding 수를 가진 다른 사례의 activation-text 짝으로 바꾼다.
-Finding deletion/value edit은 하나의 native evidence만 바꾸고 해당 claim 변화와 나머지 finding
-보존을 동시에 본다. FVE는 자기 설명이 자기 activation을 다른 환자 설명보다 더 잘 복원하는지
-평가한다.
+### Edited-finding response
+
+같은 base case에서 finding 하나만 삭제하거나 native value 하나만 바꾼 뒤 CoT-P0 activation을
+다시 추출한다. Deletion이면 원 readout에서 존재하던 target claim이 사라져야 하고, value edit이면
+원 value에서 replacement value로 정해진 방향으로 변해야 한다. 단순히 설명 전체가 달라졌는지가
+아니라 **편집한 finding에 대응하는 claim이 올바르게 반응했는지**를 측정한다.
+
+### Untouched retention
+
+편집하지 않은 나머지 findings가 readout에 얼마나 보존되는지 본다. 이 지표가 없으면 모든
+claim을 지우는 reader가 deletion response에서 높은 점수를 받을 수 있다. Edited-finding
+response와 untouched retention이 함께 높아야 선택적 counterfactual grounding이다.
+
+### Matched FVE, Shuffled FVE, FVE gap
+
+AV가 생성한 문장 `z_i`만 AR에 넣어 원 activation `h_i`를 복원한다.
+
+```text
+h_i -> AV -> z_i -> AR -> h_hat_i
+
+FVE_matched
+= 1 - MSE(h_i, AR(z_i)) / MSE(h_i, h_mean_validation)
+
+FVE_shuffled
+= 1 - MSE(h_i, AR(z_j)) / MSE(h_i, h_mean_validation)
+
+FVE gap = FVE_matched - FVE_shuffled
+```
+
+`FVE=1`은 완전 복원, `FVE=0`은 validation mean activation을 예측한 수준이며 음수는 mean보다도
+못한 복원이다. Matched FVE는 자기 설명으로 자기 activation을 복원하고, Shuffled FVE는 같은
+진단의 다른 case 설명으로 복원한다. FVE gap이 양수이고 paired CI가 0을 배제해야 자연어가
+사례 고유 activation 정보를 보존한다고 본다. AR이 없는 CoT와 Medical-AV SFT-only에는 FVE를
+계산하지 않아 `N/A`다.
+
+### 표 밖의 필수 controls
+
+| Control | 무엇을 바꾸는가 | 실패하면 의미하는 것 |
+|---|---|---|
+| Zero activation | 실제 activation 대신 영벡터 입력 | 출력이 AV의 language prior만으로 생성됨 |
+| Validation mean activation | 모든 case에 같은 평균벡터 입력 | 사례 고유 정보 없이 평균 상태만 읽음 |
+| Activation swap | Case A metadata에 case B activation 결합 | Readout이 activation보다 metadata/prompt를 따름 |
+| Direct-P0 sensitivity | 같은 validation case에서 instruction만 Direct로 변경 | CoT-P0 결과가 instruction에 과도하게 의존 |
+
+RQ2 통과는 한 metric으로 결정하지 않는다. Own finding/value score, 양의 Pair gap, 방향성 있는
+edited-finding response, 높은 untouched retention, 그리고 AR 모델의 matched-over-shuffled FVE가
+함께 필요하다. Panel A는 **자기 환자의 내용을 읽었는가**, Panel B는 **상태를 바꾸면 설명이
+선택적으로 따라 변하고 그 설명이 activation 정보를 보존하는가**를 답한다.
 
 **RQ2의 현재 답.** DDXPlus CoT-P0에서 Medical-NLA matched/shuffled, finding edit,
 untouched retention, round-trip Table 3은 아직
