@@ -41,8 +41,10 @@ adapter가 아니라 하나의 HS32 adapter를 학습하는 mixed pilot이다. D
 closed-probe 설계 판단에 사용됐으므로, mixed NLA의 최종 confirmatory 성능은 별도의 미사용
 prospective holdout을 만든 뒤 한 번만 평가해야 한다.
 
-실행 wrapper는 `scripts/run_common_medical_nla_pilot.sh`이다. 먼저 `MAX_STEPS=5` smoke를
-통과시키고, 그 결과 디렉터리를 지운 새 run name에서 full three-seed 실행을 시작한다.
+실행 wrapper는 `scripts/run_common_medical_nla_pilot.sh`이다. 먼저
+`RUN_NAME=common_medical_nla_smoke5_v1 MAX_STEPS=5`로 smoke를 통과시킨 뒤,
+`RUN_NAME=common_medical_nla_pilot_v1`로 full three-seed 실행을 시작한다. 두 실행은 서로
+다른 디렉터리를 사용한다.
 
 Clinical text는 DiReCT의 physician deduction structure에서 만든다. Activation은 P0를
 주 입력으로 한다. Source-wrong 행에서 gold physician text를 activation의 현재 결론처럼

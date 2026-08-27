@@ -6,6 +6,7 @@ GPUS="${GPUS:-0,1}"
 SEEDS="${SEEDS:-17}"
 EPOCHS="${EPOCHS:-3}"
 MAX_STEPS="${MAX_STEPS:-}"
+RUN_NAME="${RUN_NAME:-common_medical_nla_pilot_v1}"
 
 cd /home/eagle0914/medical_nla
 source "${DATA_ROOT}/uv/medical_nla/bin/activate"
@@ -16,7 +17,7 @@ export PYTHONPATH=/home/eagle0914/medical_nla
 DIRECT="${DATA_ROOT}/restricted/direct/e3/direct_e3_sft_v1"
 DDX_TRAIN="${DATA_ROOT}/medical_nla/data/ddxplus_probe_train_v1/activations/ddxplus_probe_train_cot_p0_merged_v1/layer32/last_token/manifest.jsonl"
 DDX_VAL="${DATA_ROOT}/medical_nla/data/ddxplus_e5_canonical_v1/activations/ddxplus_e5_validation_cot_p0_merged_v1/layer32/last_token/manifest.jsonl"
-ROOT="${DATA_ROOT}/restricted/direct/e3/common_medical_nla_pilot_v1"
+ROOT="${DATA_ROOT}/restricted/direct/e3/${RUN_NAME}"
 DATASET="${ROOT}/dataset"
 mkdir -p "${ROOT}/adapters" "${DATA_ROOT}/medical_nla/logs"
 
@@ -49,7 +50,7 @@ if [[ -n "${MAX_STEPS}" ]]; then
 fi
 
 for seed in ${SEEDS}; do
-  out="${ROOT}/adapters/common_medical_nla_pilot_v1_seed${seed}"
+  out="${ROOT}/adapters/${RUN_NAME}_seed${seed}"
   if [[ -s "${out}/best.json" ]]; then
     echo "[skip] seed ${seed} already complete"
     continue
