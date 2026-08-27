@@ -5,6 +5,7 @@ from pathlib import Path
 from scripts.prepare_ddxplus_e5 import (
     counterfactual_cases,
     gold_named,
+    make_activation_row,
     pair_hard_shuffles,
     sample_split,
 )
@@ -103,6 +104,37 @@ def test_counterfactual_uses_same_evidence_native_value(tmp_path):
     assert edited["cf_replacement_value_id"] != edited["cf_original_value_id"]
     assert edited["cf_replacement_cue"] in edited["prompt"]
     assert edited["cf_original_cue"] not in edited["prompt"]
+
+
+def test_primary_activation_row_is_cot_p0_and_direct_is_separate(tmp_path):
+    path = tmp_path / "test.csv"
+    write_patients(path, n_per_label=3)
+    cases, _ = sample_split(
+        path,
+        split="test",
+        evidence_meta=evidence_meta(),
+        seed=17,
+        quota=2,
+        max_diagnoses=2,
+    )
+    case = cases[0]
+
+    primary = make_activation_row(case)
+    control = make_activation_row(case, condition="direct")
+
+    assert primary["id"].endswith("__cot_p0")
+    assert primary["condition"] == "cot"
+    assert primary["prompt"] == case["prompt_cot"]
+    assert primary["prompt"] != case["prompt"]
+    assert primary["position_family"] == "P0"
+    assert primary["position_label"] == "cot_P0_prompt_boundary"
+    assert primary["position_mode"] == "last_token"
+
+    assert control["id"].endswith("__direct_p0")
+    assert control["condition"] == "direct"
+    assert control["prompt"] == case["prompt"]
+    assert control["position_family"] == "P0"
+    assert control["id"] != primary["id"]
 
 
 def test_hard_shuffle_is_same_diagnosis_and_a_derangement(tmp_path):

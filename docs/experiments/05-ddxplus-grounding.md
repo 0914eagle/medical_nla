@@ -23,8 +23,13 @@ train/validation/test 사이에 분리한다. Test pair나 test cue/value로 pro
 shuffle 난이도를 선택하지 않는다. 학습에 쓴 DDXPlus 행을 같은 Table 3 분모에 넣지 않는다.
 
 공개 AV/AR가 hidden-state extraction index 32용이므로 primary grounding과 round-trip은
-HS32로 고정한다. HS16/HS24를 같은 decoder에 넣는 값은 representation 차이와 decoder
-distribution shift를 분리하지 못해 appendix sensitivity로만 다룬다.
+**CoT-P0/HS32**로 고정한다. 여기서 CoT-P0는 CoT instruction을 포함한 chat prompt의
+경계에서, 모델이 reasoning을 생성하기 전 마지막 hidden state다. DiReCT Medical-NLA도
+동일한 CoT-P0로 학습되므로 DDXPlus primary에서 instruction distribution을 맞춘다.
+Direct-P0는 같은 validation base case의 paired instruction-sensitivity 통제로만 사용하며
+primary 분모와 locked test에는 넣지 않는다. HS16/HS24를 같은 decoder에 넣는 값은
+representation 차이와 decoder distribution shift를 분리하지 못해 appendix
+sensitivity로만 다룬다.
 
 정본 데이터는 공식 `validate.csv`와 `test.csv`에서 각각 독립적으로 진단당 100건을
 reservoir sampling한다(seed 17; 최대 49 diagnosis). 적격 조건은 clean rendered cue가

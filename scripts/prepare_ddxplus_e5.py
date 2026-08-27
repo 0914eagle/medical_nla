@@ -14,6 +14,11 @@ For each selected case it emits:
 * a deterministic hard-shuffle donor from the same diagnosis with similar cue
   count and prompt length.
 
+Primary activation rows use the CoT-instructed prompt boundary (CoT-P0), which
+matches the DiReCT activation distribution used to train Medical-NLA. Direct-P0
+rows are emitted separately for the validation base cases only; they are an
+instruction-sensitivity control, not part of the locked primary population.
+
 No generated model output or activation is read here. Source-answer agreement
 is measured later but is not an eligibility condition: holding the diagnosis
 fixed while changing the evidence is the point of the hard negative.
@@ -218,13 +223,28 @@ def sample_split(
     return cases, summary
 
 
-def make_activation_row(case: dict[str, Any]) -> dict[str, Any]:
+def make_activation_row(
+    case: dict[str, Any], *, condition: str = "cot"
+) -> dict[str, Any]:
+    if condition not in {"cot", "direct"}:
+        raise ValueError(f"Unsupported P0 condition: {condition!r}")
+    prompt_field = "prompt_cot" if condition == "cot" else "prompt"
+    prompt = case.get(prompt_field)
+    if not prompt:
+        raise ValueError(
+            f"Case {case.get('id')} has no {prompt_field!r} for {condition}-P0."
+        )
+
     out = dict(case)
     out.update(
         {
-            "condition": "direct",
+            "id": f"{case['id']}__{condition}_p0",
+            "prompt": prompt,
+            "condition": condition,
             "target_role": "format",
             "cue_index": None,
+            "position_label": f"{condition}_P0_prompt_boundary",
+            "position_family": "P0",
             "position_mode": "last_token",
             "target_text": None,
             "target_text_strategy": None,
@@ -453,17 +473,19 @@ def write_summary(path: Path, protocol: dict[str, Any]) -> None:
         "",
         (
             "| split | scanned | eligible | selected | gold-name excluded | deletion | "
-            "native value edit | hard pairs | pair eligible |"
+            "native value edit | primary CoT-P0 | Direct-P0 control | hard pairs | "
+            "pair eligible |"
         ),
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for split, item in protocol["splits"].items():
         scan = item["scan"]
         lines.append(
             f"| {split} | {scan.get('rows_scanned', 0)} | {scan.get('eligible_rows', 0)} | "
             f"{item['cases']} | {scan.get('gold_named_in_prompt', 0)} | "
-            f"{item['cue_deleted']} | {item['value_edited']} | {item['hard_pairs']} | "
-            f"{item['primary_pair_eligible']} |"
+            f"{item['cue_deleted']} | {item['value_edited']} | "
+            f"{item['activation_rows']} | {item['direct_p0_control_rows']} | "
+            f"{item['hard_pairs']} | {item['primary_pair_eligible']} |"
         )
     lines.extend(
         [
@@ -488,7 +510,14 @@ def write_summary(path: Path, protocol: dict[str, Any]) -> None:
                 "- Source-answer agreement is reported later but does not define pair "
                 "eligibility; the diagnosis is intentionally held fixed."
             ),
-            "- All primary E5 activations are P0/HS32 last-token states.",
+            (
+                "- All primary E5 activations are CoT-P0/HS32 last-token states, "
+                "matching the DiReCT Medical-NLA training condition."
+            ),
+            (
+                "- Direct-P0 rows are a paired validation-only instruction control; "
+                "they are not part of the locked primary test."
+            ),
             "",
         ]
     )
@@ -515,13 +544,15 @@ def main() -> None:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     protocol: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "seed": args.seed,
         "examples_per_diagnosis": args.examples_per_diagnosis,
         "max_diagnoses": args.max_diagnoses,
         "primary_adaptation_data": "DiReCT only",
         "mean_activation_control_split": "validation",
-        "primary_hidden_state": "P0/HS32/last_token",
+        "primary_hidden_state": "CoT-P0/HS32/last_token",
+        "primary_instruction_condition": "cot",
+        "instruction_sensitivity_control": "Direct-P0 on validation base cases only",
         "source_files": {
             "evidences": {"path": str(args.evidences), "sha256": sha256_file(args.evidences)}
         },
@@ -544,11 +575,21 @@ def main() -> None:
             for derived in counterfactual_cases(case, evidence_meta, seed=args.seed)
         ]
         activation_rows = [make_activation_row(case) for case in [*cases, *counterfactuals]]
+        direct_control_rows = (
+            [make_activation_row(case, condition="direct") for case in cases]
+            if split == "validation"
+            else []
+        )
         pairs = pair_hard_shuffles(cases)
 
         write_jsonl(args.out_dir / f"cases_{split}.jsonl", cases)
         write_jsonl(args.out_dir / f"counterfactual_cases_{split}.jsonl", counterfactuals)
         write_jsonl(args.out_dir / f"activation_rows_{split}.jsonl", activation_rows)
+        if direct_control_rows:
+            write_jsonl(
+                args.out_dir / "activation_rows_validation_direct_control.jsonl",
+                direct_control_rows,
+            )
         write_jsonl(args.out_dir / f"hard_shuffle_pairs_{split}.jsonl", pairs)
 
         variant_counts = Counter(row["variant"] for row in counterfactuals)
@@ -562,6 +603,7 @@ def main() -> None:
             "cases": len(cases),
             "case_id_sha256": sha256_values(str(row["base_id"]) for row in cases),
             "activation_rows": len(activation_rows),
+            "direct_p0_control_rows": len(direct_control_rows),
             "cue_deleted": variant_counts["cue_deleted"],
             "value_edited": variant_counts["value_edited"],
             "hard_pairs": len(pairs),
@@ -583,7 +625,9 @@ def main() -> None:
         }
         print(
             f"[{split}] cases={len(cases)} deletion={variant_counts['cue_deleted']} "
-            f"value_edit={variant_counts['value_edited']} pairs={pair_eligible}/{len(pairs)}",
+            f"value_edit={variant_counts['value_edited']} cot_p0={len(activation_rows)} "
+            f"direct_p0_control={len(direct_control_rows)} "
+            f"pairs={pair_eligible}/{len(pairs)}",
             flush=True,
         )
 

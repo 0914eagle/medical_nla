@@ -37,10 +37,18 @@ sample.
 
 ## Derived variants
 
-For each selected base case, the builder writes the original P0 prompt and one
-cue-deletion prompt. It also writes a value-edit prompt when the selected evidence
-has another value explicitly declared by `release_evidences.json` and that value
-can be rendered cleanly.
+For each selected base case, the builder writes the original CoT-P0 prompt and
+one cue-deletion CoT-P0 prompt. It also writes a value-edit CoT-P0 prompt when
+the selected evidence has another value explicitly declared by
+`release_evidences.json` and that value can be rendered cleanly.
+
+`P0` means the last hidden state at the chat-formatted prompt boundary before
+any model-generated reasoning. The primary condition is explicitly **CoT-P0**,
+not Direct-P0, because Medical-NLA is trained on DiReCT CoT-P0 activations. The
+builder also emits `activation_rows_validation_direct_control.jsonl` for the
+unchanged validation base cases. This paired Direct-P0 file measures instruction
+sensitivity and is never mixed into the primary grounding denominator or the
+locked test.
 
 The value edit is constrained as follows:
 
@@ -71,6 +79,7 @@ while changing case evidence is the intended hard negative.
 - `cue deletion`: target cue removed, remaining cues unchanged.
 - `native value edit`: one evidence value changed within its DDXPlus ontology.
 - `activation swap`: metadata/text target from one case with another case state.
+- `Direct-P0 sensitivity`: same validation case at the Direct-instructed prompt boundary.
 
 The mean control is computed from validation activations. Computing it from the
 test population would let locked-test information enter the control.
@@ -113,6 +122,7 @@ wc -l \
   "$ROOT/counterfactual_cases_test.jsonl" \
   "$ROOT/activation_rows_validation.jsonl" \
   "$ROOT/activation_rows_test.jsonl" \
+  "$ROOT/activation_rows_validation_direct_control.jsonl" \
   "$ROOT/hard_shuffle_pairs_validation.jsonl" \
   "$ROOT/hard_shuffle_pairs_test.jsonl"
 ```
@@ -141,9 +151,10 @@ activation extraction across servers.
 Data preparation alone does not fill Table 3. After the three DiReCT SFT seeds
 finish and a checkpoint is selected using DiReCT validation only:
 
-1. extract P0/HS32 activations for DDXPlus validation;
+1. extract primary CoT-P0/HS32 activations for DDXPlus validation;
 2. run vanilla NLA and the frozen Medical-NLA checkpoint;
-3. choose scoring thresholds and report hard-shuffle source-answer agreement;
-4. freeze the E5 scoring protocol;
-5. extract and score the locked DDXPlus test population;
-6. run AR round-trip only for methods that pass the paired grounding gate.
+3. extract Direct-P0 for the paired validation instruction-sensitivity control;
+4. choose scoring thresholds and report hard-shuffle source-answer agreement;
+5. freeze the E5 scoring protocol;
+6. extract and score the locked DDXPlus test population;
+7. run AR round-trip only for methods that pass the paired grounding gate.
