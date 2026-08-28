@@ -161,12 +161,12 @@ category-cluster bootstrap CI 하한이 0보다 크고, 기존 seed 29 gap `+.00
 ```bash
 DATA_ROOT=/data1/heejae \
 nohup bash scripts/run_common_medical_nla_contrastive_smoke_4gpu_125.sh \
-  > /data1/heejae/medical_nla/logs/common_medical_nla_contrastive_smoke20_v2.log 2>&1 &
+  > /data1/heejae/medical_nla/logs/common_medical_nla_contrastive_smoke20_v3.log 2>&1 &
 ```
 
 Queue log는 두 worker의 시작·종료 상태를 기록한다. 학습 곡선은
-`common_medical_nla_contrastive_smoke20_v2_lambda_0p1_train.log`와
-`common_medical_nla_contrastive_smoke20_v2_lambda_1p0_train.log`, alignment 결과는 같은
+`common_medical_nla_contrastive_smoke20_v3_lambda_0p1_train.log`와
+`common_medical_nla_contrastive_smoke20_v3_lambda_1p0_train.log`, alignment 결과는 같은
 prefix의 `_alignment.log`에서 확인한다.
 
 #### Mixed-pilot validation 결과

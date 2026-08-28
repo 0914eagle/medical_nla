@@ -147,17 +147,15 @@ def low_memory_token_nll(logits: torch.Tensor, labels: torch.Tensor) -> torch.Te
     return losses.masked_fill(~valid, 0.0)
 
 
-def losses_for_pair_batch(
+def losses_for_rows(
     *,
-    pairs: list[tuple[dict[str, Any], dict[str, Any]]],
+    rows: list[dict[str, Any]],
     model: torch.nn.Module,
     tokenizer: Any,
     embed_layer: torch.nn.Module,
     sidecar: Any,
     actor_prompt_template: str,
-    temperature: float,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    rows = [row for first, second in pairs for row in crossed_rows(first, second)]
+) -> tuple[torch.Tensor, list[int], torch.Tensor]:
     examples = [
         build_training_example(
             row=row,
@@ -175,21 +173,87 @@ def losses_for_pair_batch(
     per_token = low_memory_token_nll(logits[:, :-1, :], labels[:, 1:])
     supervised = labels[:, 1:] != -100
     content_mask = supervised & content[:, 1:]
-
-    # Rows are laid out [own_i, own_j, cross_ij, cross_ji] per pair.
-    own_indices = [4 * index + offset for index in range(len(pairs)) for offset in (0, 1)]
-    own_mask = supervised[own_indices]
-    sft_loss = per_token[own_indices][own_mask].mean()
-
+    token_sums = []
+    token_counts = []
     content_nll = []
-    for losses, mask in zip(per_token, content_mask, strict=True):
-        if not bool(mask.any()):
+    for losses, supervised_row, content_row in zip(
+        per_token, supervised, content_mask, strict=True
+    ):
+        if not bool(content_row.any()):
             raise ValueError("Contrastive target has no content tokens")
-        content_nll.append(losses[mask].mean())
-    pair_loss, gaps = symmetric_pair_objective(
-        torch.stack(content_nll), n_pairs=len(pairs), temperature=temperature
-    )
-    return sft_loss, pair_loss, gaps.mean()
+        token_sums.append(losses[supervised_row].sum())
+        token_counts.append(int(supervised_row.sum().item()))
+        content_nll.append(losses[content_row].mean())
+    return torch.stack(token_sums), token_counts, torch.stack(content_nll)
+
+
+def backward_pair_batch(
+    *,
+    pairs: list[tuple[dict[str, Any], dict[str, Any]]],
+    model: torch.nn.Module,
+    tokenizer: Any,
+    embed_layer: torch.nn.Module,
+    sidecar: Any,
+    actor_prompt_template: str,
+    temperature: float,
+    pair_loss_weight: float,
+    grad_accum_steps: int,
+) -> tuple[float, float, float]:
+    """Backpropagate an exact pair-objective gradient one row at a time.
+
+    With dropout disabled, a no-grad pass gives the current margin and thus
+    the detached derivative of the softplus ranking objective. Applying that
+    coefficient to four sequential row losses has exactly the same gradient
+    as the joint four-row expression, without retaining four 12B graphs.
+    """
+    rows = [row for first, second in pairs for row in crossed_rows(first, second)]
+    own_indices = [4 * index + offset for index in range(len(pairs)) for offset in (0, 1)]
+    with torch.no_grad():
+        token_sums, token_counts, content_nll = losses_for_rows(
+            rows=rows,
+            model=model,
+            tokenizer=tokenizer,
+            embed_layer=embed_layer,
+            sidecar=sidecar,
+            actor_prompt_template=actor_prompt_template,
+        )
+        pair_loss, gaps = symmetric_pair_objective(
+            content_nll, n_pairs=len(pairs), temperature=temperature
+        )
+        own_token_count = sum(token_counts[index] for index in own_indices)
+        sft_loss = token_sums[own_indices].sum() / own_token_count
+        # d[T*softplus(-gap/T)]/d(gap) = -sigmoid(-gap/T).
+        strengths = torch.sigmoid(-gaps / temperature)
+
+    for row_index, row in enumerate(rows):
+        row_token_sum, _row_counts, row_content_nll = losses_for_rows(
+            rows=[row],
+            model=model,
+            tokenizer=tokenizer,
+            embed_layer=embed_layer,
+            sidecar=sidecar,
+            actor_prompt_template=actor_prompt_template,
+        )
+        pair_index = row_index // 4
+        offset = row_index % 4
+        scalar = torch.zeros((), device=row_content_nll.device)
+        if offset < 2:
+            scalar = scalar + row_token_sum[0] / own_token_count
+            pair_sign = 1.0
+        else:
+            pair_sign = -1.0
+        scalar = scalar + (
+            pair_loss_weight
+            * pair_sign
+            * 0.5
+            * strengths[pair_index]
+            * row_content_nll[0]
+            / len(pairs)
+        )
+        (scalar / grad_accum_steps).backward()
+        del scalar, row_token_sum, row_content_nll
+
+    return float(sft_loss.item()), float(pair_loss.item()), float(gaps.mean().item())
 
 
 def main() -> None:
@@ -303,7 +367,7 @@ def main() -> None:
         print(f"[epoch] {epoch} balanced_pairs={len(pairs)}", flush=True)
         for start in range(0, len(pairs), args.pairs_per_batch):
             batch = pairs[start : start + args.pairs_per_batch]
-            sft_loss, pair_loss, gap = losses_for_pair_batch(
+            sft_loss, pair_loss, gap = backward_pair_batch(
                 pairs=batch,
                 model=model,
                 tokenizer=tokenizer,
@@ -311,11 +375,11 @@ def main() -> None:
                 sidecar=sidecar,
                 actor_prompt_template=actor_prompt_template,
                 temperature=args.pair_temperature,
+                pair_loss_weight=args.pair_loss_weight,
+                grad_accum_steps=args.grad_accum_steps,
             )
-            total = sft_loss + args.pair_loss_weight * pair_loss
-            (total / args.grad_accum_steps).backward()
             micro_step += 1
-            recent.append((float(sft_loss.item()), float(pair_loss.item()), float(gap.item())))
+            recent.append((sft_loss, pair_loss, gap))
             if micro_step % args.grad_accum_steps != 0:
                 continue
             torch.nn.utils.clip_grad_norm_(trainable, 1.0)
