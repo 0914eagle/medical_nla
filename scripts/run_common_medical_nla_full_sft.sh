@@ -19,12 +19,35 @@ source scripts/env.sh "${DATA_ROOT}"
 export PYTHONPATH=/home/eagle0914/medical_nla
 
 DIRECT="${DIRECT:-${DATA_ROOT}/restricted/direct/e3/direct_e3_sft_v1}"
-DDX_TRAIN="${DDX_TRAIN:-${DATA_ROOT}/medical_nla/data/ddxplus_probe_train_v1/activations/ddxplus_probe_train_cot_p0_merged_v1/layer32/last_token/manifest.jsonl}"
+default_ddx_train="${DATA_ROOT}/medical_nla/data/ddxplus_probe_train_v1/activations/ddxplus_probe_train_cot_p0_merged_v1/layer32/last_token/manifest.jsonl"
 default_ddx_val="${DATA_ROOT}/medical_nla/data/ddxplus_e5_canonical_v1/activations/ddxplus_e5_validation_cot_p0_merged_v1/layer32/last_token/manifest.jsonl"
-server125_ddx_val="${DATA_ROOT}/medical_nla/data/ddxplus_e5_canonical_v1/activations/ddxplus_e5_validation_cot_p0_merged_server125_v1/layer32/last_token/manifest.jsonl"
-if [[ "${DATA_ROOT}" == "/data1/heejae" && -s "${server125_ddx_val}" ]]; then
-  default_ddx_val="${server125_ddx_val}"
+
+prepare_server125_manifest() {
+  local input="$1"
+  local output="$2"
+  local expected_rows="$3"
+  test -s "${input}" || { echo "[error] missing ${input}" >&2; exit 2; }
+  mkdir -p "$(dirname "${output}")"
+  python scripts/remap_activation_manifest_paths.py \
+    --input "${input}" \
+    --output "${output}" \
+    --path-map /data/heejae=/data1/heejae \
+    --expected-rows "${expected_rows}"
+}
+
+if [[ "${DATA_ROOT}" == "/data1/heejae" ]]; then
+  server125_ddx_train="${DATA_ROOT}/medical_nla/data/ddxplus_probe_train_v1/activations/ddxplus_probe_train_cot_p0_merged_server125_v1/layer32/last_token/manifest.jsonl"
+  server125_ddx_val="${DATA_ROOT}/medical_nla/data/ddxplus_e5_canonical_v1/activations/ddxplus_e5_validation_cot_p0_merged_server125_v1/layer32/last_token/manifest.jsonl"
+  if [[ -z "${DDX_TRAIN:-}" ]]; then
+    prepare_server125_manifest "${default_ddx_train}" "${server125_ddx_train}" 4655
+    default_ddx_train="${server125_ddx_train}"
+  fi
+  if [[ -z "${DDX_VAL:-}" ]]; then
+    prepare_server125_manifest "${default_ddx_val}" "${server125_ddx_val}" 10006
+    default_ddx_val="${server125_ddx_val}"
+  fi
 fi
+DDX_TRAIN="${DDX_TRAIN:-${default_ddx_train}}"
 DDX_VAL="${DDX_VAL:-${default_ddx_val}}"
 ROOT="${DATA_ROOT}/restricted/direct/e3/${RUN_NAME}"
 DATASET="${ROOT}/dataset"

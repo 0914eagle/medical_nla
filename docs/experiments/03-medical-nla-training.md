@@ -88,8 +88,9 @@ DATA_ROOT=/data1/heejae EPOCHS=1 RUN_VALIDATION=1 RUN_GROUNDING=1 \
 ```
 
 전체 queue는 dataset row 수와 target style을 검증한 뒤 시작하며, 기존 incomplete adapter
-directory를 덮어쓰지 않는다. Server 125에서는 activation path가 `/data1/heejae`로 remap된
-validation manifest를 자동 우선한다.
+directory를 덮어쓰지 않는다. Server 125에서는 DDXPlus train/validation manifest의
+`/data/heejae` activation path를 `/data1/heejae`로 자동 remap하고 모든 tensor 파일의 존재를
+검증한 server-local manifest를 사용한다.
 
 #### Mixed-pilot validation 결과
 
