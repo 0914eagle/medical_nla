@@ -23,7 +23,7 @@ source scripts/env.sh "${DATA_ROOT}"
 export PYTHONPATH=/home/eagle0914/medical_nla
 
 E5="${DATA_ROOT}/medical_nla/data/ddxplus_e5_canonical_v1"
-SOURCE_MANIFEST="${E5}/activations/ddxplus_e5_validation_cot_p0_merged_v1/layer32/last_token/manifest.jsonl"
+SOURCE_MANIFEST="${SOURCE_MANIFEST:-${E5}/activations/ddxplus_e5_validation_cot_p0_merged_v1/layer32/last_token/manifest.jsonl}"
 COMMON_ROOT="${DATA_ROOT}/restricted/direct/e3/${COMMON_RUN_NAME}"
 OUT="${E5}/${GROUNDING_RUN_NAME}"
 SHARDS="${OUT}/manifest_shards"
