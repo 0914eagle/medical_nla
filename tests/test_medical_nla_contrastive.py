@@ -2,10 +2,12 @@ from scripts.train_medical_nla_contrastive import (
     balanced_pairs,
     build_disjoint_pairs,
     crossed_rows,
+    low_memory_token_nll,
     symmetric_pair_objective,
 )
 
 import torch
+import torch.nn.functional as F
 
 
 def row(identifier: str, source: str, group: str, target: str) -> dict:
@@ -69,3 +71,14 @@ def test_symmetric_objective_rewards_crossed_nll_above_matched() -> None:
     assert good_gap.item() > 0
     assert bad_gap.item() < 0
     assert good_loss.item() < bad_loss.item()
+
+
+def test_low_memory_token_nll_matches_cross_entropy() -> None:
+    torch.manual_seed(17)
+    logits = torch.randn(2, 3, 7)
+    labels = torch.tensor([[1, 2, -100], [3, 4, 5]])
+    expected = F.cross_entropy(
+        logits.transpose(1, 2), labels, reduction="none", ignore_index=-100
+    )
+    actual = low_memory_token_nll(logits, labels)
+    assert torch.allclose(actual, expected, atol=1e-6)

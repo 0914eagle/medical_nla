@@ -3,7 +3,7 @@ set -euo pipefail
 
 DATA_ROOT="${DATA_ROOT:-/data1/heejae}"
 BASE_RUN="${BASE_RUN:-common_medical_nla_full_sft_v1}"
-RUN_NAME="${RUN_NAME:-common_medical_nla_contrastive_smoke20_v1}"
+RUN_NAME="${RUN_NAME:-common_medical_nla_contrastive_smoke20_v2}"
 MAX_STEPS="${MAX_STEPS:-20}"
 LOG_ROOT="${DATA_ROOT}/medical_nla/logs"
 TRAIN="${DATA_ROOT}/restricted/direct/e3/${BASE_RUN}/dataset/sft_train.jsonl"

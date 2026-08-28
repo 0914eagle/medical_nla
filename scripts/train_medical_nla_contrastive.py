@@ -126,6 +126,27 @@ def symmetric_pair_objective(
     return loss, gaps
 
 
+def low_memory_token_nll(logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    """Cross-entropy without materializing a full float32 logits copy.
+
+    The 12B model emits bfloat16 logits. Calling ``logits.float()`` on the
+    four matched/crossed sequences adds roughly 1.1 GiB at the point of peak
+    training memory on a 24 GiB card. Log-sum-exp and target gathering are
+    equivalent to cross-entropy while keeping the vocabulary tensor in its
+    model dtype. The two reduced tensors are cast before subtraction.
+    """
+    if logits.shape[:-1] != labels.shape:
+        raise ValueError(
+            f"Logit/label shape mismatch: {tuple(logits.shape)} vs {tuple(labels.shape)}"
+        )
+    valid = labels != -100
+    safe_labels = labels.masked_fill(~valid, 0)
+    target_logits = logits.gather(-1, safe_labels.unsqueeze(-1)).squeeze(-1)
+    log_normalizer = torch.logsumexp(logits, dim=-1)
+    losses = log_normalizer.float() - target_logits.float()
+    return losses.masked_fill(~valid, 0.0)
+
+
 def losses_for_pair_batch(
     *,
     pairs: list[tuple[dict[str, Any], dict[str, Any]]],
@@ -151,12 +172,7 @@ def losses_for_pair_batch(
     ]
     inputs_embeds, attention_mask, labels, content = collate_examples(examples)
     logits = model(inputs_embeds=inputs_embeds, attention_mask=attention_mask).logits
-    per_token = F.cross_entropy(
-        logits[:, :-1, :].float().transpose(1, 2),
-        labels[:, 1:],
-        reduction="none",
-        ignore_index=-100,
-    )
+    per_token = low_memory_token_nll(logits[:, :-1, :], labels[:, 1:])
     supervised = labels[:, 1:] != -100
     content_mask = supervised & content[:, 1:]
 
