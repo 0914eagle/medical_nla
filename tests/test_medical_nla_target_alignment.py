@@ -52,12 +52,14 @@ def test_summary_uses_positive_control_minus_matched_gap() -> None:
                 {
                     "base_id": identifier,
                     "donor_base_id": "b" if identifier == "a" else "a",
+                    "disease_category": "same",
                     "condition": "target_shuffled",
                     "content_nll": 2.0,
                 },
                 {
                     "base_id": identifier,
                     "donor_base_id": "b" if identifier == "a" else "a",
+                    "disease_category": "same",
                     "condition": "activation_shuffled",
                     "content_nll": 3.0,
                 },
@@ -68,3 +70,5 @@ def test_summary_uses_positive_control_minus_matched_gap() -> None:
     assert result["gaps"]["activation_shuffled"]["control_minus_matched"] == 2.0
     assert result["gaps"]["target_shuffled"]["matched_win_rate"] == 1.0
     assert result["symmetric_cross"]["cross_minus_matched"] == 1.5
+    assert result["symmetric_cross"]["clusters"] == 1
+    assert result["symmetric_cross"]["cluster_bootstrap_95_ci"] == [1.5, 1.5]

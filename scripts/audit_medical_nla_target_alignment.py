@@ -170,6 +170,26 @@ def bootstrap_ci(values: list[float], *, seed: int, draws: int = 5000) -> list[f
     ]
 
 
+def cluster_bootstrap_ci(
+    values_by_cluster: dict[str, list[float]], *, seed: int, draws: int = 5000
+) -> list[float]:
+    """Bootstrap whole donor-dependence clusters, not individual cycle edges."""
+    clusters = sorted(key for key, values in values_by_cluster.items() if values)
+    if not clusters:
+        return [float("nan"), float("nan")]
+    rng = random.Random(seed)
+    estimates = []
+    for _ in range(draws):
+        sampled = [rng.choice(clusters) for _ in clusters]
+        values = [value for key in sampled for value in values_by_cluster[key]]
+        estimates.append(mean(values))
+    estimates.sort()
+    return [
+        estimates[int(0.025 * (draws - 1))],
+        estimates[int(0.975 * (draws - 1))],
+    ]
+
+
 def summarize(
     scores: list[dict[str, Any]], *, eligible_rows: int, seed: int
 ) -> dict[str, Any]:
@@ -211,11 +231,12 @@ def summarize(
     # nuisance by scoring both targets under both activations:
     #   [NLL(y_j|h_i) + NLL(y_i|h_j) - NLL(y_i|h_i) - NLL(y_j|h_j)] / 2.
     symmetric = []
+    symmetric_by_category: dict[str, list[float]] = defaultdict(list)
     for identifier in ids:
         donor_id = by_condition["target_shuffled"][identifier]["donor_base_id"]
         if donor_id not in matched:
             continue
-        symmetric.append(
+        value = (
             0.5
             * (
                 by_condition["target_shuffled"][identifier]["content_nll"]
@@ -224,10 +245,19 @@ def summarize(
                 - matched[donor_id]["content_nll"]
             )
         )
+        symmetric.append(value)
+        cluster = clean(
+            by_condition["target_shuffled"][identifier].get("disease_category")
+        ).casefold()
+        symmetric_by_category[cluster or "<missing>"].append(value)
     result["symmetric_cross"] = {
         "n": len(symmetric),
+        "clusters": len(symmetric_by_category),
         "cross_minus_matched": mean(symmetric) if symmetric else float("nan"),
-        "bootstrap_95_ci": bootstrap_ci(symmetric, seed=seed),
+        "row_bootstrap_95_ci": bootstrap_ci(symmetric, seed=seed),
+        "cluster_bootstrap_95_ci": cluster_bootstrap_ci(
+            symmetric_by_category, seed=seed
+        ),
         "matched_win_rate": (
             sum(value > 0 for value in symmetric) / len(symmetric)
             if symmetric
@@ -320,7 +350,10 @@ def main() -> None:
             "adapter": str(args.adapter),
             "source_dataset": args.source_dataset,
             "seed": args.seed,
-            "selection_rule": "symmetric cross-minus-matched bootstrap interval above zero",
+            "selection_rule": (
+                "symmetric cross-minus-matched disease-category-cluster bootstrap "
+                "interval above zero"
+            ),
         }
     )
 
@@ -351,22 +384,24 @@ def main() -> None:
             f"[{ci[0]:+.4f}, {ci[1]:+.4f}] | {values['matched_win_rate']:.4f} |"
         )
     symmetric = result["symmetric_cross"]
-    symmetric_ci = symmetric["bootstrap_95_ci"]
+    row_ci = symmetric["row_bootstrap_95_ci"]
+    cluster_ci = symmetric["cluster_bootstrap_95_ci"]
     lines.extend(
         [
             "",
-            "| primary symmetric 2x2 gate | n | cross-minus-matched | bootstrap 95% CI | matched win rate |",
-            "|---|---:|---:|---:|---:|",
-            f"| target/activation cross | {symmetric['n']} | "
+            "| primary symmetric 2x2 gate | n / category clusters | cross-minus-matched | row bootstrap 95% CI | cluster bootstrap 95% CI | matched win rate |",
+            "|---|---:|---:|---:|---:|---:|",
+            f"| target/activation cross | {symmetric['n']} / {symmetric['clusters']} | "
             f"{symmetric['cross_minus_matched']:+.4f} | "
-            f"[{symmetric_ci[0]:+.4f}, {symmetric_ci[1]:+.4f}] | "
+            f"[{row_ci[0]:+.4f}, {row_ci[1]:+.4f}] | "
+            f"[{cluster_ci[0]:+.4f}, {cluster_ci[1]:+.4f}] | "
             f"{symmetric['matched_win_rate']:.4f} |",
         ]
     )
     lines.extend(
         [
             "",
-            "The primary gate passes only when the symmetric bootstrap interval is strictly above zero.",
+            "The primary gate passes only when the category-cluster bootstrap interval is strictly above zero.",
             "One-sided shuffle gaps are retained as diagnostics because they include target-difficulty noise.",
         ]
     )
