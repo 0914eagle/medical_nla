@@ -126,9 +126,11 @@ ablation으로만 보존한다.
 - target shuffled: `p(y_j | h_i)`
 - activation shuffled: `p(y_i | h_j)`
 
-두 control의 `NLL(control)-NLL(matched)` paired bootstrap 95% CI가 모두 0보다 커야 physician
-observation target이 activation과 사례별로 정렬됐다고 판정한다. 하나라도 통과하지 못하면
-DiReCT gold observation을 그대로 SFT/contrastive positive로 쓰지 않는다. 이 gate는 validation
+Target마다 고유 난이도가 다르므로 primary statistic은 두 target을 두 activation에서 모두
+평가하는 대칭 2x2 cross gap이다. `NLL(cross)-NLL(matched)` paired bootstrap 95% CI가 0보다
+커야 physician observation target이 activation과 사례별로 정렬됐다고 판정한다. 통과하지
+못하면 DiReCT gold observation을 그대로 SFT/contrastive positive로 쓰지 않는다. 한쪽만
+섞은 gap은 target-difficulty noise를 포함하므로 diagnostic으로만 남긴다. 이 gate는 validation
 50행만 사용하며 locked test를 읽지 않는다.
 
 #### Mixed-pilot validation 결과

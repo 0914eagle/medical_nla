@@ -206,6 +206,34 @@ def summarize(
             "bootstrap_95_ci": bootstrap_ci(gaps, seed=seed),
             "matched_win_rate": sum(value > 0 for value in gaps) / len(gaps),
         }
+    # A one-sided target shuffle is noisy because some target texts are
+    # intrinsically easier than others. The 2x2 cross difference cancels that
+    # nuisance by scoring both targets under both activations:
+    #   [NLL(y_j|h_i) + NLL(y_i|h_j) - NLL(y_i|h_i) - NLL(y_j|h_j)] / 2.
+    symmetric = []
+    for identifier in ids:
+        donor_id = by_condition["target_shuffled"][identifier]["donor_base_id"]
+        if donor_id not in matched:
+            continue
+        symmetric.append(
+            0.5
+            * (
+                by_condition["target_shuffled"][identifier]["content_nll"]
+                + by_condition["activation_shuffled"][identifier]["content_nll"]
+                - matched[identifier]["content_nll"]
+                - matched[donor_id]["content_nll"]
+            )
+        )
+    result["symmetric_cross"] = {
+        "n": len(symmetric),
+        "cross_minus_matched": mean(symmetric) if symmetric else float("nan"),
+        "bootstrap_95_ci": bootstrap_ci(symmetric, seed=seed),
+        "matched_win_rate": (
+            sum(value > 0 for value in symmetric) / len(symmetric)
+            if symmetric
+            else float("nan")
+        ),
+    }
     return result
 
 
@@ -220,6 +248,11 @@ def main() -> None:
     parser.add_argument("--source-dataset", default="direct")
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument(
+        "--resume-scores",
+        action="store_true",
+        help="Reuse a complete --output-jsonl and only recompute aggregate summaries.",
+    )
     args = parser.parse_args()
 
     rows = [
@@ -234,43 +267,52 @@ def main() -> None:
         raise ValueError("No within-category target derangements available")
     print(f"[pairs] eligible={len(rows)} paired={len(pairs)}", flush=True)
 
-    cfg = load_config(args.config)
-    nla_cfg = cfg["nla_model"]
-    cache_dir = cfg["paths"].get("cache_dir")
-    tokenizer = load_tokenizer(
-        nla_cfg["model_id"],
-        cache_dir=cache_dir,
-        trust_remote_code=nla_cfg.get("trust_remote_code", True),
-    )
-    sidecar = load_nla_sidecar(
-        nla_cfg["model_id"],
-        tokenizer=tokenizer,
-        cache_dir=cache_dir,
-        filename=nla_cfg.get("sidecar_filename", "nla_meta.yaml"),
-        expected_d_model=nla_cfg.get("expected_d_model"),
-        expected_injection_token_id=nla_cfg.get("expected_injection_token_id"),
-    )
-    actor_prompt_template = adapter_av_prompt(str(args.adapter))
-    if actor_prompt_template is None:
-        raise FileNotFoundError(f"Adapter has no recorded AV prompt: {args.adapter}")
-    model = load_causal_lm(nla_cfg, cache_dir=cache_dir)
-    model = maybe_load_peft_adapter(model, str(args.adapter), cache_dir=cache_dir)
-    embed_layer = model.get_input_embeddings()
-
-    scores = []
-    for condition in ("matched", "target_shuffled", "activation_shuffled"):
-        print(f"[condition] {condition}", flush=True)
-        scores.extend(
-            score_content_nll(
-                rows=condition_rows(pairs, condition),
-                model=model,
-                tokenizer=tokenizer,
-                embed_layer=embed_layer,
-                sidecar=sidecar,
-                actor_prompt_template=actor_prompt_template,
-                batch_size=args.batch_size,
+    expected_scores = 3 * len(pairs)
+    if args.resume_scores:
+        scores = list(read_jsonl(args.output_jsonl))
+        if len(scores) != expected_scores:
+            raise ValueError(
+                f"Existing scores contain {len(scores)} rows; expected {expected_scores}"
             )
+        print(f"[resume] reusing {len(scores)} score rows", flush=True)
+    else:
+        cfg = load_config(args.config)
+        nla_cfg = cfg["nla_model"]
+        cache_dir = cfg["paths"].get("cache_dir")
+        tokenizer = load_tokenizer(
+            nla_cfg["model_id"],
+            cache_dir=cache_dir,
+            trust_remote_code=nla_cfg.get("trust_remote_code", True),
         )
+        sidecar = load_nla_sidecar(
+            nla_cfg["model_id"],
+            tokenizer=tokenizer,
+            cache_dir=cache_dir,
+            filename=nla_cfg.get("sidecar_filename", "nla_meta.yaml"),
+            expected_d_model=nla_cfg.get("expected_d_model"),
+            expected_injection_token_id=nla_cfg.get("expected_injection_token_id"),
+        )
+        actor_prompt_template = adapter_av_prompt(str(args.adapter))
+        if actor_prompt_template is None:
+            raise FileNotFoundError(f"Adapter has no recorded AV prompt: {args.adapter}")
+        model = load_causal_lm(nla_cfg, cache_dir=cache_dir)
+        model = maybe_load_peft_adapter(model, str(args.adapter), cache_dir=cache_dir)
+        embed_layer = model.get_input_embeddings()
+
+        scores = []
+        for condition in ("matched", "target_shuffled", "activation_shuffled"):
+            print(f"[condition] {condition}", flush=True)
+            scores.extend(
+                score_content_nll(
+                    rows=condition_rows(pairs, condition),
+                    model=model,
+                    tokenizer=tokenizer,
+                    embed_layer=embed_layer,
+                    sidecar=sidecar,
+                    actor_prompt_template=actor_prompt_template,
+                    batch_size=args.batch_size,
+                )
+            )
     result = summarize(scores, eligible_rows=len(rows), seed=args.seed)
     result.update(
         {
@@ -278,14 +320,13 @@ def main() -> None:
             "adapter": str(args.adapter),
             "source_dataset": args.source_dataset,
             "seed": args.seed,
-            "selection_rule": (
-                "both control-minus-matched bootstrap intervals must be above zero"
-            ),
+            "selection_rule": "symmetric cross-minus-matched bootstrap interval above zero",
         }
     )
 
     args.output_jsonl.parent.mkdir(parents=True, exist_ok=True)
-    write_jsonl(args.output_jsonl, scores)
+    if not args.resume_scores:
+        write_jsonl(args.output_jsonl, scores)
     args.output_json.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     lines = [
         "# Medical-NLA Activation-Target Alignment Gate",
@@ -309,10 +350,24 @@ def main() -> None:
             f"{values['control_minus_matched']:+.4f} | "
             f"[{ci[0]:+.4f}, {ci[1]:+.4f}] | {values['matched_win_rate']:.4f} |"
         )
+    symmetric = result["symmetric_cross"]
+    symmetric_ci = symmetric["bootstrap_95_ci"]
     lines.extend(
         [
             "",
-            "Gate passes only when both bootstrap intervals are strictly above zero.",
+            "| primary symmetric 2x2 gate | n | cross-minus-matched | bootstrap 95% CI | matched win rate |",
+            "|---|---:|---:|---:|---:|",
+            f"| target/activation cross | {symmetric['n']} | "
+            f"{symmetric['cross_minus_matched']:+.4f} | "
+            f"[{symmetric_ci[0]:+.4f}, {symmetric_ci[1]:+.4f}] | "
+            f"{symmetric['matched_win_rate']:.4f} |",
+        ]
+    )
+    lines.extend(
+        [
+            "",
+            "The primary gate passes only when the symmetric bootstrap interval is strictly above zero.",
+            "One-sided shuffle gaps are retained as diagnostics because they include target-difficulty noise.",
         ]
     )
     args.summary_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
