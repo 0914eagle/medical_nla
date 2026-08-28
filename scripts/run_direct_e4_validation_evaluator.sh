@@ -16,6 +16,7 @@ PREPARE_ONLY="${PREPARE_ONLY:-0}"
 EXTRACTOR_BACKEND="${EXTRACTOR_BACKEND:-codex}"
 EXTRACTOR_MODEL="${EXTRACTOR_MODEL:-}"
 CODEX_CMD="${CODEX_CMD:-codex}"
+READOUT_METHODS="${READOUT_METHODS:-vanilla medical_nla_seed17 medical_nla_seed29 medical_nla_seed43}"
 
 cd /home/eagle0914/medical_nla
 source "${DATA_ROOT}/uv/medical_nla/bin/activate"
@@ -45,14 +46,23 @@ for path in \
   "${DIRECT}/manifests/direct_canonical_v3_private.jsonl" \
   "${E1}/direct_e1_trainval_v1/source_cot_answers.jsonl" \
   "${E1}/direct_e1_test_v1/source_cot_answers.jsonl" \
-  "${READOUTS}/vanilla.jsonl" \
-  "${READOUTS}/medical_nla_seed17.jsonl" \
-  "${READOUTS}/medical_nla_seed29.jsonl" \
-  "${READOUTS}/medical_nla_seed43.jsonl" \
   "${JUDGE}/consolidated.00.pth" \
   "${JUDGE}/tokenizer.model"; do
   test -s "${path}" || { echo "[error] missing ${path}" >&2; exit 2; }
 done
+
+read -r -a readout_methods <<< "${READOUT_METHODS}"
+if [[ "${#readout_methods[@]}" -eq 0 ]]; then
+  echo "[error] READOUT_METHODS must name at least one method" >&2
+  exit 2
+fi
+readout_args=()
+for method in "${readout_methods[@]}"; do
+  path="${READOUTS}/${method}.jsonl"
+  test -s "${path}" || { echo "[error] missing ${path}" >&2; exit 2; }
+  readout_args+=(--readout "${method}=${path}")
+done
+methods=(cot "${readout_methods[@]}")
 
 limit_args=()
 readout_filter_args=()
@@ -65,7 +75,7 @@ if [[ -n "${READOUT_SOURCE_DATASET}" ]]; then
   readout_filter_args=(--readout-source-dataset "${READOUT_SOURCE_DATASET}")
 fi
 
-echo "[stage 1/5] build ${effective_cases}-case x 5-method extraction requests"
+echo "[stage 1/5] build ${effective_cases}-case x ${#methods[@]}-method extraction requests"
 python scripts/make_direct_e4_claim_requests.py \
   --cohort "${E3}/sft_val.jsonl" \
   --case-manifest "${SPLITS}/val_seen.jsonl" \
@@ -73,10 +83,7 @@ python scripts/make_direct_e4_claim_requests.py \
   --source-answers \
     "${E1}/direct_e1_trainval_v1/source_cot_answers.jsonl" \
     "${E1}/direct_e1_test_v1/source_cot_answers.jsonl" \
-  --readout "vanilla=${READOUTS}/vanilla.jsonl" \
-  --readout "medical_nla_seed17=${READOUTS}/medical_nla_seed17.jsonl" \
-  --readout "medical_nla_seed29=${READOUTS}/medical_nla_seed29.jsonl" \
-  --readout "medical_nla_seed43=${READOUTS}/medical_nla_seed43.jsonl" \
+  "${readout_args[@]}" \
   --requests "${OUT}/extraction_requests.jsonl" \
   --private-index "${OUT}/private_index.jsonl" \
   --summary-md "${OUT}/requests_summary.md" \
@@ -142,7 +149,7 @@ python scripts/apply_direct_e4_claim_extractions.py \
   --expected-cases "${effective_cases}"
 
 echo "[stage 4/5] official semantic matching"
-for method in cot vanilla medical_nla_seed17 medical_nla_seed29 medical_nla_seed43; do
+for method in "${methods[@]}"; do
   overwrite_args=()
   if [[ "${OVERWRITE_EVAL}" == "1" ]]; then
     overwrite_args=(--overwrite)
@@ -165,7 +172,7 @@ for method in cot vanilla medical_nla_seed17 medical_nla_seed29 medical_nla_seed
 done
 
 echo "[stage 5/5] aggregate official metrics"
-for method in cot vanilla medical_nla_seed17 medical_nla_seed29 medical_nla_seed43; do
+for method in "${methods[@]}"; do
   python scripts/score_direct_official_eval.py \
     --prediction-root "${OUT}/predictions/${method}" \
     --eval-root "${OUT}/evaluations/${method}" \
@@ -175,4 +182,4 @@ done
 
 echo "[done] ${OUT}"
 echo "[first] cat ${OUT}/extraction_summary.md"
-echo "[metrics] cat ${OUT}/reports/{cot,vanilla,medical_nla_seed17,medical_nla_seed29,medical_nla_seed43}.md"
+echo "[metrics] methods: ${methods[*]}"

@@ -92,6 +92,23 @@ directory를 덮어쓰지 않는다. Server 125에서는 DDXPlus train/validatio
 `/data/heejae` activation path를 `/data1/heejae`로 자동 remap하고 모든 tensor 파일의 존재를
 검증한 server-local manifest를 사용한다.
 
+#### Full-data validation 결과
+
+Seed 17/29의 1-epoch 실행이 완료됐다. 아래는 locked test가 아닌 동일 validation screen이다.
+
+| method | DDX cue recall | DDX cue precision | DiReCT cue recall | current finding | deletion phantom | removal success | clean switch |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 248+248 pilot, seed 29 | .1784 | .2533 | 0 | .1499 | .1356 | 0 | 0 |
+| full data, seed 17 | .3763 | .3816 | .0216 | .3389 | .2138 | .4052 | .0244 |
+| full data, seed 29 | .3506 | .3758 | .0076 | .3612 | .2667 | .3232 | .0122 |
+
+Full-data supervision은 DDXPlus finding 복원과 cue deletion 반응을 분명히 개선했다. 그러나
+value edit의 clean switch는 여전히 거의 0이고 DiReCT lexical recall도 매우 낮다. Seed 17은
+source-macro validation loss가 더 낮고(`2.0303` 대 `2.1156`), phantom이 적으며 removal
+success가 높으므로 primary development checkpoint로 선택한다. Seed 29는 seed sensitivity로
+유지한다. 다음 gate는 두 seed의 동일 DiReCT 50행 method-blind semantic 평가이며, 이 결과
+전에는 locked test나 text patching으로 승격하지 않는다.
+
 #### Mixed-pilot validation 결과
 
 세 seed의 동일한 100행 validation 출력이 완료됐다. 아래 값은 locked test가 아닌 lexical
