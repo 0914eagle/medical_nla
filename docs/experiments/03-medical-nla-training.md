@@ -169,6 +169,18 @@ Queue log는 두 worker의 시작·종료 상태를 기록한다. 학습 곡선�
 `common_medical_nla_contrastive_smoke20_v3_lambda_1p0_train.log`, alignment 결과는 같은
 prefix의 `_alignment.log`에서 확인한다.
 
+20-step 결과에서 `lambda=.1/1.0` 모두 gate를 통과하지 못했다. 기존 SFT seed 29의
+symmetric gap `+.0051`에 비해 각각 `+.0013/+.0022`로 낮아졌고 cluster CI도 0을
+포함했다. 반면 matched NLL은 `3.9629`에서 `3.7378/3.7154`로 개선됐다. 따라서 현재
+objective는 target 문장 적합도를 높였지만 환자별 activation discrimination은 약화했다.
+`lambda=1.0`이 `.1`보다 높은 gap을 보여 contrastive 항의 방향은 작동했으나 SFT 항을
+이길 만큼 강하지 않았다.
+
+다음 development screen은 같은 warm start와 pair stream에서 `(SFT=1, lambda=5)`와
+`(SFT=0, lambda=1)`을 20 step 비교한다. 전자는 강한 contrastive regularization이고,
+후자는 SFT 간섭 여부를 분리하는 pure-contrastive ablation이다. 둘 다 기존 `+.0051`을
+회복하지 못하면 step 수를 늘리지 않는다.
+
 #### Mixed-pilot validation 결과
 
 세 seed의 동일한 100행 validation 출력이 완료됐다. 아래 값은 locked test가 아닌 lexical

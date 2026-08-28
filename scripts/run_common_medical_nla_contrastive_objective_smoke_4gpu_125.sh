@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Objective ablation after lambda 0.1/1.0 failed to improve the Direct
+# activation-target alignment gate. Both arms use the same seed-29 warm start
+# and deterministic pair stream; only the two loss weights differ.
+
 DATA_ROOT="${DATA_ROOT:-/data1/heejae}"
 BASE_RUN="${BASE_RUN:-common_medical_nla_full_sft_v1}"
-RUN_NAME="${RUN_NAME:-common_medical_nla_contrastive_smoke20_v3}"
+RUN_NAME="${RUN_NAME:-common_medical_nla_contrastive_objective_smoke20_v1}"
 MAX_STEPS="${MAX_STEPS:-20}"
 LOG_ROOT="${DATA_ROOT}/medical_nla/logs"
 TRAIN="${DATA_ROOT}/restricted/direct/e3/${BASE_RUN}/dataset/sft_train.jsonl"
@@ -36,6 +40,7 @@ run_arm() {
   local train_log="${LOG_ROOT}/${RUN_NAME}_${label}_train.log"
   local align_log="${LOG_ROOT}/${RUN_NAME}_${label}_alignment.log"
   test ! -e "${adapter}" || { echo "[error] output exists: ${adapter}" >&2; return 2; }
+
   CUDA_VISIBLE_DEVICES="${gpus}" python scripts/train_medical_nla_contrastive.py \
     --config configs/default.yaml \
     --train-jsonl "${TRAIN}" \
@@ -65,21 +70,21 @@ run_arm() {
     >"${align_log}" 2>&1
 }
 
-echo "[launch] lambda_0p1 on GPUs 0,1"
-run_arm lambda_0p1 1.0 0.1 0,1 &
-pid_low=$!
-echo "[launch] lambda_1p0 on GPUs 2,3"
-run_arm lambda_1p0 1.0 1.0 2,3 &
-pid_high=$!
+echo "[launch] SFT=1, contrastive=5 on GPUs 0,1"
+run_arm sft1_lambda5 1.0 5.0 0,1 &
+pid_regularized=$!
+echo "[launch] SFT=0, contrastive=1 on GPUs 2,3"
+run_arm sft0_lambda1 0.0 1.0 2,3 &
+pid_pure=$!
 
-status_low=0
-status_high=0
-wait "${pid_low}" || status_low=$?
-wait "${pid_high}" || status_high=$?
-echo "[workers] lambda_0p1=${status_low} lambda_1p0=${status_high}"
-if [[ "${status_low}" -ne 0 || "${status_high}" -ne 0 ]]; then
+status_regularized=0
+status_pure=0
+wait "${pid_regularized}" || status_regularized=$?
+wait "${pid_pure}" || status_pure=$?
+echo "[workers] sft1_lambda5=${status_regularized} sft0_lambda1=${status_pure}"
+if [[ "${status_regularized}" -ne 0 || "${status_pure}" -ne 0 ]]; then
   exit 1
 fi
-cat "${ALIGN}/lambda_0p1_summary.md"
-cat "${ALIGN}/lambda_1p0_summary.md"
+cat "${ALIGN}/sft1_lambda5_summary.md"
+cat "${ALIGN}/sft0_lambda1_summary.md"
 echo "[done] ${ROOT}"

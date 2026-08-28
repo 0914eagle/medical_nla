@@ -196,6 +196,7 @@ def backward_pair_batch(
     sidecar: Any,
     actor_prompt_template: str,
     temperature: float,
+    sft_loss_weight: float,
     pair_loss_weight: float,
     grad_accum_steps: int,
 ) -> tuple[float, float, float]:
@@ -238,7 +239,7 @@ def backward_pair_batch(
         offset = row_index % 4
         scalar = torch.zeros((), device=row_content_nll.device)
         if offset < 2:
-            scalar = scalar + row_token_sum[0] / own_token_count
+            scalar = scalar + sft_loss_weight * row_token_sum[0] / own_token_count
             pair_sign = 1.0
         else:
             pair_sign = -1.0
@@ -266,6 +267,7 @@ def main() -> None:
     parser.add_argument("--pairs-per-batch", type=int, default=1)
     parser.add_argument("--grad-accum-steps", type=int, default=4)
     parser.add_argument("--max-pairs-per-source", type=int, default=124)
+    parser.add_argument("--sft-loss-weight", type=float, default=1.0)
     parser.add_argument("--pair-loss-weight", type=float, required=True)
     parser.add_argument("--pair-temperature", type=float, default=0.1)
     parser.add_argument("--lr", type=float, default=5e-5)
@@ -282,8 +284,12 @@ def main() -> None:
         raise ValueError("--max-pairs-per-source must be positive")
     if args.pair_temperature <= 0:
         raise ValueError("--pair-temperature must be positive")
+    if args.sft_loss_weight < 0:
+        raise ValueError("--sft-loss-weight must be nonnegative")
     if args.pair_loss_weight < 0:
         raise ValueError("--pair-loss-weight must be nonnegative")
+    if args.sft_loss_weight == 0 and args.pair_loss_weight == 0:
+        raise ValueError("At least one loss weight must be positive")
 
     if args.out_dir.exists():
         raise FileExistsError(f"Refusing to overwrite output: {args.out_dir}")
@@ -375,6 +381,7 @@ def main() -> None:
                 sidecar=sidecar,
                 actor_prompt_template=actor_prompt_template,
                 temperature=args.pair_temperature,
+                sft_loss_weight=args.sft_loss_weight,
                 pair_loss_weight=args.pair_loss_weight,
                 grad_accum_steps=args.grad_accum_steps,
             )
