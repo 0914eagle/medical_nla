@@ -21,6 +21,15 @@ def test_cue_list_is_deterministic_and_capped():
     assert cue_list(row, max_cues=3, seed=18) != a or True  # different seed may reorder
 
 
+def test_cue_list_can_keep_source_order():
+    row = make_row()
+    assert cue_list(row, max_cues=3, seed=17, order="source") == [
+        "moderate fever",
+        "sore throat",
+        "nasal congestion",
+    ]
+
+
 def test_cue_first_target_default_has_no_diagnosis_text():
     text = cue_first_target_text(make_row(), max_cues=12, seed=17)
     assert "<observed>" in text and "</observed>" in text

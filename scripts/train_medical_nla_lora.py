@@ -110,6 +110,44 @@ def split_rows(rows: list[dict[str, Any]], *, val_frac: float, seed: int) -> tup
     return train, val
 
 
+def source_temperature_epoch_rows(
+    rows: list[dict[str, Any]], *, alpha: float, seed: int, epoch: int
+) -> list[dict[str, Any]]:
+    """Build one epoch that includes every row and moderately replays small sources.
+
+    A natural mixture (alpha=1) lets DDXPlus contribute 95% of the common
+    corpus. Equal-source resampling (alpha=0) repeats each Direct row about 19
+    times per epoch. The square-root default used by the full-data wrapper
+    keeps every DDXPlus row once and repeats Direct about four times.
+    """
+    if not 0.0 <= alpha <= 1.0:
+        raise ValueError("source sampling alpha must be in [0, 1]")
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        source = str(row.get("source_dataset") or "<missing>")
+        grouped.setdefault(source, []).append(row)
+    if not grouped:
+        return []
+
+    largest = max(len(group) for group in grouped.values())
+    rng = random.Random(f"{seed}:source-temperature:{epoch}")
+    scheduled: list[dict[str, Any]] = []
+    for source, group in sorted(grouped.items()):
+        desired = max(
+            len(group),
+            int(round((largest ** (1.0 - alpha)) * (len(group) ** alpha))),
+        )
+        # Include every unique row before beginning a new shuffled replay cycle.
+        while desired > 0:
+            cycle = list(group)
+            rng.shuffle(cycle)
+            take = min(desired, len(cycle))
+            scheduled.extend(cycle[:take])
+            desired -= take
+    rng.shuffle(scheduled)
+    return scheduled
+
+
 def build_training_example(
     *,
     row: dict[str, Any],
@@ -309,6 +347,16 @@ def main() -> None:
     parser.add_argument("--grad-accum-steps", type=int, default=8)
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--weight-decay", type=float, default=0.0)
+    parser.add_argument(
+        "--source-sampling-alpha",
+        type=float,
+        default=1.0,
+        help=(
+            "Temperature exponent for per-epoch source counts. 1.0 preserves "
+            "the natural row mixture; 0.0 equalizes source counts; 0.5 keeps "
+            "all rows and square-root oversamples smaller sources."
+        ),
+    )
     parser.add_argument(
         "--max-train-rows",
         type=int,
@@ -535,9 +583,24 @@ def main() -> None:
         metrics_path.unlink()
 
     for epoch in range(1, args.epochs + 1):
-        random.shuffle(train_rows)
-        for start in range(0, len(train_rows), args.batch_size):
-            batch_rows = train_rows[start : start + args.batch_size]
+        epoch_rows = source_temperature_epoch_rows(
+            train_rows,
+            alpha=args.source_sampling_alpha,
+            seed=args.seed,
+            epoch=epoch,
+        )
+        source_counts: dict[str, int] = {}
+        for row in epoch_rows:
+            source = str(row.get("source_dataset") or "<missing>")
+            source_counts[source] = source_counts.get(source, 0) + 1
+        print(
+            f"[train] epoch={epoch} scheduled={len(epoch_rows):,} "
+            f"source_counts={dict(sorted(source_counts.items()))} "
+            f"alpha={args.source_sampling_alpha:g}",
+            flush=True,
+        )
+        for start in range(0, len(epoch_rows), args.batch_size):
+            batch_rows = epoch_rows[start : start + args.batch_size]
             examples = [
                 build_training_example(
                     row=row,

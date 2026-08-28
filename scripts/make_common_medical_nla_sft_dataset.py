@@ -25,6 +25,7 @@ from src.jsonl import read_jsonl, write_jsonl
 
 
 TARGET_STYLE = "common_cot_p0_observed_only_v1"
+CANONICAL_TARGET_STYLE = "common_cot_p0_observed_only_v2_source_order"
 
 
 def clean_text(value: Any) -> str:
@@ -51,6 +52,7 @@ def normalize_row(
     max_cues: int,
     seed: int,
     require_activation_file: bool,
+    cue_order: str = "shuffled",
 ) -> dict[str, Any] | None:
     identifier = row_id(row)
     if not identifier:
@@ -88,13 +90,16 @@ def normalize_row(
         "diagnosis_name": row.get("diagnosis_name"),
         "canonical_pdd": row.get("canonical_pdd"),
         "disease_category": row.get("disease_category"),
-        "target_style": TARGET_STYLE,
+        "target_style": (
+            CANONICAL_TARGET_STYLE if cue_order == "source" else TARGET_STYLE
+        ),
     }
     normalized["target_text"] = cue_first_target_text(
         normalized,
         max_cues=max_cues,
         seed=seed,
         include_assessment=False,
+        cue_order=cue_order,
     )
     return normalized
 
@@ -142,6 +147,7 @@ def load_source(
     max_cues: int,
     seed: int,
     require_activation_file: bool,
+    cue_order: str,
 ) -> tuple[str, list[dict[str, Any]], Counter[str]]:
     if "=" not in spec:
         raise ValueError(f"Expected SOURCE=PATH, got {spec!r}")
@@ -161,6 +167,7 @@ def load_source(
             max_cues=max_cues,
             seed=seed,
             require_activation_file=require_activation_file,
+            cue_order=cue_order,
         )
         if normalized is None:
             counts["filtered"] += 1
@@ -200,6 +207,20 @@ def main() -> None:
     parser.add_argument("--max-cues", type=int, default=12)
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument(
+        "--cue-order",
+        choices=("shuffled", "source"),
+        default="shuffled",
+        help=(
+            "Order of deduplicated findings in the target. 'shuffled' preserves "
+            "the v1 pilot; 'source' removes arbitrary sequence-label noise."
+        ),
+    )
+    parser.add_argument(
+        "--use-all-train-rows",
+        action="store_true",
+        help="Keep every eligible row from both training sources instead of equal caps.",
+    )
+    parser.add_argument(
         "--no-require-activation-file",
         action="store_true",
         help="Tests only: do not require activation_path to exist.",
@@ -218,6 +239,7 @@ def main() -> None:
                 max_cues=args.max_cues,
                 seed=args.seed,
                 require_activation_file=not args.no_require_activation_file,
+                cue_order=args.cue_order,
             )
             if source in loaded[split]:
                 raise ValueError(f"Duplicate {split} source {source}")
@@ -234,15 +256,18 @@ def main() -> None:
     for split, cap in (("train", train_cap), ("val", val_cap)):
         selected[split] = []
         for source, rows in sorted(loaded[split].items()):
-            selected[split].extend(
-                stratified_sample(
-                    rows,
-                    cap=cap,
-                    seed=args.seed,
-                    source_dataset=source,
-                    split=split,
+            if split == "train" and args.use_all_train_rows:
+                selected[split].extend(sorted(rows, key=lambda row: str(row["id"])))
+            else:
+                selected[split].extend(
+                    stratified_sample(
+                        rows,
+                        cap=cap,
+                        seed=args.seed,
+                        source_dataset=source,
+                        split=split,
+                    )
                 )
-            )
         random.Random(f"{args.seed}:{split}:mixed").shuffle(selected[split])
 
     train_ids = {(row["source_dataset"], row["base_id"]) for row in selected["train"]}
@@ -256,13 +281,16 @@ def main() -> None:
     write_jsonl(args.out_dir / "sft_val.jsonl", selected["val"])
     protocol = {
         "schema_version": 1,
-        "target_style": TARGET_STYLE,
+        "target_style": (
+            CANONICAL_TARGET_STYLE if args.cue_order == "source" else TARGET_STYLE
+        ),
         "position": "CoT-P0/HS32/last_token",
         "diagnosis_supervision": False,
         "ddxplus_rendered_values_included": True,
         "seed": args.seed,
         "max_cues": args.max_cues,
-        "train_per_source": train_cap,
+        "train_per_source": None if args.use_all_train_rows else train_cap,
+        "use_all_train_rows": args.use_all_train_rows,
         "val_per_source": val_cap,
         "input_audit": audits,
         "selected": {

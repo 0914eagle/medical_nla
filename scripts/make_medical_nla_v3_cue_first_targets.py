@@ -51,12 +51,18 @@ def xml_text(value: Any) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def cue_list(row: dict[str, Any], *, max_cues: int, seed: int) -> list[str]:
-    """Deduped cues in a per-row deterministic shuffled order, capped at max_cues.
+def cue_list(
+    row: dict[str, Any], *, max_cues: int, seed: int, order: str = "shuffled"
+) -> list[str]:
+    """Return deduped cues in a reproducible order, capped at ``max_cues``.
 
-    Shuffling breaks any fixed cue-order pattern the model could latch onto;
-    seeding by row id keeps the dataset reproducible.
+    ``shuffled`` preserves the v3 datasets exactly. ``source`` is intended for
+    sequence-loss training where an arbitrary per-case permutation is
+    irreducible label noise: the activation contains the findings, but not the
+    RNG seed that selected their target order.
     """
+    if order not in {"shuffled", "source"}:
+        raise ValueError(f"Unsupported cue order: {order!r}")
     cues = row.get("cue_targets") or []
     if isinstance(cues, str):
         cues = [cues]
@@ -65,8 +71,9 @@ def cue_list(row: dict[str, Any], *, max_cues: int, seed: int) -> list[str]:
         text = " ".join(str(cue or "").split())
         if text and text.lower() not in {item.lower() for item in deduped}:
             deduped.append(text)
-    rng = random.Random(f"{seed}:{row.get('id')}")
-    rng.shuffle(deduped)
+    if order == "shuffled":
+        rng = random.Random(f"{seed}:{row.get('id')}")
+        rng.shuffle(deduped)
     return deduped[:max_cues]
 
 
@@ -76,8 +83,9 @@ def cue_first_target_text(
     max_cues: int,
     seed: int,
     include_assessment: bool = False,
+    cue_order: str = "shuffled",
 ) -> str:
-    cues = cue_list(row, max_cues=max_cues, seed=seed)
+    cues = cue_list(row, max_cues=max_cues, seed=seed, order=cue_order)
     if not cues:
         raise ValueError(f"Row {row.get('id')} has no cue_targets; cannot build a v3 target.")
     observed = "\n".join(f"- {xml_text(cue)}" for cue in cues)

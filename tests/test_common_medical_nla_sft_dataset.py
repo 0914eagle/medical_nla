@@ -33,6 +33,25 @@ def test_common_target_omits_diagnosis_and_answer() -> None:
     assert "<answer>" not in normalized["target_text"]
 
 
+def test_common_target_can_preserve_source_cue_order() -> None:
+    row = make_row("case1", "pneumonia")
+    row["cue_targets"] = ["third", "first", "second", "FIRST"]
+    normalized = normalize_row(
+        row,
+        source_dataset="ddxplus",
+        split="train",
+        max_cues=12,
+        seed=17,
+        require_activation_file=False,
+        cue_order="source",
+    )
+    assert normalized is not None
+    text = normalized["target_text"]
+    assert text.index("- third") < text.index("- first") < text.index("- second")
+    assert text.casefold().count("- first") == 1
+    assert normalized["target_style"].endswith("source_order")
+
+
 def test_ddxplus_counterfactual_rows_are_not_training_rows() -> None:
     row = make_row("case1", "pneumonia")
     row["variant"] = "cue_deleted"

@@ -56,6 +56,41 @@ vanilla 및 각 seed의 readout을 생성한다. 이 단계의 lexical cue recal
 development screen이며, 최종 explanation 점수는 method-blind semantic extraction과
 DDXPlus paired counterfactual 평가로 확정한다.
 
+### 08-28 full-data canonical-target SFT
+
+248+248 mixed pilot의 실패만으로 SFT objective 자체를 기각할 수는 없다. Pilot은 DDXPlus
+4,655행 중 248행만 사용했고, 각 환자의 target finding 순서를 activation과 무관한 RNG로
+섞었다. 다음 development ablation은 구조와 prompt를 유지하고 이 두 요인만 수정한다.
+
+- train: DDXPlus original 4,655행 + DiReCT 248행, 총 4,903행
+- validation: 기존과 동일한 DDXPlus 50 + DiReCT 50
+- target: diagnosis-free `<observed>` schema 유지
+- finding 순서: 원본 annotation/cue 순서를 보존하고 중복만 제거
+- source mixture: 모든 DDXPlus 행을 한 번 포함하고 DiReCT를 source-temperature
+  `alpha=0.5`로 epoch당 약 1,074회 재생한다
+- checkpoint selection: 두 source의 content loss macro mean
+- 첫 실행: 1 epoch, seed 17/29; 결과가 개선될 때만 seed 43과 추가 epoch 수행
+
+`alpha=1`이면 4,655:248의 자연 빈도로 DiReCT가 거의 사라지고, `alpha=0`이면 각 DiReCT
+행을 약 19회 반복한다. `alpha=0.5`는 모든 unique row를 보존하면서 작은 source를 약 4.3회
+노출하는 중간값이다. 이 실행도 SFT-only이므로 activation faithfulness의 증명이 아니라
+full-corpus supervision이 case-specific readout을 회복하는지 확인하는 development gate다.
+
+Server 125의 네 GPU는 한 모델을 네 장에 펼치지 않는다. `0,1`에서 seed 17,
+`2,3`에서 seed 29를 독립적으로 병렬 실행한다. 학습이 끝나면 각 worker가 동일한 100행
+readout과 고정 약 952행 DDXPlus paired grounding을 순차 수행한다.
+
+```bash
+# server 125 (/data1/heejae), GPU 0--3가 모두 비어 있어야 한다.
+DATA_ROOT=/data1/heejae EPOCHS=1 RUN_VALIDATION=1 RUN_GROUNDING=1 \
+  nohup bash scripts/run_common_medical_nla_full_4gpu_125.sh \
+  > /data1/heejae/medical_nla/logs/common_medical_nla_full_4gpu_125.log 2>&1 &
+```
+
+전체 queue는 dataset row 수와 target style을 검증한 뒤 시작하며, 기존 incomplete adapter
+directory를 덮어쓰지 않는다. Server 125에서는 activation path가 `/data1/heejae`로 remap된
+validation manifest를 자동 우선한다.
+
 #### Mixed-pilot validation 결과
 
 세 seed의 동일한 100행 validation 출력이 완료됐다. 아래 값은 locked test가 아닌 lexical
