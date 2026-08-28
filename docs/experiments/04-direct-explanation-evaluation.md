@@ -61,3 +61,21 @@ base ID 집합이 정확히 같을 때만 request를 만든다. `READOUTS_DIR`�
 diagnostic이다. 여기서도 observation 계열이 개선되지 않으면 mixed SFT v1은 내용 판독에
 실패한 것으로 판정한다. 성공 여부와 관계없이 locked test와 text patching은 다음 objective를
 고정하기 전까지 실행하지 않는다.
+
+### Common-schema mixed pilot 결과
+
+250개 request는 모두 Codex `gpt-5.6-sol`로 parse됐고 official evaluator 오류는 모든 방법에서
+0/50이었다. 따라서 아래 0 또는 저점수는 pipeline 누락이나 parse 실패가 아니다.
+
+| Method | Rows with observation | Extracted observations | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | 50/50 | 562 | 0 | .3110 | .4069 | .2399 | .0657 | .0168 |
+| Vanilla NLA | 10/50 | 10 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Common SFT, seed 17 | 50/50 | 150 | 0 | .0100 | .0037 | .0034 | 0 | 0 |
+| Common SFT, seed 29 | 50/50 | 150 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Common SFT, seed 43 | 50/50 | 329 | 0 | .0070 | .0054 | .0043 | 0 | 0 |
+
+Semantic matching도 lexical screen을 실질적으로 구제하지 못했다. 특히 seed29는 150개의
+인용 가능한 patient-finding 형태 문장을 생성했지만 gold와 의미상 일치한 observation이 없었다.
+Common SFT v1을 최종 Table 2 후보에서 제외하고, activation matched/shuffled 및
+counterfactual ranking loss가 포함된 다음 objective의 실패 기준선으로만 보존한다.

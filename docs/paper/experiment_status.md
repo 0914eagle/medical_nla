@@ -1,14 +1,14 @@
 # 논문 실험 상태
 
-기준일: 2026-08-27. 제한 데이터 원문이나 개인 식별자는 기록하지 않는다.
+기준일: 2026-08-28. 제한 데이터 원문이나 개인 식별자는 기록하지 않는다.
 
 | 단계 | 상태 | 완료 조건 | 다음 단계 의존성 |
 |---|---|---|---|
 | E0 DiReCT audit/evaluator | 완료 | 496행 canonical split, official oracle smoke | E1-E4 |
 | E1 source/activation | 완료 | pilot 496 source outputs, P0/P1/P2 x HS16/24/32 완전성 확인 | E2 |
 | E2 P0 representation audit | 대부분 완료 | diagnosis/category 및 DDXPlus finding/value locked probe 완료; source-decision 대기 | E3-E5 |
-| E3 Medical-NLA train | SFT-only 완료 | DiReCT P0 seeds 17/29/43 완료; reconstruction/full objective 대기 | E4-E6 |
-| E4 DiReCT explanation | validation 완료 | 공통 50-case official-compatible 평가 완료; locked 72/106 대기 | Table 2 |
+| E3 Medical-NLA train | SFT-only 실패 | DiReCT-only 및 common mixed 3-seed validation 실패; contrastive objective 대기 | E4-E6 |
+| E4 DiReCT explanation | validation 완료 | Common SFT Obscomp 0--.0043 vs CoT .2399; locked 72/106 중단 | Table 2 |
 | E5 DDX grounding | closed-probe gate 완료, NLA 대기 | finding availability 통과; native-value counterfactual 실패; NLA/round-trip 미실행 | RQ2, E6 gate |
 | E6 text patching | 조건부 | target change + no-op preservation | RQ3 |
 | E7 MCR OOD | 후순위 | frozen checkpoint external test | generalization |
@@ -103,6 +103,9 @@ case x position x layer grid가 완전하고, duplicate·unassigned·missing pat
     명시적 의미 복원 실패이며 observation 설명 품질이나 grounding 결과가 아님. Exact
     readout quote를 요구한 local Llama-3-8B 판정을 정본으로 사용하며 human-validated
     score라고 부르지 않음
+11. ~~Common-schema mixed SFT 3-seed DiReCT semantic validation~~ 완료. 같은 50-case에서
+    CoT `Obscomp=.2399`, seed17/29/43 `.0034/.0000/.0043`; evaluator 오류는 모두 0/50.
+    Lexical 실패가 약칭·의역 때문이라는 설명은 기각하고 mixed SFT v1을 실패 ablation으로 동결
 
 ## 08-27 이후 실행 순서
 

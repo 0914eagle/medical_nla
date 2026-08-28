@@ -72,8 +72,15 @@ development screen이다. 각 source는 50행이며 cue recall/precision은 해�
 Mixed SFT는 DDXPlus cue를 일부 복원했지만 DiReCT physician observation은 세 seed 모두
 lexical hit가 없었다. Seed 17/29는 출력 schema만 안정적으로 학습했고, seed 43은
 DiReCT에서 schema도 붕괴했다. 따라서 이 checkpoint들은 locked test 또는 text patching으로
-승격하지 않는다. 다음 gate는 동일한 DiReCT 50행을 method-blind quote extraction과 공식
-semantic evaluator로 채점해 의역 실패와 내용 실패를 구분하는 것이다.
+승격하지 않는다.
+
+동일한 DiReCT 50행의 method-blind quote extraction과 공식 semantic evaluator도 완료됐다.
+Lexical 0은 약칭이나 의역 문제가 아니었다. CoT `Obscomp=.2399`에 비해 common SFT는
+seed17 `.0034`, seed29 `0`, seed43 `.0043`이었다. Seed17/29는 각각 정확히 150개
+observation을 추출할 수 있는 형식으로 생성했지만 seed29는 physician observation과 의미상
+일치한 claim이 0이었다. Seed43은 329개를 추출했어도 정렬 점수가 회복되지 않았다. 따라서
+common SFT v1은 **schema 학습에는 성공했지만 case-specific clinical content 판독에는 실패**한
+development ablation으로 동결한다.
 
 8시간 무인 validation queue는 두 독립 작업만 실행한다. Server 125는
 `run_overnight_common_direct_semantic.sh`로 Direct 50행 의미 채점을 완료한다. Server 62는
