@@ -135,6 +135,15 @@ bootstrap 95% CI가 0보다 커야 physician observation target이 activation과
 섞은 gap은 target-difficulty noise를 포함하므로 diagnostic으로만 남긴다. 이 gate는 validation
 50행만 사용하며 locked test를 읽지 않는다.
 
+Alignment gate는 50행 중 같은 category donor를 만들 수 있는 45행, 13개 category cluster에서
+평가됐다. Seed 17의 symmetric gap은 `+.0040`이지만 category-cluster CI가
+`[-.0001, +.0085]`로 0을 포함해 통과하지 못했다. Seed 29는 gap `+.0051`, CI
+`[+.0011, +.0091]`, matched win rate `.7333`으로 gate를 통과했다. 따라서 physician target이
+P0에 전혀 없다는 결론은 기각하지만, SFT가 사용하는 pair-specific 신호는 매우 약하다.
+Seed 29를 최종 모델로 승격하는 대신 다음 objective의 development warm start/설계 근거로만
+사용한다. 다음 학습은 같은 category의 `(h_i,y_i),(h_j,y_j)` matched 합이
+`(h_i,y_j),(h_j,y_i)` cross 합보다 높아지도록 대칭 contrastive loss를 직접 추가한다.
+
 #### Mixed-pilot validation 결과
 
 세 seed의 동일한 100행 validation 출력이 완료됐다. 아래 값은 locked test가 아닌 lexical

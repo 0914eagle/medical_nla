@@ -96,3 +96,10 @@ Extractor parse error와 official evaluator error는 모두 0이다. 즉 더 많
 DDXPlus validation에서는 finding recall과 deletion response를 개선했으므로, 실패 원인은 단순한
 schema 미학습보다 dataset/target alignment와 pair specificity에 가깝다. 이 결과를 근거로
 full-data SFT의 추가 epoch, seed, locked-test 평가는 수행하지 않는다.
+
+후속 activation-target alignment gate에서는 seed 29만 within-category symmetric 2x2 gap을
+통과했다(`cross-minus-matched=+.0051`, category-cluster 95% CI
+`[+.0011,+.0091]`, matched win rate `.7333`; 45 rows/13 clusters). Seed 17의 CI는
+`[-.0001,+.0085]`로 0을 포함했다. 이는 DiReCT target 신호가 완전히 부재한 것이 아니라 현재
+SFT가 활용하기에는 약하다는 진단이다. 따라서 Table 2 결과를 성공으로 바꾸지 않으며,
+matched/cross ranking을 직접 최적화하는 다음 objective의 사전 gate로만 사용한다.
