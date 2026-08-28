@@ -176,10 +176,44 @@ objective는 target 문장 적합도를 높였지만 환자별 activation discri
 `lambda=1.0`이 `.1`보다 높은 gap을 보여 contrastive 항의 방향은 작동했으나 SFT 항을
 이길 만큼 강하지 않았다.
 
-다음 development screen은 같은 warm start와 pair stream에서 `(SFT=1, lambda=5)`와
-`(SFT=0, lambda=1)`을 20 step 비교한다. 전자는 강한 contrastive regularization이고,
-후자는 SFT 간섭 여부를 분리하는 pure-contrastive ablation이다. 둘 다 기존 `+.0051`을
-회복하지 못하면 step 수를 늘리지 않는다.
+추가 objective screen의 `(SFT=1, lambda=5)`는 symmetric gap `+.0051`, cluster CI
+`[+.0011,+.0099]`였지만 matched win rate가 `.5333`으로 떨어졌고 baseline seed 29의 gap을
+넘지 못했다. `(SFT=0, lambda=1)`은 gap `+.0030`, CI `[+.0003,+.0057]`이었다. 따라서
+loss weight나 step 수를 더 탐색하지 않는다.
+
+### 08-29 DDXPlus train-only counterfactual grounding SFT
+
+문장 단위 matched/crossed ranking은 NLL을 낮췄지만 사례별 activation gap을 개선하지
+못했다. 다음 실험은 loss weight를 더 탐색하지 않고 supervision 자체를 바꾼다. DDXPlus
+official train 4,655개 base case 각각에 cue deletion을 만들고, ontology에 같은 evidence의
+native alternate value가 있으면 value-edit arm도 만든다. Original/deletion/value-edit 모두
+동일한 diagnosis-free `<observed>` schema를 사용한다.
+
+- training source: DDXPlus official train only
+- hidden state: CoT-P0/HS32/last-token
+- target: 해당 arm의 현재 cue 전체를 source order로 출력
+- intervention family: original + deletion + optional native value edit
+- target cue cap: 64, 초과 시 truncate하지 않고 실행 실패
+- development evaluation: 기존 frozen DDXPlus validation의 동일 paired families
+- locked DDXPlus test와 DiReCT test: 이 단계에서 읽지 않음
+
+Primary development gate는 full-data common SFT보다 current-finding recall과 deletion
+removal success가 개선되고, deletion phantom이 감소하는지다. Value-edit clean switch도
+함께 보고하지만 native editable case 수가 더 적으므로 단독 checkpoint 선택 기준으로 쓰지
+않는다. 이 gate를 통과할 때만 DDXPlus counterfactual adapter를 DiReCT observation data와
+결합하는 두 번째 단계를 설계한다.
+
+Server 125에서는 두 GPU pair가 derived activation shard를 병렬 추출한 뒤, 같은 두 pair가
+seed 17/29를 병렬 학습하고 약 1,000행의 고정 validation family readout까지 연속 수행한다.
+
+```bash
+DATA_ROOT=/data1/heejae EPOCHS=1 \
+nohup bash scripts/run_ddxplus_counterfactual_grounding_4gpu_125.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_counterfactual_sft_v1_queue.log 2>&1 &
+```
+
+Train derived activation은 기존 original activation과 분리 저장하며, builder는 train/validation
+base-ID overlap, family completeness, tensor 존재, intervention target 반영을 모두 검사한다.
 
 #### Mixed-pilot validation 결과
 
