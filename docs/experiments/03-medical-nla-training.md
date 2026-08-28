@@ -118,6 +118,19 @@ DDXPlus finding 판독과 deletion response를 개선했지만 DiReCT physician 
 전이되지 않았다. 추가 epoch와 seed 43은 중단하고, 이 checkpoint는 full-corpus SFT
 ablation으로만 보존한다.
 
+다음 실행은 새 학습이 아니라 activation-target alignment gate다. 동일 DiReCT validation에서
+같은 disease category의 다른 환자를 deterministic donor로 배정하고, content-token NLL을
+다음 세 조건에서 비교한다.
+
+- matched: `p(y_i | h_i)`
+- target shuffled: `p(y_j | h_i)`
+- activation shuffled: `p(y_i | h_j)`
+
+두 control의 `NLL(control)-NLL(matched)` paired bootstrap 95% CI가 모두 0보다 커야 physician
+observation target이 activation과 사례별로 정렬됐다고 판정한다. 하나라도 통과하지 못하면
+DiReCT gold observation을 그대로 SFT/contrastive positive로 쓰지 않는다. 이 gate는 validation
+50행만 사용하며 locked test를 읽지 않는다.
+
 #### Mixed-pilot validation 결과
 
 세 seed의 동일한 100행 validation 출력이 완료됐다. 아래 값은 locked test가 아닌 lexical
