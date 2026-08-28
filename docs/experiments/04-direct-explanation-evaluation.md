@@ -79,3 +79,20 @@ Semantic matching도 lexical screen을 실질적으로 구제하지 못했다. �
 인용 가능한 patient-finding 형태 문장을 생성했지만 gold와 의미상 일치한 observation이 없었다.
 Common SFT v1을 최종 Table 2 후보에서 제외하고, activation matched/shuffled 및
 counterfactual ranking loss가 포함된 다음 objective의 실패 기준선으로만 보존한다.
+
+### Full-data canonical-target SFT 결과
+
+DDXPlus 4,655행과 DiReCT 248행을 모두 사용하고 source-order target 및
+source-temperature sampling을 적용한 후에도 동일한 50-case semantic gate를 통과하지 못했다.
+
+| Method | Rows with observation | Extracted observations | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | 50/50 | 558 | 0 | .2835 | .3726 | .2130 | .0650 | .0153 |
+| Full-data SFT, seed 17 | 50/50 | 471 | 0 | .0544 | .0502 | .0301 | 0 | 0 |
+| Full-data SFT, seed 29 | 50/50 | 228 | 0 | .0553 | .0388 | .0296 | 0 | 0 |
+
+Extractor parse error와 official evaluator error는 모두 0이다. 즉 더 많은 patient-finding 형태
+문장을 생성했지만 해당 DiReCT 환자의 physician observation과 맞지 않았다. 같은 checkpoint가
+DDXPlus validation에서는 finding recall과 deletion response를 개선했으므로, 실패 원인은 단순한
+schema 미학습보다 dataset/target alignment와 pair specificity에 가깝다. 이 결과를 근거로
+full-data SFT의 추가 epoch, seed, locked-test 평가는 수행하지 않는다.

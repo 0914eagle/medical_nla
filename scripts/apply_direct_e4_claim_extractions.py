@@ -227,8 +227,8 @@ def main() -> None:
         [
             "",
             "Only exact quotes from each method output are retained. The extractor sees no note",
-            "or gold annotation. Current Medical-NLA targets contain observations and an answer,",
-            "not rationales; Expcom/Expall are therefore exploratory rather than primary metrics.",
+            "or gold annotation. Readouts without an explicit rationale cannot receive rationale",
+            "credit; Expcom/Expall are exploratory for observation-only target schemas.",
             "",
         ]
     )

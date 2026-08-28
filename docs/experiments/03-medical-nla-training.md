@@ -109,6 +109,15 @@ success가 높으므로 primary development checkpoint로 선택한다. Seed 29�
 유지한다. 다음 gate는 두 seed의 동일 DiReCT 50행 method-blind semantic 평가이며, 이 결과
 전에는 locked test나 text patching으로 승격하지 않는다.
 
+Method-blind semantic gate도 완료됐다. Codex extractor는 CoT/seed17/seed29의 150행을 모두
+parse했고 official evaluator 오류는 0이었다. Seed 17/29에서 각각 471/228개의 정확히 인용
+가능한 observation을 추출했지만 `Obscomp`는 `.0301/.0296`, `Expcom`과 `Expall`은 모두
+0이었다. 같은 cohort의 CoT는 `Obscomp=.2130`, `Expcom=.0650`, `Expall=.0153`이었다.
+따라서 낮은 DiReCT lexical score는 약칭이나 의역으로 설명되지 않는다. Full-data SFT는
+DDXPlus finding 판독과 deletion response를 개선했지만 DiReCT physician observation으로
+전이되지 않았다. 추가 epoch와 seed 43은 중단하고, 이 checkpoint는 full-corpus SFT
+ablation으로만 보존한다.
+
 #### Mixed-pilot validation 결과
 
 세 seed의 동일한 100행 validation 출력이 완료됐다. 아래 값은 locked test가 아닌 lexical
