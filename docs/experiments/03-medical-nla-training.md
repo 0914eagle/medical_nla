@@ -144,6 +144,31 @@ Seed 29를 최종 모델로 승격하는 대신 다음 objective의 development 
 사용한다. 다음 학습은 같은 category의 `(h_i,y_i),(h_j,y_j)` matched 합이
 `(h_i,y_j),(h_j,y_i)` cross 합보다 높아지도록 대칭 contrastive loss를 직접 추가한다.
 
+첫 contrastive 실행은 full run이 아니라 server 125의 4-GPU smoke다. Full common SFT
+seed 29를 동일한 warm start로 고정하고, source와 disease stratum 내부에서 서로 겹치지 않는
+환자쌍을 만든다. 각 쌍은 두 matched sequence와 두 crossed sequence를 한 forward에 넣으며,
+matched SFT loss에 symmetric content-NLL ranking loss를 더한다. DDXPlus와 DiReCT의 pair
+수는 동일하게 맞춘다. LoRA dropout은 끈 상태에서 gradient를 계산한다. 기존 alignment gap이
+약 `.005`뿐이어서 서로 다른 dropout mask가 primary 신호보다 큰 잡음을 만들 수 있기 때문이다.
+
+Development sweep은 `lambda=.1`과 `lambda=1.0`, temperature `.1`, optimizer 20 step만
+비교한다. 두 arm은 각각 2개 GPU를 사용해 병렬 실행하고, 완료 직후 동일한 DiReCT validation
+50행 alignment gate를 다시 계산한다. Locked test는 읽지 않는다. 다음 단계로 승격하려면
+category-cluster bootstrap CI 하한이 0보다 크고, 기존 seed 29 gap `+.0051`보다 커져야 한다.
+통과 arm이 있으면 그 arm만 DiReCT semantic validation과 DDXPlus counterfactual validation에
+보낸다. 둘 다 실패하면 step 수를 늘리기 전에 target construction 또는 objective를 재설계한다.
+
+```bash
+DATA_ROOT=/data1/heejae \
+nohup bash scripts/run_common_medical_nla_contrastive_smoke_4gpu_125.sh \
+  > /data1/heejae/medical_nla/logs/common_medical_nla_contrastive_smoke20_v1.log 2>&1 &
+```
+
+Queue log는 두 worker의 시작·종료 상태를 기록한다. 학습 곡선은
+`common_medical_nla_contrastive_smoke20_v1_lambda_0p1_train.log`와
+`common_medical_nla_contrastive_smoke20_v1_lambda_1p0_train.log`, alignment 결과는 같은
+prefix의 `_alignment.log`에서 확인한다.
+
 #### Mixed-pilot validation 결과
 
 세 seed의 동일한 100행 validation 출력이 완료됐다. 아래 값은 locked test가 아닌 lexical
