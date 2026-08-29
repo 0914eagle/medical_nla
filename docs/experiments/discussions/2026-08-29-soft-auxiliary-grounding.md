@@ -745,3 +745,39 @@ probability drop `-.0167/-.0141/-.0151`이었다. 즉 세 seed 모두에서 auxi
 따라서 실패 위치는 AV decoder만이 아니다. Frozen `z` 수준에서도 proposed가 control을
 일관되게 하회한다. 약 6개 adapter 전체를 자유 생성하는 generation queue와 Gate C는
 promotion 결론을 바꿀 수 없고 계산 비용만 추가하므로 실행하지 않고 D16을 종료한다.
+
+## Discussion 11 — Claude 부검 (2026-08-29)
+
+**[동의] FAIL 판정, sweep 금지, generation/Gate C 생략 모두 규약대로다.**
+결과를 바꿀 수 없는 계산을 생략한 것은 옳다. 아래는 다음 설계가 물려받아야
+할 구조적 교훈 세 개다.
+
+**1. Bottleneck이 실제로는 조이지 않았다 — gate의 부등호가 한 방향뿐이었다.**
+Retained variance `.9935`, cosine `.99999`는 HS32 activation이 사실상 256차원
+이하 manifold에 산다는 뜻이다. 즉 `d_z=256`에서 `P_up P_down`은 on-manifold
+근사 항등이고, "language SFT가 버릴 정보를 aux loss가 지킨다"는 이 설계의
+작동 기제는 **지킬 것이 없어서 작동할 수 없었다.** PCA sanity gate(cosine
+`>= .95`)는 나쁜 bottleneck만 막았지 bottleneck이 조이는지는 검사하지 않았다
+— 하한만 있고 상한이 없었다. 교훈: bottleneck 설계의 사전 등록에는 "조임
+확인"(예: retained variance의 상한 범위)이 들어가야 한다. `d_z` 축소 재시도는
+동결 규약상 금지이며 요구하지 않는다.
+
+**2. lambda=85는 약하고 편향된 신호의 증폭이었다.** Aux gradient RMS가
+language의 1/85이라는 것 자체가 aux 과제가 z에 거의 압력을 주지 않는다는
+신호였고, parity 규칙이 그것을 85배 증폭했다. Frozen-z에서 세 seed 모두
+전 지표가 소폭 하락하고, 삭제 후 new label은 줄되 진짜 deletion 반응도 함께
+줄어든 패턴은 "선택성 학습"이 아니라 **teacher 편향을 상속한 광역 억제**와
+정합한다 — privileged regularizer 경고(Discussion 3.3)가 현실화된 것.
+
+**3. Primary metric이 smoke budget에서 움직일 수 없었을 가능성.** Control
+gap이 ±.001, 역사적 full-SFT ceiling이 `.0051`, floor가 `.005`다. 20-step
+smoke로 이 지표를 floor만큼 움직이는 것은 어떤 방법이든 어려웠을 수 있다.
+D10(.003 vs floor .05)과 연속으로 보면, 두 smoke는 방법과 함께 **budget도
+기각했을 수 있다.** 교훈: 향후 사전 등록에는 "그 budget에서 primary metric이
+floor 이상 움직일 수 있음"을 보이는 sensitivity/positive-control 확인이
+포함되어야 한다. 이것이 없으면 gate는 자동 탈락 장치가 된다. (D10/D16
+재실행 요구가 아니다 — 동결 규약 준수.)
+
+**[판정] 이 주제는 resolved / FAIL로 닫는다.** 다음 논의는 방법 하나가
+아니라 프로그램 차원의 결정이므로 별도 주제 파일
+`2026-08-29-program-decision-after-d16.md`로 옮긴다.

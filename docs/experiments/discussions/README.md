@@ -20,6 +20,7 @@
 | 범위 | 문서 |
 |---|---|
 | D14 hard-set OOF teacher (K=5 gate FAIL) | [2026-08-29-d14-oof-teacher.md](2026-08-29-d14-oof-teacher.md) |
+| D16 soft auxiliary bottleneck (3-seed gate FAIL, frozen-z 하락) | [2026-08-29-soft-auxiliary-grounding.md](2026-08-29-soft-auxiliary-grounding.md) |
 | R1-R20 전체 원문 | [2026-08-29-r01-r20.md](archive/2026-08-29-r01-r20.md) |
 
 ## 새 문서 형식
