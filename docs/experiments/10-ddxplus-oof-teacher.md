@@ -111,3 +111,33 @@ cat "$OUT/summary.md"
 
 정상 행 수는 `9,310`이다. 이 report를 검토하기 전에는 target builder나 student
 smoke를 실행하지 않는다.
+
+## Calibration hold와 후속 감사
+
+첫 materialization에서 original 평균 selected count `6.0745`가 deletion에서
+`8.3590`으로 `+2.2845`(`+37.6%`) 증가했고, untouched preservation은 `.9986`,
+changed-cue phantom은 `.5101`이었다. 따라서 teacher 생성은 기술적으로 완료됐지만
+P2-P4와 student 학습은 보류한다. 삭제가 기존 set을 갱신하기보다 유지하면서 unrelated
+label을 추가하는지, 또는 2-fold OOF head에 full-data threshold `.5`를 이식한 calibration
+shift인지 먼저 분리해야 한다.
+
+Server 125에서 다음 CPU-only 감사를 실행한다.
+
+```bash
+cd /home/eagle0914/medical_nla
+git pull origin main
+
+PROBE=/data1/heejae/medical_nla/results/ddxplus_finding_value_probe_val_v1/finding_value_hs32.pt
+
+DATA_ROOT=/data1/heejae \
+PROBE_ARTIFACT="$PROBE" \
+nohup bash scripts/run_ddxplus_oof_teacher_audit_125.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_oof_teacher_calibration_audit_v1.log 2>&1 &
+```
+
+```bash
+tail -f /data1/heejae/medical_nla/logs/ddxplus_oof_teacher_calibration_audit_v1.log
+```
+
+기본 출력은 teacher 디렉터리 아래 `calibration_audit_v1/`이다. 이 감사도 threshold를
+고르거나 바꾸지 않으며, student target을 쓰지 않고 validation/locked test를 읽지 않는다.

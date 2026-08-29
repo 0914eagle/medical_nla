@@ -919,3 +919,25 @@ Server 125 전용 wrapper는 `scripts/run_ddxplus_oof_teacher_125.sh`, 실행·�
 규약은 `docs/experiments/10-ddxplus-oof-teacher.md`에 기록했다. 이 단계는
 validation/locked test를 읽지 않고 target/student/gate를 쓰지 않는다. 실제 분포
 수치는 server 125 실행 후 이 원장에 별도 기록한다.
+
+### R19. Codex — 2026-08-29
+
+**[결과] D14 stage 1 materialization은 기술적으로 통과했지만 student 승격은
+보류한다.** Server 125에서 `4,655` base, `9,310` original/deleted rows,
+complete-pair coverage `1.0000`, 91 labels 모두 fold zero-positive `0`으로
+물질화됐다. 그러나 original selected count `6.0745`에서 deletion `8.3590`으로
+`+2.2845`(`+37.6%`) 증가했다. Original/deleted set Jaccard는 `.5440`, changed-cue
+phantom은 `.5101`, removal은 `.4899`였고 untouched preservation은 `.9986`이었다.
+
+**[판정] P2-P4와 student GPU 학습을 아직 승인하지 않는다.** 기존 set이 거의
+유지되면서 deletion에서 label이 추가되는 비대칭은 paired distillation이 activation
+specificity 대신 counterfactual verbosity를 학습시킬 위험을 뜻한다. 또한 OOF head는
+fold당 `2,243/2,412` original로 학습됐지만 threshold `.5`는 full-data probe의
+validation-selected 값이므로 probability calibration shift 가능성이 있다.
+
+**[구현] CPU-only calibration audit를 추가했다.** OOF/full-data frozen probe의
+original/deleted cue precision/recall/F1/Brier/BCE와 claim count, added/removed/retained
+set 전이, newly-added probability margin, deleted input에 없는 추가 label 비율,
+fold별 calibration, label prevalence drift를 보고한다. Cue agreement는 activation의
+정답이 아니라 calibration diagnostic으로만 사용한다. 이 감사 결과 전에는 threshold를
+재선택하거나 target을 만들지 않는다.
