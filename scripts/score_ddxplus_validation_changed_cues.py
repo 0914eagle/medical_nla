@@ -127,8 +127,10 @@ def build_validation_scores(
     counts: Counter[str] = Counter()
     positive_deltas: list[float] = []
     positive_margins: list[float] = []
+    positive_presence: list[float] = []
     null_deltas: list[float] = []
     null_margins: list[float] = []
+    null_presence: list[float] = []
     for own_index, original in enumerate(originals):
         identifier = str(original["base_id"])
         deletion = deletions[identifier]
@@ -161,6 +163,7 @@ def build_validation_scores(
         counts["positive_rows"] += 1
         if positive_row["score_eligible"]:
             counts["positive_eligible"] += 1
+            positive_presence.append(float(positive_row["p_original"]))
             positive_deltas.append(float(positive_row["deletion_delta"]))
             positive_margins.append(float(positive_row["donor_margin"]))
 
@@ -200,6 +203,7 @@ def build_validation_scores(
         counts["null_rows"] += 1
         if null_row["score_eligible"]:
             counts["null_eligible"] += 1
+            null_presence.append(float(null_row["p_original"]))
             null_deltas.append(float(null_row["deletion_delta"]))
             null_margins.append(float(null_row["donor_margin"]))
 
@@ -210,8 +214,10 @@ def build_validation_scores(
         "finding_labels": len(labels),
         "max_donors": max_donors,
         "counts": dict(sorted(counts.items())),
+        "positive_presence": quantiles(positive_presence),
         "positive_deletion_delta": quantiles(positive_deltas),
         "positive_donor_margin": quantiles(positive_margins),
+        "null_presence": quantiles(null_presence),
         "null_deletion_delta": quantiles(null_deltas),
         "null_donor_margin": quantiles(null_margins),
         "threshold_applied": False,

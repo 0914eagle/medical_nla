@@ -434,7 +434,7 @@ mask를 억지로 만들지 않고 D9a 모집단 정의를 재논의한다는 �
 `select_ddxplus_d9a_support_thresholds.py`,
 `approve_ddxplus_d9a_support_protocol.py`,
 `make_ddxplus_d9a_supported_pairs.py`이며 focused fixture **6 tests passed**,
-관련 DDXPlus/Medical-NLA 회귀 검사는 **31 tests passed**다. 실행 규약은
+관련 DDXPlus/Medical-NLA 회귀 검사는 **32 tests passed**다. 실행 규약은
 `docs/experiments/08-ddxplus-d9a-selected-cue.md`에 기록했다.
 
 **[판정 요청] D9a 제외 원칙과 D10의 “deletion-only 2x2” 사이에 아직 한 칸이

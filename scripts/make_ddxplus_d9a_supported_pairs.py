@@ -97,7 +97,8 @@ def build_pairs(
         if int(score.get("fold_training_positive_count") or 0) < 5:
             raise ValueError(f"Eligible row violates min fold positives: {identifier}")
         if int(score.get("donor_count") or 0) <= 0:
-            raise ValueError(f"Eligible row has no donor: {identifier}")
+            counts["donor_unavailable_excluded"] += 1
+            continue
         if not passes(score, presence, deletion, donor):
             counts["eligible_below_cut_excluded"] += 1
             continue
@@ -189,6 +190,7 @@ def build_pairs(
                 "",
                 f"- supported pairs: **{counts['supported_pairs']}**",
                 f"- ineligible excluded: **{counts['ineligible_excluded']}**",
+                f"- donor unavailable excluded: **{counts['donor_unavailable_excluded']}**",
                 f"- eligible below cut excluded: **{counts['eligible_below_cut_excluded']}**",
                 "- target claims per retained case: **1**",
                 "- unsupported policy: **exclude**",

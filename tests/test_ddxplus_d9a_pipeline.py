@@ -173,6 +173,57 @@ def test_target_builder_requires_approval_and_excludes_below_cut(tmp_path: Path)
     assert "finding B" not in rows[0]["target_text"]
 
 
+def test_target_builder_excludes_donor_unavailable(tmp_path: Path) -> None:
+    approval = tmp_path / "approved.json"
+    validation_scores = tmp_path / "validation_scores.jsonl"
+    validation_scores.write_text("{}\n", encoding="utf-8")
+    approved_protocol(approval)
+    payload = json.loads(approval.read_text())
+    from scripts.make_ddxplus_d9a_supported_pairs import sha256_file
+
+    payload["validation_scores_sha256"] = sha256_file(validation_scores)
+    approval.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    original_path = tmp_path / "original.pt"
+    deleted_path = tmp_path / "deleted.pt"
+    original_path.touch()
+    deleted_path.touch()
+    own = original("case_0", original_path)
+    removed = deletion(own, deleted_path)
+    original_manifest = tmp_path / "original.jsonl"
+    deletion_manifest = tmp_path / "deletion.jsonl"
+    train_scores = tmp_path / "scores.jsonl"
+    write_jsonl(original_manifest, [own])
+    write_jsonl(deletion_manifest, [removed])
+    write_jsonl(
+        train_scores,
+        [
+            {
+                "base_id": "case_0",
+                "changed_evidence_id": "A",
+                "score_eligible": True,
+                "fold_training_positive_count": 5,
+                "donor_count": 0,
+                "p_original": 0.9,
+                "p_deleted": 0.5,
+                "deletion_delta": 0.4,
+                "donor_margin": None,
+            }
+        ],
+    )
+    with pytest.raises(ValueError, match="retained no D9a pairs"):
+        build_pairs(
+            train_scores=train_scores,
+            validation_scores=validation_scores,
+            original_manifest=original_manifest,
+            counterfactual_manifest=deletion_manifest,
+            approved_protocol=approval,
+            output_jsonl=tmp_path / "pairs.jsonl",
+            protocol_json=tmp_path / "protocol.json",
+            summary_md=tmp_path / "summary.md",
+        )
+
+
 def test_unapproved_protocol_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "unapproved.json"
     path.write_text(json.dumps({"human_approved": False}), encoding="utf-8")
