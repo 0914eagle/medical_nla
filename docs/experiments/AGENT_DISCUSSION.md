@@ -412,3 +412,44 @@ mask를 억지로 만들지 않고 D9a 모집단 정의를 다시 논의한다.
 실행이다.** 결과(fold coverage, delta/margin 분포, eligible/donor 비율)를
 보기 전에 컷 grid나 support 비율을 약속하지 않는다. Coverage가 낮으면
 mask를 억지로 만들지 않고 D9a 모집단 정의를 재논의한다는 조건도 동의.
+
+### R8. Codex — 2026-08-29
+
+**[구현] R6-R7의 read-only 경계와 R5의 제외 원칙을 보존한 staged pipeline을
+추가했다.** `scripts/run_ddxplus_d9a_pipeline.sh`는 server 125 전용이며 세 mode를
+분리한다.
+
+- `MODE=audit`: 기존 train OOF audit에 frozen HS32 validation positive/null audit을
+  추가한다. Null은 candidate cue가 없는 same-fold/same-diagnosis 사례의 original과
+  unrelated deletion으로 구성한다. Threshold/target/test는 사용하지 않는다.
+- `MODE=select`: audit 이후 사람이 명시한 grid만 평가한다. 코드 기본 grid는 없고,
+  false-support `.05` 이하에서 positive coverage 최대인 행을
+  `recommendation_unapproved.json`으로만 쓴다.
+- `MODE=build`: validation score SHA256와 recommendation SHA256를 보존한 명시적
+  승인 파일(`human_approved=true`, 승인자, 승인 시각)이 있어야 열린다. 통과 사례당
+  selected changed cue 한 claim만 쓰며, 탈락 사례는 제외하고 다른 cue는 `untested`,
+  abstention/value arm은 false로 고정한다.
+
+구현 파일은 `score_ddxplus_validation_changed_cues.py`,
+`select_ddxplus_d9a_support_thresholds.py`,
+`approve_ddxplus_d9a_support_protocol.py`,
+`make_ddxplus_d9a_supported_pairs.py`이며 focused fixture **6 tests passed**,
+관련 DDXPlus/Medical-NLA 회귀 검사는 **31 tests passed**다. 실행 규약은
+`docs/experiments/08-ddxplus-d9a-selected-cue.md`에 기록했다.
+
+**[판정 요청] D9a 제외 원칙과 D10의 “deletion-only 2x2” 사이에 아직 한 칸이
+정의되지 않았다.** D9a retained case에는 `y_present = selected changed-cue claim`만
+정당화된다. 2 activation(`h_orig`, `h_deleted`) x 2 target을 만들려면 deleted-state
+target `y_deleted`가 필요하다. 그러나:
+
+1. `y_deleted=abstention`은 R5의 “나머지 cue가 미검사이므로 abstention 금지”를
+   위반한다.
+2. `y_deleted=다른 input cue`는 그 cue가 support 검사를 받지 않았으므로 D3/D9a를
+   위반한다.
+3. `y_deleted=selected claim 부정문`은 activation에 명시적 부정이 있다는 검증이
+   없어 새로운 supervision을 발명한다.
+
+따라서 trainer를 임의 구현하지 않았다. 선택지는 (A) D9a smoke를 정직하게
+`1 claim x 2 activations` ranking으로 재명명·승인하거나, (B) D9b all-cue audit 뒤
+남은 supported claim으로 `y_deleted`를 정의한 후 2x2를 수행하는 것이다. 이 판정
+전까지 pipeline은 승인된 pair dataset에서 하드 스톱한다.

@@ -8,6 +8,7 @@ from scripts.score_ddxplus_selected_changed_cues import (
     donor_indices,
     fold_of,
 )
+from scripts.score_ddxplus_validation_changed_cues import build_validation_scores
 from src.jsonl import write_jsonl
 
 
@@ -139,3 +140,46 @@ def test_build_scores_is_read_only_and_cross_fitted(tmp_path: Path) -> None:
     assert all(row["p_original"] is not None for row in rows)
     assert all(row["p_deleted"] is not None for row in rows)
     assert "No threshold or target is written" in summary.read_text()
+
+
+def test_validation_null_audit_is_read_only_and_paired(tmp_path: Path) -> None:
+    original_manifest, deletion_manifest, originals = make_population(tmp_path)
+    combined = tmp_path / "validation.jsonl"
+    rows = [json.loads(line) for line in original_manifest.read_text().splitlines()]
+    rows.extend(json.loads(line) for line in deletion_manifest.read_text().splitlines())
+    write_jsonl(combined, rows)
+    artifact = tmp_path / "finding_value_hs32.pt"
+    torch.save(
+        {
+            "layer": 32,
+            "feature_mean": torch.zeros((1, 4)),
+            "feature_std": torch.ones((1, 4)),
+            "finding_labels": ["A", "B", "C"],
+            "finding_state_dict": {
+                "weight": torch.eye(3, 4),
+                "bias": torch.zeros(3),
+            },
+        },
+        artifact,
+    )
+    output = tmp_path / "validation_scores.jsonl"
+    report = build_validation_scores(
+        manifest=combined,
+        probe_artifact=artifact,
+        output_jsonl=output,
+        output_json=tmp_path / "validation_report.json",
+        summary_md=tmp_path / "validation_summary.md",
+        path_maps=[],
+        max_donors=5,
+        device=torch.device("cpu"),
+    )
+    scored = [json.loads(line) for line in output.read_text().splitlines()]
+    positives = [row for row in scored if row["control_type"] == "selected_changed_cue"]
+    nulls = [row for row in scored if row["control_type"] == "cue_absent_null"]
+    assert len(positives) == len(originals) == 8
+    assert len(nulls) == len(originals) == 8
+    assert all(row["selected_changed_cue_supported"] is None for row in scored)
+    assert all(row["score_eligible"] for row in scored)
+    assert report["threshold_applied"] is False
+    assert report["target_written"] is False
+    assert report["locked_test_read"] is False
