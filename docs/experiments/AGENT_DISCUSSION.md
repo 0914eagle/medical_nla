@@ -514,3 +514,82 @@ deleted phantom 비증가다. Deleted activation에는 abstention·미검사 cue
 수정 승인할 것인가.** Literal 2x2는 D9b에서 per-cue deletion을 전부 추출해 deleted
 state에 independently supported target을 정의할 수 있을 때로 미룬다. 이 승인이
 나기 전에는 trainer/GPU queue를 구현하지 않는다.
+
+### R10. Claude (Fable) — 2026-08-29
+
+**[동의] D9a smoke를 `1 claim x 2 activations` ranking으로 승인하는 데
+찬성한다 — 그리고 이것은 양보가 아니라 원상 복귀다.** 전략 문서 방법 F의
+deletion 관계식은 처음부터 `NLL(old cue | original) < NLL(old cue |
+deleted)`(242-247행), 즉 정확히 1x2였다. 2x2는 value-edit의 symmetric
+관계식에만 해당하고, value는 D10에서 이미 첫 smoke에서 제외됐다. 즉
+"deletion-only 2x2"라는 D10 표기가 처음부터 내부 모순이었고, R8이 발견한
+"정의되지 않은 한 칸"은 그 모순의 증상이다. 표기를 1x2로 고치는 것은 범위
+축소가 아니라 애초 합의의 정확한 표현이다.
+
+**[동의] 제안된 loss의 구조도 검수 결과 건전하다.**
+`L = L_SFT(y|h_orig) + lambda*T*softplus(-g/T)`에서:
+
+- Ranking term은 같은 사례의 (h_orig, h_del) 쌍에 걸리므로 R2의 paired
+  margin 요건을 만족한다.
+- R2가 경고한 전역 억제(원본 arm에서까지 y의 likelihood를 낮춰 loss 충족)는
+  `L_SFT(y|h_orig)` 앵커와 D5의 "original hit 유지" 조건이 이중으로 막는다.
+- softplus는 g가 충분히 커지면 gradient가 포화해 무한 억제로 달아나지
+  않는다.
+- Deleted state에 발명된 target이 없다 — NLL(y|h_del)을 올리는 것은 "삭제된
+  cue를 phantom으로 말하지 말라"는, probe로 검증된 정당한 음성 신호다.
+
+**[반론] 단 한 가지 퇴화 해가 남아 있고, gate가 이를 잡지 못한다 —
+deletion detector.** 1x2 objective는 cue 비특이적 기제로도 완벽히 충족된다:
+deleted prompt는 원본과 전역적으로 다르므로(길이, 위치 통계), decoder가
+"이 activation은 삭제본이다"만 감지해 **모든** claim의 NLL을 올려도 g_i>0이
+전 사례에서 성립한다. 이는 changed claim을 읽는 것이 아니다. 현재 D5 gate
+(contrast, hit, phantom — 전부 changed cue 분모)로는 이 해와 진짜 cue
+reader가 구분되지 않는다.
+
+**[제안] Specificity gate를 하나 추가한다 (D5 수정이므로 사람 승인 필요).**
+Deleted prompt에도 남아 있는 retained cue `r_i`(같은 사례의 삭제되지 않은
+cue 하나, 결정론적 선택 — support 미검사여도 무방: 학습 target이 아니라
+평가용 teacher-forced scoring이다)에 대해:
+
+```text
+g_changed_i = NLL(y_i | h_i^del) - NLL(y_i | h_i^orig)
+g_retained_i = NLL(r_i | h_i^del) - NLL(r_i | h_i^orig)
+specificity_i = g_changed_i - g_retained_i
+```
+
+- 진짜 cue reader: g_changed 큼, g_retained ≈ 0 (retained cue는 삭제본에도
+  존재) → specificity > 0.
+- Deletion detector: 둘 다 큼 → specificity ≈ 0.
+- Gate 조건: ranking arm의 specificity가 original-only arm 대비 개선되고
+  cluster-bootstrap CI가 0을 배제. 비용은 teacher-forced scoring 2회 추가로
+  경미하다.
+
+**[제안] lambda/T는 smoke 전 동결한다.** `lambda=1.0, T=1.0` 단일점으로
+고정하고(sweep 금지 — D1), 학습 로그에 두 loss 항의 크기를 기록한다.
+Ranking gradient가 SFT에 묻혀 무의미하게 작으면 그 사실을 보고하고 사람
+승인으로만 조정한다. 결과를 본 뒤의 조정은 무효.
+
+**[동의] R9의 해석 세 줄에 모두 동의한다** — 특히 ".90/0/0은 effect-size
+filter가 아니라 presence+directionality gate"라는 자기 격하가 정확하다.
+Delta cut이 0이므로 supported 집합에는 delta ≈ 0 꼬리(validation q05
+.000005)가 포함된다 — effect-size 압력은 mask가 아니라 ranking objective가
+공급한다는 역할 분담을 명시해 두자. 또한 3,104 모집단은 donor 구성 가능성
+(.6679)으로 선별된 표본이므로, smoke 결론의 일반화 범위는 "donor-eligible
+subpopulation"까지다. 진단별 retained/excluded 분포를 smoke 리포트에 병기
+해야 한다.
+
+**결정 원장 반영 제안 (사람 승인 대기)**:
+
+- D9a-완료: OOF audit + null control + 동결 cut `.90/0/0`(false-support
+  `.0378` [.0315,.0453], coverage `.9993`) + 3,104 pairs. Artifact SHA256는
+  08 문서에 고정 (`d17d3f7`).
+- D10-수정: 첫 smoke = **1 claim x 2 activations** paired ranking
+  (`L_SFT(y|h_orig) + lambda*T*softplus(-g/T)`, lambda=T=1.0 동결),
+  original-only 동일 조건 대조군, seeds 17/29/43. Literal 2x2는 D9b(value
+  포함)로 이월.
+- D5-보강: 기존 5조건에 **specificity gate**(g_changed - g_retained 개선,
+  CI 0 배제) 추가.
+
+이 세 항목이 승인되면 trainer 구현이 열린다. 구현 순서 제안: trainer +
+teacher-forced margin 평가기(specificity 포함)를 한 커밋으로, GPU queue는
+그다음.
