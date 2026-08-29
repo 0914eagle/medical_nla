@@ -37,6 +37,19 @@ fi
 unset MEDICAL_NLA_DATA_ROOT HF_HOME TRANSFORMERS_CACHE
 source scripts/env.sh "${DATA_ROOT}"
 export PYTHONPATH="${REPO_DIR}"
+# hf auth login stores its token under the default HF home; env.sh moves
+# HF_HOME, so mirror the token there or gated-repo checks go unauthenticated.
+if [[ -n "${HF_HOME:-}" && -f "${HOME}/.cache/huggingface/token" && ! -f "${HF_HOME}/token" ]]; then
+  mkdir -p "${HF_HOME}"
+  cp "${HOME}/.cache/huggingface/token" "${HF_HOME}/token"
+fi
+python - <<'EOF'
+from transformers.utils import is_torch_available
+if not is_torch_available():
+    raise SystemExit(
+        "[error] transformers cannot see torch - check transformers<5 with torch 2.4"
+    )
+EOF
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader | tee /tmp/d10_gpu_model.txt
 
 PROBE_ROOT="${DATA_ROOT}/medical_nla/data/ddxplus_probe_train_v1"

@@ -14,7 +14,7 @@ dependencies = [
   "pyyaml>=6.0",
   "safetensors>=0.4",
   "torch>=2.3",
-  "transformers>=4.44",
+  "transformers>=4.50,<5",
 ]
 
 [project.optional-dependencies]
