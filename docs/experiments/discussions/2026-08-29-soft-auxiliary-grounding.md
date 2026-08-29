@@ -715,3 +715,33 @@ auxiliary objective가 AV의 DiReCT 사례 특이성을 개선했다는 증거�
 Frozen-z probe와 generation은 각각 `z`의 finding 정보 보존과 decoder의 실제 사용을
 구분하기 위한 실패 원인 진단으로만 보고하며 D16을 구제하는 새 실험으로 해석하지
 않는다.
+
+## Discussion 10 - Frozen-z 원인 진단 (2026-08-29)
+
+Control/proposed 각각 seeds 17/29/43의 학습된 `z[256]`를 고정하고, DDXPlus official
+train에서 fresh finding/value probe를 학습한 뒤 validation에서 평가했다.
+
+| seed | arm | finding F1 | own-shuffled gap | value acc. | deletion drop | removal | new labels after deletion | replacement hit |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| 17 | control | .9566 | .1408 | .6780 | .5389 | .5897 | 1.054 | .0807 |
+| 17 | auxiliary | .9557 | .1358 | .6642 | .5222 | .5812 | .514 | .0750 |
+| 29 | control | .9566 | .1402 | .6789 | .5390 | .5873 | .849 | .0826 |
+| 29 | auxiliary | .9558 | .1356 | .6693 | .5249 | .5830 | .527 | .0713 |
+| 43 | control | .9569 | .1408 | .6784 | .5366 | .5843 | .897 | .0844 |
+| 43 | auxiliary | .9553 | .1351 | .6624 | .5215 | .5810 | .511 | .0750 |
+
+Auxiliary-control delta는 finding F1 `-.0009/-.0007/-.0016`, own-shuffled gap
+`-.0050/-.0046/-.0058`, value accuracy `-.0137/-.0096/-.0160`, deletion target
+probability drop `-.0167/-.0141/-.0151`이었다. 즉 세 seed 모두에서 auxiliary
+학습은 `z`의 finding specificity, value 정보, changed-cue response를 개선하지
+못했다.
+
+삭제 뒤 새로 켜지는 label 수는 `1.054->.514`, `.849->.527`, `.897->.511`로
+감소했다. 그러나 deletion target probability drop, removal, replacement hit가 동시에
+하락했으므로 이를 target-specific counterfactual grounding 개선으로 해석하지 않는다.
+가장 보수적인 해석은 auxiliary objective가 일부 broad activation을 억제했지만 필요한
+정보와 반응성도 함께 약화했다는 것이다.
+
+따라서 실패 위치는 AV decoder만이 아니다. Frozen `z` 수준에서도 proposed가 control을
+일관되게 하회한다. 약 6개 adapter 전체를 자유 생성하는 generation queue와 Gate C는
+promotion 결론을 바꿀 수 없고 계산 비용만 추가하므로 실행하지 않고 D16을 종료한다.

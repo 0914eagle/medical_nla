@@ -65,3 +65,9 @@ archive를 참조한다. 새 데이터 없이 기존 결정을 재론하지 않�
 - 세 category-cluster CI가 모두 0을 포함했고 어느 seed도 floor를 넘지 못했다.
 - Primary three-seed gate: **FAIL**. D16은 종료하며 승인된 hyperparameter를 sweep하지
   않는다. Locked test는 읽지 않았다.
+- Frozen-z에서도 auxiliary-control finding F1은 `-.0009/-.0007/-.0016`,
+  own-shuffled gap은 `-.0050/-.0046/-.0058`, value accuracy는
+  `-.0137/-.0096/-.0160`, deletion drop은 `-.0167/-.0141/-.0151`이었다.
+- 실패가 decoder 사용에만 국한되지 않고 `z`의 정보/반응성에도 있으므로 full
+  generation과 Gate C는 실행하지 않는다. 삭제 후 새 label 감소는 필요한 반응성도
+  함께 낮아져 promotion 근거로 사용하지 않는다.
