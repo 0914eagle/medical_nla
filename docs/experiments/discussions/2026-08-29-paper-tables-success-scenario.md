@@ -288,3 +288,44 @@ D10 성공 후에는 다음 순서를 고정한다.
 성공 또는 locked-test 실행을 승인하지 않는다. 사람이 이 구조를 승인하면 성공 분기에서
 [`docs/paper/tables_and_figures.md`](../../paper/tables_and_figures.md)를 이 규격으로
 갱신하고, 실패 분기에서는 기존 paper-table completion 문서를 따른다.
+
+## Discussion 2 — Claude 검토 (2026-08-29)
+
+**[동의] 구조 전체를 지지한다.** 특히 다음이 옳다:
+
+- 성공을 가정한 **조건부 사전 등록**이라는 문서 성격 자체 — 성공 후 표를
+  사후 설계하는 자유도를 지금 제거한다. 실패 분기 문서와 같은 panel 구조를
+  공유해 어느 분기든 표가 호환되는 것도 좋다.
+- 분모 규율: DiReCT `248/50` vs `266/52` 분리, locked-test metric별 상이한
+  분모를 caption에 고정, patient-group cluster bootstrap, pooled 178 강등.
+- **정직한 명명**: DDXPlus test가 probe/structured reader에 이미 쓰였으므로
+  "untouched confirmatory"가 아니라 "locked downstream method evaluation"
+  이라 부르는 것(선택 규칙 6). 이 구분을 심사자가 지적하기 전에 우리가
+  먼저 하는 게 맞다.
+- Table 1에서 final Medical-NLA 제외(availability 표의 역할 고정), Table 2의
+  가상 3행을 SFT-only/final 2행으로 축소, Table 3의 method-class 분리(D13
+  정합), Table 4의 AR round-trip gate 조건부 실행.
+- MCR을 protocol 동결 전 빈 열로 넣지 않는 것.
+
+**[판정 요청] "가장 빠른 표 완결 순서"의 2·3번은 DiReCT test 개봉이다.**
+HS24 probe를 test-seen 72에 적용(2번)하고 Source CoT/Vanilla를 72/106에서
+평가(3번)하는 것은 deterministic·frozen이라 선택 오염 위험은 낮지만,
+"test는 최종 recipe 동결 후 일괄 1회"라는 원칙과 충돌한다. 선택지:
+
+- (a) 지금 개봉 — 일정 리스크 완화. 단 "이후 어떤 방법·threshold 선택도 이
+  결과에 반응하지 않는다"를 명문화해야 한다.
+- (b) 최종 배치로 이월 — D10 budget run 결과가 수 시간 내 나오므로 일정
+  이득이 작다. **나는 (b)를 권고한다**: 성공/실패 분기가 확정된 직후 어차피
+  한 번에 여는 것이 서사도 깨끗하다.
+
+**[지적] Table 2의 Medical-NLA 행에는 미명시 전제가 있다.** 그 행이
+존재하려면 final recipe에 DiReCT adaptation(Phase 2, 248행)이 포함되어야
+한다 — DDXPlus-only ranking checkpoint의 zero-shot DiReCT 평가와 adaptation
+후 평가는 다른 주장이다. 성공 정의 문단은 이를 조건부("포함한다면")로만
+언급하므로, "Table 2의 Medical-NLA 행은 recipe가 DiReCT adaptation을 포함할
+때만 생성되며, 포함 여부는 D10 통과 후 별도 사람 결정"을 한 줄 명시하라.
+
+**[상태 공유]** D10 budget run은 RunPod A100 80GB에서 진행 중이다
+(transformers 5.x/torch 2.4 비호환을 `transformers<5` 핀으로 해결, step당
+~1.7초, run당 ~43분, 학습 6 runs ≈ 4.3시간 + 평가 36회). 결과가 나오면 이
+문서의 성공/실패 분기가 결정된다.
