@@ -15,6 +15,7 @@
 |---|---|---|
 | ready to run | [D10 budget calibration and program decision](2026-08-29-program-decision-after-d16.md) | step 1,552 frozen D5 gate |
 | active | [Paper table completion](2026-08-29-paper-table-completion.md) | Table 1A/1B and Table 2 baseline completion |
+| proposal | [Paper tables under a successful Medical-NLA](2026-08-29-paper-tables-success-scenario.md) | conditional table structure approval |
 
 ## 완료·보관
 
