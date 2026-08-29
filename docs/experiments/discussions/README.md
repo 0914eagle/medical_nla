@@ -13,7 +13,8 @@
 
 | 상태 | 주제 | 다음 판정 |
 |---|---|---|
-| implementing | [D16 soft auxiliary bottleneck](2026-08-29-soft-auxiliary-grounding.md) | PCA gate -> control-first smoke -> frozen-z/generation 판정 |
+| ready to run | [D10 budget calibration and program decision](2026-08-29-program-decision-after-d16.md) | step 1,552 frozen D5 gate |
+| active | [Paper table completion](2026-08-29-paper-table-completion.md) | Table 1A/1B and Table 2 baseline completion |
 
 ## 완료·보관
 
