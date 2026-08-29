@@ -284,3 +284,78 @@ Gate C의 절대 출구 조건 `Obscomp > .2130`은 유지한다. 상대 arm 개
 2. original BCE와 approved-D9a deleted margin의 정확한 loss 식
 3. gradient-parity calibration 규약
 4. control-first effect-floor의 정확한 식
+
+## Discussion 4 — Claude 응답: 동결 4항목의 구체값 제안 (2026-08-29)
+
+**[동의] Discussion 3의 수정 네 가지를 모두 받아들인다.** 특히 `z`가 기존
+adapter에 없는 새 architecture라는 지적은 코드로 재확인했다 —
+`src/nla.py:196-201`은 norm-scale된 activation을 injection token embedding에
+직접 대입하며(`inputs_embeds[0, pos] = scaled`) projector가 없다. Paired
+delta의 적용 범위를 approved D9a 3,104쌍의 selected changed cue 한 개로
+제한하는 것, original soft BCE를 privileged soft regularizer로 격하하는 것,
+같은 1x2 신호가 새 architecture에서도 죽으면 sweep 없이 분기 종료하는 것도
+동의한다. 아래는 사람 승인에 올릴 네 항목의 구체값이다.
+
+### 1. `d_z`와 projector 초기화
+
+- **`d_z = 256`.** 근거: 91-label ontology 크기의 ~3배로 ontology를
+  architecture에 고정하지 않으면서(91 금지 사유), 3840 대비 15배 압축으로
+  명목상 경로가 아닌 실질 bottleneck이 된다(3840 금지 사유). 이 값은
+  결과를 보기 전 단일 선택이며 sweep하지 않는다.
+- **초기화: `P_down`은 seed 고정 orthogonal rows, `P_up = P_down^T`.**
+  이때 초기 상태에서 `P_up P_down h = h`의 rank-256 최적 근사(rowspace
+  projection)가 되어, 학습 시작 시점에 pretrained AV의 입력 분포를 최대한
+  보존한다. Zero-init `P_up`은 injection을 0으로 만들어 pretrained 행동을
+  파괴하므로 금지. 둘 다 trainable, inference checkpoint에 잔존.
+
+### 2. 정확한 loss 식
+
+Aux head는 `z` 위 단일 선형층 `a = W z + b` (`W: 91 x 256`), 학습 후 제거.
+
+```text
+L = L_lang
+  + lambda * ( L_aux_orig + L_aux_del )
+
+L_aux_orig = mean_labels BCE(sigmoid(a(z_orig)), p_teacher_orig)
+             # K=5 OOF soft probability, 91 labels, threshold 없음
+             # privileged soft regularizer — truth 아님 (Discussion 3.3)
+
+L_aux_del  = T * softplus( -( a(z_orig)[c_i] - a(z_del)[c_i] ) / T ),  T = 1.0
+             # approved D9a 3,104쌍의 selected changed cue c_i 한 개만
+             # deleted arm에 절대 target 없음, 타 label에 margin 발명 없음
+```
+
+DiReCT 행은 `L_lang`만, DDXPlus 행은 `L_aux_*`만 기여한다(제안서의 역할
+분리표 그대로). Deleted-arm absolute BCE는 어떤 가중치로도 넣지 않는다.
+
+### 3. Gradient-parity calibration 규약
+
+- Calibration rows: **DDXPlus original 행을 `SHA256(base_id)` 오름차순으로
+  512개**, DiReCT 행을 같은 규칙으로 512개. 임의 batch 금지.
+- 측정 tensor: **`z`에 대한 gradient** (`dL/dz`), row별로 계산.
+- 집계: **row별 L2 norm의 RMS**.
+- 식: `lambda = RMS(dL_lang/dz) / RMS(dL_aux/dz)`, 유효숫자 2자리 반올림.
+- 시점·공유: **seed 17 초기화에서 1회 계산해 세 seed 공통 적용**, 값과
+  중간 RMS를 리포트에 기록. 학습 중 재계산 없음.
+
+### 4. Control-first effect floor의 정확한 식
+
+Primary metric = DiReCT validation symmetric alignment gap.
+
+```text
+floor = max( 2 * ( max_j g_j - min_j g_j ),  0.005 )
+        # g_j = control arm seed j의 alignment gap, j in {17, 29, 43}
+```
+
+- 이 식 자체를 지금 동결한다 — control 결과를 본 뒤 spread 정의를 고르는
+  일이 없도록 식이 유일해야 한다는 Discussion 3.5 지적의 수용이다.
+- 절대 하한 `.005`의 근거: 역사적 full-SFT gap `+.0051`과 같은 자릿수로,
+  그 이하의 개선은 기존 실패 수준과 구분되지 않는다.
+- 판정은 floor 초과 AND category-cluster bootstrap CI 0 배제 AND 세 seed
+  부호 일치(D5 구조 상속). DDXPlus generation 지표와 frozen-z probe
+  프로토콜(Discussion 3.4)은 그대로.
+
+**[판정 요청]** 위 네 값 + Discussion 3의 concept를 묶어 사람 승인에
+올린다. 승인 시 DECISIONS.md에 D16으로 동결하고, 구현 순서는 (1) projector
++aux head architecture와 테스트, (2) control arm 3 seeds, (3) floor 계산·
+기록, (4) proposed arm 3 seeds, (5) frozen-z probe와 제거 검증이다.
