@@ -270,15 +270,17 @@ development 결과다. `--write`는 DiReCT locked cells와 conditional generativ
 - 단순 wall-time 추정: `10,028 x 14.8 / 2 = 74,207 s`, 약 20.6시간. I/O와 shard 불균형에 따라
   달라지므로 보장 시간이 아니다.
 
-단, 바로 10,028행을 생성하기 전에 아래 두 항목을 먼저 동결한다.
+D18 이후 generation과 semantic scoring을 분리한다. 바로 10,028행을 생성하기 전에는 첫 번째
+항목과 model/decoding/HS32 manifest를 동결하고, semantic 채점 전에는 두 번째 항목을 동결한다.
 
 1. `--dump-actor-prompt-template`로 실제 sidecar prompt를 저장하고 byte SHA-256을 기록한다.
 2. Open text를 evidence ID/value로 채점할 evaluator를 동결한다. 현재 lexical pilot scorer만으로는
    약칭·의역을 놓칠 수 있으므로 paper용 수치로 바로 쓰지 않는다. Method-blind semantic mapper,
    exact-quote validator, candidate ontology, model/version, prompt hash를 먼저 고정해야 한다.
 
-즉 **generation 자체는 독립 baseline이라 지금 가능하지만, evaluator 동결 전에 long job을
-시작하는 것은 권하지 않는다.** Prompt가 바뀌면 10,028 outputs를 재사용할 수 없기 때문이다.
+즉 generation은 지금 실행할 수 있다. Prompt/model/decoding을 먼저 hash 동결하고 생성물을
+즉시 봉인한다. Evaluator 동결 전에는 output text를 열람하거나 채점하지 않으며, G1-G4 뒤 같은
+sealed output을 재생성 없이 사용한다.
 
 Prompt dump는 server-local valid manifest path를 넣어 다음처럼 만든다. Dump mode에서도 CLI가
 `--manifest/--output`을 요구하지만 generation output은 만들지 않는다.
@@ -299,9 +301,10 @@ sha256sum "$OUT/provenance/vanilla_actor_prompt.txt" \
   > "$OUT/provenance/vanilla_actor_prompt.sha256"
 ```
 
-현재 generic generation entry point는 `src.run_nla`가 있지만, 두 shard 생성·merge·population
-검증·semantic scoring까지 한 번에 수행하는 paper-safe wrapper는 아직 없다. 구현할 wrapper는
-`scripts/run_ddxplus_vanilla_locked_baseline_4gpu.sh` 하나로 고정하고 다음을 hard fail해야 한다.
+실행 entry point는 세 단계로 분리됐다. HS32 extraction은
+`run_ddxplus_vanilla_hs32_locked_activations_4gpu.sh`, 생성·봉인은
+`run_ddxplus_vanilla_locked_generation_4gpu.sh`, G1-G4 뒤 채점은
+`score_ddxplus_vanilla_locked_from_seal.sh`이다. 다음을 hard fail한다.
 
 - 두 shard의 `base_id/variant` union이 canonical 10,028 rows와 정확히 일치
 - duplicate/missing activation 0
@@ -502,16 +505,17 @@ nohup env DATA_ROOT=/data/heejae \
 실제 분모가 적힌 `summary.md`를 함께 만든다. 기본 output은
 `/data/heejae/medical_nla/results/paper_cpu_metrics_62_v1/`이다.
 
-DDXPlus Vanilla wrapper는 현재 **실행 준비 완료, protocol 입력 대기** 상태다. 아래 세 파일/hash가
-없으면 10,028행 generation을 시작하지 않는다.
+DDXPlus Vanilla는 현재 **HS32 extraction과 sealed generation 실행 가능, semantic protocol 입력
+대기** 상태다. 아래 첫 항목은 generation 전에, 나머지 두 항목은 scoring 전에 필요하다.
 
 1. `src.run_nla --dump-actor-prompt-template`로 얻은 actor prompt와 승인 SHA-256
 2. method-blind semantic mapper protocol JSON과 승인 SHA-256
 3. 그 protocol을 구현한 scorer script와 승인 SHA-256
 
-이는 lexical scorer를 paper metric으로 잘못 쓰는 것을 막기 위한 의도적 정지점이다. Semantic
-protocol이 승인되면 `run_ddxplus_vanilla_locked_baseline_4gpu.sh`가 two-shard generation,
-10,028행 exact-union 검증, provenance 기록, semantic scoring을 한 queue로 끝낸다.
+이는 lexical scorer를 paper metric으로 잘못 쓰는 것을 막기 위한 의도적 정지점이다. Generation은
+exact-union 검증과 SHA receipt 뒤 봉인되고, semantic protocol이 승인되면 별도 scoring wrapper가
+그 receipt의 readout을 재사용한다. 실제 명령은
+`2026-08-30-locked-baseline-execution.md`를 canonical runbook으로 사용한다.
 
 DiReCT locked batch 전에는 patient-group label-shuffle와 cluster bootstrap을 담은 JSON을 먼저
 승인·hash 고정한다. 최소 schema는 다음과 같다.

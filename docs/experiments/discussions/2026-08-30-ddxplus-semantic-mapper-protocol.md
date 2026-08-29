@@ -1,6 +1,6 @@
 # DDXPlus open-text semantic mapper/scorer protocol
 
-현재 통제 상태: **구현 승인 / validation gate 대기 / locked generation 금지**. 2026-08-30
+현재 통제 상태: **구현 승인 / validation gate 대기 / sealed locked generation 허용 / semantic scoring 금지**. 2026-08-30
 사람 결정으로 G4의 사람 감사를 제거하고 아래의 독립 AI concordance gate로 대체했다.
 
 ## 질문
@@ -222,7 +222,10 @@ G4는 사람 정확도 감사가 아니라 AI 간 concordance다. 논문에서�
 ### 판정
 
 상기 일곱 수정은 구현 계약으로 유지한다. G4의 최종 대체 계약은 문서 마지막의 사람 결정이
-우선한다. G1--G4와 hash-freeze receipt 전까지 Vanilla 10,028행 generation은 금지한다.
+우선한다. D18 이후 generation과 scoring gate는 분리한다. Frozen HS32 population, actor prompt,
+checkpoint, greedy decoding을 기록한 generation protocol이 있으면 10,028행을 생성해 hash 봉인할
+수 있다. G1--G4와 mapper hash-freeze receipt 전에는 봉인된 출력의 semantic mapping, 본문 열람,
+결과 집계 및 이를 이용한 방법 수정이 금지된다.
 
 ## Claude 응답 (2026-08-30)
 
@@ -282,9 +285,10 @@ seed 17 표본 추출은 재개 가능성과 결과 확인 후 재표집하는 �
    gate는 판정 불가이며, value를 paper primary로 채점하기 전에 별도 validation 표본 계약을 다시
    승인한다.
 
-이 두 항목을 포함해 구현한다. 구현은 validation artifact만 읽고,
-G1--G4와 dry-run report가 모두 나온 뒤 별도 hash-freeze receipt를 만들며, 그 receipt 없이는
-10,028행 wrapper가 시작되지 않아야 한다.
+이 두 항목을 포함해 구현한다. Mapper 구현은 validation artifact만 읽고 G1--G4와 dry-run
+report가 모두 나온 뒤 별도 hash-freeze receipt를 만든다. 그 receipt는 locked **scoring** wrapper의
+필수 입력이다. D18의 generation-only wrapper는 mapper receipt를 읽지 않지만 생성 즉시 출력
+SHA-256과 exact population receipt를 만들고 semantic scorer를 호출하지 않는다.
 
 ## 사람 결정 — G4 AI-only 대체 및 구현 승인 (2026-08-30)
 
@@ -307,5 +311,24 @@ protocol의 validation 구현을 승인한다.
 6. G4는 **AI 간 일치도**만 보이며 실제 임상 정확도의 사람 검증이 아니다. 이 한계와 두 실제
    model ID, 표본 분모, 불일치율을 appendix/limitations에 보고한다.
 
-이 결정은 validation mapper 구현과 G1--G4 실행을 승인한다. Locked 10,028행 generation은 네
-gate 통과, protocol/alias/prompt/model/scorer hash 동결, receipt 생성 이후에만 별도로 열린다.
+이 결정은 validation mapper 구현과 G1--G4 실행을 승인한다. 이 문장의 generation 차단은 이후
+D18로 좁혀졌다. Prompt/model/decoding/HS32 population을 동결한 generation-only queue는 먼저
+실행할 수 있지만, 네 gate 통과와 protocol/alias/prompt/model/scorer receipt 없이는 봉인된
+10,028행을 semantic 채점할 수 없다.
+
+## 사람 결정 - generation/scoring 분리 (D18, 2026-08-30)
+
+장시간 Vanilla generation을 mapper 구현과 병렬화한다. 허용되는 순서는 아래로 고정한다.
+
+1. DDXPlus locked CoT-P0 10,028행에서 public AV가 요구하는 HS32 activation을 만든다. 이는
+   HS24 probe layer 선택을 바꾸지 않으며 Vanilla L32 checkpoint와의 차원 계약을 맞추는 작업이다.
+2. 실제 sidecar actor prompt를 dump하고 manifest, config, model ID,
+   `do_sample=false`, `max_new_tokens=512`, batch size를 generation protocol에 hash 동결한다.
+3. 두 base-ID-complete shard를 생성하고 exact `4,543 original + 4,543 deletion + 942 value edit`을
+   검증한 뒤 readout SHA-256 receipt를 만든다.
+4. 이 시점에는 output text를 열람하거나 mapper/scorer를 실행하지 않는다.
+5. 별도 validation-only G1-G4 mapper receipt가 생기면 동일 sealed readout을 재생성 없이 채점한다.
+
+구현 entry point는 `run_ddxplus_vanilla_hs32_locked_activations_4gpu.sh`,
+`run_ddxplus_vanilla_locked_generation_4gpu.sh`,
+`score_ddxplus_vanilla_locked_from_seal.sh` 세 개다.

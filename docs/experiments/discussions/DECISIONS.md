@@ -22,6 +22,7 @@ archive를 참조한다. 새 데이터 없이 기존 결정을 재론하지 않�
 | D15 | K=2 teacher는 폐기하고 K=5를 단 한 번 평가한다. Threshold `.5`와 hyperparameter를 유지하며 실패 시 추가 K/threshold sweep을 금지한다. K=5는 gate FAIL로 종료했다. | K=5 precision `.8881`; deleted mean gap `18.10%`; 추가 sweep 금지 |
 | D16 | Soft auxiliary bottleneck one-shot을 승인한다. `d_z=256`, train-only source-balanced PCA, validation cosine `.95`, original OOF soft BCE, approved D9a selected-cue paired margin, `248+248` gradient parity, 8+8/20-step seeds 17/29/43, control-first paired-delta gate를 사용한다. | 사람이 2026-08-29 승인; 실패 시 `d_z`/lambda/step/threshold sweep 금지 |
 | D17 | D10만 step 수를 20에서 1,552로 바꾸는 post-hoc budget calibration을 승인한다. Checkpoint `20/194/388/776/1164/1552`, 동일 control/ranking·seeds 17/29/43, 최종 D5 gate만 판정하고 자동 연장하지 않는다. | 20-step smoke가 objective와 budget을 함께 기각했을 가능성 분리 |
+| D18 | DDXPlus Vanilla locked 10,028행은 HS32 manifest, actor prompt, model, greedy decoding을 먼저 hash 동결한 뒤 semantic mapper 전에 생성할 수 있다. 생성물은 즉시 봉인하고 G1-G4 mapper receipt 전에는 본문 열람·semantic 채점·방법 수정에 사용하지 않는다. | 약 20시간 generation과 mapper 구현을 병렬화하되 locked output에 의한 evaluator/method 오염 방지 |
 
 ## D15 calibration gate
 

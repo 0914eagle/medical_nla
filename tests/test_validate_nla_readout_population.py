@@ -30,6 +30,10 @@ def run_validator(monkeypatch, tmp_path, manifest_rows, readout_rows):
             str(len(manifest_rows)),
             "--expected-max-new-tokens",
             "512",
+            "--expected-actor-prompt-file",
+            "actor.txt",
+            "--expected-model-revision",
+            "abc123",
             "--report",
             str(report),
         ],
@@ -49,7 +53,8 @@ def test_population_validator_accepts_exact_union(monkeypatch, tmp_path):
             "gen_config": {"max_new_tokens": 512, "do_sample": False},
             "adapter_id": None,
             "query": "fixed prompt",
-            "sidecar_path": "nla_meta.yaml",
+            "actor_prompt_template_file": "actor.txt",
+            "sidecar_path": "/cache/snapshots/abc123/nla_meta.yaml",
         }
     ]
     report = run_validator(monkeypatch, tmp_path, manifest, readout)
@@ -67,7 +72,8 @@ def test_population_validator_rejects_wrong_decoding(monkeypatch, tmp_path):
             "gen_config": {"max_new_tokens": 256, "do_sample": False},
             "adapter_id": None,
             "query": "fixed prompt",
-            "sidecar_path": "nla_meta.yaml",
+            "actor_prompt_template_file": "actor.txt",
+            "sidecar_path": "/cache/snapshots/abc123/nla_meta.yaml",
         }
     ]
     with pytest.raises(ValueError, match="max_new_tokens"):

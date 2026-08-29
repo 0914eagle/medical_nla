@@ -53,6 +53,8 @@ def main() -> None:
     parser.add_argument("--expected-variant", action="append", default=[])
     parser.add_argument("--expected-max-new-tokens", required=True, type=int)
     parser.add_argument("--expected-do-sample", choices=("true", "false"), default="false")
+    parser.add_argument("--expected-actor-prompt-file", type=Path)
+    parser.add_argument("--expected-model-revision")
     parser.add_argument("--report", required=True, type=Path)
     args = parser.parse_args()
 
@@ -85,6 +87,7 @@ def main() -> None:
     expected_sample = args.expected_do_sample == "true"
     query_hashes = set()
     sidecars = set()
+    actor_prompt_files = set()
     for identifier, row in outputs.items():
         source = manifest[identifier]
         if str(row.get("variant") or "original") != str(source.get("variant") or "original"):
@@ -98,10 +101,25 @@ def main() -> None:
             raise ValueError(f"Vanilla readout unexpectedly used adapter for {identifier}")
         query_hashes.add(hashlib.sha256(str(row.get("query") or "").encode()).hexdigest())
         sidecars.add(str(row.get("sidecar_path") or ""))
+        actor_prompt_files.add(str(row.get("actor_prompt_template_file") or ""))
     if len(query_hashes) != 1:
         raise ValueError(f"Readouts used {len(query_hashes)} actor prompt queries")
     if len(sidecars) != 1 or "" in sidecars:
         raise ValueError(f"Readouts used inconsistent sidecars: {sorted(sidecars)}")
+    if args.expected_actor_prompt_file is not None:
+        expected_prompt = str(args.expected_actor_prompt_file)
+        if actor_prompt_files != {expected_prompt}:
+            raise ValueError(
+                f"Actor prompt file mismatch: {sorted(actor_prompt_files)} != {expected_prompt}"
+            )
+    if args.expected_model_revision is not None:
+        sidecar = next(iter(sidecars))
+        marker = "/snapshots/"
+        revision = sidecar.split(marker, 1)[1].split("/", 1)[0] if marker in sidecar else ""
+        if revision != args.expected_model_revision:
+            raise ValueError(
+                f"Model snapshot mismatch: {revision!r} != {args.expected_model_revision!r}"
+            )
 
     report: dict[str, Any] = {
         "schema_version": 1,
@@ -118,6 +136,7 @@ def main() -> None:
             "do_sample": expected_sample,
         },
         "query_sha256": next(iter(query_hashes)),
+        "actor_prompt_template_file": next(iter(actor_prompt_files)),
         "sidecar_path": next(iter(sidecars)),
         "population_exact": True,
     }

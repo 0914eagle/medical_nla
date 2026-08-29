@@ -15,7 +15,8 @@
 |---|---|---|
 | ready to run | [D10 budget calibration and program decision](2026-08-29-program-decision-after-d16.md) | step 1,552 frozen D5 gate |
 | active | [Paper table completion](2026-08-29-paper-table-completion.md) | Vanilla protocol freeze, D10 decision, then locked baseline batch |
-| draft | [DDXPlus open-text semantic mapper protocol](2026-08-30-ddxplus-semantic-mapper-protocol.md) | 3-stage 설계와 G1-G4 gate 합의 후 사람 승인 |
+| active | [DDXPlus open-text semantic mapper protocol](2026-08-30-ddxplus-semantic-mapper-protocol.md) | sealed generation과 validation-only G1-G4를 병렬 실행한 뒤 scoring receipt 동결 |
+| ready to run | [Locked baseline execution runbook](2026-08-30-locked-baseline-execution.md) | DDXPlus HS32 -> sealed 10,028 generation; D10 뒤 DiReCT 178 batch |
 | proposal | [Paper tables under a successful Medical-NLA](2026-08-29-paper-tables-success-scenario.md) | conditional table structure approval |
 | active | [Paper table values and reproducibility](2026-08-29-paper-table-values-and-reproducibility.md) | canonical values, denominators, recipes, provenance audit |
 
