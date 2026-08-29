@@ -41,3 +41,8 @@ Medical-NLA 학습 방법의 비교, 현재 실패 원인, 다음 objective와 �
 파이프라인은
 [`medical_nla_tuning_strategy_2026-08-29.md`](medical_nla_tuning_strategy_2026-08-29.md)를
 따른다.
+
+이 전략의 검토 결과 — 보완점 5개(HS32 Gate A ceiling, seed 3개 규칙,
+value gate 강등, Gate C bar, paired margin 구현)와 smoke 전 실행 순서는
+[`medical_nla_tuning_strategy_review_2026-08-29.md`](medical_nla_tuning_strategy_review_2026-08-29.md)를
+따른다.
