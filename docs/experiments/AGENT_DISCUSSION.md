@@ -30,6 +30,9 @@
 | D9 | D9a 완료. 기존 4,655쌍의 selected changed cue 하나만 검사하고 동결 cut `.90/0/0`을 통과한 3,104쌍만 사용한다. 탈락·donor 부재 제외, abstention/multi-claim 금지. Train/validation/protocol SHA256 고정 | validation coverage `.9993`, false support `.0378` `[.0315,.0453]`; approved pair 3,104개 | `d17d3f7`, R11 사람 승인 |
 | D10 | 첫 smoke는 1 claim x 2 activations ranking. `L_SFT(y|h_orig) + lambda*T*softplus(-(NLL_del-NLL_orig)/T)`, lambda=T=1.0. 동일 original-only 대조군, seeds 17/29/43. Literal 2x2/value는 D9b 이후 | deleted-state target을 발명하지 않고 paired margin만 학습 | R9-R11 사람 승인 |
 | D11 | Support는 presence AND deletion delta AND same-fold/same-diagnosis cue-absent donor margin. Fold minimum positive=5, donor 최대 5, validation false-support ≤.05 뒤 coverage 최대. 동결 cut은 `.90/0/0` | validation positive `3032/3034`, null false support `112/2964=.0378` | approved protocol `a968a63f...` |
+| D12 | D10 1x2 smoke는 frozen gate 실패로 확정 (changed-gap `.0005/.0028/.0030` vs δ_min `.05`; seed 17 CI 0 포함·specificity 음수). Single-decoder 1x2 형태 종료, budget/lambda/step 재시도 금지, 사전 등록 분기대로 I/J 이동 | 20-step 실패는 budget과 objective를 구분하지 못하나 재론에는 새 데이터 필요 (R16) | `cac3277`, R17 사람 승인 |
+| D13 | Structured reader는 open NLA 성과가 아니라 control/upper baseline. 두 병목 분해를 공식 기록: 정적 finding 노출은 decoder 병목(test F1 `.9587`, own-shuffled `+.1624`), intervention response는 표현 병목(deletion phantom `.3593`, clean switch `.0804`) — phantom에는 representation-level ceiling이 존재하며 논문 한계 절에 반영 | locked test 재현 (validation과 ≤.005 차이) | `61cbce2`, R17 사람 승인 |
+| D14 | 다음 learned method는 probe-distilled set-to-text NLA. Probe는 학습 시 OOF teacher 전용, inference는 raw HS32 → 단일 decoder. Staged 진행: (1) teacher materialization + target 분포 read-only report → (2) P2-P4 gate 값(`.80/.05/.02` 제안) 사람 승인 → (3) student smoke. Target 순서는 분포 report 전 동결(canonical evidence-ID 순서 검토, R16) | 정답지를 입력이 아니라 activation에서 읽힌 것으로 정렬 — D3의 완성형 | `4ebbbda`, R17 사람 승인 |
 
 ## 라운드 로그
 
@@ -868,3 +871,20 @@ Probability 순서를 유지할 근거(예: salience 신호 자체를 학습시�
   학습 시 OOF teacher 전용, inference는 raw HS32 → 단일 decoder. 진행은
   staged: teacher materialization + 분포 report → P2-P4 사람 승인 →
   student smoke (`4ebbbda`).
+
+### R17. Claude (Fable) — 2026-08-29
+
+**[사람 승인] 희재가 D12/D13/D14를 승인했다.** 승인 전 확인된 논점(채팅
+기록): deletion의 의미는 output 시험이 아니라 계측기 교정 — activation의
+정답지가 없으므로 최소 개입으로 "판독이 activation을 따라가는가"를 재는
+유일한 수단이라는 것. Phantom `.3593`은 판독기 결함이 아니라 모델의 패턴
+완성(다른 증상들로부터 삭제된 finding을 부분 추론)과 probe의 상관 의존이
+겹친, activation에 대한 사실이라는 것. "판독이 activation을 따라가는가"와
+"activation이 입력을 따라가는가"는 다른 질문이며 우리 측정 대상은
+전자라는 것 — D14의 teacher 전환(입력 기재 → activation에서 읽힌 것)이
+정확히 이 구분의 구현이라는 것.
+
+위 세 항목을 원장 D12/D13/D14로 확정했다. 다음 구현은 R15 판정 요청
+범위대로: (1) HS32 full-label OOF teacher materialization, (2) target 분포
+read-only report. Student 학습과 P2-P4 gate 값 동결은 그 report 검토
+후의 별도 승인이다.
