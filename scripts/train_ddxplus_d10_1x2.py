@@ -8,6 +8,7 @@ No target is assigned to the deleted activation.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import random
 import shutil
@@ -133,6 +134,144 @@ def epoch_rows(rows: list[dict[str, Any]], *, seed: int, epoch: int) -> list[dic
     return ordered
 
 
+def normalize_checkpoint_steps(values: list[int], *, max_steps: int) -> list[int]:
+    steps = sorted(set(values))
+    if not steps or any(step <= 0 or step > max_steps for step in steps):
+        raise ValueError("Checkpoint steps must be unique values in [1, max_steps]")
+    if max_steps not in steps:
+        raise ValueError("The final optimizer step must be a checkpoint")
+    return steps
+
+
+def advance_cursor(*, epoch: int, row_index: int, n_rows: int) -> tuple[int, int]:
+    row_index += 1
+    if row_index == n_rows:
+        return epoch + 1, 0
+    if row_index > n_rows:
+        raise ValueError("Training cursor moved past the epoch boundary")
+    return epoch, row_index
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def training_contract(
+    *, args: argparse.Namespace, train_sha256: str, n_rows: int, checkpoints: list[int]
+) -> dict[str, Any]:
+    actor_prompt_path = Path(args.actor_prompt_template_file)
+    return {
+        "train_sha256": train_sha256,
+        "config_sha256": sha256_file(Path(args.config)),
+        "actor_prompt_sha256": (
+            sha256_file(actor_prompt_path) if actor_prompt_path.is_file() else None
+        ),
+        "n_rows": n_rows,
+        "max_steps": args.max_steps,
+        "grad_accum_steps": args.grad_accum_steps,
+        "ranking_weight": args.ranking_weight,
+        "temperature": args.temperature,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "seed": args.seed,
+        "init_adapter": str(args.init_adapter) if args.init_adapter else None,
+        "lora_r": args.lora_r,
+        "lora_alpha": args.lora_alpha,
+        "target_modules": list(args.target_modules),
+        "checkpoint_steps": checkpoints,
+    }
+
+
+def restore_rng_state(state: dict[str, Any]) -> None:
+    random.setstate(state["python"])
+    torch.set_rng_state(state["torch"])
+    if torch.cuda.is_available() and state.get("cuda"):
+        torch.cuda.set_rng_state_all(state["cuda"])
+
+
+def prepare_metrics_for_resume(path: Path, *, optimizer_step: int) -> None:
+    if not path.is_file():
+        if optimizer_step:
+            raise FileNotFoundError(f"Missing metrics for resume: {path}")
+        return
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line]
+    rows = [json.loads(line) for line in lines]
+    expected = list(range(1, len(rows) + 1))
+    actual = [int(row["step"]) for row in rows]
+    if actual != expected or len(rows) < optimizer_step:
+        raise ValueError("Training metrics are not contiguous through the resume step")
+    if len(rows) > optimizer_step:
+        kept = rows[:optimizer_step]
+        temporary = path.with_suffix(".jsonl.resume-tmp")
+        temporary.write_text(
+            "".join(json.dumps(row, sort_keys=True) + "\n" for row in kept),
+            encoding="utf-8",
+        )
+        temporary.replace(path)
+        print(
+            f"[resume] truncated metrics from {len(rows)} to {optimizer_step} steps",
+            flush=True,
+        )
+
+
+def save_training_checkpoint(
+    *,
+    out_dir: Path,
+    model: torch.nn.Module,
+    actor_prompt_template: str,
+    optimizer: torch.optim.Optimizer,
+    optimizer_step: int,
+    micro_step: int,
+    epoch: int,
+    next_row_index: int,
+    contract: dict[str, Any],
+    initialization: str,
+) -> Path:
+    checkpoint = out_dir / f"checkpoint-step{optimizer_step:06d}"
+    state_path = checkpoint / "trainer_state.pt"
+    if checkpoint.exists():
+        if state_path.is_file():
+            raise FileExistsError(f"Checkpoint already complete: {checkpoint}")
+        shutil.rmtree(checkpoint)
+    checkpoint.mkdir(parents=True)
+    model.save_pretrained(checkpoint)
+    (checkpoint / AV_PROMPT_FILENAME).write_text(
+        actor_prompt_template, encoding="utf-8"
+    )
+    state = {
+        "schema_version": 1,
+        "contract": contract,
+        "initialization": initialization,
+        "cursor": {
+            "optimizer_step": optimizer_step,
+            "micro_step": micro_step,
+            "epoch": epoch,
+            "next_row_index": next_row_index,
+        },
+        "optimizer": optimizer.state_dict(),
+        "rng": {
+            "python": random.getstate(),
+            "torch": torch.get_rng_state(),
+            "cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else [],
+        },
+    }
+    temporary = checkpoint / "trainer_state.pt.tmp"
+    torch.save(state, temporary)
+    temporary.replace(state_path)
+
+    # Adapter snapshots remain available for dose-response evaluation. Only the
+    # newest optimizer state is retained because Adam states dominate disk use.
+    for old_state in sorted(out_dir.glob("checkpoint-step*/trainer_state.pt")):
+        if old_state != state_path:
+            old_state.unlink()
+    print(f"[checkpoint] step={optimizer_step} path={checkpoint}", flush=True)
+    return checkpoint
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="configs/default.yaml")
@@ -144,6 +283,8 @@ def main() -> None:
         default=str(REPO_ROOT / "prompt_templates" / "cue_position_readout.txt"),
     )
     parser.add_argument("--max-steps", type=int, default=20)
+    parser.add_argument("--checkpoint-steps", nargs="+", type=int)
+    parser.add_argument("--resume-from-checkpoint", type=Path)
     parser.add_argument("--grad-accum-steps", type=int, default=4)
     parser.add_argument("--ranking-weight", type=float, choices=(0.0, 1.0), required=True)
     parser.add_argument("--temperature", type=float, default=1.0)
@@ -170,8 +311,13 @@ def main() -> None:
         raise ValueError("Step counts must be positive")
     if args.temperature != 1.0:
         raise ValueError("D10 freezes temperature=1.0")
-    if args.out_dir.exists():
+    checkpoint_steps = normalize_checkpoint_steps(
+        args.checkpoint_steps or [args.max_steps], max_steps=args.max_steps
+    )
+    if args.out_dir.exists() and not args.resume_from_checkpoint:
         raise FileExistsError(f"Refusing to overwrite output: {args.out_dir}")
+    if args.resume_from_checkpoint and not args.out_dir.is_dir():
+        raise FileNotFoundError(f"Resume output directory does not exist: {args.out_dir}")
 
     rows = list(read_jsonl(args.train_jsonl))
     if not rows:
@@ -184,6 +330,12 @@ def main() -> None:
         for variant in (original, deleted):
             if not Path(str(variant["activation_path"])).is_file():
                 raise FileNotFoundError(variant["activation_path"])
+    contract = training_contract(
+        args=args,
+        train_sha256=sha256_file(args.train_jsonl),
+        n_rows=len(rows),
+        checkpoints=checkpoint_steps,
+    )
 
     cfg = load_config(args.config)
     nla_cfg = cfg["nla_model"]
@@ -206,7 +358,29 @@ def main() -> None:
         expected_injection_token_id=nla_cfg.get("expected_injection_token_id"),
     )
     base = load_causal_lm(nla_cfg, cache_dir=cache_dir)
-    if args.init_adapter:
+    resume_state = None
+    if args.resume_from_checkpoint:
+        state_path = args.resume_from_checkpoint / "trainer_state.pt"
+        if not state_path.is_file():
+            raise FileNotFoundError(f"Resume checkpoint has no trainer state: {state_path}")
+        resume_state = torch.load(state_path, map_location="cpu", weights_only=False)
+        if resume_state.get("contract") != contract:
+            raise ValueError("Resume checkpoint training contract does not match arguments")
+        from peft import PeftModel
+
+        actor_prompt_template = adapter_av_prompt(str(args.resume_from_checkpoint))
+        if actor_prompt_template is None:
+            raise FileNotFoundError(
+                f"Checkpoint has no recorded AV prompt: {args.resume_from_checkpoint}"
+            )
+        model = PeftModel.from_pretrained(
+            base,
+            str(args.resume_from_checkpoint),
+            cache_dir=cache_dir,
+            is_trainable=True,
+        )
+        initialization = str(resume_state["initialization"])
+    elif args.init_adapter:
         from peft import PeftModel
 
         actor_prompt_template = adapter_av_prompt(str(args.init_adapter))
@@ -255,17 +429,35 @@ def main() -> None:
         trainable, lr=args.lr, weight_decay=args.weight_decay
     )
 
-    args.out_dir.mkdir(parents=True, exist_ok=False)
-    shutil.copy2(args.config, args.out_dir / "train.config.yaml")
+    if not args.resume_from_checkpoint:
+        args.out_dir.mkdir(parents=True, exist_ok=False)
+        shutil.copy2(args.config, args.out_dir / "train.config.yaml")
     metrics_path = args.out_dir / "metrics.jsonl"
     optimizer.zero_grad(set_to_none=True)
     optimizer_step = 0
     micro_step = 0
-    epoch = 0
+    epoch = 1
+    next_row_index = 0
+    if resume_state is not None:
+        optimizer.load_state_dict(resume_state["optimizer"])
+        cursor = resume_state["cursor"]
+        optimizer_step = int(cursor["optimizer_step"])
+        micro_step = int(cursor["micro_step"])
+        epoch = int(cursor["epoch"])
+        next_row_index = int(cursor["next_row_index"])
+        if micro_step % args.grad_accum_steps:
+            raise ValueError("Resume checkpoint is not on an optimizer boundary")
+        prepare_metrics_for_resume(metrics_path, optimizer_step=optimizer_step)
+        restore_rng_state(resume_state["rng"])
+        print(
+            f"[resume] step={optimizer_step} epoch={epoch} row={next_row_index}",
+            flush=True,
+        )
     recent: list[tuple[float, float, float]] = []
     while optimizer_step < args.max_steps:
-        epoch += 1
-        for row in epoch_rows(rows, seed=args.seed, epoch=epoch):
+        ordered_rows = epoch_rows(rows, seed=args.seed, epoch=epoch)
+        for row in ordered_rows[next_row_index:]:
+            active_epoch = epoch
             sft_loss, ranking_loss, gap = backward_pair(
                 row=row,
                 model=model,
@@ -279,6 +471,9 @@ def main() -> None:
             )
             recent.append((sft_loss, ranking_loss, gap))
             micro_step += 1
+            epoch, next_row_index = advance_cursor(
+                epoch=epoch, row_index=next_row_index, n_rows=len(ordered_rows)
+            )
             if micro_step % args.grad_accum_steps:
                 continue
             torch.nn.utils.clip_grad_norm_(trainable, 1.0)
@@ -288,7 +483,7 @@ def main() -> None:
             window = recent[-args.grad_accum_steps :]
             metrics = {
                 "step": optimizer_step,
-                "epoch": epoch,
+                "epoch": active_epoch,
                 "sft_loss": mean(value[0] for value in window),
                 "ranking_loss": mean(value[1] for value in window),
                 "deleted_minus_original_content_nll": mean(
@@ -308,6 +503,37 @@ def main() -> None:
             )
             if optimizer_step >= args.max_steps:
                 break
+            if optimizer_step in checkpoint_steps:
+                save_training_checkpoint(
+                    out_dir=args.out_dir,
+                    model=model,
+                    actor_prompt_template=actor_prompt_template,
+                    optimizer=optimizer,
+                    optimizer_step=optimizer_step,
+                    micro_step=micro_step,
+                    epoch=epoch,
+                    next_row_index=next_row_index,
+                    contract=contract,
+                    initialization=initialization,
+                )
+
+    final_checkpoint = args.out_dir / f"checkpoint-step{optimizer_step:06d}"
+    if (
+        optimizer_step in checkpoint_steps
+        and not (final_checkpoint / "trainer_state.pt").is_file()
+    ):
+        save_training_checkpoint(
+            out_dir=args.out_dir,
+            model=model,
+            actor_prompt_template=actor_prompt_template,
+            optimizer=optimizer,
+            optimizer_step=optimizer_step,
+            micro_step=micro_step,
+            epoch=epoch,
+            next_row_index=next_row_index,
+            contract=contract,
+            initialization=initialization,
+        )
 
     model.save_pretrained(args.out_dir)
     tokenizer.save_pretrained(args.out_dir)
@@ -324,7 +550,10 @@ def main() -> None:
         "train_jsonl": str(args.train_jsonl),
         "n_rows": len(rows),
         "optimizer_steps": optimizer_step,
-        "epochs_touched": epoch,
+        "epochs_touched": epoch - 1 if next_row_index == 0 else epoch,
+        "next_row_index": next_row_index,
+        "checkpoint_steps": checkpoint_steps,
+        "training_contract": contract,
         "locked_hyperparameters": {
             "ranking_weight": args.ranking_weight,
             "temperature": args.temperature,

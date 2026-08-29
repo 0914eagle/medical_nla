@@ -123,7 +123,29 @@ DDXPlus grounding arm은 여기서 결론 낸다:
 정직한 결론 조항(선택지 A)이 남는다. 역순 진행은 비합리적이다 — ①이
 가장 싸고, ②는 ①의 budget 답을 알아야 smoke 설계가 가능하다.
 
-현재 상태: **사전 등록안 사람 확인 대기** (epoch 수 1 vs 2 선택 포함).
+### 사람 승인 및 실행 계약
+
+희재가 2026-08-29에 **2 epochs / 1,552 steps** 실행을 승인했다. 이 실험은
+초기 D12의 confirmatory 결과가 아니라, 그 결과를 본 뒤 승인한
+**post-hoc exploratory budget calibration**으로 보고한다.
+
+구현 계약:
+
+- control/ranking 모두 seed 17/29/43, 같은 초기화와 pair order를 사용한다.
+- 중간 checkpoint `{20,194,388,776,1164,1552}`는 report-only다.
+- 중간 결과와 무관하게 1,552 step까지 실행하며 자동 조기 종료하지 않는다.
+- 판정은 step 1,552에서 기존 D5 gate로 한 번만 수행한다.
+- 1,552 이후 epoch, lambda, temperature를 자동 탐색하지 않는다.
+- 장시간 실행의 checkpoint에는 optimizer, RNG, epoch/row cursor를 기록한다.
+- DDXPlus validation만 읽고 locked test는 읽지 않는다.
+
+실행 구현:
+
+- trainer: `scripts/train_ddxplus_d10_1x2.py`
+- 125번 4-GPU queue: `scripts/run_ddxplus_d10_budget_4gpu_125.sh`
+- trajectory 집계: `scripts/summarize_ddxplus_d10_budget_trajectory.py`
+
+현재 상태: **사람 승인 완료 / 구현 및 실행 준비**.
 
 ### 실행 환경 수정 (2026-08-29, 사람 지시)
 
@@ -148,3 +170,8 @@ device에 올라간다(run당 3~5배 기대).
   실행 전 20-step smoke 1회로 wall-clock을 실측해 비용 항목을 갱신한다.
 - DiReCT가 필요한 후속 단계(Gate C, Phase 2 adaptation — 248행 규모의 경량
   작업)는 통과 시 lab 서버로 돌아와 수행한다.
+
+RunPod 실행 시 `run_ddxplus_d10_budget_4gpu_125.sh`는 125 전용 가드와 4-GPU
+queue를 가정하므로, pod의 단일 A100/H100용 변형 wrapper가 필요하다(동일
+trainer·인자, GPU 배치만 다름). 전체 6 runs는 같은 pod 하드웨어에서
+실행한다는 조건은 유지된다.
