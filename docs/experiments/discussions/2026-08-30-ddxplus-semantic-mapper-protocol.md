@@ -105,3 +105,118 @@ claim은 1회만 판정된다.
 현재 상태: **초안 / 에이전트 검토 대기**. Codex 검토 후 합의되면 사람 승인을
 받아 구현을 열고, G1-G4 통과 + hash 동결 후에만 Vanilla 10,028행 generation과
 채점을 시작한다.
+
+## Codex 검토 (2026-08-30)
+
+### 총평
+
+3-stage 구조, method blindness, open-generator 사이의 단일 계측기, quote validator,
+locked scoring 전 hash 동결에는 동의한다. 다만 아래 차단 항목을 먼저 계약에 반영해야
+한다. 현재 초안을 그대로 구현하는 것은 승인하지 않는다.
+
+### 차단 수정 1 — G1은 validation reader만 사용
+
+G1 표의 `Structured reader locked 출력`은 74--77행의 validation-only 원칙과 충돌한다.
+G1 입력은 **DDXPlus validation structured-reader output만** 사용한다. Locked-test reader
+output이나 locked 4,543-case label은 mapper prompt, alias 수정, threshold 선택, gate 판정에
+사용하지 않는다. Locked reader를 mapper로 재채점한 값은 protocol 동결 뒤 appendix
+measurement로만 만들 수 있다.
+
+### 차단 수정 2 — claim 하나에서 여러 evidence를 허용
+
+한 bullet이나 문장에는 `fever, cough, and dyspnea`처럼 여러 finding이 함께 나올 수 있다.
+따라서 `한 claim은 최대 한 evidence ID` 규칙은 열린 자연어 방법의 recall을 구조적으로
+낮춘다. Stage 1은 boundary-safe alias hit를 모두 모으고, Stage 2 계약은 다음처럼 배열을
+반환한다.
+
+```json
+{
+  "mappings": [
+    {
+      "evidence_id": "one exact candidate ID",
+      "value_id": "one evidence-specific native value ID or null",
+      "supporting_quote": "an exact contiguous quote from the claim"
+    }
+  ]
+}
+```
+
+동일 claim/evidence 중복만 제거하고 서로 다른 evidence는 모두 보존한다. Candidate 밖 ID,
+해당 evidence의 native-value enum 밖 value, 원문에 없는 quote는 해당 mapping만 null/drop한다.
+
+### 차단 수정 3 — assertion과 value를 분리해 검증
+
+Mapper는 환자에게 명시적으로 진술된 finding만 매핑한다. 일반 의학 지식, 권고, 감별진단의
+가능성, 조건문을 patient finding으로 만들지 않는다. `no fever`처럼 부정된 finding은 fever
+evidence ID로 매핑할 수 있지만 value는 해당 evidence의 명시적 native negative value로만
+매핑한다. Evidence 이름 hit만으로 value를 추론하지 않는다.
+
+Value 정규화는 release metadata와 official-train-derived lexicon에 존재하는 native value ID,
+고정 단위/숫자 표기 변환으로 제한한다. Fuzzy numeric matching이나 locked/validation output을
+보고 추가한 value alias는 금지한다.
+
+### 차단 수정 4 — cache key를 protocol-bound로 변경
+
+`SHA256(claim_text)`만 사용하면 prompt, ontology, alias, model이 바뀌어도 오래된 판정을
+재사용할 수 있다. Cache key는 최소한 다음 canonical payload의 SHA-256이어야 한다.
+
+```text
+claim text + ontology hash + alias-table hash + prompt hash + backend model ID
+```
+
+Raw request, raw response, validated mapping, backend/model metadata를 함께 보존한다. G3는 두
+항목으로 나눈다.
+
+1. Stage 0/1과 frozen-cache replay는 byte-identical이어야 한다.
+2. Stage 2의 cold duplicate sample은 별도 agreement diagnostic으로 보고한다.
+
+Cache를 읽은 같은 실행이 같다는 사실만으로 LLM 자체의 결정론을 주장하지 않는다.
+
+### 차단 수정 5 — G2 분모와 false-map을 명시
+
+G2는 validation structured-reader donor output을 사용한다. Donor는 target evidence가
+`selected_claims`에 없고 같은 diagnosis인 사례로 고정한다. Mapper에는 donor text와 ontology만
+주고 target ID, case ID, diagnosis, donor 관계는 주지 않는다. False map은 mapper 결과에 그
+target evidence가 나타난 pair 수를 전체 eligible donor pair 수로 나눈다. Donor text가 실제로
+target을 렌더링한 행은 control에서 제외하며 제외 수와 coverage를 보고한다.
+
+### 차단 수정 6 — 기존 metric 코드를 공유 모듈로 사용
+
+Mapper output adapter는 `run_ddxplus_structured_reader.py`와 같은 `selected_claims` schema를
+만든다. `evidence_id`와 `value_id`를 채운 뒤 finding F1, hard shuffle, deletion, retention,
+value-edit metric은 기존 `evaluate_readouts` 구현을 공용 모듈로 옮겨 양쪽이 import한다.
+공식을 복사한 두 번째 scorer를 만들지 않는다.
+
+### 차단 수정 7 — Stage 2를 claim별 subprocess 25,000회로 실행하지 않음
+
+현재 비용 추정은 candidate ontology를 매 claim마다 반복하고 Codex CLI process를 약 25,000번
+띄우는 overhead를 반영하지 않았다. 먼저 validation에서 Stage 0/1 잔여 unique claim 수와
+token 수를 dry-run report로 만든다. Stage 2는 opaque claim SHA를 붙인 **고정 크기 batch**로
+요청하고, 응답을 검증한 뒤 claim별 cache로 분해한다. Batch size는 validation runtime smoke로
+한 번 고정하고 locked run에서 바꾸지 않는다. 실패 batch만 동일 frozen request로 재개한다.
+
+### G1--G4 수정 계약
+
+| Gate | 수정된 입력과 판정 |
+|---|---|
+| G1 | validation structured reader만 사용; selected evidence-set micro F1 >= .98 및 native-value accuracy를 함께 보고 |
+| G2 | validation same-diagnosis cue-absent donor pair; target false-map <= .05, eligible coverage와 Wilson CI 보고 |
+| G3 | deterministic stages/cache replay byte-identical; cold Stage-2 duplicate agreement는 별도 수치 |
+| G4 | Stage-2 validation mapping 100건을 method-blind로 사람이 판정; evidence/value 오류를 분리하고 총 불일치 <= .05 |
+
+G4를 사람이 하지 않고 두 번째 AI judge로 대체하면 `human audit`이라고 부를 수 없고 gate의
+증거 수준도 달라진다. 이 경우 실행 전에 gate 이름과 기준을 별도로 다시 승인한다.
+
+### 열린 항목에 대한 Codex 권고
+
+1. Reader mapper 재채점은 protocol 동결 후 appendix consistency로 병기한다.
+2. 수동 동의어는 사용하지 않는 것을 기본으로 한다. 필요하면 공개 출처와 작성 시점을 기록하고
+   G1--G4 전에 한 번만 동결한다.
+3. Value alias는 release metadata, official train lexicon, 고정 숫자/단위 변환으로 제한한다.
+4. Bullet은 행 단위로 유지하고 산문은 versioned abbreviation list를 가진 결정론적 sentence
+   splitter를 사용한다. 다중 evidence mapping을 허용하므로 conjunction을 임의 분해하지 않는다.
+
+### 판정
+
+상기 일곱 수정과 G4의 실제 사람 감사를 승인하면 구현해도 된다. 그 전까지 상태는
+**revision required / target generation 금지 / Vanilla 10,028행 generation 금지**다.
