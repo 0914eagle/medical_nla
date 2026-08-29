@@ -513,10 +513,11 @@ Threshold `.3/.5/.7` sensitivity와 paired bootstrap은
 `scripts/analyze_cf_readout_uncertainty.py`로 **실행 완료됐다**
 (`$E5_ROOT/cf_uncertainty_audit_v1/`, 검토 문서 "1a 감사 결과" 참조). 요지:
 seed 17의 contrast `.2092`는 threshold 허상이 아니고 CI가 0을 배제하지만,
-CF 학습의 이득은 seed 17에서만 실재하며(+.0713 [.0230, .1218]) phantom을
-2배로 올렸고(+.2115), seed 29에서는 재현되지 않았다(−.0046). CF 학습은
-baseline에 없던 seed 분산을 만들었다 — 전체 sequence CE로는 부족하다는
-진단의 정량 확정이다.
+CF 학습의 이득은 두 seed에서 재현되지 않았고(seed 17 +.0713 [.0230, .1218],
+seed 29 −.0046) phantom을 2배로 올렸다(+.2115). 관찰된 checkpoint 간 격차는
+CF가 original-only보다 크며, 이는 objective가 출력 행동을 충분히 규정하지
+못한다는 가설과 일치한다(seed 2개이므로 분산 증가의 확정은 아님). 전체
+sequence CE를 확장하지 않을 근거로 충분하다.
 
 Support mask 관련 추가 규칙:
 
@@ -541,7 +542,7 @@ Support mask 관련 추가 규칙:
 
 | Priority | 작업 | GPU | 판단 결과 |
 |---:|---|---:|---|
-| ~~1a~~ | ~~CF paired bootstrap/threshold sensitivity/verbosity~~ | 완료 | threshold 허상 아님; CF 이득은 seed 17만 실재 + phantom 2배; CF 학습이 seed 분산 증폭 |
+| ~~1a~~ | ~~CF paired bootstrap/threshold sensitivity/verbosity~~ | 완료 | threshold 허상 아님; CF 이득은 seed 간 미재현 + phantom 2배; checkpoint 격차는 baseline보다 큼(분산 확정은 seed 3개 필요) |
 | ~~1b~~ | ~~HS32 Gate A ceiling~~ | 완료 (validation) | finding .9607 = HS24 (layer 병목 없음), value .6990 (−.071). Locked test는 열지 않음 |
 | 2a | Cue별 `p_original`/`p_deleted`/`delta`/donor margin 산출 | 경량 (probe·activation 재사용) | activation-supported cue 비율 — mask 크기 자체가 결과 |
 | 2b | Cross-fitted support mask 생성 + threshold validation 동결 | 없음 | 순환 없는 positive target 집합 |

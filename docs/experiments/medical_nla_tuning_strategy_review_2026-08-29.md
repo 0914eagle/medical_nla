@@ -195,22 +195,33 @@ Structured reader(I)와 set decoder(J)는 loss 계열의 후속이 아니라 다
 1. **Threshold 허상 아님.** CF seed 17의 deletion contrast는 `.1931/.2092/.1931`
    (threshold .3/.5/.7)로 안정적이고 CI `[.1655, .2552]`가 0을 배제한다.
    네 모델 모두 contrast CI가 0을 배제한다 — original-only SFT조차 약한
-   contrast는 낸다.
-2. **CF 학습의 이득은 seed 17에서만 실재하고, phantom 비용이 크다.**
+   contrast는 낸다. 단, contrast가 증명하는 것은 **삭제에 따른 activation
+   변화에 readout이 반응한다**는 것까지다 — 해당 finding이 진단 결정에
+   사용됐다는 뜻이 아니다(decision relevance는 Priority 5의 별도 측정).
+2. **CF 학습의 이득은 두 seed에서 재현되지 않았고, phantom 비용이 크다.**
    paired delta(cf17 − orig17): contrast **+.0713 [.0230, .1218]** (실재하되
-   완만), phantom **+.2115 [.1609, .2621]** (phantom이 2배). seed 29에서는
-   contrast delta −.0046 [−.0575, .0437]로 이득이 재현되지 않는다.
-   baseline끼리의 seed 격차는 +.0276 [−.0115, .0644]로 0을 배제하지 못하므로,
-   **CF 학습이 seed 분산을 증폭시켰다**(cf17−cf29 contrast +.1034
-   [.0483, .1563]) — objective가 행동을 정하지 못한다는 진단과 정합.
+   완만), phantom **+.2115 [.1609, .2621]** (`.2138 → .4253`, 2배). seed 29
+   에서는 contrast delta −.0046 [−.0575, .0437]로 이득이 없다. 관찰된
+   checkpoint 간 격차는 CF(+.1034 [.0483, .1563])가 original-only(+.0276
+   [−.0115, .0644])보다 크다 — 이는 objective가 출력 행동을 충분히 규정하지
+   못한다는 가설과 **일치**하지만, seed가 2개뿐이므로 seed 분산 증가를
+   확정할 수는 없다(최소 3개 독립 seed 필요). 또한 두 격차의 차이 자체는
+   difference-of-differences CI로 검정하지 않았다 — 한쪽 CI만 0을 배제한다는
+   사실은 그 차이의 유의성이 아니다.
 3. **Verbosity가 격차의 일부지만 전부는 아니다.** cf17은 claim 5.01개로 가장
    많이 말하지만 unsupported-claim rate는 `.5091`로 네 모델 중 가장 낮다
-   (cf29 `.7063`, orig17 `.6464`). 즉 cf17의 개선은 순수 말수 효과가 아니라
-   실제 grounding 성분을 포함하되, phantom 급증이라는 대가를 치렀다.
+   (cf29 `.7063`, orig17 `.6464`). 즉 cf17의 개선에는 단순 verbosity 외에
+   **입력 cue와 정렬된 사례별 deletion sensitivity**가 포함된다. 단
+   unsupported rate는 lexical matcher 기준이므로, 그 claim이 activation에
+   실제로 지지되는지(support mask), 진단에 사용됐는지(decision relevance)는
+   별도 검증 대상이다.
 
-종합: sequence CE는 "완만하고 seed-불안정한 contrast + phantom 2배"를 주는
-objective다. 전략의 진단(전체 sequence CE로는 부족)이 정량 확정됐고,
-cue-level ranking + support mask로 넘어갈 근거가 마련됐다.
+종합: counterfactual sequence CE는 seed 17에서 threshold에 강건한 완만한
+deletion-contrast 개선을 보였지만 phantom을 약 2배 증가시켰고, seed 29에서는
+개선이 재현되지 않았다. seed 17의 이득은 단순 verbosity만으로 설명되지는
+않지만, 입력 cue 정렬과 내부 decision-state grounding을 구분할 수는 없다.
+따라서 전체 cue sequence CE를 확장하지 않고, cross-fitted activation support
+mask를 거친 cue-level paired ranking으로 진행한다.
 
 ## 즉시 실행 목록
 
