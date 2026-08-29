@@ -681,3 +681,37 @@ SHA256 및 고정 validation 2행 generated token ID가 동일한지 검증한�
 Primary queue가 실패하면 `d_z`, lambda, step, threshold를 바꾸지 않고 D16 branch를
 종료한다. Frozen-z와 generation은 실패 원인 분해용 보고값이며 새 sweep을 허가하지
 않는다.
+
+## Discussion 9 - D16 primary 결과 및 종료 판정 (2026-08-29)
+
+D16 primary queue는 locked test를 읽지 않고 완료됐다. Source-balanced PCA는
+`3840 -> 256`에서 source별 validation cosine `.95` gate를 통과했다.
+
+| population | n | mean cosine | min cosine | retained variance |
+|---|---:|---:|---:|---:|
+| DDXPlus train | 4,655 | .999997 | .999981 | .993513 |
+| DiReCT train | 248 | .999999 | .999997 | .996638 |
+| DDXPlus validation | 4,525 | .999997 | .999984 | .993229 |
+| DiReCT validation | 50 | .999983 | .999969 | .959699 |
+
+Seed-17 gradient parity는 language gradient RMS `34.5504`, auxiliary gradient RMS
+`.408010`을 냈고, 사전 규약에 따라 공통 lambda를 `85`로 고정했다. Control의
+Direct validation symmetric gaps는 `.000953`, `.000442`, `-.000571`이었고,
+range `.001524`로부터 effect floor는 `max(2 * range, .005) = .005`로 동결됐다.
+
+| seed | control gap | proposed gap | proposed-control | category-cluster 95% CI | floor 통과 |
+|---:|---:|---:|---:|---:|---:|
+| 17 | +.000953 | -.000184 | -.001137 | [-.002652, +.000535] | no |
+| 29 | +.000442 | -.001034 | -.001476 | [-.004755, +.000789] | no |
+| 43 | -.000571 | +.000862 | +.001433 | [-.000769, +.003505] | no |
+
+세 seed의 delta 부호가 일치하지 않고, 모든 cluster CI가 0을 포함하며, 어느 seed도
+`.005` floor를 넘지 못했다. 따라서 **D16 primary three-seed gate는 FAIL**이다.
+PCA gate 통과는 bottleneck이 validation activation을 거의 보존했다는 뜻일 뿐,
+auxiliary objective가 AV의 DiReCT 사례 특이성을 개선했다는 증거가 아니다.
+
+사전 승인 규약에 따라 `d_z`, lambda, step, threshold를 변경하는 후속 sweep은 하지
+않는다. Gate C semantic 평가는 promotion 판정을 바꿀 수 없으므로 필수가 아니다.
+Frozen-z probe와 generation은 각각 `z`의 finding 정보 보존과 decoder의 실제 사용을
+구분하기 위한 실패 원인 진단으로만 보고하며 D16을 구제하는 새 실험으로 해석하지
+않는다.

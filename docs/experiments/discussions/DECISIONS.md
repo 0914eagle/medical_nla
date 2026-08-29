@@ -54,3 +54,14 @@ archive를 참조한다. 새 데이터 없이 기존 결정을 재론하지 않�
 - 통과: 각 seed `proposed-control >= floor`, paired category-cluster CI > 0,
   세 seed 부호 일치. Gate C `Obscomp > .2130`은 별도 절대 출구다.
 - 어느 hard gate든 실패하면 이 branch를 종료하고 hyperparameter sweep을 하지 않는다.
+
+### D16 결과
+
+- PCA validation gate: PASS. DDXPlus/DiReCT mean reconstruction cosine은
+  `.999997/.999983`이었다.
+- Frozen effect floor: `.005` (control gap range `.001524`).
+- Proposed-control Direct alignment delta, seeds 17/29/43:
+  `-.001137/-.001476/+.001433`.
+- 세 category-cluster CI가 모두 0을 포함했고 어느 seed도 floor를 넘지 못했다.
+- Primary three-seed gate: **FAIL**. D16은 종료하며 승인된 hyperparameter를 sweep하지
+  않는다. Locked test는 읽지 않았다.
