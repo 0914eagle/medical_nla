@@ -242,3 +242,22 @@ Table 3은 이미 완료됐고 patching table은 gate 실패로 제거됐다. �
 `docs/paper/tables_and_figures.md`를 이 구조로 교체하고, Table 1A → Table 1B →
 Table 2 baseline 순서로 실행 스크립트를 고정한다. 승인 전에는 canonical paper table을
 바꾸거나 locked-test 추가 method를 실행하지 않는다.
+
+## 실행 기록 (2026-08-29)
+
+사람이 "지금은 기존 확정값과 표 구조만 반영"(엄밀 순서 1단계)을 승인했다.
+`docs/paper/tables_and_figures.md`에 반영 완료:
+
+- Table 3을 method-class panel 구조로 교체하고 probe/structured monitor
+  locked 행을 기입 (Panel A/B 완결)
+- Table 2의 가상 3행 제거, Source CoT/Vanilla 2행 + 조건부 Medical-NLA 규칙
+- Table 1A에 재집계 규칙(기존 496 출력 CPU 재집계, 분석 접근 기록, batch 일괄
+  실행) 명시
+- Appendix development gates 표 기입 (Full SFT/D10/D14/D16, budget run 진행 중)
+- Methods에 D9a protocol 기록 (`P=.90/D=0/M=0`, coverage .9993, false support
+  .0378, pairs 3,104)
+- Vanilla 재사용 조건 추가: 기존 출력의 생성 설정이 동결 recipe와 일치할 때만
+  재사용, 불일치 시 178건 전부 재생성
+
+2-4단계(분기 판정 → batch baseline → Medical-NLA 행 추가/제거)는 D10 budget
+run 종료 후 진행한다.

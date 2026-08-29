@@ -13,8 +13,13 @@ Seen PDD 72행과 held-out PDD 106행은 같은 열 구조의 두 패널로 보�
 
 | Generation | Parse coverage | Strict PDD | Disease category | Official semantic diagnosis |
 |---|---:|---:|---:|---:|
-| Direct, answer-prefilled | TBD | TBD | TBD | TBD |
-| Source CoT | TBD | TBD | TBD | TBD |
+| Direct, answer-prefilled | batch 단계 | | | |
+| Source CoT | batch 단계 | | | |
+
+이 패널은 새 generation 없이 기존 496 출력의 **frozen split 재집계(CPU)**로
+채운다. 다만 locked label을 집계하므로 분석 접근 기록을 남기고, D10 최종 분기
+판정·recipe hash 동결 후 Table 1B locked 열, Table 2 baseline과 **한 번에 일괄
+실행**한다.
 
 ### Panel B1. DiReCT CoT-P0 diagnosis decodability audit
 
@@ -90,11 +95,18 @@ Seen PDD 72행과 held-out PDD 106행은 아래 열 구조의 두 패널로 보�
 
 | Method | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Source CoT | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| Vanilla NLA | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-AV, SFT only | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-NLA, reconstruction | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Source CoT | batch 단계 | | | | | | |
+| Vanilla NLA | batch 단계 | | | | | | |
+
+- Source CoT는 기존 496 출력의 평가만 필요하다. Vanilla NLA는 기존 출력과 겹치지
+  않는 사례만 생성하되, **기존 출력의 생성 설정(prompt/decoding)이 동결 recipe와
+  일치할 때만 재사용**하고 다르면 178건 전부 재생성한다.
+- 두 baseline 행은 D10 최종 분기 판정과 recipe hash 동결 후 Table 1A/1B와 함께
+  **한 번에 일괄 계산**한다(locked-test 규율). `TBD` 대신 빈 칸으로 두는 이유:
+  이 행들은 반드시 채워질 예정 셀이다.
+- Medical-NLA 행(`SFT only`, `final`)은 D10 성공 **그리고** final recipe에 DiReCT
+  adaptation 포함이 결정된 경우에만 추가한다. 가상 행(`reconstruction`,
+  `full objective`)은 만들지 않는다.
 
 - `Accdiag`: 생성한 세부 진단과 의사 주석 진단의 의미 일치
 - `Obspre`: 생성 관찰 중 의사 observation과 일치하는 정도
@@ -112,31 +124,64 @@ alignment를 측정하며 activation faithfulness를 단독으로 증명하지 �
 
 ## Table 3. Activation grounding on DDXPlus
 
-### Panel A. Claim grounding and pair specificity
+이 표는 locked-test artifact로 이미 확정된 두 행을 갖는다. Probe와 structured
+monitor는 free-generating NLA의 경쟁 모델이 아니라 각각 representation upper
+baseline과 deterministic rendering control이며, `Method class` 열로 역할을 구분한다.
 
-| Method | Finding F1 | Value accuracy | Source-decision fidelity | Hard shuffle | Pair gap |
-|---|---:|---:|---:|---:|---:|
-| CoT | TBD | TBD | TBD | TBD | TBD |
-| Vanilla NLA | TBD | TBD | TBD | TBD | TBD |
-| Medical-AV, SFT only | TBD | TBD | TBD | TBD | TBD |
-| Medical-NLA, reconstruction | TBD | TBD | TBD | TBD | TBD |
-| Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD |
+### Panel A. Static grounding and case specificity (locked test, n=4,543)
 
-### Panel B. Counterfactual response and reconstruction
+| Method class | Method | Finding F1 | Same-diagnosis shuffled | Pair gap (95% CI) | Native-value accuracy |
+|---|---|---:|---:|---:|---:|
+| closed decoder | Frozen probe | .9562 | .7938 | +.1624 [.1576, .1672] | .7659 |
+| structured monitor | Probe-guided reader | .9587 | .7938 | +.1624 | .7654 |
 
-| Method | Edited-finding response | Untouched retention | Matched FVE | Shuffled FVE | FVE gap |
-|---|---:|---:|---:|---:|---:|
-| Vanilla NLA | TBD | TBD | TBD | TBD | TBD |
-| Medical-AV, SFT only | TBD | TBD | N/A | N/A | N/A |
-| Medical-NLA, reconstruction | TBD | TBD | TBD | TBD | TBD |
-| Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD |
+Structured monitor의 mean emitted claims는 4.9353, native-value emission coverage는
+.9995이며, prompt text는 prediction 구성에 사용하지 않았다.
 
-Hard shuffle은 같은 진단·비슷한 finding 수의 다른 사례 activation과 text 짝을 바꾼다.
-Finding deletion/value edit은 하나의 native evidence만 바꾸고 해당 claim과 나머지 finding의
-변화를 함께 본다. Round-trip FVE는 판독 text를 AR로 되돌린 activation이 원 activation
-분산을 얼마나 설명하는지 본다.
-공개 AR가 extraction index 32용이므로 주 round-trip과 patching은 HS32에서만 보고한다.
-HS16/HS24에 같은 AR를 적용한 값은 decoder distribution shift가 섞여 주표에 넣지 않는다.
+### Panel B. Counterfactual response (deletion n=4,540, value edit n=539, clean switch n=398)
+
+| Method class | Method | Deletion phantom | Removal success | Untouched retention | Replacement hit | Old persistence | Clean switch |
+|---|---|---:|---:|---:|---:|---:|---:|
+| structured monitor | Probe-guided reader | .3593 | .6407 | .9987 | .1466 | .5955 | .0804 |
+
+양면 결론: 정적 finding은 강하게 읽히지만(패널 A), 삭제된 state가 표현에서 완전히
+사라지지 않고(phantom .3593) native value update는 약하다(clean switch .0804).
+
+- Free-generating 행(Vanilla, Medical-NLA `SFT only`/`final`)은 validation
+  generation grounding gate를 통과한 경우에만 추가한다. 통과 전에는 locked-test
+  `TBD` 행을 만들지 않는다 — 현재 D10 budget calibration이 진행 중이다.
+- Hard shuffle은 같은 진단·비슷한 finding 수의 다른 사례 activation과 text 짝을
+  바꾼다. Round-trip FVE(AR)는 별도 Panel C로, AR identity gate 통과 시에만 연다.
+  공개 AR가 extraction index 32용이므로 round-trip과 patching은 HS32에서만
+  보고하며, HS16/HS24에 같은 AR를 적용한 값은 decoder distribution shift가 섞여
+  주표에 넣지 않는다.
+
+## Appendix Table. Generative method development gates (validation)
+
+서로 다른 실패를 하나의 accuracy로 합치지 않고, 각 방법이 자기 사전 지정 gate를
+통과했는지만 보인다. 전부 validation 수치이며 locked test가 아니다.
+
+| Method | Primary validation statistic | Frozen requirement | Result |
+|---|---|---|---|
+| Full-data SFT | DiReCT Obscomp | > .2130 | .0301/.0296, fail |
+| D10 1x2, 20 steps | ranking−control changed-gap delta, seeds 17/29/43 | each ≥ .05, CI > 0, specificity | +.0005/+.0028/+.0030, fail |
+| D14 K=5 OOF teacher | original cue precision | ≥ .90 + 6 calibration gates | .8881, fail |
+| D16 soft bottleneck | proposed−control DiReCT alignment delta | each ≥ .005, CI > 0 | −.001137/−.001476/+.001433, fail |
+| D16 frozen-z | auxiliary−control finding F1 | positive across seeds | −.0009/−.0007/−.0016, fail |
+| D10 budget calibration (1,552 steps) | final-step D5 gate | 동일 D5, 연장 없음 | 진행 중 |
+
+D16 frozen-z의 보조 delta: own-shuffled gap −.0050/−.0046/−.0058, value accuracy
+−.0137/−.0096/−.0160, deletion drop −.0167/−.0141/−.0151. D10 budget run은 기존
+결과를 본 뒤 사람이 승인한 post-hoc exploratory calibration임을 명시한다.
+
+## Methods 기록. D9a cue support protocol
+
+- Support rule: presence AND deletion delta AND same-fold/same-diagnosis
+  cue-absent donor margin. 동결 cut `P=.90, D=0, M=0`.
+- Validation coverage 3,032/3,034 = .9993, null false support 112/2,964 = .0378,
+  Wilson 95% CI [.0315, .0453]. Train retained pairs 3,104/4,655.
+- Cross-fitting `crc32(base_id) % 2`, out-of-fold scoring. Artifact SHA256는
+  `08-ddxplus-d9a-selected-cue.md`에 고정.
 
 ## Table 4. Text patching and behavioral utility
 
