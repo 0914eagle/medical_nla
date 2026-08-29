@@ -9,9 +9,9 @@
 | E0 | DiReCT data/evaluator audit | 완료 | canonical split, evaluator smoke |
 | E1 | Source CoT and activation extraction | 완료 | 496 cases, P0/P1/P2 x HS16/24/32 |
 | E2 | P0 representation audit | 대부분 완료 | diagnosis/category 및 DDXPlus finding/value locked probe 완료; source-decision 대기 |
-| E3 | Medical-NLA training | D10 실패, structured reader 대기 | n=3,032/seed; changed delta +.0005/+.0028/+.0030 (<.05); frozen probe + deterministic verbalizer validation 다음 |
+| E3 | Medical-NLA training | D10 실패, structured reader 완료 | structured test finding F1 .9587, deletion phantom .3593, clean value switch .0804; learned set-to-text 다음 |
 | E4 | DiReCT explanation evaluation | validation 완료 | Common SFT 의미 채점 실패; 새 objective 고정 전 locked 72/106 중단 |
-| E5 | DDXPlus activation grounding | NLA validation 부분 신호 | probe availability 통과; CF seed17 deletion contrast 증가, value switch 실패; locked test 중단 |
+| E5 | DDXPlus activation grounding | structured monitor test 완료 | own-shuffled +.1624, removal .6407, retained .9987; value intervention은 미통과 |
 | E6 | Text patching | E5 조건부 | Table 4, Figure 4 |
 | E7 | MCR external OOD | 후순위 | frozen-checkpoint OOD table |
 

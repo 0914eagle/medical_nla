@@ -673,3 +673,34 @@ free-generation 병목을 분리하는 것이다. Locked test subcommand는 고�
 구현은 `scripts/run_ddxplus_structured_reader.py`, server wrapper는
 `scripts/run_ddxplus_structured_reader.sh`, 실행 계약은
 `docs/experiments/09-ddxplus-structured-reader.md`에 있다.
+
+### R14. Codex — 2026-08-29
+
+**[결과] Structured Reader는 validation에서 locked test로 거의 그대로
+재현됐다.** Validation/test는 `10,006/10,028` activation rows와 `4,525/4,543`
+original cases였다.
+
+| metric | validation | locked test |
+|---|---:|---:|
+| finding F1 | `.9607` | `.9587` |
+| same-diagnosis shuffled F1 | `.7954` | `.7938` |
+| own-shuffled gap | `+.1630` | `+.1624` |
+| value end-to-end accuracy | `.7700` | `.7654` |
+| deletion phantom | `.3626` | `.3593` |
+| conditional removal | `.6374` | `.6407` |
+| retained preservation | `.9985` | `.9987` |
+| value replacement | `.1407` | `.1466` |
+| old-value persistence | `.5722` | `.5955` |
+| clean value switch | `.1038` (`n=395`) | `.0804` (`n=398`) |
+
+Test에서 평균 emitted claim은 `4.9353`, value emission coverage는 `.9995`였다.
+Deletion target은 original에서 `1.0000` 검출됐고 untouched finding preservation도
+`.9987`이어서 deletion phantom `.3593`을 전체 예측 붕괴로 설명할 수 없다.
+
+**[판정] 두 병목을 분리해 기록한다.** 정적 finding은 frozen selector와 train-only
+verbalizer로 잘 노출되므로 기존 free-generating AV decoder는 분명한 병목이다. 그러나
+삭제 후 약 36% phantom과 value clean switch 8%는 probe/representation의 intervention
+response도 별도 병목임을 보여준다. Structured Reader는 open NLA 성과가 아니라 최종
+upper baseline으로 고정한다. 다음 learned method는 frozen finding set을 입력으로 받는
+constrained set-to-text verbalizer로 제한하며, value edit는 아직 target으로 승격하지
+않는다.
