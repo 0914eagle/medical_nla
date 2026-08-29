@@ -320,6 +320,22 @@ The aggregate output is:
     paired_arm_comparison_summary.md
 ```
 
-Teacher-forced results settle changed-gap and specificity conditions. The full
-D5 promotion remains pending until generated original-hit and deleted-phantom
-rates are compared on the same frozen validation pairs.
+Teacher-forced results settle changed-gap and specificity conditions first.
+Generated original-hit and deleted-phantom rates are required only if those
+necessary teacher-forced conditions pass.
+
+## D10 Result — 2026-08-29
+
+The three-seed teacher-forced gate failed before generation was needed.
+
+| seed | changed-gap delta | changed cluster 95% CI | retained-gap delta | specificity delta | specificity cluster 95% CI |
+|---:|---:|---:|---:|---:|---:|
+| 17 | +0.0005 | [-0.0006, +0.0016] | +0.0010 | -0.0005 | [-0.0020, +0.0010] |
+| 29 | +0.0028 | [+0.0017, +0.0039] | -0.0000 | +0.0029 | [+0.0015, +0.0045] |
+| 43 | +0.0030 | [+0.0015, +0.0048] | -0.0007 | +0.0037 | [+0.0017, +0.0059] |
+
+All changed-gap deltas were below the frozen `0.05` minimum. Seed 17 also had
+a changed-gap interval spanning zero and negative specificity. Because these
+are mandatory D5 conditions, the smoke is a promotion failure regardless of
+unrun generation checks. No post-result lambda, temperature, or step sweep is
+authorized.

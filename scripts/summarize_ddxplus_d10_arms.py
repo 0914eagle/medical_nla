@@ -129,7 +129,7 @@ def main() -> None:
         results[str(seed)]["deltas"]["specificity"]["ranking_minus_control"]
         for seed in (17, 29, 43)
     ]
-    gate = {
+    gate: dict[str, Any] = {
         "three_seed_changed_sign_consistent": all(value > 0 for value in changed),
         "three_seed_specificity_sign_consistent": all(value > 0 for value in specificity),
         "changed_delta_min_0p05_each_seed": all(value >= 0.05 for value in changed),
@@ -149,9 +149,24 @@ def main() -> None:
         ),
         "generation_original_hit_maintained": None,
         "generation_deleted_phantom_nonincrease": None,
-        "full_d5_gate_passed": False,
-        "full_gate_reason": "generation hit/phantom audit not run",
     }
+    teacher_forced_keys = (
+        "three_seed_changed_sign_consistent",
+        "changed_delta_min_0p05_each_seed",
+        "changed_cluster_ci_above_zero_each_seed",
+        "three_seed_specificity_sign_consistent",
+        "specificity_cluster_ci_above_zero_each_seed",
+    )
+    gate["teacher_forced_gate_passed"] = all(gate[key] for key in teacher_forced_keys)
+    gate["full_d5_gate_passed"] = False
+    if gate["teacher_forced_gate_passed"]:
+        gate["generation_audit_status"] = "pending"
+        gate["full_gate_reason"] = "generation hit/phantom audit not run"
+    else:
+        gate["generation_audit_status"] = "not required for promotion decision"
+        gate["full_gate_reason"] = (
+            "mandatory teacher-forced changed-gap or specificity conditions failed"
+        )
     report = {
         "schema_version": 1,
         "results": results,
@@ -195,8 +210,13 @@ def main() -> None:
             f"- three-seed specificity sign: **{gate['three_seed_specificity_sign_consistent']}**",
             "- specificity cluster CI > 0 in every seed: "
             f"**{gate['specificity_cluster_ci_above_zero_each_seed']}**",
-            "- original-hit and deleted-phantom generation checks: **pending**",
-            "- full D5 promotion: **not yet decidable**",
+            "- teacher-forced gate: "
+            f"**{'PASS' if gate['teacher_forced_gate_passed'] else 'FAIL'}**",
+            "- original-hit and deleted-phantom generation checks: "
+            f"**{gate['generation_audit_status']}**",
+            "- full D5 promotion: **FAIL**"
+            if not gate["teacher_forced_gate_passed"]
+            else "- full D5 promotion: **pending generation checks**",
         ]
     )
     args.summary_md.write_text("\n".join(lines) + "\n", encoding="utf-8")

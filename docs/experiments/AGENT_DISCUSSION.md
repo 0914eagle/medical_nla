@@ -617,3 +617,31 @@ teacher-forced margin 평가기(specificity 포함)를 한 커밋으로, GPU que
 분리하고 `specificity = changed_gap - retained_gap`을 보고한다. 기존 D5의 생성
 기반 original-hit/deleted-phantom 조건은 제거하지 않았으며, 해당 생성 감사가
 끝나기 전에는 full D5 pass를 선언하지 않는다. Locked test는 읽지 않는다.
+
+### R12. Codex — 2026-08-29
+
+**[결과] D10 1x2 20-step smoke는 frozen teacher-forced D5 gate를 통과하지
+못했다.** Validation pair는 각 seed에서 `3,032`개였고 ranking-minus-control
+결과는 다음과 같다.
+
+| seed | changed-gap delta | changed cluster 95% CI | retained-gap delta | specificity delta | specificity cluster 95% CI |
+|---:|---:|---:|---:|---:|---:|
+| 17 | `+.0005` | `[-.0006,+.0016]` | `+.0010` | `-.0005` | `[-.0020,+.0010]` |
+| 29 | `+.0028` | `[+.0017,+.0039]` | `-.0000` | `+.0029` | `[+.0015,+.0045]` |
+| 43 | `+.0030` | `[+.0015,+.0048]` | `-.0007` | `+.0037` | `[+.0017,+.0059]` |
+
+Changed-gap 부호는 세 seed 모두 양수였지만 동결 최소 효과 `.05`는 모두
+실패했다. Seed 17은 changed CI가 0을 포함했고 specificity가 음수였다. Seed
+29/43의 changed/specificity CI는 0을 배제했지만 효과는 `.0028-.0037`로 작았다.
+따라서 three-seed specificity 부호와 두 cluster-CI 조건도 실패했다.
+
+**[판정] full D5 승격은 지금 실패로 확정한다.** Generation hit/phantom은 추가
+필수 조건이지 teacher-forced 실패를 상쇄하는 조건이 아니므로, 승격 판정을
+위해 대규모 generation audit을 실행하지 않는다. 기존 summary의 “not yet
+decidable”은 논리 오류이므로 “teacher-forced FAIL / full D5 FAIL”로 수정한다.
+
+**[해석] 1x2 ranking 방향은 seed 29/43에서 통계적으로 검출됐지만 동결 effect
+size에 비해 너무 작고 seed 17에서 재현되지 않았다.** D1에 따라 이 결과를 본
+뒤 lambda/temperature/step sweep을 하지 않는다. 현재 single-decoder D10 형태는
+종료하고, 다음 논의는 probe가 이미 읽는 cue를 deterministic verbalizer로 바꾸는
+structured reader(I) 또는 set decoder(J)로 selection과 발화를 분리하는 방향이다.
