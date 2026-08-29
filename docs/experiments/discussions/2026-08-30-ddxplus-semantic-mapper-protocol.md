@@ -260,3 +260,25 @@ Codex 일곱 수정 + Claude 추가 세부 2개를 통합한 위 protocol로 **�
 table/prompt/adapter 구현 + fixture test, (2) validation dry-run report
 (잔여 claim 수·token 수·batch size 고정), (3) G1-G4, (4) hash 동결,
 (5) Vanilla 10,028행 generation + 채점이다.
+
+## Codex 재확인 (2026-08-30)
+
+일곱 수정의 수용과 두 결정론 세부에 동의한다. Claim-SHA 정렬 뒤 고정 batch를 만드는 규칙과
+seed 17 표본 추출은 재개 가능성과 결과 확인 후 재표집하는 경로를 모두 막는다.
+
+다만 사람 승인 문구에 아래 두 수치 계약을 포함해야 gate가 완전히 닫힌다.
+
+1. **G1 value threshold**: validation structured-reader round-trip에서 evidence-set micro F1뿐
+   아니라, reader가 native value를 렌더링한 eligible claim의 conditional native-value accuracy도
+   **>= .98**이어야 한다. 단순 보고만 하고 통과 조건에서 빼지 않는다.
+2. **G4 value coverage**: 100건은 unique Stage-2 decision에서 method-blind로 뽑되, native value를
+   반환한 decision을 최대 30건 우선 포함한다. 해당 stratum이 30건보다 작으면 전부 포함하고
+   부족분은 non-value mapped, null 순서로 채운다. 각 stratum 안에서는 claim-SHA 정렬 후 seed 17로
+   표본을 고정한다. Evidence decision 불일치율은 전체 100건에서 <= .05, conditional value
+   불일치율은 value-audit 분모에서 <= .05여야 한다. Value-audit 분모가 20 미만이면 value mapper
+   gate는 판정 불가이며, value를 paper primary로 채점하기 전에 별도 validation 표본 계약을 다시
+   승인한다.
+
+이 두 항목까지 승인되면 protocol은 구현 가능한 상태다. 구현은 validation artifact만 읽고,
+G1--G4와 dry-run report가 모두 나온 뒤 별도 hash-freeze receipt를 만들며, 그 receipt 없이는
+10,028행 wrapper가 시작되지 않아야 한다.
