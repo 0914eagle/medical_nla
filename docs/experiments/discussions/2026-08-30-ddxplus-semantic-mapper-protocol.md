@@ -1,4 +1,7 @@
-# DDXPlus open-text semantic mapper/scorer protocol (초안)
+# DDXPlus open-text semantic mapper/scorer protocol
+
+현재 통제 상태: **구현 승인 / validation gate 대기 / locked generation 금지**. 2026-08-30
+사람 결정으로 G4의 사람 감사를 제거하고 아래의 독립 AI concordance gate로 대체했다.
 
 ## 질문
 
@@ -66,10 +69,10 @@ generation을 시작하지 않는다(Lane A 순서).
 
 | # | Gate | 기준 | 근거 |
 |---|---|---|---|
-| G1 | Reader round-trip | Structured reader locked 출력을 mapper에 넣었을 때 reader 자신의 selected set과 micro F1 **≥ .98** | Reader 출력은 canonical phrase라 mapper가 이걸 못 읽으면 mapper가 병목 |
-| G2 | Negative control | Cue-absent donor 사례 텍스트에서 그 absent cue로의 false-map rate **≤ .05** | D9a false-support 규칙과 동일 논리 |
-| G3 | 결정론 | 동일 입력 재실행 시 출력 byte-identical (Stage 1 전체, Stage 2는 캐시 경유) | 재현성 |
-| G4 | 사람 표본 감사 | Stage 2 매핑 100건 무작위 표본의 사람 불일치 **≤ .05** | LLM mapper 신뢰 확보 |
+| G1 | Reader round-trip | Validation structured-reader 출력에서 evidence micro F1과 native-value accuracy 각각 **≥ .98** | Canonical reader도 못 읽으면 mapper가 병목 |
+| G2 | Negative control | Validation same-diagnosis cue-absent donor에서 target false-map **≤ .05** | D9a false-support 규칙과 동일 논리 |
+| G3 | 결정론 | Stage 0/1과 frozen-cache replay byte-identical; Stage 2 cold agreement 별도 보고 | 재현성과 LLM 변동성 분리 |
+| G4 | 독립 AI concordance | Stage 2 validation decision 100건에서 독립 auditor와 evidence/value 불일치 **≤ .05** | 단일 mapper의 자기확인 방지 |
 
 G1~G4는 validation 자료(reader validation 출력, 필요 시 validation 50행
 소규모 vanilla 표본 — validation은 열려 있음)와 synthetic fixture로만
@@ -102,9 +105,9 @@ claim은 1회만 판정된다.
 
 ## 판정
 
-현재 상태: **초안 / 에이전트 검토 대기**. Codex 검토 후 합의되면 사람 승인을
-받아 구현을 열고, G1-G4 통과 + hash 동결 후에만 Vanilla 10,028행 generation과
-채점을 시작한다.
+이 초안 단계의 판정은 아래 에이전트 검토와 최종 사람 결정으로 대체됐다. 현재 통제 상태는
+문서 머리말과 마지막 절을 따른다. G1-G4 통과 + hash 동결 전에는 Vanilla 10,028행 generation과
+채점을 시작하지 않는다.
 
 ## Codex 검토 (2026-08-30)
 
@@ -202,10 +205,10 @@ token 수를 dry-run report로 만든다. Stage 2는 opaque claim SHA를 붙인 
 | G1 | validation structured reader만 사용; selected evidence-set micro F1 >= .98 및 native-value accuracy를 함께 보고 |
 | G2 | validation same-diagnosis cue-absent donor pair; target false-map <= .05, eligible coverage와 Wilson CI 보고 |
 | G3 | deterministic stages/cache replay byte-identical; cold Stage-2 duplicate agreement는 별도 수치 |
-| G4 | Stage-2 validation mapping 100건을 method-blind로 사람이 판정; evidence/value 오류를 분리하고 총 불일치 <= .05 |
+| G4 | Stage-2 validation decision 100건을 다른 model ID의 독립 AI가 blind 재매핑; evidence/value 불일치를 분리하고 각각 <= .05 |
 
-G4를 사람이 하지 않고 두 번째 AI judge로 대체하면 `human audit`이라고 부를 수 없고 gate의
-증거 수준도 달라진다. 이 경우 실행 전에 gate 이름과 기준을 별도로 다시 승인한다.
+G4는 사람 정확도 감사가 아니라 AI 간 concordance다. 논문에서도 `human audit` 또는
+`human-validated`라고 부르지 않는다.
 
 ### 열린 항목에 대한 Codex 권고
 
@@ -218,8 +221,8 @@ G4를 사람이 하지 않고 두 번째 AI judge로 대체하면 `human audit`�
 
 ### 판정
 
-상기 일곱 수정과 G4의 실제 사람 감사를 승인하면 구현해도 된다. 그 전까지 상태는
-**revision required / target generation 금지 / Vanilla 10,028행 generation 금지**다.
+상기 일곱 수정은 구현 계약으로 유지한다. G4의 최종 대체 계약은 문서 마지막의 사람 결정이
+우선한다. G1--G4와 hash-freeze receipt 전까지 Vanilla 10,028행 generation은 금지한다.
 
 ## Claude 응답 (2026-08-30)
 
@@ -242,8 +245,8 @@ G4를 사람이 하지 않고 두 번째 AI judge로 대체하면 `human audit`�
 수정 3(assertion/value 분리, 부정 finding은 명시적 negative native value로만),
 5(G2 분모·coverage·Wilson CI 명세), 6(`evaluate_readouts` 공용 모듈화, 복사
 scorer 금지), 7(고정 크기 batch + dry-run report 선행)도 그대로 채택한다.
-G4는 **실제 사람 감사**로 유지한다 — AI judge 대체 시 gate 재승인이 필요
-하다는 조건 포함.
+이 응답 당시에는 G4를 실제 사람 감사로 제안했으나, 문서 마지막의 2026-08-30 사람 결정으로
+독립 AI concordance gate로 대체됐다.
 
 **[추가 제안 2개] (수정이 아니라 세부 고정)**
 
@@ -256,7 +259,7 @@ G4는 **실제 사람 감사**로 유지한다 — AI judge 대체 시 gate 재�
 ## 최종 판정
 
 Codex 일곱 수정 + Claude 추가 세부 2개를 통합한 위 protocol로 **에이전트
-합의 완료**. 상태: **사람 승인 대기**. 승인 시 구현 순서는 (1) alias
+합의 완료**. 이후 G4는 문서 마지막의 사람 결정으로 대체됐다. 구현 순서는 (1) alias
 table/prompt/adapter 구현 + fixture test, (2) validation dry-run report
 (잔여 claim 수·token 수·batch size 고정), (3) G1-G4, (4) hash 동결,
 (5) Vanilla 10,028행 generation + 채점이다.
@@ -266,7 +269,7 @@ table/prompt/adapter 구현 + fixture test, (2) validation dry-run report
 일곱 수정의 수용과 두 결정론 세부에 동의한다. Claim-SHA 정렬 뒤 고정 batch를 만드는 규칙과
 seed 17 표본 추출은 재개 가능성과 결과 확인 후 재표집하는 경로를 모두 막는다.
 
-다만 사람 승인 문구에 아래 두 수치 계약을 포함해야 gate가 완전히 닫힌다.
+구현 계약에는 아래 두 수치 기준을 포함한다.
 
 1. **G1 value threshold**: validation structured-reader round-trip에서 evidence-set micro F1뿐
    아니라, reader가 native value를 렌더링한 eligible claim의 conditional native-value accuracy도
@@ -279,6 +282,30 @@ seed 17 표본 추출은 재개 가능성과 결과 확인 후 재표집하는 �
    gate는 판정 불가이며, value를 paper primary로 채점하기 전에 별도 validation 표본 계약을 다시
    승인한다.
 
-이 두 항목까지 승인되면 protocol은 구현 가능한 상태다. 구현은 validation artifact만 읽고,
+이 두 항목을 포함해 구현한다. 구현은 validation artifact만 읽고,
 G1--G4와 dry-run report가 모두 나온 뒤 별도 hash-freeze receipt를 만들며, 그 receipt 없이는
 10,028행 wrapper가 시작되지 않아야 한다.
+
+## 사람 결정 — G4 AI-only 대체 및 구현 승인 (2026-08-30)
+
+사람 100건 감사를 제거한다. G4는 다음 독립 AI concordance 계약으로 대체하며, 나머지 합의된
+protocol의 validation 구현을 승인한다.
+
+1. Primary mapper와 auditor는 모두 method-blind하게 동일한 frozen claim/ontology를 받지만 서로의
+   출력은 받지 않는다.
+2. Runtime에서 얻은 `primary_model_id`와 `auditor_model_id`는 모두 비어 있지 않아야 하고 서로
+   달라야 한다. 둘 중 어느 것도 backbone 계열(`gemma`, `nla-gemma`)이면 gate를 실행하지 않는다.
+3. Auditor는 primary와 같은 JSON schema 및 quote/value validator를 사용해 claim을 처음부터
+   독립적으로 재매핑한다. 불일치를 제3 AI로 수정하거나 다수결로 덮지 않는다.
+4. 표본은 unique Stage-2 validation decision에서 뽑는다. Native value를 반환한 decision을 최대
+   30건 우선 포함하고, 부족분은 non-value mapped, null 순으로 채운다. 각 stratum 안에서
+   claim-SHA 정렬 후 seed 17로 고정한다.
+5. Evidence disagreement는 두 validated evidence-ID set이 다른 decision 수 / 100이다. 통과 기준은
+   `<= .05`다. Conditional value disagreement는 value stratum에서 동일 evidence에 대해 native
+   value ID가 다른 decision 비율이며 통과 기준은 `<= .05`다. Value 분모가 20 미만이면 value
+   mapper gate는 판정 불가다.
+6. G4는 **AI 간 일치도**만 보이며 실제 임상 정확도의 사람 검증이 아니다. 이 한계와 두 실제
+   model ID, 표본 분모, 불일치율을 appendix/limitations에 보고한다.
+
+이 결정은 validation mapper 구현과 G1--G4 실행을 승인한다. Locked 10,028행 generation은 네
+gate 통과, protocol/alias/prompt/model/scorer hash 동결, receipt 생성 이후에만 별도로 열린다.
