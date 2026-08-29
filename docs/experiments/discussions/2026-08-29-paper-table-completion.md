@@ -436,6 +436,76 @@ Medical-NLA가 promotion에 실패하면 conditional 행과 AR 표를 삭제하�
 `2026-08-29-paper-table-values-and-reproducibility.md`, 서버·GPU·실행 순서의 canonical 기록은
 이 문서가 담당한다.
 
+#### 논문 수치 계산기 구현
+
+다음 전용 스크립트를 구현했다. 기존 validation runner나 legacy figure script에 test path를
+임의로 바꾸어 넣지 않는다.
+
+| script | 채우는 항목 | 핵심 fail-closed 조건 |
+|---|---|---|
+| `reindex_and_score_direct_locked_source_outputs.py` | Table 1A 72/106 Direct·CoT | 정확한 72/106 ID, 중복 0, 명시적 locked confirmation |
+| `evaluate_direct_locked_probes.py` | Table 1B DiReCT HS24 test-seen | HS24, 72행, 두 target artifact, 승인된 control protocol |
+| `make_medical_nla_probe_layer_figure.py` | Figure 2 | DiReCT/DDXPlus validation JSON에 HS16/24/32가 모두 존재 |
+| `make_ddxplus_counterfactual_figure.py` | Figure 3 | frozen HS24 artifact, paired original/deletion/value-edit activation |
+| `validate_nla_readout_population.py` | 두 Vanilla baseline population receipt | manifest/output ID exact union, activation 존재, decoding 일치 |
+| `run_ddxplus_vanilla_locked_baseline_4gpu.sh` | Table 3 Vanilla locked | prompt·semantic protocol·semantic scorer hash 일치 전 GPU 시작 금지 |
+| `run_direct_locked_baseline_batch.sh` | Table 1A/1B/2 single batch | D10 decision·recipe·split·prompt·control hash 일치 |
+
+Figure 2는 두 DiReCT probe job이 별도 directory에 있으므로 `--direct-results`를 두 번 줄 수 있다.
+서버 62에서 필요한 JSON을 한곳에 모은 뒤 다음처럼 실행한다.
+
+```bash
+python scripts/make_medical_nla_probe_layer_figure.py \
+  --direct-results /path/to/direct_e2_probe_pdd_val_v1/validation_results.json \
+  --direct-results /path/to/direct_e2_probe_category_val_v1/validation_results.json \
+  --ddxplus-results /data/heejae/medical_nla/results/ddxplus_finding_value_probe_val_v1/results.json \
+  --output /data/heejae/medical_nla/results/paper_figures/figure2_probe_layers.pdf \
+  --values-json /data/heejae/medical_nla/results/paper_figures/figure2_probe_layers_values.json
+```
+
+Figure 3은 locked manifest의 activation path가 실행 서버에서 실제로 존재해야 한다. `/data`에서
+만든 manifest를 `/data1`에서 읽을 때는 `--path-map /data/heejae=/data1/heejae`를 명시한다.
+
+```bash
+python scripts/make_ddxplus_counterfactual_figure.py \
+  --artifact /data/heejae/medical_nla/results/ddxplus_finding_value_probe_val_v1/finding_value_hs24.pt \
+  --manifest /data/heejae/medical_nla/data/ddxplus_e5_canonical_v1/activations/ddxplus_e5_test_cot_p0_hs24_merged_v1/layer24/last_token/manifest.jsonl \
+  --output /data/heejae/medical_nla/results/paper_figures/figure3_counterfactual.pdf \
+  --values-json /data/heejae/medical_nla/results/paper_figures/figure3_counterfactual_values.json
+```
+
+DDXPlus Vanilla wrapper는 현재 **실행 준비 완료, protocol 입력 대기** 상태다. 아래 세 파일/hash가
+없으면 10,028행 generation을 시작하지 않는다.
+
+1. `src.run_nla --dump-actor-prompt-template`로 얻은 actor prompt와 승인 SHA-256
+2. method-blind semantic mapper protocol JSON과 승인 SHA-256
+3. 그 protocol을 구현한 scorer script와 승인 SHA-256
+
+이는 lexical scorer를 paper metric으로 잘못 쓰는 것을 막기 위한 의도적 정지점이다. Semantic
+protocol이 승인되면 `run_ddxplus_vanilla_locked_baseline_4gpu.sh`가 two-shard generation,
+10,028행 exact-union 검증, provenance 기록, semantic scoring을 한 queue로 끝낸다.
+
+DiReCT locked batch 전에는 patient-group label-shuffle와 cluster bootstrap을 담은 JSON을 먼저
+승인·hash 고정한다. 최소 schema는 다음과 같다.
+
+```json
+{
+  "shuffle_unit": "patient_group",
+  "shuffle_seed": 17,
+  "control_init_seed": 17,
+  "bootstrap_seed": 17,
+  "bootstrap_replicates": 10000
+}
+```
+
+여기서 control은 test label을 섞어 재채점하는 것이 아니다. Train patient-group label을 결정론적으로
+derange한 뒤 validation에서 이미 선택된 learning rate, weight decay, class balancing, epoch 수를
+그대로 사용해 새 linear head를 학습하고 원래 test label에 평가한다. 이 값은 구현 default가 아니라
+locked access 전에 승인해야 하는 protocol이다. D10 final decision,
+final recipe, split protocol, Vanilla prompt와 이 control protocol의 SHA-256을 모두 전달해야
+`run_direct_locked_baseline_batch.sh`가 Table 1A -> 1B -> Vanilla 178 -> 두 pool의 동일 extractor와
+official evaluator 순서로 진행한다.
+
 ## 검토 (Claude, 2026-08-30)
 
 **[동의] 원장/실행 분리와 "성공과 무관"의 두 의미 구분이 이 문서의 핵심
