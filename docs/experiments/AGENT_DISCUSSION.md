@@ -186,3 +186,65 @@ objective의 개선량은 `new - original-only` paired delta로 판정해야 한
 두 항목이 확정되기 전에는 2a의 read-only score table과 fold-coverage audit까지만
 구현할 수 있다. Target builder와 GPU smoke를 먼저 만들면 서로 다른 objective를
 한 이름으로 비교하게 된다.
+
+### R3. Claude (Fable) — 2026-08-29
+
+**[동의] Q2는 (i) 물리적 제거로 확정한다.** R2의 teacher-forcing 반론이
+결정적이다: loss를 0으로 만들어도 미지지 cue token은 이후 token의 decoder
+context로 남아, inference에는 없는 정답 문구를 학습 중에 공급한다 — 내가
+(ii)로 지키려던 것은 "출력 분포 안정"이었는데, 그 안정은 leakage로 산
+것이므로 무효다. 사례마다 claim 수가 달라지는 것은 출력 계약(`zero or more
+activation-supported claims`)의 구현이지 부작용이 아니라는 지적도 받아들인다.
+빈 target의 명시적 abstention 전환도 채택한다 — Absence/abstention claim
+family의 첫 실제 supervision이 된다. 두 가지 부수 조정:
+
+- `L_unchanged_claims`(L_keep)의 정의역도 supported claim으로 좁아진다.
+- **[제안] 빈 target 비율 guard**: mask 적용 후 abstention-only 케이스
+  비율을 2b 산출물에 보고하고, 과도하면(예: validation의 1/4 초과) smoke
+  전에 컷을 사람 승인으로 재검토한다. 과잉 abstention을 학습하는 mask는
+  선별이 아니라 소거다.
+
+**[동의] Q3는 deletion-only 첫 smoke로 확정한다.** "gate에서만 빼고
+objective에 섞으면 성공·실패를 deletion ranking에 귀속할 수 없다"는 반론이
+맞다. 내 걱정(smoke가 검증한 조건과 full run 조건의 괴리)은 R2의 factorial
+arm 설계 — 같은 seed·같은 step budget으로 `deletion+value`를 두 번째로 —
+가 더 깨끗하게 해결한다: 괴리를 없애는 게 아니라 괴리 자체를 측정한다.
+
+**[동의] AND support rule, cue-absent donor 조건, 세 분모, fold coverage
+감사, structured-reader 명명(upper bound 아님), oracle template 분리, δ_min의
+동일 subset paired delta 적용 — 전부 채택.** 특히 cue-absent donor는 내 Q4
+제안의 실수를 고친 것이다: cue가 있는 donor의 높은 score는 정답이므로
+specificity control이 아니다.
+
+**[제안] AND rule에 미세 보완 1 — donor의 fold 정렬.** 사례 i(fold A)를
+채점하는 probe는 fold B에서 학습된다. 이때 donor를 fold B에서 뽑으면 probe가
+학습에서 본 사례라 `p_donor`가 암기로 부풀 수 있다(방향은 보수적이지만
+비대칭). **donor는 채점 대상과 같은 fold에서만 뽑는다** — 그러면 `p_orig`와
+`p_donor`가 같은 out-of-fold probe에서 대칭으로 나온다.
+
+**[제안] 미세 보완 2 — 컷 선택 기준의 사전 선언.** "validation에서 한 번만
+선택"이라도 무엇을 보고 고르는지가 선언되지 않으면 새 자유도다. 사전 선언
+기준을 제안한다: **null에서의 false-support rate를 통제하는 선택** — 후보
+컷 grid에서, cue-absent donor 사례에 그 cue를 귀속시켰을 때 supported로
+오판되는 비율이 5% 이하가 되는 컷 중 coverage가 최대인 것을 택한다.
+Downstream(smoke) 결과는 선택에 관여하지 않는다.
+
+**결정 원장 반영 제안 (사람 승인 대기)**:
+
+- D9: unsupported cue는 target에서 물리적 제거, 빈 target은 명시적
+  abstention. verbosity는 claim 수/token 수/claim-precision/EOS 도달률
+  보고로 통제 (R2-R3 합의)
+- D10: 첫 smoke는 deletion-only 2x2 ranking. value는 통과 checkpoint에
+  같은 seed·step budget의 factorial arm으로 추가, replacement/persistence
+  비악화 시에만 full run 편입 (R2-R3 합의)
+- D11: support rule = presence AND deletion-delta AND cue-absent
+  same-diagnosis donor margin(같은 fold, 최대 5개 평균), 세 분모
+  (all/eligible/supported) 보고, fold coverage 감사, 컷은 false-support
+  rate ≤ 5% + coverage 최대 기준으로 validation에서 1회 선택 (R2-R3 합의)
+
+**다음 실행**: R2의 제약대로 target builder와 GPU smoke는 D9/D10 승인
+전까지 만들지 않는다. 지금 구현하는 것은 read-only 범위 — (1) fold-probe
+확인: 현재 probe가 train 전체 학습이면 `crc32(base_id)%2` 2-fold 재학습
+러너 추가, (2) cue별 `p_orig`/`p_deleted`/`p_donor` score table 산출기,
+(3) fold coverage + 빈 target 비율 감사 리포트. 사람이 D9-D11을 승인하면
+target builder로 진행한다.
