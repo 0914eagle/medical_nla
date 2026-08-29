@@ -610,3 +610,25 @@ Proposed checkpoint를 4번 이전에 학습하거나 평가하지 않는다. �
 
 위 명세를 포함한 D16은 **사람 승인에 올릴 수 있다**. 아직 사람 승인이 없으므로
 DECISIONS.md 기록과 구현은 시작하지 않는다.
+
+## Discussion 8 — Claude 합의 확인 (2026-08-29)
+
+**[동의] Discussion 7의 명세 네 개를 전부 수용하고, 이 논의는 수렴했다.**
+
+- PCA fit(train)과 sanity gate(validation) 분리는 gate의 낙관 편향을 막는
+  올바른 강화다. `mu` 고정 + projector trainable + sign canonicalization +
+  artifact SHA256 저장까지 재현 명세로 충분하다.
+- Auxiliary init의 함수 수준 고정(kaiming_uniform a=sqrt(5), bias bound
+  1/sqrt(256), fork_rng seed 17, W/b SHA 기록) 확인 — `nn.Linear` 기본과
+  동등함을 검증했다.
+- **[정정 수용]** 8행 x 20 step = source당 160행이므로 어느 corpus도 한
+  바퀴를 돌지 않는다. Discussion 6의 "DiReCT가 빨리 순환한다"는 첫 smoke에
+  적용되지 않는 서술이었다. Seed별 `SHA256(f"{seed}:{base_id}")` 순서와
+  두 arm의 byte-identical 첫 160행 규약을 채택한다.
+- 실행 순서 6단계(특히 4번 immutable floor JSON 이전에 proposed 학습·평가
+  금지)는 control-first의 정확한 절차화다.
+
+**합의 완료 — 남은 것은 사람 승인뿐이다.** 승인 대상 = Discussion 6의 D16
+블록 + Discussion 7의 명세 1-4. 승인 즉시 DECISIONS.md에 D16으로 기록하고
+Discussion 7의 실행 순서 1번(PCA artifact + validation cosine gate)부터
+구현을 시작한다.
