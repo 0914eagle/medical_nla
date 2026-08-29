@@ -359,3 +359,99 @@ floor = max( 2 * ( max_j g_j - min_j g_j ),  0.005 )
 올린다. 승인 시 DECISIONS.md에 D16으로 동결하고, 구현 순서는 (1) projector
 +aux head architecture와 테스트, (2) control arm 3 seeds, (3) floor 계산·
 기록, (4) proposed arm 3 seeds, (5) frozen-z probe와 제거 검증이다.
+
+## Discussion 5 — Codex 수식·모집단 검증 (2026-08-29)
+
+**[보류]** Discussion 4는 미결 항목에 숫자를 부여했지만, 그대로 D16 승인하면
+실행 불가능하거나 의도와 다른 실험이 되는 문제가 세 가지 있다.
+
+### 1. Orthogonal 초기화의 보존 주장이 수학적으로 틀리다
+
+`P_down`의 256개 row가 orthonormal이고 `P_up=P_down^T`이면
+
+```text
+P_up P_down h = P_down^T P_down h
+```
+
+는 `h`가 아니라 rank-256 row-space로의 **직교 투영**이다. 일반적인 3840차원
+`h`에서는 3584개 방향을 즉시 제거한다. Random orthogonal row-space는 데이터에
+대한 최적 rank-256 근사도 아니므로 “pretrained AV 입력 분포를 최대한 보존”한다는
+근거는 성립하지 않는다. Final norm-scale은 크기만 복구하고 손실된 방향은 복구하지
+못한다.
+
+`d_z=256`을 one-shot mechanism-smoke 값으로 쓰는 것은 가능하지만, 초기화는 다음
+train-only deterministic PCA 계약이 더 타당하다.
+
+1. 현재 AV와 동일하게 각 HS32를 unit L2-normalize한다.
+2. 두 source에 각각 총 weight `.5`를 주는 mixture mean과 covariance를 계산한다.
+   행 수가 많은 DDXPlus가 PCA를 독점하지 않게 하면서 source 간 mean 차이도 보존한다.
+3. 이 weighted covariance의 top-256 eigenvectors를 `P_down` row로, transpose를
+   `P_up`으로 초기화한다. Mixture centering mean/bias도 checkpoint에 저장한다.
+4. 학습 전에 source별 retained variance와 reconstruction cosine을 보고한다.
+   사전 정한 sanity gate를 실패하면 dimension sweep 없이 branch를 중단한다.
+
+이 경우에만 `P_up P_down`을 관측 train distribution에 대한 rank-256 최적 선형
+근사라고 부를 수 있다. PCA initialization 이후 두 projector는 trainable하게 둔다.
+
+### 2. Gradient-parity calibration 모집단이 존재하지 않는다
+
+현재 승인된 common/Direct SFT train population은 `248`행이다. 따라서 “DiReCT
+SHA 상위 512개” unique rows는 만들 수 없다. 또한 DDXPlus original 512개만으로는
+`L_aux_orig + L_aux_del`의 gradient를 재현할 수 없다. Deleted loss에는 approved
+D9a pair와 deleted activation이 필요하다.
+
+실행 가능한 대칭 규약은 다음과 같다.
+
+- DiReCT: train `248`행 전부
+- DDXPlus: approved D9a `3,104`쌍 중 `SHA256(base_id)` 상위 `248`쌍
+- 각 DDXPlus pair에서 91-label original BCE와 selected-cue deleted ranking을 모두
+  계산
+- Auxiliary head `W,b` initialization과 seed도 명시
+- 정확히 실제 학습에서 사용하는 loss reduction으로 `dL/dz` RMS를 계산
+- seed 17에서 얻은 lambda 한 개를 모든 seed에 공통 적용
+
+### 3. Source scheduling 없이는 loss와 control budget이 정의되지 않는다
+
+`L_lang + lambda L_aux`라고 적어도 DiReCT와 DDXPlus가 서로 다른 행이면 batch 구성과
+sampling 비율에 따라 실제 objective가 달라진다. 첫 실험은 optimizer step마다 다음을
+고정해야 한다.
+
+```text
+one Direct minibatch       -> L_lang
+one approved-D9a minibatch -> L_aux_orig + L_aux_del
+one summed backward/update
+```
+
+- Control과 proposed는 같은 projector, Direct minibatch order, optimizer-step 수를 쓴다.
+- Control도 같은 DDXPlus minibatch를 load/forward하되 auxiliary coefficient만 0으로
+  둔다. 적어도 Direct language update 수와 case order는 완전히 같아야 한다.
+- `L_aux_orig`와 `L_aux_del`은 각각 mean한 뒤 1:1로 합친다는 reduction을 명시한다.
+
+이 규약 없이 기존 source-temperature sampler를 재사용하면 seed와 corpus 크기에 따라
+effective lambda가 달라진다.
+
+### 4. Effect floor의 비교 대상을 명시한다
+
+Discussion 4의 식 자체는 결과 전에 고정됐으므로 사용할 수 있다. 다만 통과 여부는
+proposed gap 자체가 아니라 seed-matched 개선량으로 정의해야 한다.
+
+```text
+g_control,j  = control symmetric alignment gap
+g_aux,j      = proposed symmetric alignment gap
+delta_j      = g_aux,j - g_control,j
+floor        = max(2 * (max_j g_control,j - min_j g_control,j), 0.005)
+```
+
+첫 smoke 통과에는 각 seed의 `delta_j >= floor`, 각 seed의 paired
+category-cluster bootstrap CI가 0보다 큼, 세 seed 부호 일치가 모두 필요하다.
+Gate C `Obscomp > .2130`은 여전히 별도 절대 출구 조건이다.
+
+### 판정
+
+현재 판정은 계속 **implementation 승인 보류**다. 다음 응답에서 최소한 아래를
+확정해야 D16 사람 승인 문구를 만들 수 있다.
+
+1. random orthogonal 대신 PCA initialization과 그 sanity gate
+2. `248+248` gradient calibration 및 auxiliary-head initialization
+3. paired minibatch scheduling과 reduction
+4. `delta_j` 기준 effect-floor 판정
