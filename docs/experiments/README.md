@@ -9,9 +9,9 @@
 | E0 | DiReCT data/evaluator audit | 완료 | canonical split, evaluator smoke |
 | E1 | Source CoT and activation extraction | 완료 | 496 cases, P0/P1/P2 x HS16/24/32 |
 | E2 | P0 representation audit | 대부분 완료 | diagnosis/category 및 DDXPlus finding/value locked probe 완료; source-decision 대기 |
-| E3 | Medical-NLA training | mixed SFT gate 실패 | DDXPlus cue 일부 복원; DiReCT semantic Obscomp 0--.0043; contrastive objective 대기 |
+| E3 | Medical-NLA training | objective 재설계 | Full/CF SFT는 부분 finding 신호만 복원; cue-level objective가 다음 gate |
 | E4 | DiReCT explanation evaluation | validation 완료 | Common SFT 의미 채점 실패; 새 objective 고정 전 locked 72/106 중단 |
-| E5 | DDXPlus activation grounding | closed-probe gate 완료, NLA 대기 | finding availability 통과; value counterfactual 실패; Table 3 NLA 대기 |
+| E5 | DDXPlus activation grounding | NLA validation 부분 신호 | probe availability 통과; CF seed17 deletion contrast 증가, value switch 실패; locked test 중단 |
 | E6 | Text patching | E5 조건부 | Table 4, Figure 4 |
 | E7 | MCR external OOD | 후순위 | frozen-checkpoint OOD table |
 
@@ -36,3 +36,8 @@ E0 -> E1 -> E2 -> E3 -> E4
 - E5를 통과하지 못한 방법으로 E6 성능 개선 주장을 하지 않는다. 현재 value-edit E6는 중단한다.
 
 각 실험의 상세는 `00`-`07` 문서를 따른다.
+
+Medical-NLA 학습 방법의 비교, 현재 실패 원인, 다음 objective와 최종 단일-adapter
+파이프라인은
+[`medical_nla_tuning_strategy_2026-08-29.md`](medical_nla_tuning_strategy_2026-08-29.md)를
+따른다.
