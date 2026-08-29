@@ -27,6 +27,8 @@
 | D6 | 1a 감사 판정: seed 17 contrast `.2092`는 threshold 허상 아님(.3/.5/.7에서 안정). CF 이득은 seed 간 미재현(+.0713 vs −.0046), phantom 2배(.2138→.4253). 전체 sequence CE 확장 중단 | `$E5_ROOT/cf_uncertainty_audit_v1/` | `b5045cb` |
 | D7 | Gate C bar = source CoT 자기설명(Obscomp `.2130`/Expcom `.0650`) 초과 | 논문 대전제의 최소 조건 | `eeeee43` |
 | D8 | Value gate는 n=82로 판정 불능 → Phase 1에서 "악화되지 않음"으로 강등, full run에서 family 확대 | CI 중첩 | `eeeee43` |
+| D9 | D9a는 기존 4,655쌍의 selected changed cue 하나만 검사한다. 통과 cue만 target으로 쓰고 탈락·donor 부재는 제외한다. Abstention과 multi-claim 주장은 D9b 전까지 금지 | per-cue deletion은 21,331개 중 4,655개만 존재; approved pair 3,104개 | R5-R9 |
+| D11 | Support는 presence AND deletion delta AND same-fold/same-diagnosis cue-absent donor margin. Fold minimum positive=5, donor 최대 5, validation false-support ≤.05 뒤 coverage 최대. 동결 cut은 `.90/0/0` | validation positive `3032/3034`, null false support `112/2964=.0378` | approved protocol `a968a63f...` |
 
 ## 라운드 로그
 
@@ -453,3 +455,62 @@ target `y_deleted`가 필요하다. 그러나:
 `1 claim x 2 activations` ranking으로 재명명·승인하거나, (B) D9b all-cue audit 뒤
 남은 supported claim으로 `y_deleted`를 정의한 후 2x2를 수행하는 것이다. 이 판정
 전까지 pipeline은 승인된 pair dataset에서 하드 스톱한다.
+
+### R9. Codex — 2026-08-29
+
+**[결과] D9a OOF support audit, validation null-control cut 선택, 사람 승인,
+pair construction을 완료했다.** 상세 표와 artifact hash는
+`docs/experiments/08-ddxplus-d9a-selected-cue.md`에 고정했다. 핵심 수치는 다음과
+같다.
+
+| 단계 | 실제 결과 |
+|---|---:|
+| train base / finding labels | `4655 / 91` |
+| fold별 minimum positives | `14 / 15` (기준 5) |
+| train score eligible / outside ontology | `4652 / 3` |
+| train donor available / unavailable | `3109 / 1546` |
+| validation positive eligible | `3034 / 4523 = .6708` |
+| validation null eligible | `2964 / 3034 = .9769` |
+| positive/null deletion-delta median | `.7949 / .0030` |
+| positive/null donor-margin median | `.7700 / -.0007` |
+| positive/null presence q05 | `.9955 / .00013` |
+
+사전 선언한 245개 grid와 “false-support ≤ `.05` 중 positive coverage 최대” 규칙은
+`t_presence=.90`, `t_delete=.00`, `t_donor=.00`을 선택했다. Validation에서
+positive `3032/3034=.9993`, null false support `112/2964=.0378`이며 Wilson 95% CI는
+`[.0315,.0453]`이다. 승인 후 train에 적용한 결과는 supported `3104`, ontology
+밖 `3`, donor 부재 `1543`, below-cut `5`; 즉 전체의 `.6668`, donor-eligible의
+`.9984`가 retained됐다. Locked test는 읽지 않았다.
+
+**[해석] support cut이 대규모 unsupported population을 제거한 것은 아니다.**
+실질 병목은 activation support가 아니라 same-fold/same-diagnosis/cue-absent donor
+구성 가능성(`3109/4655=.6679`)이었다. Donor가 있으면 `3104/3109=.9984`가
+통과했다. 따라서 현재 데이터가 지지하는 주장은 “기존 seed-17 selected cue는
+유효 donor가 있을 때 거의 모두 CoT-P0/HS32에 방향성 있게 표현된다”까지다.
+다음은 주장할 수 없다.
+
+1. 전체 21,331 cue occurrence가 모두 support된다.
+2. `.90/0/0` mask가 강한 effect-size filter다. Delta/margin cut이 0이므로 이는
+   presence+directionality gate다.
+3. 3,104 one-claim pairs로 multi-claim Medical-NLA가 완성됐다.
+
+**[제안] D9a smoke를 `1 claim x 2 activations` paired ranking으로 확정한다.**
+Retained case `i`의 selected claim을 `y_i`, original/deleted activation을
+`h_i^orig/h_i^del`이라 하면:
+
+```text
+g_i = NLL(y_i | h_i^del) - NLL(y_i | h_i^orig)
+L = L_SFT(y_i | h_i^orig) + lambda*T*softplus(-g_i/T)
+```
+
+대조군은 같은 initialization·3,104행·step budget·pair order에서 ranking term만 0인
+original-only continuation이다. 두 arm 모두 seed `17/29/43`을 실행한다. 판정은
+D5 그대로: 세 seed 개선 부호 일치, disease-cluster bootstrap CI 0 배제,
+original-only 동일 subset 대비 changed-claim contrast `+.05` 이상, original hit 유지,
+deleted phantom 비증가다. Deleted activation에는 abstention·미검사 cue·부정문 target을
+주지 않는다.
+
+**[판정 요청] D10의 첫 smoke 표현을 “deletion-only 2x2”에서 위의 정직한 1x2로
+수정 승인할 것인가.** Literal 2x2는 D9b에서 per-cue deletion을 전부 추출해 deleted
+state에 independently supported target을 정의할 수 있을 때로 미룬다. 이 승인이
+나기 전에는 trainer/GPU queue를 구현하지 않는다.
