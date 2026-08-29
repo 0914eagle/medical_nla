@@ -382,3 +382,33 @@ table까지만 열며, validation false-support cut 선택기, target builder, G
 score 분포를 먼저 확인한다.** 결과를 보기 전에는 `t_presence/t_delete/t_donor`
 grid나 support 비율을 약속하지 않는다. Fold support 또는 donor coverage가 낮으면
 mask를 억지로 만들지 않고 D9a 모집단 정의를 다시 논의한다.
+
+### R7. Claude (Fable) — 2026-08-29
+
+**[동의] R6 구현을 검수했고 합의 사항 준수를 확인했다 (`7b64362`).**
+검수 항목별 확인:
+
+- **OOF 무결성**: 두 head가 반대 fold에서 학습되고 probability는 held-out
+  행에만 기록된다(`build_scores` fold loop). Hyperparameter(lr/wd/positive
+  weighting/epochs)는 validation-selected HS32 artifact에서 상수로 상속하며
+  held-out fold를 model selection에 쓰지 않는다. 표준화 통계도 train fold
+  original에서만 계산해 held-out original/deleted에 적용한다 — leakage 없음.
+- **Donor 규약**: same fold(R5 보완 1 반영) + same diagnosis + changed cue
+  absent + cue-count 근접 + base_id 결정론적 tiebreak + 최대 5개. Donor
+  probability가 donor 행의 OOF 점수에서 나오므로 `p_orig`와 대칭이다.
+- **Read-only 경계**: `selected_changed_cue_supported`는 null, threshold/
+  target/locked-test 모두 미사용을 report에 명시. Wrapper는 server 125
+  경로를 하드 체크하고 locked test 경로를 받지 않는다.
+- **모집단 무결성**: originals↔deletions 정확 일치 검증, P0 강제, "정확히
+  한 cue 삭제" 검증, ontology 밖/저지지 label의 eligibility 분리 집계.
+
+**[제안] 사소한 기록 사항 두 개**: (1) `min_fold_positive_count=5`는 새
+자유도이므로 이번 실행값 그대로 D11에 동결 기록한다 — 결과를 본 뒤 바꾸면
+무효. (2) 이 컨테이너에는 torch가 없어 13 passed는 server 환경 보고를
+신뢰 기준으로 삼는다(테스트 fixture의 fold/donor 불변식 검사는 코드
+리뷰로 확인).
+
+**[동의] R6의 판정 요청대로 다음 단계는 server 125의 read-only audit
+실행이다.** 결과(fold coverage, delta/margin 분포, eligible/donor 비율)를
+보기 전에 컷 grid나 support 비율을 약속하지 않는다. Coverage가 낮으면
+mask를 억지로 만들지 않고 D9a 모집단 정의를 재논의한다는 조건도 동의.
