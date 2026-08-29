@@ -112,12 +112,12 @@ DDXPlus probe에서 HS24가 가장 높았다는 이유만으로 HS32용 AV에 HS
 않는다. 그렇게 하면 정보량 차이와 decoder distribution shift가 섞인다. HS24 NLA를 주
 방법으로 쓰려면 layer-matched AV/AR를 새로 학습해야 한다.
 
-**주의 — Gate A는 아직 HS24에서만 통과됐다.** 아래 표의 probe 수치는 HS24이고 NLA
-입력은 HS32다. Probe 학습은 이미 `--layers 16 24 32`로 돌았으므로 HS32 수치는 probe
-artifact(`results.json`/`summary.md`)에 존재한다. Cue-level smoke 전에 HS32 수치를 이
-문서의 Gate A ceiling으로 옮겨 적는다. HS24 대비 크게 깎여 있으면 병목은 objective가
-아니라 layer이므로, layer-matched HS24 AV/AR 재학습을 escape hatch에서 primary 후보로
-승격한다.
+**Gate A의 HS32 ceiling — validation으로 종결됨.** Validation probe에서 finding은
+HS24 `.9607` = HS32 `.9607`로 layer 병목이 없고, value는 HS24 `.7700` → HS32
+`.6990`으로 ~7pp 낮은 ceiling을 갖는다. 따라서 finding 판독의 병목은 objective로
+확정되며, value 해석에는 HS32 ceiling `.6990`을 반영한다. **Locked test의 HS32
+수치를 layer 결정에 열지 않는다** — 결과를 본 뒤 layer를 고르면 test가 선택에
+오염된다. Locked test는 설정 동결 후 최종 평가에서만 쓴다.
 
 ## 현재까지 확인한 결과
 
@@ -132,6 +132,14 @@ artifact(`results.json`/`summary.md`)에 존재한다. Cue-level smoke 전에 HS
 
 따라서 NLA 실패를 `P0에 finding 정보가 전혀 없다`로 설명할 수 없다. 문제는 AV가 그
 정보를 자연어로 선택적으로 꺼내는 방법이다.
+
+**단, probe label은 `cue_evidence_ids` — 입력에 기록된 cue identity — 다.** 위
+수치는 "prompt에 있던 cue가 P0에서 분류 가능하다"까지를 증명하며, shuffled `.7938`이
+보여주듯 상당량은 질환 전형 조합으로도 맞는다. 모든 cue가 사례별로 activation에
+보존됐다는 뜻이 아니므로, cue는 gold target이 아니라 **candidate claim pool**로
+취급한다. 사례별 지지는 own-case gap과 deletion 후 probe score 감소가 담보하는
+부분집합에만 성립하고, 그 부분집합을 고르는 절차가 Phase 1의 support mask다
+(검토 문서 보완점 6).
 
 ### 2. Vanilla AV는 의료 판독기로 충분하지 않다
 
@@ -360,11 +368,19 @@ rank, GPU를 늘리면 더 강한 template memorization이 될 가능성이 높�
 3. Locked test는 설정 동결 후 한 번 평가
 4. NLA target은 probe로 확인된 정보 family만 primary claim으로 사용
 
-이 단계는 DDXPlus finding/value에 대해 HS24에서 완료됐다. HS32 수치를 probe
-artifact에서 옮겨 적어 Gate A ceiling으로 확정하는 것(Priority 1b)이 남아 있다.
+이 단계는 DDXPlus finding/value에 대해 완료됐다. HS32 validation ceiling은
+finding `.9607`(HS24와 동일), value `.6990`(HS24 대비 −.071)로 확정됐고, locked
+test는 layer 결정에 열지 않는다.
 
 ### Phase 1. DDXPlus changed-claim grounding pretraining
 
+0. **Cue support mask 선행 (학습 전, 순환 차단).** 기존 probe로 cue별
+   `p_original`/`p_deleted`/`delta`/same-diagnosis donor margin을 산출하고,
+   **out-of-fold**(`crc32(base_id) % 2`) score로 cue를 분류한다: original에서
+   검출 + deletion 후 감소 = positive, original에서도 미검출 = 제외, 삭제
+   불감 = 불확실(제외하되 negative 아님). Threshold는 validation에서 동결.
+   Ranking은 **supported cue에만** 건다 — 입력에 적힌 cue 전부를 positive로
+   학습하면 내부 판독기가 아니라 prompt finding 재구성기가 된다.
 1. Original/deletion/value-edit family의 CoT-P0/HS32 activation 사용
 2. 동일한 common natural-language claim schema 유지
 3. Sequence SFT 가중치는 낮추고 changed-claim ranking을 주 objective로 사용
@@ -375,7 +391,12 @@ artifact에서 옮겨 적어 Gate A ceiling으로 확정하는 것(Priority 1b)�
 
 승격 조건은 validation에서 다음을 모두 확인하는 것이다.
 
-- original-vs-deleted cue margin 증가 — **seed 3개 전부에서 부호 일치**
+- original-vs-deleted cue margin 증가 — **seed 3개 전부에서 부호 일치 +
+  cluster-bootstrap CI가 0을 배제 + 사전 동결 최소 효과 크기 δ_min = .05**
+  (근거: baseline seed 간 contrast 격차 +.0276은 0을 배제하지 못했고, 결함
+  있는 sequence CE도 seed 17에서 +.0713을 냈다 — 1a 감사)
+- 지표는 **전체 cue 분모와 supported cue 분모를 병기** — supported cue로
+  학습하고 supported cue로만 평가하면 기계적으로 오른다
 - deletion phantom 감소 또는 최소한 증가하지 않음
 - untouched finding retention 유지
 - same-diagnosis hard shuffle보다 matched activation 우세
@@ -488,13 +509,22 @@ Gate B를 통과하지 못한 모델은 Gate D text patching에 사용하지 않
 - parse 실패는 분모에서 제거하지 않음
 - test는 checkpoint와 threshold 선택에 사용하지 않음
 
-현재 counterfactual 결과는 point estimate이므로 다음 objective 전에 threshold `.3/.5/.7`
-sensitivity와 paired bootstrap을 CPU에서 추가한다. 이 분석은 새 모델 선택이 아니라 현재
-failure mode가 특정 lexical threshold에만 의존하는지 확인하는 용도다. 도구는
-`scripts/analyze_cf_readout_uncertainty.py` — base-case cluster bootstrap CI,
-method 간 paired delta, verbosity(claim 수·content token·unsupported-claim rate)
-병기를 한 번에 낸다. Seed 17/29 격차가 verbosity 열과 함께 움직이면 그 격차는
-grounding 차이가 아니라 말수 차이로 읽는다.
+Threshold `.3/.5/.7` sensitivity와 paired bootstrap은
+`scripts/analyze_cf_readout_uncertainty.py`로 **실행 완료됐다**
+(`$E5_ROOT/cf_uncertainty_audit_v1/`, 검토 문서 "1a 감사 결과" 참조). 요지:
+seed 17의 contrast `.2092`는 threshold 허상이 아니고 CI가 0을 배제하지만,
+CF 학습의 이득은 seed 17에서만 실재하며(+.0713 [.0230, .1218]) phantom을
+2배로 올렸고(+.2115), seed 29에서는 재현되지 않았다(−.0046). CF 학습은
+baseline에 없던 seed 분산을 만들었다 — 전체 sequence CE로는 부족하다는
+진단의 정량 확정이다.
+
+Support mask 관련 추가 규칙:
+
+- `p_original`/`delta`/donor margin의 컷은 validation에서 동결하고 이 절에
+  기록한다. Smoke 결과를 본 뒤 움직이면 무효다.
+- Mask는 out-of-fold probe score로만 만든다(`crc32(base_id) % 2`).
+- 모든 비교는 전체 cue 분모와 supported cue 분모를 병기하며, mask 정의는
+  비교되는 모든 method에 동일하게 적용한다.
 
 ## 하지 않을 것
 
@@ -511,19 +541,23 @@ grounding 차이가 아니라 말수 차이로 읽는다.
 
 | Priority | 작업 | GPU | 판단 결과 |
 |---:|---|---:|---|
-| 1a | 현재 CF 결과 paired bootstrap/threshold sensitivity/verbosity (`analyze_cf_readout_uncertainty.py`) | 없음 | failure mode 확정, seed 격차의 verbosity 기여 분리 |
-| 1b | 기존 probe artifact에서 **HS32** finding/value 수치를 Gate A ceiling으로 확정 | 없음 (results.json 읽기) | objective 병목 vs layer 병목 판정 |
-| 1c | Probe-guided structured reader baseline 구현 | 경량 | Gate B 지표의 upper bar 수치화 |
-| 2 | Cue-level deletion/value 2x2 objective 20-step smoke, **seed 3개** | 4 x 4090 병렬 | margin 부호 일치 + hit 유지 + phantom 비증가 |
-| 3 | 통과 arm의 full DDXPlus train run, **seed 3개** | 4 x 4090 | DDX validation gate |
-| 4 | DDX replay를 유지한 DiReCT adaptation | 4 x 4090 | 두 데이터셋 동시 유지 |
-| 5 | AR-scored candidate generation + offline preference | GPU 다수 | reconstruction 추가 가치 |
-| 6 | Locked test 및 MCR OOD | 동결 checkpoint | 논문 결과 확정 |
+| ~~1a~~ | ~~CF paired bootstrap/threshold sensitivity/verbosity~~ | 완료 | threshold 허상 아님; CF 이득은 seed 17만 실재 + phantom 2배; CF 학습이 seed 분산 증폭 |
+| ~~1b~~ | ~~HS32 Gate A ceiling~~ | 완료 (validation) | finding .9607 = HS24 (layer 병목 없음), value .6990 (−.071). Locked test는 열지 않음 |
+| 2a | Cue별 `p_original`/`p_deleted`/`delta`/donor margin 산출 | 경량 (probe·activation 재사용) | activation-supported cue 비율 — mask 크기 자체가 결과 |
+| 2b | Cross-fitted support mask 생성 + threshold validation 동결 | 없음 | 순환 없는 positive target 집합 |
+| 2c | Probe-guided structured reader baseline 구현 | 경량 | Gate B 지표의 upper bar 수치화 |
+| 3 | **Supported cue만** cue-level 2x2 ranking 20-step smoke, **seed 3개** | 4 x 4090 병렬 | 부호 일치 + CI 0 배제 + δ_min .05 + hit 유지 + phantom 비증가 (이중 분모) |
+| 4 | 통과 arm의 full DDXPlus train run, **seed 3개** | 4 x 4090 | DDX validation gate |
+| 5 | Deletion 시 진단 logprob/answer 변화 — input-retained vs decision-relevant 분리 | 경량 | error anatomy 입력 |
+| 6 | DDX replay를 유지한 DiReCT adaptation | 4 x 4090 | 두 데이터셋 동시 유지 |
+| 7 | AR-scored candidate generation + offline preference | GPU 다수 | reconstruction 추가 가치 |
+| 8 | Locked test 및 MCR OOD | 동결 checkpoint | 논문 결과 확정 |
 
-1a/1b가 끝나기 전에 2를 시작하지 않는다 — smoke가 실패했을 때 objective 탓인지
-layer 탓인지 분리할 수 없기 때문이다. Cue-level smoke가 실패하면 바로 RL로 넘어가지
-않는다. Probe-guided structured reader와 set-decoder baseline을 먼저 구현해
-generative AV 구조 자체가 병목인지 확인한다. 상세 검토와 GRPO 전환 조건은
+2a/2b가 끝나기 전에 3을 시작하지 않는다 — mask 없이 전체 cue에 ranking을 걸면
+prompt finding 재구성기를 학습하게 되기 때문이다. Cue-level smoke가 실패하면 바로
+RL로 넘어가지 않는다. Probe-guided structured reader와 set-decoder baseline을 먼저
+구현해 generative AV 구조 자체가 병목인지 확인한다. 상세 검토, 1a 감사 결과, GRPO
+전환 조건은
 [`medical_nla_tuning_strategy_review_2026-08-29.md`](medical_nla_tuning_strategy_review_2026-08-29.md)를
 따른다.
 
@@ -535,7 +569,10 @@ Medical-NLA 성공은 다음 세 문장을 모두 지지할 때만 선언한다.
 2. **Grounding:** 자연어 claim이 matched activation과 controlled intervention을 따라간다.
 3. **Clinical utility:** 그 claim이 physician reference와 정렬되고, 검증된 개입에 유용하다.
 
-현재는 1번을 HS24에서 통과했고(HS32 ceiling 확정은 Priority 1b), 2번에서 부분 신호를
-얻었지만 통과하지 못했으며, 3번의 SFT baseline은 실패했다. 따라서 연구 방향은 findings를 무작정 빼는 것이 아니라, **변경된 임상 claim에
-직접 loss를 걸어 하나의 자연어 판독기가 activation 차이를 선택적으로 표현하도록 만드는
-것**이다.
+현재 1번(availability)은 "입력 cue identity의 부분적·사례 특이적 decode 가능성"
+수준에서 확인됐고(finding은 HS32에서도 ceiling 유지), 2번은 부분 신호에 그쳤으며
+(1a 감사: CF 이득은 seed 17만 실재, phantom 2배), 3번의 SFT baseline은 실패했다.
+따라서 연구 방향은 findings를 무작정 빼는 것도, 입력에 적힌 finding 전부를 정답으로
+놓는 것도 아니다. **Deletion 실험으로 activation-supported claim을 먼저 선별하고,
+그 supported claim에 직접 loss를 걸어 하나의 자연어 판독기가 activation 차이를
+선택적으로 표현하도록 만드는 것**이다.
