@@ -139,6 +139,7 @@ def build_split(
             {
                 "id": f"{identifier}__direct_e3_p0",
                 "base_id": identifier,
+                "source_dataset": "direct",
                 "split": split,
                 "activation_path": str(activation_path),
                 "position_family": "P0",

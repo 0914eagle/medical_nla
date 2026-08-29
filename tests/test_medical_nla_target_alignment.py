@@ -1,6 +1,7 @@
 from scripts.audit_medical_nla_target_alignment import (
     condition_rows,
     same_category_pairs,
+    source_dataset,
     summarize,
 )
 
@@ -72,3 +73,9 @@ def test_summary_uses_positive_control_minus_matched_gap() -> None:
     assert result["symmetric_cross"]["cross_minus_matched"] == 1.5
     assert result["symmetric_cross"]["clusters"] == 1
     assert result["symmetric_cross"]["cluster_bootstrap_95_ci"] == [1.5, 1.5]
+
+
+def test_source_dataset_recognizes_legacy_direct_e3_rows() -> None:
+    assert source_dataset({"source_dataset": "ddxplus"}) == "ddxplus"
+    assert source_dataset({"target_style": "direct_p0_grounded_observations_v1"}) == "direct"
+    assert source_dataset({"target_style": "something_else"}) == ""

@@ -274,6 +274,18 @@ def summarize(
     return result
 
 
+def source_dataset(row: dict[str, Any]) -> str:
+    """Read the explicit source or recognize legacy Direct E3 rows."""
+
+    explicit = str(row.get("source_dataset") or "").strip()
+    if explicit:
+        return explicit
+    target_style = str(row.get("target_style") or "")
+    if target_style.startswith("direct_p0_"):
+        return "direct"
+    return ""
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="configs/default.yaml")
@@ -296,7 +308,7 @@ def main() -> None:
     rows = [
         row
         for row in read_jsonl(args.manifest)
-        if str(row.get("source_dataset")) == args.source_dataset
+        if source_dataset(row) == args.source_dataset
     ]
     if not rows:
         raise ValueError(f"No {args.source_dataset} rows in {args.manifest}")
