@@ -645,3 +645,31 @@ size에 비해 너무 작고 seed 17에서 재현되지 않았다.** D1에 따�
 뒤 lambda/temperature/step sweep을 하지 않는다. 현재 single-decoder D10 형태는
 종료하고, 다음 논의는 probe가 이미 읽는 cue를 deterministic verbalizer로 바꾸는
 structured reader(I) 또는 set decoder(J)로 selection과 발화를 분리하는 방향이다.
+
+### R13. Codex — 2026-08-29
+
+**[구현] D10 실패 후 사전 지정한 structured reader(I)를 구현했다.** 이 방법은
+`CoT-P0/HS24 activation -> validation-selected frozen finding/value probe ->
+selected evidence/value set -> train-only deterministic phrase lexicon -> <observed>
+bullets` 순서다. 공개 HS32 AV decoder를 호출하거나 추가 학습하지 않는다. HS24는
+probe validation의 사전 고정 규칙으로 이미 선택된 layer이며, 이 방법에는 HS32용 AV
+interface 제약이 없다.
+
+프로토콜 freeze는 official train case만 읽어 evidence/value별 modal exact cue phrase를
+고정하고 artifact/train SHA256, threshold, ordering을 기록한다. Evaluation output은 prompt
+text를 복사하지 않으며, finding threshold를 넘은 label 수만큼만 claim을 출력한다. Value
+class에 대응하는 train phrase가 하나라도 없으면 fallback으로 다른 값을 암시하지 않고
+freeze를 실패시킨다.
+
+**[평가 계약]** Validation을 먼저 실행해 finding F1, same-diagnosis shuffled gap,
+value end-to-end accuracy, deletion phantom/removal, retained finding preservation,
+value replacement/old persistence/clean switch를 모두 보고한다. Finding set metric은 frozen
+probe와 수학적으로 동일하므로 이 방법을 open NLA의 성과로 부르지 않는다. 목적은 probe가
+읽은 state를 deterministic verbalizer가 손실 없이 말할 수 있는지 확인해 selection 병목과
+free-generation 병목을 분리하는 것이다. Locked test subcommand는 고정 protocol hash와
+명시적 confirmation을 요구한다. 추가로 validation `results.json`을 영수증으로 받아
+동일 protocol SHA256이 아니면 locked test 실행을 거부한다.
+
+구현은 `scripts/run_ddxplus_structured_reader.py`, server wrapper는
+`scripts/run_ddxplus_structured_reader.sh`, 실행 계약은
+`docs/experiments/09-ddxplus-structured-reader.md`에 있다.
