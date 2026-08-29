@@ -289,3 +289,60 @@ finding label을 한 번에 score할 수 있지만, deletion delta
 D9b의 약 21,331개 per-cue extraction은 smoke 통과 후 별도 승인하는 것으로 원장을
 수정해야 한다.** 이 구분 없이 `supported cues`라고 쓰면 현재 한 cue만 검사하고도
 전체 cue를 선별한 것처럼 보이게 된다.
+
+### R5. Claude (Fable) — 2026-08-29
+
+**[동의] D9a/D9b 분리를 채택한다 — 사실 전제를 코드로 검증했다.**
+`prepare_ddxplus_counterfactual_train.py`는 base case당 deletion arm을
+정확히 1개로 강제한다(4행 docstring, 40행 `variants["cue_deleted"] != 1`
+검사, 49-50행 "exactly one cue" 검증). 따라서 deletion delta가 정의되는
+cue는 사례당 seed 17로 선택된 changed cue 하나뿐이고, 현재 tensor로 AND
+rule 전체를 적용할 수 있는 범위는 D9a가 맞다. "supported cues"라는 표기가
+한 cue 검사를 전체 선별처럼 보이게 한다는 지적도 받아들여, D9a 산출물의
+필드명은 `selected_changed_cue_supported`로 쓰고 `supported_cues`는 D9b
+이후에만 쓴다.
+
+**[반론] D9a에서 support 탈락 사례를 abstention target으로 쓰는 것은
+반대한다.** Abstention이 정답인 조건은 "어떤 claim도 지지되지 않음"인데,
+D9a에서 검사한 것은 사례당 한 cue뿐이다. 나머지 cue는 미지지가 아니라
+**미검사**다. 탈락 사례에 abstention을 가르치면, 지지됐을 수도 있는
+finding이 존재하는 activation에서 "말하지 않기"를 학습시킨다 — 이는 R2가
+Q2에서 지적한 leakage의 대칭 오류다(존재하지 않아야 할 supervision 대신,
+정당화되지 않는 supervision). **D9a에서는 탈락 사례를 SFT/ranking 모두에서
+제외하고 비율만 보고한다.** Abstention supervision은 모든 cue가 검사되는
+D9b부터 넣는다.
+
+**[제안] D9a의 판정 지표를 재정의해야 한다 — 단일 claim target의 기계적
+귀결 때문이다.** D9a 학습 target은 사례당 최대 1 claim이므로, 모델은 다른
+input cue를 말하지 않도록 학습된다. 따라서:
+
+- **all-input recall과 untouched retention은 D9a에서 기계적으로 낮아진다.**
+  이 둘은 판정 조건에서 빼고 report-only(예상 방향: 하락)로 둔다. 여기서의
+  하락은 실패 신호가 아니다.
+- D5 gate는 다음에 적용한다: **changed-cue ranking margin**(seed 3개 부호
+  일치 + CI 0 배제 + δ_min .05), **original-arm changed-cue hit 유지**,
+  **deleted-arm phantom 비증가**. 전부 selected changed cue 분모다.
+- D9a 통과 checkpoint는 mechanism 증거이지 Phase 1 산출물이 아니다.
+  Phase 1 완료 주장은 D9b 이후에만 가능하다.
+
+**[동의] D10은 수정 없이 승인 가능. 비용 분석도 동의** — 채점은 vectorized
+2-fold linear head라 저비용이고, 비싼 것은 D9b의 cue별 modified prompt
+P0 재추출(최대 21,331 forward pass, 생성 없음, 카드 0/1로 수 시간 규모)이다.
+
+**결정 원장 반영 제안 v2 (사람 승인 대기, R3 제안을 대체)**:
+
+- D9a: 기존 4,655 pair의 selected changed cue만 cross-fit support 판정.
+  통과 cue 1개 = claim target, 탈락 사례는 **제외**(abstention 아님).
+  판정 지표는 changed-cue 분모로 한정, all-input recall은 report-only.
+- D9b: D9a가 D5 gate 통과 후, 전체 cue occurrence별 deletion 추출(최대
+  21,331개)을 별도 승인으로 진행. Multi-claim supported target과
+  abstention supervision은 여기서부터.
+- D10: 첫 smoke는 deletion-only. value는 통과 checkpoint에 동일 seed·step
+  budget factorial arm, 비악화 시에만 full run 편입. (변경 없음)
+- D11: AND rule + cue-absent same-fold donor(최대 5개 평균) + 세 분모 +
+  fold coverage 감사 + 컷 선택 기준(false-support ≤ 5%, coverage 최대).
+  단 D9a 동안 "supported" 표기는 selected changed cue에 한정.
+
+**다음 실행**: 위 승인이 나면 (1) 2-fold probe 재학습 러너, (2) selected
+changed cue의 `p_orig`/`p_deleted`/`p_donor` score table 산출기, (3) fold
+coverage + 탈락 비율 감사까지가 read-only 1차 구현 범위다.
