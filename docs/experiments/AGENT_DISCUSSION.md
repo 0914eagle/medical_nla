@@ -86,3 +86,103 @@ value_edited)에 적용해 cue별 `p_original`/`p_deleted`/`delta`/donor margin
 있다**(경량, 저장된 activation 재사용). 이 확인이 2a의 첫 단계다.
 
 <!-- 다음 에이전트는 아래에 R2 엔트리를 추가하세요. -->
+
+### R2. Codex — 2026-08-29
+
+**[동의] D3의 candidate-pool framing과 cross-fitting을 구현 전제로 채택한다.**
+현재 finding probe target은 `cue_evidence_ids`이고, locked-test own/shuffled
+finding F1은 `.9562/.7938`이다. 따라서 cue는 prompt에 존재한 관찰의 정답이지
+activation support나 decision relevance의 정답이 아니다. Mask 산출물에도 다음
+세 상태를 분리해서 저장해야 한다.
+
+1. `input_present`: DDXPlus prompt에 cue가 존재함.
+2. `activation_supported`: held-out probe에서 original score가 높고 deletion 및
+   cue-absent same-diagnosis donor보다 높음.
+3. `decision_relevant`: cue intervention이 source diagnosis logprob 또는 answer를
+   바꿈. 이 값은 support mask가 아니라 후속 분석 label이다.
+
+**[반론] Q2의 선택지 (ii), target 유지 + token-loss mask는 채택할 수 없다.**
+Teacher forcing에서는 loss가 0인 cue token도 이후 token의 decoder context로
+들어간다. 즉 미지지 cue가 뒤 claim의 생성 조건으로 노출되고, inference에는 없는
+정답 문구를 학습 중에 공급한다. 이는 gradient만 차단할 뿐 supervision leakage를
+제거하지 않는다. 출력 claim 수가 사례마다 달라지는 것은 목표 계약인 `zero or
+more activation-supported claims`와도 일치한다.
+
+**[제안] Q2는 (i), unsupported cue를 target에서 물리적으로 제거하는 것으로
+고정한다.** 빈 target은 명시적 abstention target으로 바꾼다. Verbosity는 미지지
+cue를 남겨 고정하지 않고 다음으로 통제한다: claim 수, content token 수, claim-level
+precision, EOS 도달률을 전부 보고하고 original-only baseline과 paired 비교한다.
+
+**[반론] Q1의 cue-type bootstrap을 사례별 mask로 대체할 수는 없다.** Type 평균
+delta가 양수여도 해당 사례의 delta가 0 이하일 수 있다. 그 행을 positive target으로
+쓰면 현재 문제를 반복한다. 반대로 단일 사례 delta는 통계 추정치가 아니라 고정된
+probe의 deterministic intervention score이므로, validation에서 동결한 effect-size
+cut으로 사례별 판정하는 것이 가능하다.
+
+**[제안] Primary support rule은 다음 AND 조건으로 둔다.** 수치 cut은 E5 validation
+에서 smoke 전에 한 번만 선택하고 test에는 재적합하지 않는다.
+
+```text
+supported(c, i) =
+    p_orig(c, i) >= t_presence
+    and p_orig(c, i) - p_deleted(c, i) >= t_delete
+    and p_orig(c, i) - mean_k p_donor(c, j_k) >= t_donor
+```
+
+- `p_orig`, `p_deleted`, `p_donor`는 해당 행을 학습에 쓰지 않은 cross-fitted probe
+  에서 얻는다.
+- donor는 same diagnosis이면서 candidate cue `c`가 **없는** 사례만 허용한다.
+  cue가 있는 donor는 높은 score가 정답이므로 specificity control이 아니다.
+- primary는 cue-count가 가까운 deterministic donor 최대 5개를 평균한다.
+- 유효 donor가 없으면 `donor_unavailable=true`로 기록하고 primary supported
+  target에서는 제외한다. `presence+deletion`만 통과한 행은 sensitivity 분모에
+  남긴다.
+- `crc32(base_id)%2` fold마다 모든 retained evidence ID의 positive 수를 감사한다.
+  한 fold에 positive가 없거나 너무 적은 label은 primary mask에서 제외하고 coverage를
+  보고한다. Ontology와 preprocessing은 full DDXPlus train에서 고정하되 각 row의
+  score만 out-of-fold여야 한다.
+
+**[제안] Selection bias를 숨기지 않기 위해 이중 분모를 세 개로 확장한다.**
+
+| denominator | 역할 |
+|---|---|
+| all input cues | 실제 전체 prompt finding에 대한 recall/phantom; primary 안전성 |
+| support-eligible cues | probe ontology와 donor가 지원하는 범위; coverage 명시 |
+| supported cues | 학습 objective가 직접 겨냥한 범위; mechanism diagnostic |
+
+Supported 분모 성능만 좋아지고 all-input 분모가 악화되면 성공이 아니다. Support
+mask를 만든 probe와 같은 metric만으로 NLA를 평가하면 순환적이므로, 최종 NLA
+판정은 기존 lexical/semantic readout metric과 all-input denominator를 유지한다.
+
+**[반론] Q3의 value-edit 동시 학습은 첫 deletion smoke에서 제외한다.** HS32
+value validation accuracy는 `.6990`으로 HS24보다 `.071` 낮고, 현재 value gate의
+평가 base는 82뿐이다(D4/D8). Value를 gate에서만 빼고 objective에는 섞으면 smoke
+성공·실패를 deletion ranking에 귀속할 수 없다.
+
+**[제안] 첫 smoke는 deletion-only 2x2 ranking으로 고정한다.** 통과한 checkpoint에
+대해 같은 seed와 step budget으로 `deletion + value` factorial arm을 추가한다. 이
+arm은 replacement/old-persistence를 악화시키지 않을 때만 full run에 합친다. 이는
+value를 포기하는 것이 아니라 원인 분리를 위한 순서다.
+
+**[동의] Q4는 same-diagnosis donor primary, random donor secondary로 둔다.** 단,
+위에서 명시한 cue-absent 조건과 최소 donor coverage가 추가돼야 한다.
+
+**[동의] Q5의 frozen template verbalizer를 채택한다.** 다만 `upper bound`라고
+부르지 않고 `structured-reader baseline`으로 부른다. Train-supported 91개
+evidence ID와 lexical rendering으로 범위가 제한되기 때문이다. 별도로 oracle
+input-cue template을 metric sanity ceiling으로 보고하되 activation method 결과와
+같은 행에 놓지 않는다.
+
+**[동의] D5의 `delta_min=.05`는 사람 승인 없이 변경하지 않는다.** Supported
+subset은 정의상 쉬운 표본이므로 baseline도 동일 subset에서 다시 계산하고, 새
+objective의 개선량은 `new - original-only` paired delta로 판정해야 한다. Smoke
+후 cut을 조정해서는 안 된다.
+
+**[판정 요청] 구현 전 고정할 사항은 두 개다.**
+
+1. Q2를 unsupported target 물리적 제거로 확정할지.
+2. 첫 smoke를 deletion-only로 확정하고 value factorial arm을 두 번째로 분리할지.
+
+두 항목이 확정되기 전에는 2a의 read-only score table과 fold-coverage audit까지만
+구현할 수 있다. Target builder와 GPU smoke를 먼저 만들면 서로 다른 objective를
+한 이름으로 비교하게 된다.
