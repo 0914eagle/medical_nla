@@ -8,9 +8,16 @@ from scripts.evaluate_ddxplus_d10_specificity import summarize
 from scripts.make_ddxplus_d10_validation_pairs import build_validation_pairs
 from scripts.make_ddxplus_d9a_supported_pairs import sha256_file
 from scripts.train_ddxplus_d10_1x2 import (
+    advance_cursor,
     epoch_rows,
+    normalize_checkpoint_steps,
     one_by_two_objective,
     paired_variants,
+    prepare_metrics_for_resume,
+)
+from scripts.summarize_ddxplus_d10_budget_trajectory import (
+    FROZEN_STEPS,
+    build_report,
 )
 from src.jsonl import write_jsonl
 
@@ -52,6 +59,51 @@ def test_pair_order_is_deterministic_per_seed_and_epoch() -> None:
     other = [row["base_id"] for row in epoch_rows(rows, seed=29, epoch=1)]
     assert first == repeated
     assert first != other
+
+
+def test_frozen_checkpoints_require_final_step() -> None:
+    assert normalize_checkpoint_steps(
+        [1552, 20, 776, 20], max_steps=1552
+    ) == [20, 776, 1552]
+    with pytest.raises(ValueError, match="final optimizer step"):
+        normalize_checkpoint_steps([20, 776], max_steps=1552)
+
+
+def test_training_cursor_advances_across_epoch_boundary() -> None:
+    assert advance_cursor(epoch=1, row_index=1, n_rows=3) == (1, 2)
+    assert advance_cursor(epoch=1, row_index=2, n_rows=3) == (2, 0)
+
+
+def test_resume_metrics_drop_uncheckpointed_tail(tmp_path: Path) -> None:
+    path = tmp_path / "metrics.jsonl"
+    write_jsonl(path, [{"step": step} for step in range(1, 6)])
+    prepare_metrics_for_resume(path, optimizer_step=3)
+    assert [json.loads(line)["step"] for line in path.read_text().splitlines()] == [
+        1,
+        2,
+        3,
+    ]
+
+
+def test_budget_trajectory_requires_all_frozen_steps() -> None:
+    comparison = {
+        "results": {
+            str(seed): {
+                "deltas": {
+                    metric: {
+                        "ranking_minus_control": 0.01,
+                        "diagnosis_cluster_bootstrap_95_ci": [0.001, 0.02],
+                    }
+                    for metric in ("changed_gap", "retained_gap", "specificity")
+                }
+            }
+            for seed in (17, 29, 43)
+        },
+        "gate": {"teacher_forced_gate_passed": False},
+    }
+    report = build_report({step: comparison for step in FROZEN_STEPS})
+    assert len(report["trajectory"]) == len(FROZEN_STEPS) * 3
+    assert report["trajectory"][-1]["step"] == 1552
 
 
 def test_specificity_summary_subtracts_retained_gap() -> None:
