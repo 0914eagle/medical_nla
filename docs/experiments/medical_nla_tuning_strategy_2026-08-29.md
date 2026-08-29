@@ -112,6 +112,13 @@ DDXPlus probe에서 HS24가 가장 높았다는 이유만으로 HS32용 AV에 HS
 않는다. 그렇게 하면 정보량 차이와 decoder distribution shift가 섞인다. HS24 NLA를 주
 방법으로 쓰려면 layer-matched AV/AR를 새로 학습해야 한다.
 
+**주의 — Gate A는 아직 HS24에서만 통과됐다.** 아래 표의 probe 수치는 HS24이고 NLA
+입력은 HS32다. Probe 학습은 이미 `--layers 16 24 32`로 돌았으므로 HS32 수치는 probe
+artifact(`results.json`/`summary.md`)에 존재한다. Cue-level smoke 전에 HS32 수치를 이
+문서의 Gate A ceiling으로 옮겨 적는다. HS24 대비 크게 깎여 있으면 병목은 objective가
+아니라 layer이므로, layer-matched HS24 AV/AR 재학습을 escape hatch에서 primary 후보로
+승격한다.
+
 ## 현재까지 확인한 결과
 
 ### 1. 정보는 activation에 존재한다
@@ -255,6 +262,13 @@ L = lambda_language * L_sequence_SFT
 단어 하나의 unlikelihood만 적용하면 `pain`, `present` 같은 공통 token까지 억제할 수 있다.
 따라서 전체 cue phrase NLL 또는 old/new를 구분하는 discriminative token span을 사용한다.
 
+**구현 제약 — paired margin 필수.** `L_deleted_claim_ranking`을 deleted activation에서
+old cue NLL을 독립적으로 올리는 unlikelihood로 구현하면, 모델은 old cue의 likelihood를
+original arm에서까지 전역으로 낮춰 loss를 만족시킬 수 있다. 그러면 deletion contrast는
+오르는데 original target hit이 무너진다. 같은 batch에 (original, deleted) activation
+쌍을 넣고 margin loss로 묶으며, smoke 판정은 margin 단독이 아니라 **margin 부호 +
+original hit 유지 + phantom 비증가**를 함께 본다.
+
 장점은 현재 반사실 데이터와 activation을 그대로 재사용하며 20-step smoke로 방향을 빠르게
 확인할 수 있다는 점이다. 첫 목표는 fluent generation이 아니라 paired validation에서
 changed-claim margin이 실제로 커지는지 확인하는 것이다.
@@ -346,7 +360,8 @@ rank, GPU를 늘리면 더 강한 template memorization이 될 가능성이 높�
 3. Locked test는 설정 동결 후 한 번 평가
 4. NLA target은 probe로 확인된 정보 family만 primary claim으로 사용
 
-이 단계는 이미 DDXPlus finding/value에 대해 완료됐다.
+이 단계는 DDXPlus finding/value에 대해 HS24에서 완료됐다. HS32 수치를 probe
+artifact에서 옮겨 적어 Gate A ceiling으로 확정하는 것(Priority 1b)이 남아 있다.
 
 ### Phase 1. DDXPlus changed-claim grounding pretraining
 
@@ -354,15 +369,27 @@ rank, GPU를 늘리면 더 강한 template memorization이 될 가능성이 높�
 2. 동일한 common natural-language claim schema 유지
 3. Sequence SFT 가중치는 낮추고 changed-claim ranking을 주 objective로 사용
 4. Unchanged finding retention을 함께 최적화
-5. Seed 17/29, 20 optimizer-step smoke부터 실행
+5. **Seed 3개**(17/29/43), 20 optimizer-step smoke부터 실행. CF sequence SFT의
+   seed 17/29 격차(recall .5632 vs .3475)는 off-objective 지표를 seed 복권이
+   채운 결과이며, 이 분산 수준에서 seed 2개는 판정력이 없다.
 
 승격 조건은 validation에서 다음을 모두 확인하는 것이다.
 
-- original-vs-deleted cue margin 증가
+- original-vs-deleted cue margin 증가 — **seed 3개 전부에서 부호 일치**
 - deletion phantom 감소 또는 최소한 증가하지 않음
 - untouched finding retention 유지
-- value replacement hit 증가와 old-value persistence 감소
 - same-diagnosis hard shuffle보다 matched activation 우세
+- value 지표(replacement hit, old-value persistence)는 **악화되지 않음**만 요구
+  — 평가 가능 base 82개에서는 CI가 겹쳐 증가/감소를 판정할 수 없으므로 Phase 1
+  승격의 primary는 deletion 지표다. Full run 단계에서 케이스당 value-edit
+  family를 확대해 base를 키운 뒤 다시 primary로 올린다.
+
+추가로, changed-claim objective가 실제로 작동하면 해당 지표가 on-objective가
+되므로 **seed 간 spread 자체가 줄어야 한다**. Spread 축소를 성공 증거로 기록하고,
+새 objective에서도 분산이 그대로면 loss가 여전히 그 행동을 잡지 못한다는 신호로
+읽는다. 지표는 verbosity와 함께 본다: readout당 claim 수와 unsupported-claim
+rate를 병기하지 않은 recall/phantom 비교는 무효다
+(`scripts/analyze_cf_readout_uncertainty.py`).
 
 ### Phase 2. DiReCT clinical-language adaptation with replay
 
@@ -405,7 +432,8 @@ Phase 2가 clinical alignment와 grounding을 모두 부분적으로 통과하�
 
 ### Gate A. Information availability
 
-- Probe own-case 성능
+- Probe own-case 성능 — **NLA가 실제로 읽는 layer(HS32)의 수치가 공식 ceiling**.
+  HS24 수치로 HS32 판독의 availability를 대신 선언하지 않는다.
 - same-diagnosis shuffled control
 - label/value coverage
 - layer sensitivity
@@ -434,6 +462,11 @@ Phase 2가 clinical alignment와 grounding을 모두 부분적으로 통과하�
 - source-correct/source-wrong stratification
 - seen/PDD-heldout 분리
 
+**합격선**: NLA 판독이 같은 케이스의 **source CoT 자기설명을 넘는다**
+(현재 기준 Obscomp `.2130`, Expcom `.0650`). 이 bar는 논문 대전제 — 내부 판독이
+output 자기설명보다 낫다 — 의 최소 조건이며, 넘지 못하면 clinical alignment를
+통과로 선언하지 않는다.
+
 ### Gate D. Reconstruction and intervention
 
 - matched AR FVE vs shuffled FVE
@@ -457,7 +490,11 @@ Gate B를 통과하지 못한 모델은 Gate D text patching에 사용하지 않
 
 현재 counterfactual 결과는 point estimate이므로 다음 objective 전에 threshold `.3/.5/.7`
 sensitivity와 paired bootstrap을 CPU에서 추가한다. 이 분석은 새 모델 선택이 아니라 현재
-failure mode가 특정 lexical threshold에만 의존하는지 확인하는 용도다.
+failure mode가 특정 lexical threshold에만 의존하는지 확인하는 용도다. 도구는
+`scripts/analyze_cf_readout_uncertainty.py` — base-case cluster bootstrap CI,
+method 간 paired delta, verbosity(claim 수·content token·unsupported-claim rate)
+병기를 한 번에 낸다. Seed 17/29 격차가 verbosity 열과 함께 움직이면 그 격차는
+grounding 차이가 아니라 말수 차이로 읽는다.
 
 ## 하지 않을 것
 
@@ -474,15 +511,21 @@ failure mode가 특정 lexical threshold에만 의존하는지 확인하는 용�
 
 | Priority | 작업 | GPU | 판단 결과 |
 |---:|---|---:|---|
-| 1 | 현재 CF 결과 paired bootstrap/threshold sensitivity | 없음 | failure mode 확정 |
-| 2 | Cue-level deletion/value 2x2 objective 20-step smoke | 4 x 4090 병렬 | margin 방향 확인 |
-| 3 | 통과 arm의 full DDXPlus train run, 2 seeds | 4 x 4090 | DDX validation gate |
+| 1a | 현재 CF 결과 paired bootstrap/threshold sensitivity/verbosity (`analyze_cf_readout_uncertainty.py`) | 없음 | failure mode 확정, seed 격차의 verbosity 기여 분리 |
+| 1b | 기존 probe artifact에서 **HS32** finding/value 수치를 Gate A ceiling으로 확정 | 없음 (results.json 읽기) | objective 병목 vs layer 병목 판정 |
+| 1c | Probe-guided structured reader baseline 구현 | 경량 | Gate B 지표의 upper bar 수치화 |
+| 2 | Cue-level deletion/value 2x2 objective 20-step smoke, **seed 3개** | 4 x 4090 병렬 | margin 부호 일치 + hit 유지 + phantom 비증가 |
+| 3 | 통과 arm의 full DDXPlus train run, **seed 3개** | 4 x 4090 | DDX validation gate |
 | 4 | DDX replay를 유지한 DiReCT adaptation | 4 x 4090 | 두 데이터셋 동시 유지 |
 | 5 | AR-scored candidate generation + offline preference | GPU 다수 | reconstruction 추가 가치 |
 | 6 | Locked test 및 MCR OOD | 동결 checkpoint | 논문 결과 확정 |
 
-Cue-level smoke가 실패하면 바로 RL로 넘어가지 않는다. Probe-guided structured reader와
-set-decoder baseline을 먼저 구현해 generative AV 구조 자체가 병목인지 확인한다.
+1a/1b가 끝나기 전에 2를 시작하지 않는다 — smoke가 실패했을 때 objective 탓인지
+layer 탓인지 분리할 수 없기 때문이다. Cue-level smoke가 실패하면 바로 RL로 넘어가지
+않는다. Probe-guided structured reader와 set-decoder baseline을 먼저 구현해
+generative AV 구조 자체가 병목인지 확인한다. 상세 검토와 GRPO 전환 조건은
+[`medical_nla_tuning_strategy_review_2026-08-29.md`](medical_nla_tuning_strategy_review_2026-08-29.md)를
+따른다.
 
 ## 최종 성공 정의
 
@@ -492,7 +535,7 @@ Medical-NLA 성공은 다음 세 문장을 모두 지지할 때만 선언한다.
 2. **Grounding:** 자연어 claim이 matched activation과 controlled intervention을 따라간다.
 3. **Clinical utility:** 그 claim이 physician reference와 정렬되고, 검증된 개입에 유용하다.
 
-현재는 1번을 통과했고 2번에서 부분 신호를 얻었지만 통과하지 못했으며, 3번의 SFT baseline은
-실패했다. 따라서 연구 방향은 findings를 무작정 빼는 것이 아니라, **변경된 임상 claim에
+현재는 1번을 HS24에서 통과했고(HS32 ceiling 확정은 Priority 1b), 2번에서 부분 신호를
+얻었지만 통과하지 못했으며, 3번의 SFT baseline은 실패했다. 따라서 연구 방향은 findings를 무작정 빼는 것이 아니라, **변경된 임상 claim에
 직접 loss를 걸어 하나의 자연어 판독기가 activation 차이를 선택적으로 표현하도록 만드는
 것**이다.
