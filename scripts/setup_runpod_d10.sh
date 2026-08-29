@@ -16,7 +16,6 @@ REPO_DIR="${REPO_DIR:-/home/eagle0914/medical_nla}"
 REPO_URL="${REPO_URL:-https://github.com/0914eagle/medical_nla.git}"
 
 test -s "${BUNDLE}" || { echo "[error] bundle not found: ${BUNDLE}" >&2; exit 2; }
-test -n "${HF_TOKEN:-}" || { echo "[error] export HF_TOKEN first (Gemma license accepted)" >&2; exit 2; }
 
 echo "[1/6] repo"
 if [[ ! -d "${REPO_DIR}/.git" ]]; then
@@ -30,12 +29,22 @@ echo "[2/6] python deps (keeps the image torch)"
 python -c 'import torch; assert tuple(map(int, torch.__version__.split("+")[0].split(".")[:2])) >= (2, 3), torch.__version__; print("torch", torch.__version__, "cuda", torch.cuda.is_available())'
 pip install -e . 2>&1 | tail -2
 
-echo "[3/6] hf login"
+echo "[3/6] hf auth"
 python - <<'EOF'
 import os
-from huggingface_hub import login
-login(token=os.environ["HF_TOKEN"], add_to_git_credential=False)
-print("[hf] login ok")
+from huggingface_hub import login, whoami
+
+try:
+    user = whoami()
+    print(f"[hf] already logged in as {user['name']}")
+except Exception:
+    token = os.environ.get("HF_TOKEN")
+    if not token:
+        raise SystemExit(
+            "[error] not logged in - run `hf auth login` first, or export HF_TOKEN"
+        )
+    login(token=token, add_to_git_credential=False)
+    print("[hf] login ok (HF_TOKEN)")
 EOF
 
 echo "[4/6] extract DDXPlus bundle at ${DATA_ROOT}"
