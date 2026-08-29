@@ -23,6 +23,18 @@ FIXED_ROWS = {
         ".7700 | **.7659** | same-diagnosis shuffled .5791; gap +.1868 "
         "[.1650,.2091] |"
     ),
+    "| Disease category | .5000 |": (
+        "| Disease category | .5000 | **.5962** | .5192 | .0577 |"
+    ),
+    "| Canonical PDD | .3846 |": (
+        "| Canonical PDD | .3846 | **.4423** | .3846 | .0962 |"
+    ),
+    "| Finding presence, micro F1 |": (
+        "| Finding presence, micro F1 | .9636 | **.9607** | .9607 | N/A |"
+    ),
+    "| Finding value, conditional accuracy |": (
+        "| Finding value, conditional accuracy | .7641 | **.7700** | .6990 | N/A |"
+    ),
     "| closed decoder | Frozen probe |": (
         "| closed decoder | Frozen probe | .9562 | .7938 | "
         "+.1624 [.1576, .1672] | .7659 |"

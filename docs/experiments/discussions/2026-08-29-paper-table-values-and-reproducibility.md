@@ -877,7 +877,7 @@ objective가 frozen gate를 통과하지 못했다는 증거다.
 3. Appendix D9a, D10 smoke, D14, D16 수치
 
 이 branch-independent 고정 셀은 canonical 문서에 이미 반영돼 있다. 다음 명령은 새 결과를
-계산하거나 locked test를 읽지 않고 승인된 10개 row를 idempotent하게 materialize/검증한다.
+계산하거나 locked test를 읽지 않고 승인된 14개 row를 idempotent하게 materialize/검증한다.
 
 ```bash
 python scripts/sync_paper_table_fixed_cells.py --write
