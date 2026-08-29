@@ -124,3 +124,27 @@ DDXPlus grounding arm은 여기서 결론 낸다:
 가장 싸고, ②는 ①의 budget 답을 알아야 smoke 설계가 가능하다.
 
 현재 상태: **사전 등록안 사람 확인 대기** (epoch 수 1 vs 2 선택 포함).
+
+### 실행 환경 수정 (2026-08-29, 사람 지시)
+
+Budget-calibration run은 lab 4090 대신 **RunPod A100/H100**에서 실행한다.
+근거: 12B bf16은 4090(24GB) 한 장에 안 올라가 2-card sharding + PCIe 통신
++ gradient checkpointing이 강제되는 반면, A100 80GB 한 장이면 전체가 단일
+device에 올라간다(run당 3~5배 기대).
+
+- **데이터 반출 범위: DDXPlus 파생물만.** D10 파이프라인은 DiReCT 의존이
+  없음을 코드로 확인했다(`train_ddxplus_d10_1x2.py`,
+  `make_ddxplus_d10_validation_pairs.py`, `evaluate_ddxplus_d10_specificity.py`
+  전부 DDXPlus pair만 사용). DDXPlus는 공개 데이터셋이므로 파생 activation의
+  클라우드 반출에 제약이 없다. **DiReCT 원문·파생물은 어떤 형태로도
+  RunPod에 올리지 않는다** — repo에는 원래 없고(git 제외 규칙), 전송
+  tarball에도 포함 금지.
+- 반출 목록: train 3,104쌍 + validation 3,032쌍의 activation tensor
+  (~15,000여 개, 총 1GB 미만), pair/protocol JSONL, init adapter. Base
+  model은 HF 공개 checkpoint를 pod에서 직접 받는다.
+- Pair JSONL의 activation 경로가 절대경로이므로, pod에 **동일 경로 구조**
+  (`/data1/heejae/medical_nla/data/...`)를 재현해 코드 수정 없이 돌린다.
+- 6 runs 전부 같은 pod 하드웨어에서 실행하고 하드웨어를 리포트에 기록한다.
+  실행 전 20-step smoke 1회로 wall-clock을 실측해 비용 항목을 갱신한다.
+- DiReCT가 필요한 후속 단계(Gate C, Phase 2 adaptation — 248행 규모의 경량
+  작업)는 통과 시 lab 서버로 돌아와 수행한다.
