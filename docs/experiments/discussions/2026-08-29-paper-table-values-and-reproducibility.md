@@ -80,6 +80,31 @@ Metric마다 eligibility가 달라 분모도 다르다.
 | native-value-edit pairs | 533 | 539 |
 | clean-switch eligible | 395 | 398 |
 
+이 숫자는 임의의 표본 크기가 아니라 metric별 eligibility를 적용한 뒤 남은 분모다.
+
+- **Same-diagnosis hard-shuffle pairs**: own case와 진단은 같지만 `base_id`가 다른 donor를
+  만들 수 있는 original cases다. Own activation의 prediction을 donor case의 target과 비교해
+  진단 template만 말한 것인지 환자별 state를 읽은 것인지 검사한다. Diagnosis bucket 안에
+  valid donor가 없는 case는 제외되어 validation/test가 4,106/4,121이다.
+- **Native-value targets**: train ontology가 지원하는 multi-value evidence ID가 original case에
+  있고, 그 case의 native value도 train-supported class인 occurrence다. Finding이 “있다”를 넘어서
+  severity/location/character 같은 값을 구분하는 conditional value accuracy의 분모이며
+  2,183/2,136이다. 전체 환자 수가 아니라 eligible evidence-value occurrence 수다.
+- **Cue-deletion pairs**: canonical builder가 original에서 target cue 하나만 물리적으로 삭제하고
+  나머지 presentation을 유지한 derived arm을 정상 생성한 original/derived pair다. Deletion
+  probability drop, phantom, removal success, untouched retention에 사용하며 4,523/4,540이다.
+  Validation 2건과 test 3건은 canonical single-cue deletion family를 만들 수 없어 제외됐다.
+- **Native-value-edit pairs**: value-bearing cue 하나를 같은 evidence ID의 다른 valid native value로
+  바꾼 original/edited pair다. Replacement hit와 old-value persistence의 분모이며 533/539다.
+  Binary presence cue나 대체 native value가 없는 cue는 이 과제가 정의되지 않는다.
+- **Clean-switch eligible**: value-edit pair 중 original arm에서 reader가 old value를 정확히 읽은
+  cases다. 이미 원래 값도 못 읽은 case를 “전환 실패”로 세지 않기 위해 조건부 분모를 쓰며
+  395/398이다. Edited arm에서 new value는 맞고 old value는 사라져야 clean switch다.
+
+따라서 이 다섯 줄은 서로 다른 subset이고 더하거나 서로 직접 비교하면 안 된다. Builder가
+variant family를 만들고 frozen train ontology가 support를 결정한 뒤, evaluator가 이 조건을
+적용해 수를 계산했다. Test score를 본 뒤 분모를 조정하지 않았다.
+
 DDXPlus primary activation은 DiReCT와 instruction 조건을 맞춘 **CoT-P0**다. 과거 local cue
 position activation 결과는 별도 선행 실험이며 이 표에 섞지 않는다.
 
@@ -202,6 +227,11 @@ CoT-minus-Direct는 `-.0175`, exact McNemar `p=.6291`이었다. Category 차이�
 `p=1.0000`이었다. 따라서 CoT가 strict PDD를 낮춘다고 확정할 수 없고, 이 수치는 현재
 72/106 결과를 대신할 수 없다.
 
+이 subsection의 171-case pilot 표는 **논문 main table에는 들어가지 않는다**. Main Table 1A는
+frozen 72/106 결과만 사용한다. 171-case 값은 appendix의 development history 또는 Results의
+“split correction 전 exploratory audit” 한 문장으로만 보고할 수 있다. 표 공간이 부족하면
+논문에서는 제외하고 발표/내부 문서에만 남긴다.
+
 ### 2.3 계산 정의
 
 - **Parse coverage**: formatted final answer가 parsing된 rows / 전체 rows
@@ -236,6 +266,20 @@ DDXPlus locked finding-gap 95% CI는 `[.1576,.1672]`, value-gap CI는
 PDD-heldout canonical-PDD cell은 train output ontology에 없는 PDD가 있으므로 `N/A`이며 0으로
 기록하지 않는다.
 
+이 표의 읽는 법은 다음과 같다.
+
+- DiReCT `.5962/.4423`은 52-case validation에서 HS24를 선택할 때 얻은 top-1 accuracy이며
+  main table의 validation 열에는 들어간다. 아직 72-case test-seen 결과가 아니므로 locked 열은
+  비워 둔다.
+- DDXPlus `.9607/.7700`은 validation에서 layer/threshold를 고정한 수치다.
+- DDXPlus `.9562/.7659`는 동결한 HS24 probe를 4,543 original locked-test cases에 한 번 적용한
+  주 결과다.
+- `.7938/.5791`은 같은 diagnosis donor control이고, `+.1624/+.1868`은 matched case가 donor보다
+  나은 paired gap이다. 단순 majority 또는 diagnosis template으로 높은 점수가 나온 부분을
+  통제한다.
+- Coverage `.9996/.7161`은 전체 test 중 해당 metric이 정의되는 비율이다. Value accuracy는
+  모든 4,543명에 대한 accuracy가 아니다.
+
 ### 3.2 DiReCT probe 학습
 
 Input은 각 case의 CoT-P0 activation 한 개다. 진단마다 별도 probe를 만드는 것이 아니라 target
@@ -263,6 +307,11 @@ Layer sensitivity:
 
 Accuracy는 보고 metric이고 hyperparameter 선택은 NLL로 했다. 따라서 우연히 validation accuracy가
 가장 높은 epoch를 직접 고른 것이 아니다.
+
+Probe는 `h -> Wh+b` 하나뿐인 linear readout이다. Category probe 하나가 25 logits, PDD probe
+하나가 49 logits를 동시에 낸다. “PDD마다 probe 하나”를 49개 학습한 것이 아니다. 이 절은
+P0에 진단 관련 정보가 선형적으로 decode 가능한지 확인하는 representation audit이며,
+Medical-NLA 자연어 생성 성능이나 causal faithfulness를 직접 측정하지 않는다.
 
 ### 3.3 DDXPlus finding/value probe 학습
 
@@ -350,6 +399,14 @@ readouts를 만들었다. Primary HS32 결과는 다음과 같다.
 Semantic audit은 readout에서 target을 지지하는 **exact quote**를 요구했다. Judge가 yes라고
 해도 quote가 원문 readout에 없으면 불일치 처리한다.
 
+여기서 312는 `52 cases x 2 prompts x 3 layers`다. Default prompt는 공개 AV checkpoint의
+sidecar prompt이고 task-aligned arm은 같은 prompt에 medical-content suffix만 추가했다. 각
+readout에 대해 source answer, gold PDD, disease category가 의미상 명시돼 있는지를 검사했다.
+HS32 두 prompt에서 세 target 모두 0/52였다는 뜻은 vanilla AV가 **진단명을 명시적으로
+복원하지 못했다**는 뜻이다. Clinical finding이 전혀 없었다거나 activation에 진단 정보가 없다는
+뜻은 아니다. 전자는 Table 2/3, 후자는 closed probe로 따로 측정한다. 이 결과는 main table의
+짧은 open-readout boundary 또는 Results 본문에 들어가며, locked-test 성능으로 부르지 않는다.
+
 ### 4.3 현재 재현성 결손
 
 Vanilla의 exact default actor prompt는 model sidecar `nla_meta.yaml`에서 runtime에 읽으며 현재
@@ -367,6 +424,18 @@ artifact에 저장해야 한다. 위 task-aligned 문자열은 git의
 
 현재 frozen test 72/106은 아직 계산하지 않았다. 아래는 generative method selection에 사용한
 gold-label-absent 50행 validation 결과다.
+
+대상은 DiReCT `val_seen` 52 notes 중 note에 canonical gold-label phrase가 exact하게 노출된 2행을
+제외한 **동일한 50 notes**다. DDXPlus validation이나 과거 171-case test가 아니다. Source CoT는
+Gemma backbone의 해당 50개 response, Vanilla/SFT는 같은 50개 CoT-P0/HS32 activation의
+readout이다. Mixed pilot 모델은 DiReCT 248 + DDXPlus 248로, full-data 모델은 DiReCT 248 +
+DDXPlus 4,655로 학습했다.
+
+두 Source CoT 행의 수치가 다른 것은 모집단이 달라서가 아니라 common-pilot 평가와 full-data
+평가에서 quote extractor를 별도로 다시 실행했기 때문이다. Official semantic evaluator는
+고정돼 있지만 앞단 Codex extraction은 model/version이 명시되지 않은 별도 materialization이라
+결과가 조금 달라졌다. 따라서 두 block을 평균내지 않고, final baseline batch에서는 extractor
+model/version, prompt hash, request hash를 고정해 한 번만 다시 계산한다.
 
 | Method | parsed observed | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall | 상태 |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
@@ -802,6 +871,17 @@ objective가 frozen gate를 통과하지 못했다는 증거다.
 1. Table 1B의 DDXPlus locked probe 수치
 2. Table 3의 structured reader locked 수치
 3. Appendix D9a, D10 smoke, D14, D16 수치
+
+이 branch-independent 고정 셀은 canonical 문서에 이미 반영돼 있다. 다음 명령은 새 결과를
+계산하거나 locked test를 읽지 않고 승인된 10개 row를 idempotent하게 materialize/검증한다.
+
+```bash
+python scripts/sync_paper_table_fixed_cells.py --write
+python scripts/sync_paper_table_fixed_cells.py --check
+```
+
+`--write`는 Table 1A, DiReCT locked probe, Table 2, conditional generative row를 건드리지 않는다.
+그 셀들은 아래 동결 순서를 거친 뒤 별도 batch에서만 채운다.
 
 ### Step 2. D10 최종 분기와 recipe hash 동결
 
