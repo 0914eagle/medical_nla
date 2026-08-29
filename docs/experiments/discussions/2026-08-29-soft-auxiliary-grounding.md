@@ -632,3 +632,52 @@ DECISIONS.md 기록과 구현은 시작하지 않는다.
 블록 + Discussion 7의 명세 1-4. 승인 즉시 DECISIONS.md에 D16으로 기록하고
 Discussion 7의 실행 순서 1번(PCA artifact + validation cosine gate)부터
 구현을 시작한다.
+
+## 사람 승인 및 구현 개시 (2026-08-29)
+
+희재가 256차원 latent bottleneck의 의미, 학습 시 auxiliary head와 inference 시
+제거 계약, control/proposed 비교 및 실패 후 sweep 금지를 확인한 뒤 D16 전체를
+승인했다. [`DECISIONS.md`](DECISIONS.md)에 기록하고 아래 순서로 구현한다.
+
+1. PCA artifact와 validation cosine hard gate
+2. Projector 저장/로드 및 기존 AV 비회귀 테스트
+3. Gradient-parity lambda protocol
+4. Control 3 seeds와 immutable floor protocol
+5. Proposed 3 seeds와 frozen-z/generation/Direct alignment 평가
+
+## 구현 산출물 (2026-08-29)
+
+승인 규약을 다음 코드로 구현했다. 아직 서버 실행 결과는 없으며 결과가 생기기 전
+hyperparameter는 변경하지 않는다.
+
+| 역할 | 구현 |
+|---|---|
+| PCA projector와 checkpoint | `src/nla_bottleneck.py` |
+| train-only PCA와 validation hard gate | `scripts/fit_medical_nla_bottleneck_pca.py` |
+| 248+248 gradient-parity lambda | `scripts/calibrate_medical_nla_bottleneck_lambda.py` |
+| 동일-budget control/proposed trainer | `scripts/train_medical_nla_soft_bottleneck.py` |
+| control-first floor 동결 | `scripts/freeze_medical_nla_bottleneck_effect_floor.py` |
+| seed-matched paired 비교 | `scripts/compare_medical_nla_bottleneck_arms.py` |
+| frozen-z materialization | `scripts/materialize_medical_nla_bottleneck_latents.py` |
+| 4-GPU primary queue | `scripts/run_medical_nla_d16_4gpu_125.sh` |
+| frozen-z queue | `scripts/run_medical_nla_d16_frozen_z_125.sh` |
+| Direct/DDXPlus generation queue | `scripts/run_medical_nla_d16_generation_4gpu_125.sh` |
+
+`src.run_nla`와 Direct alignment audit는 adapter 폴더의
+`nla_bottleneck.pt`를 자동으로 읽는다. 따라서 D16 checkpoint를 raw activation으로
+직접 평가하는 실수를 막는다. Training-only auxiliary head는 inference model에
+등록되지 않고 adapter 밖 audit artifact로만 저장된다. Generation queue는 이 head를
+분리된 상태로 메모리에 둔 실행과 head가 없는 inference copy의 projector/decoder
+SHA256 및 고정 validation 2행 generated token ID가 동일한지 검증한다.
+
+실행 순서는 다음처럼 물리적으로 분리했다.
+
+1. Primary queue가 PCA gate와 lambda를 기록한다.
+2. Control 3 seeds를 학습·평가한다.
+3. Control audit SHA256을 포함한 immutable floor JSON을 만든다.
+4. Proposed trainer는 이 floor와 seed-matched control SHA256이 없으면 실패한다.
+5. Primary paired gate를 낸 뒤 frozen-z와 긴 generation queue를 별도로 실행한다.
+
+Primary queue가 실패하면 `d_z`, lambda, step, threshold를 바꾸지 않고 D16 branch를
+종료한다. Frozen-z와 generation은 실패 원인 분해용 보고값이며 새 sweep을 허가하지
+않는다.

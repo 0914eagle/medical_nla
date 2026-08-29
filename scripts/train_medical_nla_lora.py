@@ -14,7 +14,7 @@ import shutil
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import torch
 
@@ -157,8 +157,34 @@ def build_training_example(
     sidecar: Any,
     actor_prompt_template: str | None,
     eos_token_id: int,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    activation_transform: Callable[[torch.Tensor], torch.Tensor] | None = None,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     activation = torch.load(row["activation_path"], map_location="cpu", weights_only=True)
+    if activation_transform is not None:
+        activation = activation_transform(activation)
+    return build_training_example_from_activation(
+        row=row,
+        activation=activation,
+        tokenizer=tokenizer,
+        model=model,
+        embed_layer=embed_layer,
+        sidecar=sidecar,
+        actor_prompt_template=actor_prompt_template,
+        eos_token_id=eos_token_id,
+    )
+
+
+def build_training_example_from_activation(
+    *,
+    row: dict[str, Any],
+    activation: torch.Tensor,
+    tokenizer: Any,
+    model: torch.nn.Module,
+    embed_layer: torch.nn.Module,
+    sidecar: Any,
+    actor_prompt_template: str | None,
+    eos_token_id: int,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     injected = build_nla_inputs_embeds(
         tokenizer=tokenizer,
         embed_layer=embed_layer,
@@ -209,6 +235,57 @@ def collate_examples(
         batch_labels[idx, :length] = labels
         batch_content[idx, :length] = content
     return batch_embeds, batch_attention, batch_labels, batch_content
+
+
+def row_content_nlls(
+    *,
+    model: torch.nn.Module,
+    inputs_embeds: torch.Tensor,
+    attention_mask: torch.Tensor,
+    labels: torch.Tensor,
+    content: torch.Tensor,
+) -> torch.Tensor:
+    """Return one content-token mean NLL per row without detaching the graph."""
+
+    logits = model(inputs_embeds=inputs_embeds, attention_mask=attention_mask).logits
+    shifted_logits = logits[:, :-1, :].float().transpose(1, 2)
+    shifted_labels = labels[:, 1:]
+    per_token = torch.nn.functional.cross_entropy(
+        shifted_logits,
+        shifted_labels,
+        reduction="none",
+        ignore_index=-100,
+    )
+    masks = (shifted_labels != -100) & content[:, 1:]
+    counts = masks.sum(dim=1)
+    if bool((counts == 0).any()):
+        raise ValueError("At least one row has no content tokens")
+    return (per_token * masks).sum(dim=1) / counts
+
+
+def row_target_nlls(
+    *,
+    model: torch.nn.Module,
+    inputs_embeds: torch.Tensor,
+    attention_mask: torch.Tensor,
+    labels: torch.Tensor,
+) -> torch.Tensor:
+    """Return one mean target-token NLL per row without detaching the graph."""
+
+    logits = model(inputs_embeds=inputs_embeds, attention_mask=attention_mask).logits
+    shifted_logits = logits[:, :-1, :].float().transpose(1, 2)
+    shifted_labels = labels[:, 1:]
+    per_token = torch.nn.functional.cross_entropy(
+        shifted_logits,
+        shifted_labels,
+        reduction="none",
+        ignore_index=-100,
+    )
+    masks = shifted_labels != -100
+    counts = masks.sum(dim=1)
+    if bool((counts == 0).any()):
+        raise ValueError("At least one row has no target tokens")
+    return (per_token * masks).sum(dim=1) / counts
 
 
 @torch.inference_mode()

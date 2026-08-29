@@ -2,7 +2,12 @@ import pytest
 import torch
 
 from src.injection import find_token_positions, replace_placeholder_embeddings
-from src.nla import NlaSidecar, find_verified_injection_positions, scale_activation_for_nla
+from src.nla import (
+    NlaSidecar,
+    build_nla_inputs_embeds,
+    find_verified_injection_positions,
+    scale_activation_for_nla,
+)
 
 
 def test_find_token_positions():
@@ -106,3 +111,32 @@ def test_nla_neighbor_verified_position():
 def test_nla_activation_scale():
     scaled = scale_activation_for_nla(torch.tensor([3.0, 4.0]), 10.0)
     assert torch.allclose(scaled, torch.tensor([6.0, 8.0]))
+
+
+def test_nla_injection_preserves_activation_gradient() -> None:
+    class Tokenizer:
+        def apply_chat_template(self, *_args, **_kwargs):
+            return [10, 99, 11]
+
+    sidecar = NlaSidecar(
+        d_model=2,
+        injection_char="x",
+        injection_token_id=99,
+        injection_left_neighbor_id=10,
+        injection_right_neighbor_id=11,
+        actor_prompt_template="{injection_char}",
+        injection_scale=5.0,
+        path="/tmp/nla_meta.yaml",
+    )
+    embed_layer = torch.nn.Embedding(120, 2)
+    activation = torch.tensor([3.0, 4.0], requires_grad=True)
+    result = build_nla_inputs_embeds(
+        tokenizer=Tokenizer(),
+        embed_layer=embed_layer,
+        sidecar=sidecar,
+        activation=activation,
+        device="cpu",
+    )
+    result.inputs_embeds[0, result.injection_position].sum().backward()
+    assert activation.grad is not None
+    assert float(activation.grad.norm()) > 0

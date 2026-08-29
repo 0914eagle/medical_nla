@@ -21,6 +21,7 @@ from .nla import (
     extract_explanation,
     load_nla_sidecar,
 )
+from .nla_bottleneck import BOTTLENECK_FILENAME, load_bottleneck, sha256_file
 
 
 PASSTHROUGH_FIELDS = [
@@ -178,6 +179,22 @@ def main() -> None:
         help="Optional PEFT/LoRA adapter path or HF id for evaluating Medical-NLA.",
     )
     parser.add_argument(
+        "--bottleneck-projector",
+        default=None,
+        help=(
+            "Optional D16 nla_bottleneck.pt. When omitted, a local adapter "
+            "directory containing that file is detected automatically."
+        ),
+    )
+    parser.add_argument(
+        "--audit-disconnected-aux-head",
+        default=None,
+        help=(
+            "D16 removal audit only: load a training-only head into memory but do not "
+            "connect it to inference. Generated token IDs must match a run without it."
+        ),
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -271,6 +288,39 @@ def main() -> None:
     model = maybe_load_peft_adapter(model, adapter_id, cache_dir=cache_dir)
     model.eval()
 
+    bottleneck_path = Path(args.bottleneck_projector) if args.bottleneck_projector else None
+    if bottleneck_path is None and adapter_id:
+        candidate = Path(str(adapter_id)) / BOTTLENECK_FILENAME
+        if candidate.is_file():
+            bottleneck_path = candidate
+    projector = None
+    bottleneck_sha256 = None
+    if bottleneck_path is not None:
+        if not bottleneck_path.is_file():
+            raise FileNotFoundError(bottleneck_path)
+        projector, _bottleneck_metadata = load_bottleneck(
+            bottleneck_path, device=model.device, require_gate_passed=True
+        )
+        projector.eval()
+        bottleneck_sha256 = sha256_file(bottleneck_path)
+        print(f"[nla] D16 bottleneck {bottleneck_path}", flush=True)
+
+    disconnected_head = None
+    disconnected_head_sha256 = None
+    if args.audit_disconnected_aux_head:
+        audit_head_path = Path(args.audit_disconnected_aux_head)
+        payload = torch.load(audit_head_path, map_location="cpu", weights_only=False)
+        if not payload.get("training_only") or payload.get("inference_connected") is not False:
+            raise ValueError("Aux-head audit artifact is not explicitly disconnected")
+        state = payload["state_dict"]
+        disconnected_head = torch.nn.Linear(
+            int(state["weight"].shape[1]), int(state["weight"].shape[0])
+        ).to(model.device)
+        disconnected_head.load_state_dict(state)
+        disconnected_head.eval()
+        disconnected_head_sha256 = sha256_file(audit_head_path)
+        print("[nla] loaded disconnected training-only head for removal audit", flush=True)
+
     embed_layer = model.get_input_embeddings()
     gen_kwargs = generation_kwargs(cfg, args.max_new_tokens)
     print(f"[gen] max_new_tokens={gen_kwargs.get('max_new_tokens')}")
@@ -299,19 +349,22 @@ def main() -> None:
     print(f"[nla] generating {total_rows:,} rows, batch {args.batch_size}", flush=True)
     for start in range(0, total_rows, args.batch_size):
         batch_rows = manifest_rows[start : start + args.batch_size]
-        results = [
-            build_nla_inputs_embeds(
+        results = []
+        for row in batch_rows:
+            activation = torch.load(
+                row["activation_path"], map_location="cpu", weights_only=True
+            )
+            if projector is not None:
+                with torch.inference_mode():
+                    activation = projector(activation.to(model.device))[0]
+            results.append(build_nla_inputs_embeds(
                 tokenizer=tokenizer,
                 embed_layer=embed_layer,
                 sidecar=sidecar,
-                activation=torch.load(
-                    row["activation_path"], map_location="cpu", weights_only=True
-                ),
+                activation=activation,
                 device=model.device,
                 actor_prompt_template=actor_prompt_template,
-            )
-            for row in batch_rows
-        ]
+            ))
         lengths = {r.inputs_embeds.shape[1] for r in results}
         if len(lengths) != 1:
             # The no-padding assumption, checked rather than trusted: a template
@@ -325,7 +378,9 @@ def main() -> None:
             **gen_kwargs,
         )
         texts = tokenizer.batch_decode(generated, skip_special_tokens=False)
-        for row, result, raw_text in zip(batch_rows, results, texts, strict=True):
+        for row, result, raw_text, token_ids in zip(
+            batch_rows, results, texts, generated, strict=True
+        ):
             explanation, parsed_explanation = extract_explanation(raw_text)
             result_row = {
                     **manifest_output_context(row),
@@ -333,8 +388,12 @@ def main() -> None:
                     "actor_prompt_template_file": args.actor_prompt_template_file,
                     "actor_prompt_suffix_file": args.actor_prompt_suffix_file,
                     "adapter_id": adapter_id,
+                    "bottleneck_projector": str(bottleneck_path) if bottleneck_path else None,
+                    "bottleneck_sha256": bottleneck_sha256,
+                    "disconnected_aux_head_audit_sha256": disconnected_head_sha256,
                     "nla_output": explanation,
                     "raw_nla_output": raw_text,
+                    "generated_token_ids": token_ids.detach().cpu().tolist(),
                     "parsed_explanation_tag": parsed_explanation,
                     "cjk_fraction": cjk_fraction(raw_text),
                     "activation_norm": result.activation_norm,

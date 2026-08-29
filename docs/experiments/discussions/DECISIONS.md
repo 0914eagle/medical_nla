@@ -20,6 +20,7 @@ archive를 참조한다. 새 데이터 없이 기존 결정을 재론하지 않�
 | D13 | Structured reader는 open NLA가 아니라 control/upper baseline이다. | test finding F1 `.9587`, phantom `.3593`, clean switch `.0804` |
 | D14 | 다음 learned method는 training-only OOF probe teacher를 쓰는 set-to-text NLA다. Inference는 raw HS32→단일 decoder다. | activation-conditioned target |
 | D15 | K=2 teacher는 폐기하고 K=5를 단 한 번 평가한다. Threshold `.5`와 hyperparameter를 유지하며 실패 시 추가 K/threshold sweep을 금지한다. K=5는 gate FAIL로 종료했다. | K=5 precision `.8881`; deleted mean gap `18.10%`; 추가 sweep 금지 |
+| D16 | Soft auxiliary bottleneck one-shot을 승인한다. `d_z=256`, train-only source-balanced PCA, validation cosine `.95`, original OOF soft BCE, approved D9a selected-cue paired margin, `248+248` gradient parity, 8+8/20-step seeds 17/29/43, control-first paired-delta gate를 사용한다. | 사람이 2026-08-29 승인; 실패 시 `d_z`/lambda/step/threshold sweep 금지 |
 
 ## D15 calibration gate
 
@@ -34,3 +35,22 @@ archive를 참조한다. 새 데이터 없이 기존 결정을 재론하지 않�
 | fold별 original precision | 모두 `>= .85` |
 
 일곱 조건은 AND다. K=5 실패 시 hard-set target을 만들지 않는다.
+
+## D16 soft auxiliary bottleneck
+
+- Architecture: `h32 -> PCA-initialized P_down -> z[256] -> P_up -> AV injection`.
+  우회 경로는 없고 projector는 inference에 남으며 91-way auxiliary head만 제거한다.
+- PCA fit: DDXPlus official train original `4,655`와 DiReCT train `248`, source
+  weight `.5/.5`. DDXPlus/DiReCT validation source별 reconstruction cosine mean이
+  모두 `.95` 이상이어야 한다.
+- Loss: DiReCT language SFT + D9a original K=5 OOF soft BCE + approved `3,104`
+  pair selected-cue original/deleted softplus margin. Deleted absolute target은 금지한다.
+- Lambda: seed-17 initialization에서 Direct `248` + SHA-ordered D9a `248` pairs의
+  `dL/dz` row-L2 RMS parity로 한 번 계산해 모든 seed에 공유한다.
+- Smoke: seed별 동일 order로 optimizer step당 Direct 8 + D9a 8 pairs, 20 steps.
+  Control은 동일 architecture/order에서 auxiliary coefficient만 0이다.
+- Control 3 seeds 이후 floor JSON을 먼저 고정한다:
+  `max(2 * control-gap range, .005)`. Proposed는 그 뒤에만 실행한다.
+- 통과: 각 seed `proposed-control >= floor`, paired category-cluster CI > 0,
+  세 seed 부호 일치. Gate C `Obscomp > .2130`은 별도 절대 출구다.
+- 어느 hard gate든 실패하면 이 branch를 종료하고 hyperparameter sweep을 하지 않는다.

@@ -33,6 +33,7 @@ from src.config import load_config
 from src.jsonl import read_jsonl, write_jsonl
 from src.modeling import load_causal_lm, load_tokenizer, maybe_load_peft_adapter
 from src.nla import adapter_av_prompt, load_nla_sidecar
+from src.nla_bottleneck import BOTTLENECK_FILENAME, load_bottleneck, sha256_file
 
 
 def clean(value: Any) -> str:
@@ -111,6 +112,7 @@ def score_content_nll(
     sidecar: Any,
     actor_prompt_template: str,
     batch_size: int,
+    projector: Any | None = None,
 ) -> list[dict[str, Any]]:
     model.eval()
     results = []
@@ -125,6 +127,11 @@ def score_content_nll(
                 sidecar=sidecar,
                 actor_prompt_template=actor_prompt_template,
                 eos_token_id=tokenizer.eos_token_id,
+                activation_transform=(
+                    (lambda value: projector(value.to(model.device))[0])
+                    if projector is not None
+                    else None
+                ),
             )
             for row in batch_rows
         ]
@@ -278,6 +285,7 @@ def main() -> None:
     parser.add_argument("--source-dataset", default="direct")
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument("--bottleneck-projector", type=Path)
     parser.add_argument(
         "--resume-scores",
         action="store_true",
@@ -328,6 +336,17 @@ def main() -> None:
         model = load_causal_lm(nla_cfg, cache_dir=cache_dir)
         model = maybe_load_peft_adapter(model, str(args.adapter), cache_dir=cache_dir)
         embed_layer = model.get_input_embeddings()
+        bottleneck_path = args.bottleneck_projector
+        if bottleneck_path is None:
+            candidate = args.adapter / BOTTLENECK_FILENAME
+            if candidate.is_file():
+                bottleneck_path = candidate
+        projector = None
+        if bottleneck_path is not None:
+            projector, _metadata = load_bottleneck(
+                bottleneck_path, device=model.device, require_gate_passed=True
+            )
+            projector.eval()
 
         scores = []
         for condition in ("matched", "target_shuffled", "activation_shuffled"):
@@ -341,8 +360,17 @@ def main() -> None:
                     sidecar=sidecar,
                     actor_prompt_template=actor_prompt_template,
                     batch_size=args.batch_size,
+                    projector=projector,
                 )
             )
+    if args.resume_scores:
+        bottleneck_path = args.bottleneck_projector
+        if bottleneck_path is None:
+            candidate = args.adapter / BOTTLENECK_FILENAME
+            bottleneck_path = candidate if candidate.is_file() else None
+    args.output_jsonl.parent.mkdir(parents=True, exist_ok=True)
+    if not args.resume_scores:
+        write_jsonl(args.output_jsonl, scores)
     result = summarize(scores, eligible_rows=len(rows), seed=args.seed)
     result.update(
         {
@@ -350,6 +378,10 @@ def main() -> None:
             "adapter": str(args.adapter),
             "source_dataset": args.source_dataset,
             "seed": args.seed,
+            "bottleneck_projector": str(bottleneck_path) if bottleneck_path else None,
+            "bottleneck_sha256": sha256_file(bottleneck_path) if bottleneck_path else None,
+            "private_scores": str(args.output_jsonl),
+            "private_scores_sha256": sha256_file(args.output_jsonl),
             "selection_rule": (
                 "symmetric cross-minus-matched disease-category-cluster bootstrap "
                 "interval above zero"
@@ -357,9 +389,6 @@ def main() -> None:
         }
     )
 
-    args.output_jsonl.parent.mkdir(parents=True, exist_ok=True)
-    if not args.resume_scores:
-        write_jsonl(args.output_jsonl, scores)
     args.output_json.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     lines = [
         "# Medical-NLA Activation-Target Alignment Gate",

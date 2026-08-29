@@ -244,6 +244,10 @@ def paired_counterfactual_metrics(
     deletion_absent = []
     deletion_original_hit = []
     deletion_removal_success = []
+    deletion_original_selected_counts = []
+    deletion_selected_counts = []
+    deletion_added_counts = []
+    deletion_added_absent = []
     edit_new_hits = []
     edit_old_persistence = []
     edit_clean_switch = []
@@ -257,6 +261,22 @@ def paired_counterfactual_metrics(
             continue
         evidence = str(row.get("cf_original_evidence_id") or "")
         if variant == "cue_deleted" and evidence in finding_index:
+            before_set = set(
+                torch.where(finding_probabilities[original] >= threshold)[0].tolist()
+            )
+            after_set = set(
+                torch.where(finding_probabilities[index] >= threshold)[0].tolist()
+            )
+            added = after_set - before_set
+            deleted_input = {
+                str(value) for value in row.get("cue_evidence_ids") or []
+            }
+            deletion_original_selected_counts.append(len(before_set))
+            deletion_selected_counts.append(len(after_set))
+            deletion_added_counts.append(len(added))
+            deletion_added_absent.extend(
+                finding_labels[column] not in deleted_input for column in added
+            )
             column = finding_index[evidence]
             before = float(finding_probabilities[original, column])
             after = float(finding_probabilities[index, column])
@@ -299,6 +319,11 @@ def paired_counterfactual_metrics(
             "original_target_hit": mean(deletion_original_hit),
             "removal_success_given_original_hit": mean(deletion_removal_success),
             "conditional_denominator": len(deletion_removal_success),
+            "mean_original_selected": mean(deletion_original_selected_counts),
+            "mean_deleted_selected": mean(deletion_selected_counts),
+            "mean_newly_added_after_deletion": mean(deletion_added_counts),
+            "newly_added_absent_from_deleted_input": mean(deletion_added_absent),
+            "newly_added_labels": len(deletion_added_absent),
         },
         "value_edit": {
             "eligible_pairs": len(edit_new_hits),
@@ -324,10 +349,10 @@ def write_summary(path: Path, result: dict[str, Any]) -> None:
     edit = result["counterfactual"]["value_edit"]
     bootstrap = result["bootstrap"]
     lines = [
-        "# DDXPlus Locked-Test Finding And Value Probe",
+        f"# DDXPlus {result['population_label'].replace('_', ' ').title()} Finding And Value Probe",
         "",
         f"- frozen layer: **HS{result['layer']}**",
-        f"- original test cases: **{result['n_original']}**",
+        f"- original cases: **{result['n_original']}**",
         f"- finding labels: **{finding['labels']}**",
         f"- value evidence tasks/classes: **{value['evidence_tasks']}/{value['value_classes']}**",
         "",
@@ -358,7 +383,8 @@ def write_summary(path: Path, result: dict[str, Any]) -> None:
             f"| cue deletion | {deletion['eligible_pairs']} | probability drop "
             f"{format_value(deletion['mean_target_probability_drop'], signed=True)} | "
             f"removal success {format_value(deletion['removal_success_given_original_hit'])} "
-            f"(n={deletion['conditional_denominator']}) |"
+            f"(n={deletion['conditional_denominator']}); newly added "
+            f"{format_value(deletion['mean_newly_added_after_deletion'])}/case |"
         ),
         (
             f"| native value edit | {edit['eligible_pairs']} | replacement hit "
@@ -368,7 +394,19 @@ def write_summary(path: Path, result: dict[str, Any]) -> None:
             f"(n={edit['conditional_denominator']}) |"
         ),
         "",
-        "No layer, threshold, ontology, or checkpoint was selected on this test population.",
+        "## Predicted Prevalence And Deletion Additions",
+        "",
+        f"- original/deleted mean selected findings: **{format_value(deletion['mean_original_selected'])} / "
+        f"{format_value(deletion['mean_deleted_selected'])}**",
+        f"- newly added labels after deletion: **{deletion['newly_added_labels']}**",
+        f"- newly added labels absent from deleted input: "
+        f"**{format_value(deletion['newly_added_absent_from_deleted_input'])}**",
+        "",
+        (
+            "No layer, threshold, ontology, or checkpoint was selected on this population."
+            if result["population_label"] == "locked_test"
+            else "This is a validation/development audit; locked test was not read."
+        ),
         "",
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -382,6 +420,9 @@ def main() -> None:
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--bootstrap-replicates", type=int, default=2000)
     parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument(
+        "--population-label", choices=("validation", "locked_test"), default="locked_test"
+    )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
 
@@ -456,6 +497,7 @@ def main() -> None:
     )
     result = {
         "schema_version": 1,
+        "population_label": args.population_label,
         "artifact": str(args.artifact),
         "manifest": str(args.manifest),
         "layer": layer,
@@ -464,6 +506,7 @@ def main() -> None:
         "n_original": len(originals),
         "hard_shuffle_pairs": len(pair_indices),
         "selection_performed_on_test": False,
+        "locked_test_read": args.population_label == "locked_test",
         "finding": {
             "labels": len(finding_labels),
             "coverage": eligible_finding_coverage(originals, set(finding_labels)),

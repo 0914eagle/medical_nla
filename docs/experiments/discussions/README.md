@@ -13,7 +13,7 @@
 
 | 상태 | 주제 | 다음 판정 |
 |---|---|---|
-| discussion | [Soft auxiliary grounding after D14](2026-08-29-soft-auxiliary-grounding.md) | objective와 smoke gate 승인 여부 |
+| implementing | [D16 soft auxiliary bottleneck](2026-08-29-soft-auxiliary-grounding.md) | PCA gate -> control-first smoke -> frozen-z/generation 판정 |
 
 ## 완료·보관
 
