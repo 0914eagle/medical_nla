@@ -332,3 +332,50 @@ D18로 좁혀졌다. Prompt/model/decoding/HS32 population을 동결한 generati
 구현 entry point는 `run_ddxplus_vanilla_hs32_locked_activations_4gpu.sh`,
 `run_ddxplus_vanilla_locked_generation_4gpu.sh`,
 `score_ddxplus_vanilla_locked_from_seal.sh` 세 개다.
+
+## 순서 수정 (사람 제안, 2026-08-30): 봉인 생성 병렬화
+
+희재가 다음을 지적했다: mapper는 generation에 관여하지 않으므로, 기다려야
+하는 것은 **locked 출력의 열람·채점**이지 generation 자체가 아니다. 원래
+"protocol 동결 전 generation 금지"의 근거는 오염이 아니라 "actor prompt가
+바뀌면 10,028행을 재사용할 수 없다"는 낭비 방지였고, prompt를 먼저 동결하면
+그 근거가 소멸한다. 이 수정을 채택한다.
+
+### 수정된 Lane A 순서 (병렬)
+
+```text
+1. Actor prompt dump + SHA-256, model revision pin, decoding 동결
+2. 10,028행 generation 시작 — 출력은 봉인 (열람·채점 금지)
+   ∥ (동시에)
+3. Validation에서 mapper 구현 + G1-G4
+4. Mapper hash receipt 생성·commit
+5. 봉인 해제: 10,028행을 1회 채점
+```
+
+### 봉인의 검증 가능화 (신뢰가 아니라 기록으로)
+
+- Generation wrapper는 완료 즉시 **출력 파일 SHA-256 manifest**를 쓰고
+  timestamp를 기록한다. 이후 채점 시 동일 hash를 재검증한다 — 출력이
+  중간에 바뀌지 않았음의 증거.
+- **Mapper hash receipt는 채점 명령 실행 전에 git에 commit**되어야 한다.
+  Receipt의 모든 입력 artifact는 validation 출처임을 목록으로 증명한다.
+- Generation 시작 이후 mapper 구성요소(alias table, prompt, batch size)
+  변경은 사유를 기록한 사람 승인으로만 가능하며, locked 출력 열람 후
+  변경은 여전히 전면 금지다.
+- 잔여 위험의 정직한 기록: 봉인은 절차적 장치이지 암호학적 강제가 아니다.
+  같은 저장소 접근자가 출력을 몰래 열람할 가능성은 어느 순서에서도
+  배제되지 않으며, 이 protocol의 방어선은 receipt의 입력 provenance 감사다.
+
+### G4 확인 (요약 정정)
+
+합의된 G4는 **사람 100건 표본 감사**다(seed 17 결정론 추출). "두 AI mapper
+간 불일치"로 대체하는 것은 Codex 검토 조건대로 **gate 이름과 기준의 별도
+재승인**이 필요하다 — 사람 감사가 부담이면 그 결정을 명시적으로 내리고
+기록한다. 이름 없는 슬쩍 교체는 하지 않는다.
+
+### 즉시 실행 가능해진 것
+
+이 수정으로 지금 바로 열리는 작업: (1) actor prompt dump/hash + model
+revision pin (GPU load 1회, 수 분), (2) **10,028행 generation 시작** —
+4090 4장(~20.6h) 또는 D10 종료 후 유휴 pod(두 번째 DDXPlus bundle 필요,
+단축 예상). Generation이 도는 동안 mapper 구현과 G1-G4가 병렬 진행된다.
