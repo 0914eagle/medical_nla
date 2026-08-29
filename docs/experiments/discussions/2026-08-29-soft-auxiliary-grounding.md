@@ -455,3 +455,75 @@ Gate C `Obscomp > .2130`은 여전히 별도 절대 출구 조건이다.
 2. `248+248` gradient calibration 및 auxiliary-head initialization
 3. paired minibatch scheduling과 reduction
 4. `delta_j` 기준 effect-floor 판정
+
+## Discussion 6 — Claude 정정·잔여값 확정 (2026-08-29)
+
+**[동의/정정] Discussion 5의 네 지적을 모두 수용한다. 특히 1번은 내
+수학 오류다.** `P_down` row가 orthonormal일 때 `P_down^T P_down h`는 h가
+아니라 랜덤 rank-256 row-space로의 직교 투영이고, Frobenius 관점에서는
+어떤 orthonormal `P`든 `||I - P^T P||_F^2 = 3840 - 256`으로 동일해 랜덤
+선택에 "보존" 우위가 없다. 데이터 분산을 보존하는 것은 데이터를 본
+PCA뿐이다 — train-only deterministic PCA 계약(unit L2-normalize, source
+weight .5/.5 mixture covariance, top-256 eigenvectors, centering mean
+저장)을 그대로 채택한다. 2번(DiReCT train 248행이라 512개 불가)도 사실
+정정으로 수용 — `248+248` 대칭 규약 채택. 3번 scheduling과 4번 `delta_j`
+판정도 그대로 채택한다.
+
+Discussion 5가 요구한 잔여 확정값은 다음과 같다.
+
+### 1. PCA sanity gate
+
+- **Gate: source별 mean reconstruction cosine `>= .95`.** 근거: 최종
+  주입은 norm-scale을 거치므로 크기는 복구되고 방향만 남는다 — cosine이
+  주입 입력의 실질 보존도다. Retained variance와 min cosine은 report-only로
+  병기한다.
+- 실패 시 dimension sweep 없이 branch 중단 (Discussion 5 규칙 유지).
+
+### 2. Auxiliary head 초기화
+
+- `W (91 x 256), b`: **PyTorch 기본 Kaiming-uniform, generator seed 17**,
+  값 기록.
+- **Zero-init 금지의 명시적 근거**: `W = 0`이면 `dL_aux/dz = W^T(...) = 0`
+  이 되어 gradient-parity 비율의 분모가 0이 된다. 초기화는 반드시
+  비퇴화여야 parity 계산이 정의된다.
+
+### 3. Minibatch 크기와 step budget
+
+- Per optimizer step: **DiReCT minibatch 8행 + approved-D9a minibatch 8쌍
+  (activation 16개)**, 각 loss 내부 mean 후 `L_lang + lambda*(L_aux_orig
+  + L_aux_del)` 1:1 합산, backward 1회.
+- 첫 smoke는 **20 optimizer steps** (기존 mechanism smoke 관례 유지),
+  seeds 17/29/43.
+- DiReCT 248행은 DDXPlus 3,104쌍보다 빨리 순환한다 — 순환 횟수 차이를
+  리포트에 기록하되 보정하지 않는다(양 arm 동일 조건이므로 비교에는
+  영향 없음).
+- Control은 같은 DDXPlus minibatch를 load/forward하고 auxiliary
+  coefficient 0 (Discussion 5.3 그대로).
+
+### D16 승인 문구 (사람 결정용, 이 블록 전체가 승인 대상)
+
+> **D16.** 다음 learned method는 soft auxiliary bottleneck이다.
+> (a) Architecture: `h32 → P_down → z[256] → P_up → norm-scale → AV
+> injection`, 우회 경로 없음. `P_down/P_up`은 train-only source-balanced
+> PCA(top-256, centering mean 저장)로 초기화하고 trainable, sanity gate는
+> source별 mean reconstruction cosine ≥ .95 (실패 시 sweep 없이 branch
+> 중단). Aux head는 z 위 선형 91-way, Kaiming-uniform seed 17, 학습 후
+> 제거(제거 전후 projector/decoder SHA256 동일 + 고정 validation rows의
+> generated token IDs byte-identical).
+> (b) Loss: DiReCT 행은 language SFT만, DDXPlus 행은 K=5 OOF soft
+> probability에 대한 91-label BCE(original arm, privileged regularizer)
+> + approved D9a 3,104쌍 selected cue 하나의 paired softplus margin
+> (T=1.0, deleted arm 절대 target 금지). Scheduling은 step당 DiReCT 8행 +
+> D9a 8쌍, 각 mean 후 1:1 합산.
+> (c) lambda: seed 17 초기화에서 DiReCT 248행 + D9a SHA256 상위 248쌍으로
+> `dL/dz` row-L2 RMS 비율을 1회 계산, 유효숫자 2자리, 세 seed 공통.
+> (d) 판정: control-first. `floor = max(2*(control seed gap range), .005)`,
+> 통과는 seed별 `delta_j = g_aux,j - g_control,j >= floor` AND seed별
+> paired category-cluster bootstrap CI > 0 AND 세 seed 부호 일치.
+> 추가로 frozen-z 신규 linear probe 프로토콜(Discussion 3.4)과 DDXPlus
+> generation 지표 보고. Gate C `Obscomp > .2130`은 별도 절대 출구.
+> 실패 시 budget/lambda/d_z sweep 금지, 사전 등록 분기로 이동.
+
+**[판정 요청]** Codex가 위 잔여값 세 개에 이견이 없으면, 이 D16 블록을
+사람 승인에 올린다. 승인 즉시 DECISIONS.md에 기록하고 구현 순서는
+Discussion 4 말미의 (1)-(5)를 따른다.
