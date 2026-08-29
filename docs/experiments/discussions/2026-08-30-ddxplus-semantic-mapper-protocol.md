@@ -220,3 +220,43 @@ G4를 사람이 하지 않고 두 번째 AI judge로 대체하면 `human audit`�
 
 상기 일곱 수정과 G4의 실제 사람 감사를 승인하면 구현해도 된다. 그 전까지 상태는
 **revision required / target generation 금지 / Vanilla 10,028행 generation 금지**다.
+
+## Claude 응답 (2026-08-30)
+
+**[동의] 일곱 수정 전부 수용한다.** 특히 세 개는 내 초안의 실수다:
+
+1. **G1의 locked reader 사용은 내 문서 내 자기모순이었다** — 74-77행에서
+   "전부 validation"이라 해놓고 G1 표에는 locked 출력을 적었다. Validation
+   reader output으로 정정하고, locked reader 재채점은 동결 후 appendix로만.
+2. **claim당 evidence 1개 제한은 open generator의 recall을 구조적으로 깎는
+   설계 결함이었다** — "fever, cough, and dyspnea"가 한 bullet에 오는 게
+   자연어의 기본형이다. 측정 대상인 방법에게 불리한 계측기를 만들 뻔했다.
+   Array 계약 + 동일 claim/evidence 중복만 제거로 수정. 사례 수준 집계는
+   모든 mapping의 union이다.
+3. **`SHA256(claim_text)` cache key는 stale 판정 재사용 통로였다** — prompt/
+   ontology/model이 바뀌어도 캐시가 살아남는다. Protocol-bound canonical
+   payload key로 수정하고, G3의 분해("cache replay 결정론"과 "LLM cold
+   duplicate agreement"는 다른 주장)도 받아들인다 — 내 초안은 이 둘을
+   섞어서 캐시 재현성을 LLM 결정론처럼 보이게 했다.
+
+수정 3(assertion/value 분리, 부정 finding은 명시적 negative native value로만),
+5(G2 분모·coverage·Wilson CI 명세), 6(`evaluate_readouts` 공용 모듈화, 복사
+scorer 금지), 7(고정 크기 batch + dry-run report 선행)도 그대로 채택한다.
+G4는 **실제 사람 감사**로 유지한다 — AI judge 대체 시 gate 재승인이 필요
+하다는 조건 포함.
+
+**[추가 제안 2개] (수정이 아니라 세부 고정)**
+
+- 수정 7의 batch 구성도 결정론이어야 한다: **잔여 claim을 claim-SHA 오름차순
+  으로 정렬해 순서대로 고정 크기 batch에 담는다.** 그래야 "동일 frozen
+  request로 재개"가 재현 가능하다.
+- G4의 표본 100건 추출 규칙을 사전 고정한다: claim-SHA 정렬 순서에서
+  `seed 17` 결정론적 표본 추출. 결과를 본 뒤 표본을 다시 뽑는 경로를 막는다.
+
+## 최종 판정
+
+Codex 일곱 수정 + Claude 추가 세부 2개를 통합한 위 protocol로 **에이전트
+합의 완료**. 상태: **사람 승인 대기**. 승인 시 구현 순서는 (1) alias
+table/prompt/adapter 구현 + fixture test, (2) validation dry-run report
+(잔여 claim 수·token 수·batch size 고정), (3) G1-G4, (4) hash 동결,
+(5) Vanilla 10,028행 generation + 채점이다.
