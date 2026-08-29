@@ -704,3 +704,103 @@ response도 별도 병목임을 보여준다. Structured Reader는 open NLA 성�
 upper baseline으로 고정한다. 다음 learned method는 frozen finding set을 입력으로 받는
 constrained set-to-text verbalizer로 제한하며, value edit는 아직 target으로 승격하지
 않는다.
+
+### R15. Codex — 2026-08-29
+
+**[정정] R14 마지막 문장의 “frozen finding set을 inference 입력으로 받는
+verbalizer”는 최종 Medical-NLA 후보로는 부적절하다.** 그 구조는 DDXPlus evidence
+ontology와 probe head를 배포 시점에도 요구하므로, 데이터셋마다 별도 monitor를 만드는
+문제를 해결하지 못한다. 이미 구현한 Structured Reader는 이 형태의 **control/upper
+baseline**으로만 남긴다.
+
+다음 learned method는 아래처럼 probe를 **학습 target 생성용 teacher로만** 사용해야
+한다.
+
+```text
+training only:
+  HS32 activation -> out-of-fold HS32 finding probe -> selected finding text set
+                                                    -> student supervision
+
+inference:
+  HS32 activation -> one Medical-NLA decoder -> <observed> finding bullets
+```
+
+즉 배포 시점의 student는 probe, evidence ID, DDXPlus prompt에 접근하지 않고 raw HS32
+activation만 받는다. 같은 decoder/checkpoint가 이후 DiReCT adaptation과 OOD 평가에도
+사용돼야 한다. 이 실험을 **probe-distilled set-to-text NLA**로 부른다.
+
+**[제안] P1 — teacher target은 full-probe in-sample prediction이 아니라 OOF
+prediction으로 만든다.** Official DDXPlus train `4,655` base를 기존
+`crc32(base_id)%2` fold로 나누고, 반대 fold original로 학습한 HS32 head가 해당 base의
+original/deleted activation을 모두 채점한다. Finding hyperparameter와 threshold는 기존
+HS32 validation artifact에서 상속한다. 같은 base의 original/deleted는 같은 OOF head를
+사용한다. 예상 finding training rows는 complete pair일 때 `9,310`이다.
+
+현재 D9a score artifact는 selected changed cue 한 개의 확률만 저장하므로 full 91-label
+OOF vector를 새 read-only artifact로 물질화해야 한다. 이 단계에서는 NLA target이나
+adapter를 만들지 않고 다음만 보고한다.
+
+- original/deleted row 수와 complete-pair coverage
+- row당 selected finding 수의 mean/median/quantiles
+- original/deleted teacher-set Jaccard
+- changed cue의 teacher original hit/deleted phantom/removal
+- untouched teacher finding preservation
+- same-diagnosis activation-shuffle teacher-set gap
+- fold/diagnosis별 label coverage
+
+**[제안] P2 — 첫 student target은 finding-only다.** Value는 locked test에서
+replacement `.1466`, old persistence `.5955`, clean switch `.0804`였으므로 현재
+activation-grounded target으로 정당화하지 않는다. Diagnosis와 정답도 target에 넣지
+않는다. OOF teacher가 threshold 이상으로 선택한 finding을 train-only canonical phrase로
+렌더링하고, probability 내림차순/evidence ID tie-break로 순서를 고정한다. Claim 개수는
+고정하지 않는다.
+
+이 target은 prompt의 전체 cue를 재구성한 것이 아니다. Teacher가 해당 OOF activation에서
+선택한 set만 사용한다. Deleted activation에서도 teacher가 cue를 계속 예측하면 target에
+남긴다. 따라서 student가 teacher보다 좋은 counterfactual representation을 가진다고
+가정하거나 unsupported negative를 발명하지 않는다. 이 실험의 질문은 오직 다음이다.
+
+> Activation-aligned structured target을 주면, 하나의 free-generating NLA가 그
+> case-specific set을 자연어로 distill할 수 있는가?
+
+**[제안] P3 — original-only control과 paired-distillation arm을 같은 budget으로
+비교한다.** 두 arm 모두 released HS32 AV checkpoint에서 시작한다.
+
+| arm | training rows | 목적 |
+|---|---|---|
+| OOF original-only distillation | original teacher targets | 정적 teacher imitation baseline |
+| OOF original+deleted distillation | paired teacher targets | activation 변화까지 imitation 가능한지 |
+
+Seeds는 `17/29/43`, 동일 case order, optimizer-step 수, LoRA 설정을 사용한다. D1에 따라
+결과를 본 뒤 epoch/lambda/rank sweep을 하지 않는다. 첫 실행은 full run 전에 고정된
+20-step mechanism smoke로 제한한다.
+
+**[제안] P4 — validation gate는 teacher fidelity와 activation specificity를 분리한다.**
+Gold cue F1을 primary로 쓰면 teacher가 선택한 target을 다시 gold로 채점하는 순환이 생긴다.
+Primary는 student가 teacher를 읽었는지이며, clinical gold/probe score는 ceiling/context로
+별도 보고한다.
+
+1. Format parse `1.000` in all three seeds.
+2. Matched activation의 teacher-set F1이 original/deleted 각각 `>=.80` in all seeds.
+3. Same-diagnosis activation-shuffled teacher-set F1보다 matched F1이 seed 3개 모두 높고,
+   diagnosis-cluster bootstrap CI가 0을 배제하며 gap `>=.05`.
+4. Paired arm의 deleted teacher-set F1이 original-only control보다 seed 3개 모두 높고
+   cluster CI가 0을 배제한다.
+5. Paired arm의 original teacher-set F1 저하는 control 대비 `>.02`이면 실패.
+6. Student changed-cue original/deleted 상태가 teacher 상태와 일치하는 비율과 untouched
+   finding preservation을 함께 보고한다. Student에게 teacher보다 낮은 phantom을 요구하지
+   않는다. 그것은 distillation 범위 밖의 representation 개선 주장이다.
+
+위 `.80/.05/.02`는 아직 사람 승인 전 **제안값**이다. OOF target 분포를 보기 전에
+student를 학습하지 않는다. Target 분포 확인 뒤 이 값을 바꾸려면 이유와 변경 이력을
+남기고, 승인 후에는 validation student 결과를 보고 움직이지 않는다.
+
+**[반론/한계]** 이 실험이 통과해도 “universal clinical NLA”가 완성되는 것은 아니다.
+DDXPlus teacher ontology로 학습한 decoder가 DiReCT free-text observation으로 전이되는지는
+별도 문제다. 다만 inference에서 probe를 제거하고 하나의 raw-activation decoder를
+사용하므로, dataset-specific probe를 최종 방법으로 두는 것보다 강한 중간 단계다. 통과
+후에만 DDXPlus replay를 유지한 DiReCT adaptation을 같은 `<observed>` schema로 수행한다.
+
+**[판정 요청]** 다음 구현은 곧바로 student GPU 학습이 아니라 (1) HS32 full-label OOF
+teacher materialization, (2) 위 target 분포 read-only report까지만 진행하는 것이 맞는가.
+그 report 뒤 P2-P4 target/gate를 사람 승인하고 student smoke를 연다.
