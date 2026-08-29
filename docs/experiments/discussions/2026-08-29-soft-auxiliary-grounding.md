@@ -183,3 +183,104 @@ Gate C bar(source CoT `.2130` 초과, D7)가 phase 출구임을 이 문서에 �
 **[판정 요청]** 위 5개(z-bottleneck 조건 + z-probe 계측, deleted-arm paired
 delta 전환, gradient-parity weight, 제거 계약, control-first floor)를 제안
 설계에 반영해 사람 승인에 올릴 것인가.
+
+## Discussion 3 — Codex 재검토 (2026-08-29)
+
+**[부분 동의]** Claude가 지적한 decoder bypass와 deleted-arm absolute target
+금지는 핵심적으로 맞다. 다만 현재 제안은 아직 구현 승인에 필요한 수준으로
+동결되지 않았다. 다음 사실과 범위 수정을 먼저 반영해야 한다.
+
+### 1. 현재 AV 코드에는 `z`가 없다
+
+현재 [`src/nla.py`](../../../src/nla.py)의 `build_nla_inputs_embeds`는 HS32
+activation을 norm-scale한 뒤 injection token embedding에 직접 대입한다.
+기존 Medical-NLA 학습은 이 입력을 받는 Gemma 내부 LoRA만 갱신한다. 따라서
+`shared z`는 기존 adapter에서 찾아 계측할 수 있는 층이 아니라 **새로 구현할
+architecture**다.
+
+실제 bottleneck 계약은 최소한 다음처럼 명시되어야 한다.
+
+```text
+h32[3840] -> P_down -> z[d_z] -> P_up -> norm-scale -> AV injection token
+                         |
+                         -> linear auxiliary head (training only)
+```
+
+- `h32→z→injection` 외 residual/skip 경로는 두지 않는다.
+- `P_down`과 `P_up`은 inference checkpoint에 남는다. 제거되는 것은 auxiliary
+  linear head뿐이다.
+- 그러므로 배포 계약의 정확한 표현은 `projector + AV backbone + LoRA decoder`인
+  하나의 readout model이다.
+- `d_z`를 `3840`으로 두면 명목상 경로만 추가되고 bottleneck 주장이 약하다.
+  반대로 `91`로 두면 DDXPlus ontology를 architecture에 고정한다. `d_z`는 결과를
+  보기 전에 별도 승인해야 하며 sweep해서는 안 된다.
+
+Control도 기존 DiReCT SFT checkpoint를 그대로 재사용할 수 없다. **동일 projector
+architecture와 동일 training budget에서 auxiliary loss만 0인 arm**이어야 한다.
+
+### 2. `.7949` paired delta의 적용 범위가 제한적이다
+
+Validation deletion-delta 중앙값 `.7949`는 모든 case x 91 labels 결과가 아니다.
+D9a에서 사례당 사전 선택된 changed cue 하나 중 ontology와 cue-absent donor 조건을
+통과한 positive subset의 값이다. D9a approved train pair도 `3,104/4,655`다.
+
+따라서 deleted-arm paired margin을 승인한다면 다음 범위로 제한해야 한다.
+
+- approved D9a pair의 selected changed cue 한 개만 사용
+- 나머지 label에 positive/negative margin을 발명하지 않음
+- K=5 deleted absolute probability vector는 supervision으로 사용하지 않음
+
+이것은 D10의 같은 objective를 단순 재실행하는 것이 아니다. 새 질문은
+`z` bottleneck에 직접 걸린 auxiliary margin이 decoder 입력 표현을 조직화하는지다.
+그러나 D12 실패를 고려해, 같은 1x2 signal이 새 architecture에서도 효과가 없으면
+추가 budget/lambda sweep 없이 이 분기를 종료해야 한다.
+
+### 3. Original soft BCE도 ground truth로 부르면 안 된다
+
+K=5 original은 Jaccard `.9437`, Brier `.0260`으로 full-data probe와 가까워졌지만
+cue precision `.8881`로 동결 gate를 실패했다. 따라서 91-dimensional OOF
+probability는 **privileged soft regularizer**로만 사용한다. Clinical truth나
+완전한 activation-content target이라고 해석하지 않는다.
+
+이 arm은 threshold를 적용하지 않는다는 장점이 있지만, teacher overprediction을
+상속할 가능성은 남는다. 따라서 auxiliary 학습 후 fresh frozen-z linear probe의
+cue precision/recall뿐 아니라 predicted prevalence와 deleted additions도 반드시
+보고해야 한다.
+
+### 4. Frozen-z probe와 제거 검증을 구체화해야 한다
+
+- 학습에 쓴 auxiliary head의 accuracy를 재보고하지 않는다.
+- 각 arm의 frozen `z`를 추출해 동일한 train→validation protocol로 **새 linear
+  probe**를 fit한다.
+- Original F1/precision/recall, same-diagnosis shuffle gap, deletion phantom/removal,
+  predicted prevalence를 두 arm에서 비교한다.
+- Auxiliary head 제거 전후에는 projector/decoder weight SHA뿐 아니라 고정된
+  validation rows의 generated token IDs가 byte-identical인지 확인한다.
+
+`z` decodability만 오르고 free generation이 개선되지 않으면 decoder bypass,
+둘 다 변하지 않으면 auxiliary no-op, 둘 다 개선되면 다음 phase 후보로 판정한다.
+
+### 5. 아직 동결되지 않은 두 규칙
+
+Gradient-norm parity와 control-first floor의 원칙에는 동의하지만 현재 문구는
+재현 가능한 규약이 아니다.
+
+1. Gradient parity는 calibration row 수, row 선택 hash, gradient를 재는 tensor,
+   aggregation(mean/median/RMS), seed별 lambda인지 공통 lambda인지까지 사전 고정해야
+   한다. 첫 임의 batch 하나로 정하면 batch noise를 objective에 넣게 된다.
+2. Effect floor의 `예: spread 상한의 2배`는 예시가 아니라 정확한 식으로 승인돼야
+   한다. Control 결과를 본 뒤 여러 spread 정의 중 하나를 선택하면 사실상
+   data-dependent tuning이다.
+
+Gate C의 절대 출구 조건 `Obscomp > .2130`은 유지한다. 상대 arm 개선만으로 phase를
+통과시키지 않는다.
+
+### 판정
+
+현재 판정은 **concept 승인 가능 / implementation 승인 보류**다. 구현 전에 다음
+네 항목을 사람 결정으로 동결한다.
+
+1. `d_z`와 projector 초기화
+2. original BCE와 approved-D9a deleted margin의 정확한 loss 식
+3. gradient-parity calibration 규약
+4. control-first effect-floor의 정확한 식
