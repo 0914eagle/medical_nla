@@ -78,7 +78,7 @@ Metric마다 eligibility가 달라 분모도 다르다.
 | native-value targets | 2,183 | 2,136 |
 | cue-deletion pairs | 4,523 | 4,540 |
 | native-value-edit pairs | 533 | 539 |
-| clean-switch eligible | 395 | 398 |
+| clean-switch eligible, structured reader | 395 | 398 |
 
 이 숫자는 임의의 표본 크기가 아니라 metric별 eligibility를 적용한 뒤 남은 분모다.
 
@@ -101,7 +101,9 @@ Metric마다 eligibility가 달라 분모도 다르다.
   Binary presence cue나 대체 native value가 없는 cue는 이 과제가 정의되지 않는다.
 - **Clean-switch eligible**: value-edit pair 중 original arm에서 reader가 old value를 정확히 읽은
   cases다. 이미 원래 값도 못 읽은 case를 “전환 실패”로 세지 않기 위해 조건부 분모를 쓰며
-  395/398이다. Edited arm에서 new value는 맞고 old value는 사라져야 clean switch다.
+  structured reader에서는 395/398이다. Edited arm에서 new value는 맞고 old value는 사라져야
+  clean switch다. 이 분모는 method-dependent하므로 다른 Medical-NLA/Vanilla 행에서는 각
+  method의 original old-value hit 수를 다시 보고해야 한다.
 
 따라서 이 다섯 줄은 서로 다른 subset이고 더하거나 서로 직접 비교하면 안 된다. Builder가
 variant family를 만들고 frozen train ontology가 support를 결정한 뒤, evaluator가 이 조건을
