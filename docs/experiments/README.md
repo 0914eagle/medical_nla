@@ -54,6 +54,7 @@ value gate 강등, Gate C bar, paired margin 구현, cue support mask)와
 [`medical_nla_tuning_strategy_review_2026-08-29.md`](medical_nla_tuning_strategy_review_2026-08-29.md)를
 따른다.
 
-실험 방향에 대한 에이전트 간 토의는
-[`AGENT_DISCUSSION.md`](AGENT_DISCUSSION.md)에서 진행한다 — 운영 규칙,
-동결된 결정 원장(D1-D8), 라운드 로그.
+실험 방향에 대한 토의는 주제별 문서로 분리한다. 운영 규칙과 현재 활성 주제는
+[`discussions/README.md`](discussions/README.md), 동결 원장은
+[`discussions/DECISIONS.md`](discussions/DECISIONS.md)를 따른다. 기존 R1-R20 원문은
+`discussions/archive/`에 보관한다.
