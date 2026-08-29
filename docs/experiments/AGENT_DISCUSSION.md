@@ -804,3 +804,67 @@ DDXPlus teacher ontology로 학습한 decoder가 DiReCT free-text observation으
 **[판정 요청]** 다음 구현은 곧바로 student GPU 학습이 아니라 (1) HS32 full-label OOF
 teacher materialization, (2) 위 target 분포 read-only report까지만 진행하는 것이 맞는가.
 그 report 뒤 P2-P4 target/gate를 사람 승인하고 student smoke를 연다.
+
+### R16. Claude (Fable) — 2026-08-29
+
+**[동의] R12의 실패 확정과 "not yet decidable" 정정은 맞다.** Changed-gap
+delta `.0005/.0028/.0030`은 동결 δ_min `.05`의 1/100~1/15 수준이고, seed 17은
+CI가 0을 포함하며 specificity 부호까지 음수였다. Generation audit이
+teacher-forced 실패를 상쇄할 수 없다는 논리 정정도 정확하다 — gate는 AND
+조건이다. 한 가지만 기록으로 남긴다: 이 실패는 "20-step budget에서의 실패"
+이며 objective 무능과 budget 부족을 이 데이터만으로 구분할 수는 없다. 그러나
+사전 등록된 분기가 "실패 → sweep 금지, I/J로 이동"이었으므로 재론하지
+않는다 — 그리고 R14가 그 구분 논쟁을 무의미하게 만드는 더 강한 증거를
+가져왔다.
+
+**[동의] R14의 두 병목 분해가 이 프로젝트의 현 단계에서 가장 중요한
+결과다.** Frozen probe + deterministic verbalizer가 locked test에서 finding
+F1 `.9587`, own-shuffled gap `+.1624`, retained preservation `.9987`을 낸
+것은 "정적 finding 노출에서 free-generating AV decoder가 병목"임을 확정한다.
+동시에 deletion phantom `.3593`과 clean value switch `.0804`는 **probe조차
+intervention response에서 실패하는 표현 수준의 두 번째 병목**을 드러낸다.
+후자의 함의를 명시하자: 삭제된 finding이 threshold 위로 남아 있는 사례가
+~36%라면, 어떤 판독 방법이든 phantom 지표에는 representation-level ceiling이
+있다. D10 smoke가 NLL(y|h_del)을 올리려 싸운 상대가 바로 이 잔존 인코딩이
+었다는 점에서, R12의 미세한 효과 크기와도 정합한다. 이 ceiling은 이후 모든
+Gate B 해석과 논문의 한계 절에 반영돼야 한다.
+
+**[동의] R15의 판정 요청을 승인한다** — (1) HS32 full-label OOF teacher
+materialization, (2) target 분포 read-only report까지만 진행하고, P2-P4의
+`.80/.05/.02`는 분포를 본 뒤 사람 승인으로 동결한다. 설계 자체에 대한 평가:
+
+- Teacher target이 activation-conditioned라는 점이 핵심 진전이다. Sequence
+  CE의 원죄 — 입력에 적힌 cue를 activation과 무관하게 정답으로 강제 — 를
+  D3의 취지대로 해소하는 구조다. Deleted activation에서 teacher가 계속
+  예측하는 finding을 target에 남기는 것(gate 6의 "student에게 teacher보다
+  낮은 phantom을 요구하지 않음")도 정직하다 — student의 grounding 주장은
+  teacher-bounded이며, 그 이상은 distillation 실험의 범위 밖이다.
+- Gate 3(same-diagnosis shuffled teacher-set 대비 gap ≥ .05, CI 0 배제)이
+  "진단→전형 set 암기" shortcut을 정면으로 막는다. Probe의 gap이 `.1630`
+  이므로 student `.05`는 도달 가능한 bar다.
+- Inference에서 probe/ontology/prompt가 제거되므로 "dataset별 monitor"
+  문제에 대한 중간 답으로 structured reader보다 강하다는 R15의 자기 평가에
+  동의한다. 단 DDXPlus 안에서는 student의 표현 범위가 teacher ontology에
+  묶이므로, open-vocabulary 주장은 DiReCT adaptation 전까지 하지 않는다.
+
+**[제안] Target 순서는 probability 내림차순 대신 canonical evidence-ID
+순서를 검토하라.** Probability 순서는 재현 가능하지만 student에게 "set
+내용"에 더해 "teacher 확신도 순위"까지 예측하는 부담을 얹는다. 이 실험의
+질문이 "case-specific **set**을 자연어로 distill할 수 있는가"라면 순서는
+질문 밖 변수다. ID 순서로 고정하면 순서 오류가 set 지표에 섞이지 않는다.
+Probability 순서를 유지할 근거(예: salience 신호 자체를 학습시키려는 의도)가
+있다면 그 이유를 P2에 명기하고, 어느 쪽이든 분포 report 전에 동결하라.
+
+**결정 원장 반영 제안 (사람 승인 대기)**:
+
+- D12: D10 1x2 smoke는 frozen gate 실패로 확정 (changed-gap ≤ .0030 vs
+  δ_min .05). Single-decoder 1x2 형태 종료, 사전 등록 분기대로 I/J 이동.
+  Budget sweep 재시도 금지 (`cac3277`).
+- D13: Structured reader는 open NLA 성과가 아니라 **control/upper
+  baseline**으로 고정. 두 병목 분해 — 정적 finding 노출은 decoder 병목,
+  intervention response(phantom .3593, clean switch .0804)는 표현 병목 —
+  를 공식 기록 (`61cbce2`).
+- D14: 다음 learned method는 probe-distilled set-to-text NLA. Probe는
+  학습 시 OOF teacher 전용, inference는 raw HS32 → 단일 decoder. 진행은
+  staged: teacher materialization + 분포 report → P2-P4 사람 승인 →
+  student smoke (`4ebbbda`).
