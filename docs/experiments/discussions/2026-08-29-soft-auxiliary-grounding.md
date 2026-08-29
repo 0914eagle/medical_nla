@@ -117,3 +117,69 @@ hyperparameter를 동결한 뒤 한 번만 사용한다.
 2. auxiliary loss weight를 sweep 없이 어떻게 사전 고정할지
 3. shared latent의 정확한 위치와 auxiliary head 제거 계약
 4. 첫 smoke의 effect floor와 promotion gate
+
+## Discussion 2 — Claude 검토 (2026-08-29)
+
+**[동의] 방법 선택 자체는 사전 등록된 분기 안에 있다.** shared latent `z` +
+training-only multilabel head는 방법 J(latent claim bottleneck)의 soft
+supervision 형태다. D12의 사전 등록 분기가 "실패 → I/J"였고 I는 control로
+고정됐으므로(D13), 이 제안은 새 발명이 아니라 합의된 다음 칸이다. Hard-set
+재시도·sweep 금지·단일 decoder inference 계약 준수도 확인했다.
+
+**[반론] 핵심 기제가 하나 빠져 있다 — aux head는 z가 이미 가진 성질을
+재생산할 위험이 있다.** D13이 확정한 병목은 "표현에 정보가 없다"가 아니라
+"decoder가 그 정보를 쓰지 않는다"였다(raw HS32 선형 decodability `.9607` vs
+free generation 실패). Aux loss가 하는 일은 z를 finding-decodable하게 만드는
+것인데, **raw activation은 이미 그 성질을 갖고 있다.** 따라서 이 설계가
+의미를 가지는 조건은 단 하나다: **z가 실제 bottleneck이어서, language SFT만
+받으면 finding 정보를 버리게 되는 구조일 것.** 이 조건을 설계와 판정에
+명시해야 한다.
+
+- 설계 조건: z가 activation→decoder의 **유일한** 경로여야 하며(우회 residual
+  경로 금지), aux head는 **선형**이어야 한다. Deep head면 head가 과제를
+  자체 흡수해 z가 조직화될 필요가 없어지고 bypass가 더 쉬워진다.
+- 판정 조건 추가: 학습 후 **frozen z에 대한 선형 probe decodability를 두 arm
+  모두에서 보고**한다. (i) aux arm의 z decodability가 control과 같으면 aux
+  loss가 아무것도 바꾸지 않은 것이고, (ii) z decodability만 오르고 생성이
+  안 바뀌면 decoder bypass가 확정된다. 실패 모드 1을 사후 해석이 아니라
+  계측으로 분리하는 장치다.
+
+**[제안] 열린 항목 1 — deleted arm은 절대 soft target이 아니라 paired
+delta로 감독한다.** D14 부검의 핵심은 "절대 calibration(precision, mean
+claims)은 실패했지만 **paired delta는 처음부터 신뢰할 수 있었다**"는 것이다
+(deletion delta 중앙값 `.79`, D9a positive/null 분리). 그러므로:
+
+- original arm: teacher soft probability에 대한 BCE (K=5 original은
+  full-data와 Jaccard `.9437`로 근접 — 절대 supervision 정당)
+- deleted arm: 절대 set/soft target 금지. **changed label에 대한 paired
+  margin** — `head(z_orig)[c] - head(z_del)[c] > 0` — 만 건다. 실패한
+  절대 calibration을 계승하지 않고(실패 모드 2 차단), 살아남은 신호만 쓴다.
+
+logit/rank는 비권장: rank는 calibration 정보를 버리고, logit 회귀는 teacher
+절대값 오류를 그대로 상속한다.
+
+**[제안] 열린 항목 2 — weight는 gradient-norm parity로 1회 고정.** Sweep
+없이 임의성을 제거하는 규칙: 학습 시작 시점에 shared z에 대한 aux gradient
+norm이 language gradient norm과 같아지도록 lambda를 한 번 계산해 고정하고
+값을 기록한다. 이후 조정은 사람 승인.
+
+**[제안] 열린 항목 3 — 제거 계약.** aux head는 z 위의 단일 선형층. 배포
+checkpoint는 decoder+adapter만 포함하고, aux head 제거 전후 decoder/adapter
+weight SHA256이 동일함을 기록한다.
+
+**[제안] 열린 항목 4 — effect floor는 control-first 순서로 동결한다.**
+DiReCT alignment gap의 역사적 스케일은 `+.0051`(full SFT)로 D5의 `.05`와
+자릿수가 다르다. 임의 floor 대신: **control arm(3 seeds)을 먼저 완주하고,
+proposed arm을 평가하기 전에** floor = control seed spread 기반 값(예: spread
+상한의 2배)을 선언·기록한다. Proposed arm 결과를 본 뒤의 조정은 무효.
+DDXPlus generation 지표(hit/phantom/removal/retained)는 D5 구조를 상속한다.
+
+**[동의+한정] 실패 모드 4에 하나 추가.** Control arm(DiReCT SFT only)의
+역사적 성능은 Obscomp `.0301`로 매우 낮다. 두 arm 비교가 "상대 개선"을
+보여도 둘 다 임상적으로 무의미한 수준일 수 있으므로, smoke 통과와 별개로
+Gate C bar(source CoT `.2130` 초과, D7)가 phase 출구임을 이 문서에 명시해
+두자.
+
+**[판정 요청]** 위 5개(z-bottleneck 조건 + z-probe 계측, deleted-arm paired
+delta 전환, gradient-parity weight, 제거 계약, control-first floor)를 제안
+설계에 반영해 사람 승인에 올릴 것인가.
