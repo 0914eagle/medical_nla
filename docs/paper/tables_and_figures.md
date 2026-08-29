@@ -27,7 +27,10 @@ Seen PDD 72행과 held-out PDD 106행은 같은 열 구조의 두 패널로 보�
 |---|---|---|---:|---:|---:|---|
 | Gold disease category | Linear probe | 25-way | .5962 | TBD | N/A | label shuffle |
 | Gold canonical PDD | Linear probe | 49-way train labels | .4423 | TBD | N/A | label shuffle |
-| Source decision | Linear probe | frozen source-answer ontology | TBD | TBD | TBD | answer shuffle |
+
+Source-decision probe 행은 본문에서 제외한다 — 논문의 필수 결론에 필요하지
+않고 source-answer ontology 동결 결정이 남아 있기 때문이다(실행 계획 문서의
+확정 사항). 되살리려면 별도 사람 결정이 필요하다.
 
 ### Panel B2. DDXPlus CoT-P0 finding/value decodability audit
 
@@ -47,7 +50,6 @@ HS16/24/32를 모두 보고한다.
 |---|---:|---:|---:|---:|
 | Disease category | .5000 | **.5962** | .5192 | .0577 |
 | Canonical PDD | .3846 | **.4423** | .3846 | .0962 |
-| Source decision | TBD | TBD | TBD | TBD |
 | Finding presence, micro F1 | .9636 | **.9607** | .9607 | N/A |
 | Finding value, conditional accuracy | .7641 | **.7700** | .6990 | N/A |
 
@@ -228,8 +230,9 @@ extraction 실패는 행을 삭제하지 않고 failure로 처리하며 coverage
 ## Figure 2. P0 decodability와 layer sensitivity
 
 Validation `val_seen=52`에서 HS16/HS24/HS32별 probe 성능을 target별 heatmap 또는 grouped
-point plot으로 제시한다. 현재 category와 canonical PDD를 채우고, source decision, finding
-presence, finding value는 실행 후 같은 축에 추가한다. Majority와 shuffled-label control을
+point plot으로 제시한다. 축은 category, canonical PDD, finding presence,
+finding value 네 target이다(source decision은 본문 제외 결정에 따라 그림에서도
+제외). Majority와 shuffled-label control을
 함께 표시한다. 이 그림은 layer를 고르는 근거와 target별 decodability를 보여주며, 선택된
 layer 하나만 보고하는 Table 1B를 보완한다. Locked-test 성능과 섞지 않는다.
 
