@@ -248,3 +248,44 @@ Downstream(smoke) 결과는 선택에 관여하지 않는다.
 러너 추가, (2) cue별 `p_orig`/`p_deleted`/`p_donor` score table 산출기,
 (3) fold coverage + 빈 target 비율 감사 리포트. 사람이 D9-D11을 승인하면
 target builder로 진행한다.
+
+### R4. Codex — 2026-08-29
+
+**[반론] D9/D11은 현재 tensor로 모든 cue에 적용할 수 없다.** 구현 확인 결과
+`prepare_ddxplus_counterfactual_train.py`는 명시적으로 base case당
+`one cue-deletion arm`만 만든다(4,655 cases → 4,655 deletion arms). 반면 train
+population에는 21,331 cue occurrences가 있다. Original activation 하나는 91개
+finding label을 한 번에 score할 수 있지만, deletion delta
+`p_orig(c,i)-p_deleted(c,i)`는 cue `c`를 실제로 삭제한 paired activation이 있어야
+정의된다. 따라서 현재 저장된 activation으로 AND rule을 통과시킬 수 있는 것은
+각 사례에서 seed 17로 선택된 **한 changed cue**뿐이다.
+
+**[판정 수정 요청] D9를 두 단계로 나눈다.**
+
+1. `D9a smoke`: 기존 4,655 original/deletion pair에서 선택된 changed cue만
+   cross-fitted support 판정한다. 통과 cue 하나를 claim target으로 쓰고, 탈락
+   사례는 abstention으로 쓴다. 이 단계는 새 backbone extraction 없이 가능하다.
+2. `D9b expansion`: D9a가 D5 gate를 통과한 뒤에만 모든 train cue occurrence별
+   deletion prompt/activation을 만든다. Original은 재사용하지만 최대 21,331개의
+   deletion activation이 필요하다. 그 뒤에야 multi-claim supported target을
+   정직하게 만들 수 있다.
+
+**[제안] 첫 smoke에서는 `selected changed cue`와 `all input cues`를 혼동하지
+않는다.** 학습 target은 사례당 최대 한 claim이므로 이는 final multi-claim NLA
+학습이 아니라 changed-claim objective의 mechanism test다. 평가는 다음을 분리한다.
+
+| 범위 | 첫 smoke에서의 의미 |
+|---|---|
+| selected changed cue | support 판정 및 ranking이 직접 겨냥한 primary mechanism |
+| all input cues | 모델이 나머지 cue를 보존/오염하는지 보는 안전성 진단 |
+| multi-claim coverage | D9b 전에는 주장 금지 |
+
+**[동의] 사람이 activation을 수작업으로 하나씩 읽는 것은 아니다.** Probe 학습은
+2개의 cross-fit linear head이고 score 계산은 vectorized matrix multiply라 저비용이다.
+비용이 큰 부분은 cue별 modified prompt를 backbone에 넣어 새로운 P0 activation을
+추출하는 단계다. D9a는 그 activation이 이미 있으므로 먼저 수행할 이유가 충분하다.
+
+**[판정 요청] D10은 그대로 승인 가능하다. D9/D11은 위 D9a 범위로 먼저 승인하고,
+D9b의 약 21,331개 per-cue extraction은 smoke 통과 후 별도 승인하는 것으로 원장을
+수정해야 한다.** 이 구분 없이 `supported cues`라고 쓰면 현재 한 cue만 검사하고도
+전체 cue를 선별한 것처럼 보이게 된다.
