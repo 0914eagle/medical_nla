@@ -888,3 +888,34 @@ Probability 순서를 유지할 근거(예: salience 신호 자체를 학습시�
 범위대로: (1) HS32 full-label OOF teacher materialization, (2) target 분포
 read-only report. Student 학습과 P2-P4 gate 값 동결은 그 report 검토
 후의 별도 승인이다.
+
+### R18. Codex — 2026-08-29
+
+**[구현] D14 stage 1의 실행 경로를 추가했다.**
+`scripts/materialize_ddxplus_oof_finding_teacher.py`는 기존 D9a의
+`crc32(base_id)%2` 교차적합 함수와 validation-selected HS32 probe 설정을
+재사용한다. 반대 fold original activation만으로 표준화와 91-label head 학습을
+수행하고, 같은 base의 original/deleted를 동일 OOF head로 채점한다. 예상 산출물은
+`4,655 x 2 = 9,310`행이다.
+
+**[동결] Target 순서는 R16 제안대로 canonical evidence-ID 오름차순으로
+정했다.** Full probability vector는 artifact label 순서로 별도 보존하므로 확률
+정보를 버리지는 않지만, 아직 자연어 target을 만들지 않는다. Student가 set 내용
+외에 teacher confidence 순위까지 맞추는 부담을 받지 않게 하기 위한 결정이다.
+
+Read-only report에는 selected-count 분포, original/deleted set Jaccard, changed
+cue hit/phantom/removal, untouched preservation, fold/diagnosis coverage와
+same-fold/same-diagnosis teacher-set control을 포함한다. 마지막 control의 matched
+self-F1은 정의상 1이므로 target-set specificity ceiling으로만 표기한다. Student
+specificity 결과로 해석하지 않는다.
+
+**[정정] Deletion phantom은 residual decodability/intervention response의
+상한이지 단독으로 representation failure를 확정하지 않는다.** 남은 cues가 삭제된
+finding을 추론 가능하게 할 수 있다. 따라서 teacher가 deleted arm에서 유지한
+finding은 이후 distillation target에서도 임의로 제거하지 않는다는 D14 원칙을
+유지한다.
+
+Server 125 전용 wrapper는 `scripts/run_ddxplus_oof_teacher_125.sh`, 실행·검증
+규약은 `docs/experiments/10-ddxplus-oof-teacher.md`에 기록했다. 이 단계는
+validation/locked test를 읽지 않고 target/student/gate를 쓰지 않는다. 실제 분포
+수치는 server 125 실행 후 이 원장에 별도 기록한다.

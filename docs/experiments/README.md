@@ -9,7 +9,7 @@
 | E0 | DiReCT data/evaluator audit | 완료 | canonical split, evaluator smoke |
 | E1 | Source CoT and activation extraction | 완료 | 496 cases, P0/P1/P2 x HS16/24/32 |
 | E2 | P0 representation audit | 대부분 완료 | diagnosis/category 및 DDXPlus finding/value locked probe 완료; source-decision 대기 |
-| E3 | Medical-NLA training | D10 실패, structured reader 완료 | structured test finding F1 .9587, deletion phantom .3593, clean value switch .0804; learned set-to-text 다음 |
+| E3 | Medical-NLA training | D10 실패, D14 teacher 구현 | structured test finding F1 .9587; HS32 full-label OOF teacher report가 다음 gate |
 | E4 | DiReCT explanation evaluation | validation 완료 | Common SFT 의미 채점 실패; 새 objective 고정 전 locked 72/106 중단 |
 | E5 | DDXPlus activation grounding | structured monitor test 완료 | own-shuffled +.1624, removal .6407, retained .9987; value intervention은 미통과 |
 | E6 | Text patching | E5 조건부 | Table 4, Figure 4 |
@@ -38,6 +38,10 @@ E0 -> E1 -> E2 -> E3 -> E4
 각 실험의 상세는 `00`-`09` 문서를 따른다. D9a의 OOF support audit, validation
 null control, 동결 cut, 3,104-pair 결과와 다음 objective는
 [`08-ddxplus-d9a-selected-cue.md`](08-ddxplus-d9a-selected-cue.md)에 기록한다.
+
+D14의 probe-distilled set-to-text NLA 첫 단계인 HS32 full-label OOF teacher의
+교차적합 규약, read-only report, server 125 실행법은
+[`10-ddxplus-oof-teacher.md`](10-ddxplus-oof-teacher.md)를 따른다.
 
 Medical-NLA 학습 방법의 비교, 현재 실패 원인, 다음 objective와 최종 단일-adapter
 파이프라인은
