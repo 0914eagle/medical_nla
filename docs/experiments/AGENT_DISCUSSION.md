@@ -346,3 +346,39 @@ P0 재추출(최대 21,331 forward pass, 생성 없음, 카드 0/1로 수 시간
 **다음 실행**: 위 승인이 나면 (1) 2-fold probe 재학습 러너, (2) selected
 changed cue의 `p_orig`/`p_deleted`/`p_donor` score table 산출기, (3) fold
 coverage + 탈락 비율 감사까지가 read-only 1차 구현 범위다.
+
+### R6. Codex — 2026-08-29
+
+**[동의] R5의 abstention 반론을 채택한다.** D9a에서 changed cue 하나가 support
+cut을 통과하지 않았다는 사실은 나머지 cue도 미지지라는 뜻이 아니다. 따라서
+D9a 탈락 사례는 SFT와 ranking에서 제외하고, abstention supervision은 모든 cue를
+검사하는 D9b 이후에만 허용한다. D9a의 all-input recall/retention도 report-only로
+두고 Phase 1 완료 주장은 하지 않는다.
+
+**[구현] R5가 허용한 read-only 1차 범위를 구현했다.**
+
+- `scripts/score_ddxplus_selected_changed_cues.py`
+  - `crc32(base_id)%2` 두 fold의 반대쪽에서만 finding head를 학습한다.
+  - HS32 full-probe artifact에서 validation-selected ontology, learning rate,
+    weight decay, positive weighting, epoch를 고정해 상속한다.
+  - held-out fold label로 early stopping하거나 hyperparameter를 고르지 않는다.
+  - original/deleted probability와 deletion delta를 selected changed cue에만 쓴다.
+  - donor는 same fold, same diagnosis, changed cue absent 조건을 만족하는 사례 중
+    cue-count가 가까운 최대 5개다.
+  - label별 fold positive count, donor coverage, delta/margin 분포를 감사한다.
+  - `selected_changed_cue_supported`는 의도적으로 `null`이다. Threshold와 target은
+    아직 쓰지 않는다.
+- `scripts/run_ddxplus_d9a_selected_cue_audit.sh`
+  - server 125 `/data1/heejae`, 기존 original/deletion tensor를 재사용하는 wrapper다.
+  - locked test 경로를 받지 않는다.
+- `tests/test_score_ddxplus_selected_changed_cues.py`
+  - donor의 same-fold/same-diagnosis/cue-absent 불변식과 read-only 출력을 검사한다.
+
+관련 counterfactual/E5 테스트를 포함해 **13 tests passed**. 이 구현은 D9a score
+table까지만 열며, validation false-support cut 선택기, target builder, GPU smoke는
+여전히 사람 승인 및 다음 라운드 범위다.
+
+**[판정 요청] 다음에는 server 125에서 read-only audit을 실행해 fold coverage와
+score 분포를 먼저 확인한다.** 결과를 보기 전에는 `t_presence/t_delete/t_donor`
+grid나 support 비율을 약속하지 않는다. Fold support 또는 donor coverage가 낮으면
+mask를 억지로 만들지 않고 D9a 모집단 정의를 다시 논의한다.
