@@ -929,195 +929,29 @@ objective가 frozen gate를 통과하지 못했다는 증거다.
 
 ---
 
-## 11. Medical-NLA 성공과 무관하게 채울 수 있는 셀과 실행 순서
+## 11. 문서 경계와 실행 계획 위치
 
-여기서 “성공과 무관하다”는 두 의미를 구분한다.
+이 문서는 **수치 원장과 재현 규약**이다. 다음만 이 파일의 canonical content로 유지한다.
 
-1. **결과 분기와 무관**: Medical-NLA가 성공하든 실패하든 최종 논문에 필요한 baseline이다.
-2. **지금 즉시 열어도 됨**: locked-label 접근 순서까지 만족해 현재 실행해도 되는 작업이다.
+- 확정/validation/exploratory 수치와 실제 분모
+- 모집단, split, prompt, activation, model, hyperparameter
+- metric 공식, evaluator 규약, artifact provenance
+- 제출 전 재현성 체크리스트와 현재 계산 상태
 
-DiReCT Table 1A/1B와 Table 2 baseline은 첫 번째에는 해당하지만 두 번째에는 해당하지 않는다.
-이들은 Medical-NLA 성공 여부와 무관하게 반드시 필요하지만, 사전 기록한 접근 규약에 따라 D10
-최종 분기와 final recipe hash를 고정한 뒤 한 batch로만 연다. 반대로 DDXPlus locked test는 frozen
-probe/structured-reader protocol로 이미 한 번 평가됐으므로, 완전히 고정한 Vanilla baseline을
-추가하는 것은 새 method selection을 하지 않는다는 조건에서 지금 실행할 수 있다.
+GPU 배치, 서버별 병렬화, 예상 소요 시간, 구현할 wrapper, 실행 금지 목록처럼 계속 바뀌는 운영
+계획은 이 문서에 중복 기록하지 않는다. 해당 내용의 canonical 위치는
+[`2026-08-29-paper-table-completion.md`](2026-08-29-paper-table-completion.md)의
+**실행 원장**이다. 실행 순서가 바뀌면 completion 문서만 수정하고, 이 수치 원장에는 새 결과와
+재현 가능한 최종 설정만 반영한다.
 
-### 11.1 전체 작업 원장
+현재 결과 상태만 요약하면 다음과 같다.
 
-| 우선순위 | 작업 | 논문 셀/그림 | 모집단 | 계산 자원 | 현재 상태 | 실행 시점 |
-|---:|---|---|---|---|---|---|
-| 0 | 승인된 고정 셀 동기화 | Table 1B DDXPlus, Table 3 structured reader, Appendix gates | 기존 summary | CPU | 완료/재검증 가능 | 지금 |
-| 0 | Vanilla actor prompt와 환경 provenance 동결 | Table 1C/2/3 Methods | checkpoint sidecar | CPU + 2-GPU load smoke | 미완료 | 지금 |
-| 1 | DDXPlus Vanilla full readout | Table 3A/3B open-generator baseline | locked test 10,028 activation rows | 2x4090 두 job, 총 4 GPUs 권장 | 미계산 | prompt/evaluator hash 동결 직후 |
-| 1 | Probe layer-sensitivity plot | Figure 2 | 기존 HS16/24/32 validation summaries | CPU | 수치는 완료, 전용 plot 미구현 | 지금 |
-| 1 | DDXPlus paired-response plot | Figure 3 | 기존 validation/locked probe-reader scores | CPU | 수치는 완료, 전용 plot 미구현 | 지금 |
-| 1 | D10 budget trajectory/final gate | Appendix + Medical-NLA branch 결정 | train 3,104 pairs, validation 3,032 | RunPod A100 80GB | 실행 중/결과 대기 | 중복 실행 금지 |
-| 2 | Source Direct/CoT 재index와 진단 집계 | Table 1A | DiReCT frozen 72/106, 기존 496 outputs | CPU | 미계산 | D10 종료 후 single batch |
-| 2 | DiReCT HS24 probe locked 적용 | Table 1B DiReCT locked 열 | test_seen 72 | CPU 또는 1 GPU | 미계산 | 같은 single batch |
-| 2 | Source CoT clinical alignment | Table 2 baseline | frozen 72/106 = 178 outputs | CPU/Codex extraction + 1x4090 official judge | 미계산 | 같은 single batch |
-| 2 | Vanilla DiReCT clinical alignment | Table 2 baseline | frozen 72/106 = 178 activations | 2x4090 generation + extraction + 1x4090 judge | 미계산 | 같은 single batch |
-| 3 | Medical-NLA final generation | Table 2/3 conditional row | validation 후 locked populations | GPU | method 성공에 조건부 | promotion 통과 시만 |
-| 4 | AR identity/patching | Table 3C/4 conditional | 아직 미동결 | GPU | 미실행 | AV/AR gate가 열릴 때만 |
-
-이 표에서 우선순위 0-2가 Medical-NLA 최종 성공과 무관한 논문 완결 작업이다. 우선순위 3-4는
-성공한 생성형 readout이 있어야만 의미가 있으므로 실패 시 빈 셀로 두지 않고 행/표를 제거한다.
-
-### 11.2 계산 없이 지금 확정할 셀
-
-다음은 새 결과를 계산하거나 locked test를 읽지 않고 승인된 14개 row를 canonical paper table에
-idempotent하게 materialize/검증한다.
-
-```bash
-python scripts/sync_paper_table_fixed_cells.py --write
-python scripts/sync_paper_table_fixed_cells.py --check
-```
-
-포함되는 핵심 값은 DDXPlus locked finding/value probe `.9562/.7659`, structured-reader
-finding/value `.9587/.7654`, deletion phantom `.3593`, removal `.6407`, retention `.9987`,
-replacement `.1466`, old persistence `.5955`, clean switch `.0804`, 그리고 D9a/D10/D14/D16
-development 결과다. `--write`는 DiReCT locked cells와 conditional generative rows를 건드리지
-않는다.
-
-### 11.3 지금 4090으로 실행 가능한 독립 baseline
-
-#### A. DDXPlus Vanilla full readout
-
-목적은 Medical-NLA 성공 여부와 관계없이 공개 Vanilla AV가 같은 CoT-P0 activations에서 어느
-정도 clinical state와 counterfactual change를 읽는지 Table 3A/3B에 넣는 것이다.
-
-- input: locked-test HS32 manifest 전체 10,028 rows
-- generated variants: original 4,543 + cue deletion 4,543 + value edit 942 = 10,028
-- paper metric eligibility: deletion 4,540, value edit 539, clean switch는 method별 original-old hit 수
-- model: `kitft/nla-gemma3-12b-L32-av`
-- decoding 후보가 아니라 동결값: greedy, `do_sample=false`, max new tokens 512, batch 4
-- hardware: 12B bf16 model 하나당 4090 두 장; 4 GPUs면 두 manifest shards를 병렬 실행
-- 과거 pilot 관측 처리량: 약 14.8 s/row per 2-GPU job
-- 단순 wall-time 추정: `10,028 x 14.8 / 2 = 74,207 s`, 약 20.6시간. I/O와 shard 불균형에 따라
-  달라지므로 보장 시간이 아니다.
-
-단, 바로 10,028행을 생성하기 전에 아래 두 항목을 먼저 동결한다.
-
-1. `--dump-actor-prompt-template`로 실제 sidecar prompt를 저장하고 byte SHA-256을 기록한다.
-2. Open text를 evidence ID/value로 채점할 evaluator를 동결한다. 현재 lexical pilot scorer만으로는
-   약칭·의역을 놓칠 수 있으므로 paper용 수치로 바로 쓰지 않는다. Method-blind semantic mapper,
-   exact-quote validator, candidate ontology, model/version, prompt hash를 먼저 고정해야 한다.
-
-즉 **generation 자체는 독립 baseline이라 지금 가능하지만, evaluator 동결 전에 long job을
-시작하는 것은 권하지 않는다.** Prompt가 바뀌면 10,028 outputs를 재사용할 수 없기 때문이다.
-
-Prompt dump는 server-local valid manifest path를 넣어 다음처럼 만든다. Dump mode에서도 CLI가
-`--manifest/--output`을 요구하지만 generation output은 만들지 않는다.
-
-```bash
-OUT=/data1/heejae/medical_nla/results/ddxplus_vanilla_locked_v1
-MANIFEST=/path/to/server125-remapped/locked_test_hs32_manifest.jsonl
-mkdir -p "$OUT/provenance"
-
-python -m src.run_nla \
-  --config configs/default.yaml \
-  --manifest "$MANIFEST" \
-  --output "$OUT/unused_dump_mode.jsonl" \
-  --dump-actor-prompt-template \
-  > "$OUT/provenance/vanilla_actor_prompt.txt"
-
-sha256sum "$OUT/provenance/vanilla_actor_prompt.txt" \
-  > "$OUT/provenance/vanilla_actor_prompt.sha256"
-```
-
-현재 generic generation entry point는 `src.run_nla`가 있지만, 두 shard 생성·merge·population
-검증·semantic scoring까지 한 번에 수행하는 paper-safe wrapper는 아직 없다. 구현할 wrapper는
-`scripts/run_ddxplus_vanilla_locked_baseline_4gpu.sh` 하나로 고정하고 다음을 hard fail해야 한다.
-
-- 두 shard의 `base_id/variant` union이 canonical 10,028 rows와 정확히 일치
-- duplicate/missing activation 0
-- actor prompt hash와 model revision 일치
-- generation 설정 일치
-- semantic evaluator protocol hash 일치
-
-#### B. Figure 2와 Figure 3
-
-두 그림은 이미 계산된 숫자로 만들 수 있어 GPU가 필요 없다.
-
-- Figure 2: DiReCT category/PDD와 DDXPlus finding/value의 HS16/24/32 validation sensitivity
-- Figure 3: DDXPlus original/deletion/value-edit에서 probability drop, phantom, retained
-  preservation, replacement/old persistence 분포
-
-기존 `scripts/run_paper_figures_without_figure1.sh`는 이전 hint-intervention 논문의 Figure 2-4를
-그리는 legacy pipeline이므로 이 새 표 구조에 사용하지 않는다. 새 canonical figures에는 별도의
-`make_medical_nla_probe_layer_figure.py`와 `make_ddxplus_counterfactual_figure.py`가 필요하다.
-
-### 11.4 D10 종료 뒤 한 번만 실행할 DiReCT baseline batch
-
-D10 결과가 성공이든 실패든 아래 baseline은 모두 논문에 들어간다. 단, 분석자가 72/106 label을
-먼저 보고 final recipe를 바꾸는 경로를 막기 위해 D10 final checkpoint 판정과 recipe hash 기록이
-선행돼야 한다.
-
-1. 기존 496 source Direct/CoT outputs을 confirmatory split으로 reindex한다. Backbone generation은
-   다시 하지 않는다.
-2. Table 1A의 parse, strict PDD, disease category, official semantic diagnosis, paired McNemar를
-   72/106별로 계산한다.
-3. 이미 validation에서 HS24로 동결한 DiReCT category/PDD probes를 test_seen 72에 한 번 적용하고,
-   label-shuffle control과 patient-group cluster CI를 계산한다. Heldout PDD ontology 밖 cell은 `N/A`다.
-4. Source CoT 178 outputs를 method-blind extractor와 official evaluator에 보낸다.
-5. Vanilla의 저장 output이 prompt/decoding/model hash까지 일치하면 겹치는 rows만 재사용하고,
-   하나라도 다르면 178건 전부 다시 생성한다.
-6. Source CoT와 Vanilla에 **동일한 extractor requests, candidate ontology, judge version, official
-   evaluator**를 사용하고 72/106 panel을 함께 materialize한다.
-
-4090 네 장을 쓸 때의 병렬화는 다음이 안전하다.
-
-- CPU: source reindex, Table 1A lexical 집계, probe input join, extraction request 생성
-- GPUs 0-1: Vanilla 178 readouts 생성
-- GPU 2: 준비된 Source CoT claims의 official Llama evaluator
-- GPU 3: probe 적용 또는 evaluator 후속 queue
-
-과거 DiReCT E2 Vanilla 관측치는 2x4090에서 171행, max 256 tokens가 약 4.73 s/row였다. 같은
-recipe라면 178행 generation 자체는 약 14분 규모지만, quote extraction과 official semantic
-evaluation 시간이 별도로 든다. 이 값은 runtime 참고치이지 논문 protocol은 아니다.
-
-현재 `scripts/run_direct_e4_validation_evaluator.sh`는 50-case `val_seen` 전용이며 cohort와 expected
-count가 hard-coded돼 있다. 이 파일에 test path를 임의로 넣어 재사용하지 않는다. Final batch에는
-다음 세 wrapper를 먼저 구현하고 preflight를 통과시킨다.
-
-```text
-scripts/reindex_and_score_direct_locked_source_outputs.py
-scripts/evaluate_direct_locked_probes.py
-scripts/run_direct_locked_baseline_batch.sh
-```
-
-마지막 wrapper는 D10 decision record, recipe hash, 72/106 split hashes, prompt hash가 없으면 실행을
-거부해야 한다.
-
-### 11.5 D10 budget run과 조건부 branch
-
-D10 budget calibration은 현재 RunPod A100-SXM4-80GB 한 장에서 동일 objective/data를 유지하고
-20 -> 1,552 steps만 변화시킨 dose-response다. 같은 실험을 4090에서 중복 실행하지 않는다.
-
-1. Step 1,552 final checkpoint만 frozen D5 gate로 판정한다.
-2. 실패하면 Appendix trajectory/final gate를 확정하고 generative final 행을 제거한다.
-3. 통과하면 validation generation을 한 번 수행한다.
-4. DiReCT `Obscomp>.2130`과 `Expcom>.0650`, DDXPlus generation grounding gate를 모두 통과한
-   단일 recipe만 locked test로 보낸다.
-5. 1,552 step 이후 epoch/lambda/temperature 자동 탐색은 하지 않는다.
-
-### 11.6 지금 돌리지 않을 작업
-
-- promotion을 통과하지 않은 SFT/D10/D16 checkpoint의 locked-test generation
-- test 결과를 보고 threshold/layer/prompt를 다시 고르는 DDXPlus sweep
-- 이미 locked 수치가 확정된 probe와 structured reader의 불필요한 재학습
-- identity와 matched-over-shuffled protocol이 동결되지 않은 AR patching
-- old pilot 71/100을 새 72/106 결과로 바꾸어 쓰는 재집계
-
-### 11.7 가장 빠른 실제 순서
-
-1. 지금 CPU에서 fixed-cell sync/check와 provenance 파일 목록을 완결한다.
-2. Vanilla sidecar prompt와 DDXPlus semantic mapper를 동결한다.
-3. 4090 네 장이 비면 DDXPlus Vanilla 10,028행을 두 2-GPU shards로 실행한다.
-4. 동시에 CPU에서 Figure 2/3 전용 plotter와 DiReCT locked-batch wrappers를 구현·fixture test한다.
-5. RunPod D10이 끝나면 final branch/recipe hash를 기록한다.
-6. 같은 날 DiReCT Table 1A -> 1B -> Table 2 Source CoT/Vanilla를 single batch로 실행한다.
-7. Medical-NLA promotion 성공 시에만 conditional row를 추가하고, 실패 시 structured reader를
-   main positive result로 유지한다.
+| 범위 | 상태 |
+|---|---|
+| DDXPlus locked probe/structured reader | 확정, 본문 반영 가능 |
+| DDXPlus Vanilla full baseline | 미계산 |
+| DiReCT Table 1A/1B와 Table 2 Source CoT/Vanilla | D10 종료 후 single locked-label batch 대기 |
+| Medical-NLA final / AR | promotion gate에 조건부 |
 
 ---
 
@@ -1158,8 +992,9 @@ D10 final branch가 기록된 뒤 single locked-label batch로 실행한다. 생
 - 수치 4상태 구분(Locked/Validation/Exploratory/Not computed)과 "validation을
   locked처럼 옮기지 않는다, 과거 71/100을 72/106처럼 쓰지 않는다"는 규칙.
 - §2.3 말미 — Table 1A가 CPU 재집계라는 이유로 미리 열지 않고 D10 분기 후
-  batch로 일괄 실행. §11 Step 3.5의 vanilla 재사용 조건(byte-level prompt/
-  decoding 일치 시에만, 불일치 시 178건 전부 재생성)도 반영 확인.
+  batch로 일괄 실행. 현재는 completion 문서의 `D10 종료 뒤 한 번만 실행할 DiReCT baseline
+  batch` 절로 이동한 vanilla 재사용 조건(byte-level prompt/decoding 일치 시에만, 불일치 시
+  178건 전부 재생성)도 반영 확인.
 - §4.3/§8.4의 재현성 결손 자백 — vanilla sidecar prompt가 git에 없다는 것,
   D10 실제 initialization은 wrapper default가 아니라 run artifact(`best.json`,
   `av_prompt_template.txt`)에서 확정해야 한다는 것, Codex extractor의 실제

@@ -134,8 +134,8 @@ observation과 사례별로 정렬되지 않았다는 것이다. 따라서 seed�
 
 ## Main Table 3 — DDXPlus activation grounding
 
-이 표는 이미 locked test 숫자로 거의 완결됐다. Probe와 structured monitor를 나란히
-두되 동일한 종류의 모델이라고 해석하지 않는다.
+Probe와 structured monitor의 locked core rows는 완결됐고, branch-independent Vanilla baseline이
+남았다. Probe와 structured monitor를 나란히 두되 동일한 종류의 모델이라고 해석하지 않는다.
 
 ### Panel A. Static availability and case specificity
 
@@ -143,6 +143,7 @@ observation과 사례별로 정렬되지 않았다는 것이다. 따라서 seed�
 |---|---:|---:|---:|---:|
 | Frozen closed probe | `.9562` | `.7938` | `+.1624 [.1576,.1672]` | `.7659` |
 | Probe-guided structured monitor | `.9587` | `.7938` | `+.1624` | `.7654` |
+| Vanilla NLA | pending full locked baseline | pending | pending | pending |
 
 Structured monitor의 mean emitted claims는 `4.9353`, native-value emission coverage는
 `.9995`다. Prompt text는 prediction construction에 사용하지 않았다.
@@ -152,13 +153,16 @@ Structured monitor의 mean emitted claims는 `4.9353`, native-value emission cov
 | Method | Deletion phantom | Removal success | Untouched retention | Replacement hit | Old persistence | Clean switch |
 |---|---:|---:|---:|---:|---:|---:|
 | Probe-guided structured monitor | `.3593` | `.6407` | `.9987` | `.1466` | `.5955` | `.0804` |
+| Vanilla NLA | pending | pending | pending | pending | pending | method-specific denominator |
 
 분모는 deletion `4,540`, value edit `539`, clean-switch eligible `398`이다. 이 결과는
 정적 finding은 강하게 읽히지만 삭제 state가 완전히 사라지지 않고 native value update는
 약하다는 양면 결론을 만든다.
 
-Free-generating Vanilla/SFT/D10 행은 validation generation grounding을 통과한 경우에만
-추가한다. 현재까지 통과한 행이 없으므로 locked-test `TBD` 행을 만들지 않는다.
+공개 checkpoint의 **Vanilla NLA는 branch-independent baseline**이므로 actor prompt와 semantic
+mapper를 먼저 동결한 뒤 full locked row를 계산한다. Adapted SFT/D10 행만 validation generation
+grounding을 통과한 경우에 추가한다. Promotion을 통과하지 못한 adapted method의 locked-test
+`TBD` 행은 만들지 않는다.
 
 ## Appendix Table — Generative method development gates
 
@@ -200,64 +204,234 @@ grounding prerequisite failed`를 Results와 Limitations에 한 문장으로 기
 3. Figure 3: DDXPlus original/deletion/value-edit paired response 분포. 평균만 반복하지
    않고 deletion probability drop, phantom, untouched retention 분포를 시각화한다.
 
-## 가장 빠른 셀 완결 순서
+## 실행 원장: Medical-NLA 성공과 무관하게 채울 수 있는 셀
 
-### D10과 독립적으로 즉시 실행
+여기서 “성공과 무관하다”는 두 의미를 구분한다.
 
-1. 기존 496 source outputs을 frozen split으로 재집계해 Table 1A의 72/106 Direct/CoT
-   strict/category 셀을 채운다. 새 GPU generation은 없다.
-2. 이미 고정한 HS24 DiReCT probe를 test-seen 72에 한 번 적용하고 label-shuffle control을
-   계산한다. PDD-heldout은 정의되지 않은 셀을 억지로 채우지 않는다.
-3. Source CoT와 Vanilla NLA만 frozen 72/106에서 공통 extractor/evaluator로 평가해
-   Table 2 baseline을 닫는다. Vanilla output이 없는 case만 생성한다.
-4. Table 3은 현재 locked-test artifact로 즉시 원고에 반영한다.
+1. **결과 분기와 무관**: Medical-NLA가 성공하든 실패하든 최종 논문에 필요한 baseline이다.
+2. **지금 즉시 열어도 됨**: locked-label 접근 순서까지 만족해 현재 실행해도 되는 작업이다.
 
-### D10 budget run 종료 후 분기
+DiReCT Table 1A/1B와 Table 2 baseline은 첫 번째에는 해당하지만 두 번째에는 해당하지 않는다.
+이들은 Medical-NLA 성공 여부와 무관하게 반드시 필요하지만, 사전 기록한 접근 규약에 따라 D10
+최종 분기와 final recipe hash를 고정한 뒤 한 batch로만 연다. 반대로 DDXPlus locked test는 frozen
+probe/structured-reader protocol로 이미 한 번 평가됐으므로, 완전히 고정한 Vanilla baseline을
+추가하는 것은 새 method selection을 하지 않는다는 조건에서 지금 실행할 수 있다.
 
-1. Step 1,552 D5 gate 실패: Appendix gate 행을 확정하고 generative Medical-NLA의
-   locked-test 행은 만들지 않는다. 본문은 structured monitor 양성 결과와 생성형 objective
-   음성 결과로 닫는다.
-2. Teacher-forced D5 gate 통과: validation generation을 한 번 수행한다.
-3. Generation에서 `Obscomp <= .2130`: locked test를 읽지 않고 실패 ablation으로 닫는다.
-4. Generation에서 `Obscomp > .2130`: 해당 단일 frozen method만 Table 2와 Table 3의
-   locked test에 한 번 보낸다.
+### 전체 작업 원장
 
-어느 분기에서도 1,552 step 이후 epoch/lambda/temperature를 자동 탐색하지 않는다.
+| 우선순위 | 작업 | 논문 셀/그림 | 모집단 | 계산 자원 | 현재 상태 | 실행 시점 |
+|---:|---|---|---|---|---|---|
+| 0 | 승인된 고정 셀 동기화 | Table 1B DDXPlus, Table 3 structured reader, Appendix gates | 기존 summary | CPU | 완료/재검증 가능 | 지금 |
+| 0 | Vanilla actor prompt와 환경 provenance 동결 | Table 1C/2/3 Methods | checkpoint sidecar | CPU + 2-GPU load smoke | 미완료 | 지금 |
+| 1 | DDXPlus Vanilla full readout | Table 3A/3B open-generator baseline | locked test 10,028 activation rows | 2x4090 두 job, 총 4 GPUs 권장 | 미계산 | prompt/evaluator hash 동결 직후 |
+| 1 | Probe layer-sensitivity plot | Figure 2 | 기존 HS16/24/32 validation summaries | CPU | 수치는 완료, 전용 plot 미구현 | 지금 |
+| 1 | DDXPlus paired-response plot | Figure 3 | 기존 validation/locked probe-reader scores | CPU | 수치는 완료, 전용 plot 미구현 | 지금 |
+| 1 | D10 budget trajectory/final gate | Appendix + Medical-NLA branch 결정 | train 3,104 pairs, validation 3,032 | RunPod A100 80GB | 실행 중/결과 대기 | 중복 실행 금지 |
+| 2 | Source Direct/CoT 재index와 진단 집계 | Table 1A | DiReCT frozen 72/106, 기존 496 outputs | CPU | 미계산 | D10 종료 후 single batch |
+| 2 | DiReCT HS24 probe locked 적용 | Table 1B DiReCT locked 열 | test_seen 72 | CPU 또는 1 GPU | 미계산 | 같은 single batch |
+| 2 | Source CoT clinical alignment | Table 2 baseline | frozen 72/106 = 178 outputs | CPU/Codex extraction + 1x4090 official judge | 미계산 | 같은 single batch |
+| 2 | Vanilla DiReCT clinical alignment | Table 2 baseline | frozen 72/106 = 178 activations | 2x4090 generation + extraction + 1x4090 judge | 미계산 | 같은 single batch |
+| 3 | Medical-NLA final generation | Table 2/3 conditional row | validation 후 locked populations | GPU | method 성공에 조건부 | promotion 통과 시만 |
+| 4 | AR identity/patching | Table 3C/4 conditional | 아직 미동결 | GPU | 미실행 | AV/AR gate가 열릴 때만 |
+
+이 표에서 우선순위 0-2가 Medical-NLA 최종 성공과 무관한 논문 완결 작업이다. 우선순위 3-4는
+성공한 생성형 readout이 있어야만 의미가 있으므로 실패 시 빈 셀로 두지 않고 행/표를 제거한다.
+
+### 계산 없이 지금 확정할 셀
+
+다음은 새 결과를 계산하거나 locked test를 읽지 않고 승인된 14개 row를 canonical paper table에
+idempotent하게 materialize/검증한다.
+
+```bash
+python scripts/sync_paper_table_fixed_cells.py --write
+python scripts/sync_paper_table_fixed_cells.py --check
+```
+
+포함되는 핵심 값은 DDXPlus locked finding/value probe `.9562/.7659`, structured-reader
+finding/value `.9587/.7654`, deletion phantom `.3593`, removal `.6407`, retention `.9987`,
+replacement `.1466`, old persistence `.5955`, clean switch `.0804`, 그리고 D9a/D10/D14/D16
+development 결과다. `--write`는 DiReCT locked cells와 conditional generative rows를 건드리지
+않는다.
+
+### 지금 4090으로 실행 가능한 독립 baseline
+
+#### A. DDXPlus Vanilla full readout
+
+목적은 Medical-NLA 성공 여부와 관계없이 공개 Vanilla AV가 같은 CoT-P0 activations에서 어느
+정도 clinical state와 counterfactual change를 읽는지 Table 3A/3B에 넣는 것이다.
+
+- input: locked-test HS32 manifest 전체 10,028 rows
+- generated variants: original 4,543 + cue deletion 4,543 + value edit 942 = 10,028
+- paper metric eligibility: deletion 4,540, value edit 539, clean switch는 method별 original-old hit 수
+- model: `kitft/nla-gemma3-12b-L32-av`
+- decoding 후보가 아니라 동결값: greedy, `do_sample=false`, max new tokens 512, batch 4
+- hardware: 12B bf16 model 하나당 4090 두 장; 4 GPUs면 두 manifest shards를 병렬 실행
+- 과거 pilot 관측 처리량: 약 14.8 s/row per 2-GPU job
+- 단순 wall-time 추정: `10,028 x 14.8 / 2 = 74,207 s`, 약 20.6시간. I/O와 shard 불균형에 따라
+  달라지므로 보장 시간이 아니다.
+
+단, 바로 10,028행을 생성하기 전에 아래 두 항목을 먼저 동결한다.
+
+1. `--dump-actor-prompt-template`로 실제 sidecar prompt를 저장하고 byte SHA-256을 기록한다.
+2. Open text를 evidence ID/value로 채점할 evaluator를 동결한다. 현재 lexical pilot scorer만으로는
+   약칭·의역을 놓칠 수 있으므로 paper용 수치로 바로 쓰지 않는다. Method-blind semantic mapper,
+   exact-quote validator, candidate ontology, model/version, prompt hash를 먼저 고정해야 한다.
+
+즉 **generation 자체는 독립 baseline이라 지금 가능하지만, evaluator 동결 전에 long job을
+시작하는 것은 권하지 않는다.** Prompt가 바뀌면 10,028 outputs를 재사용할 수 없기 때문이다.
+
+Prompt dump는 server-local valid manifest path를 넣어 다음처럼 만든다. Dump mode에서도 CLI가
+`--manifest/--output`을 요구하지만 generation output은 만들지 않는다.
+
+```bash
+OUT=/data1/heejae/medical_nla/results/ddxplus_vanilla_locked_v1
+MANIFEST=/path/to/server125-remapped/locked_test_hs32_manifest.jsonl
+mkdir -p "$OUT/provenance"
+
+python -m src.run_nla \
+  --config configs/default.yaml \
+  --manifest "$MANIFEST" \
+  --output "$OUT/unused_dump_mode.jsonl" \
+  --dump-actor-prompt-template \
+  > "$OUT/provenance/vanilla_actor_prompt.txt"
+
+sha256sum "$OUT/provenance/vanilla_actor_prompt.txt" \
+  > "$OUT/provenance/vanilla_actor_prompt.sha256"
+```
+
+현재 generic generation entry point는 `src.run_nla`가 있지만, 두 shard 생성·merge·population
+검증·semantic scoring까지 한 번에 수행하는 paper-safe wrapper는 아직 없다. 구현할 wrapper는
+`scripts/run_ddxplus_vanilla_locked_baseline_4gpu.sh` 하나로 고정하고 다음을 hard fail해야 한다.
+
+- 두 shard의 `base_id/variant` union이 canonical 10,028 rows와 정확히 일치
+- duplicate/missing activation 0
+- actor prompt hash와 model revision 일치
+- generation 설정 일치
+- semantic evaluator protocol hash 일치
+
+#### B. Figure 2와 Figure 3
+
+두 그림은 이미 계산된 숫자로 만들 수 있어 GPU가 필요 없다.
+
+- Figure 2: DiReCT category/PDD와 DDXPlus finding/value의 HS16/24/32 validation sensitivity
+- Figure 3: DDXPlus original/deletion/value-edit에서 probability drop, phantom, retained
+  preservation, replacement/old persistence 분포
+
+기존 `scripts/run_paper_figures_without_figure1.sh`는 이전 hint-intervention 논문의 Figure 2-4를
+그리는 legacy pipeline이므로 이 새 표 구조에 사용하지 않는다. 새 canonical figures에는 별도의
+`make_medical_nla_probe_layer_figure.py`와 `make_ddxplus_counterfactual_figure.py`가 필요하다.
+
+### D10 종료 뒤 한 번만 실행할 DiReCT baseline batch
+
+D10 결과가 성공이든 실패든 아래 baseline은 모두 논문에 들어간다. 단, 분석자가 72/106 label을
+먼저 보고 final recipe를 바꾸는 경로를 막기 위해 D10 final checkpoint 판정과 recipe hash 기록이
+선행돼야 한다.
+
+1. 기존 496 source Direct/CoT outputs을 confirmatory split으로 reindex한다. Backbone generation은
+   다시 하지 않는다.
+2. Table 1A의 parse, strict PDD, disease category, official semantic diagnosis, paired McNemar를
+   72/106별로 계산한다.
+3. 이미 validation에서 HS24로 동결한 DiReCT category/PDD probes를 test_seen 72에 한 번 적용하고,
+   label-shuffle control과 patient-group cluster CI를 계산한다. Heldout PDD ontology 밖 cell은 `N/A`다.
+4. Source CoT 178 outputs를 method-blind extractor와 official evaluator에 보낸다.
+5. Vanilla의 저장 output이 prompt/decoding/model hash까지 일치하면 겹치는 rows만 재사용하고,
+   하나라도 다르면 178건 전부 다시 생성한다.
+6. Source CoT와 Vanilla에 **동일한 extractor requests, candidate ontology, judge version, official
+   evaluator**를 사용하고 72/106 panel을 함께 materialize한다.
+
+4090 네 장을 쓸 때의 병렬화는 다음이 안전하다.
+
+- CPU: source reindex, Table 1A lexical 집계, probe input join, extraction request 생성
+- GPUs 0-1: Vanilla 178 readouts 생성
+- GPU 2: 준비된 Source CoT claims의 official Llama evaluator
+- GPU 3: probe 적용 또는 evaluator 후속 queue
+
+과거 DiReCT E2 Vanilla 관측치는 2x4090에서 171행, max 256 tokens가 약 4.73 s/row였다. 같은
+recipe라면 178행 generation 자체는 약 14분 규모지만, quote extraction과 official semantic
+evaluation 시간이 별도로 든다. 이 값은 runtime 참고치이지 논문 protocol은 아니다.
+
+현재 `scripts/run_direct_e4_validation_evaluator.sh`는 50-case `val_seen` 전용이며 cohort와 expected
+count가 hard-coded돼 있다. 이 파일에 test path를 임의로 넣어 재사용하지 않는다. Final batch에는
+다음 세 wrapper를 먼저 구현하고 preflight를 통과시킨다.
+
+```text
+scripts/reindex_and_score_direct_locked_source_outputs.py
+scripts/evaluate_direct_locked_probes.py
+scripts/run_direct_locked_baseline_batch.sh
+```
+
+마지막 wrapper는 D10 decision record, recipe hash, 72/106 split hashes, prompt hash가 없으면 실행을
+거부해야 한다.
+
+### D10 budget run과 조건부 branch
+
+D10 budget calibration은 현재 RunPod A100-SXM4-80GB 한 장에서 동일 objective/data를 유지하고
+20 -> 1,552 steps만 변화시킨 dose-response다. 같은 실험을 4090에서 중복 실행하지 않는다.
+
+1. Step 1,552 final checkpoint만 frozen D5 gate로 판정한다.
+2. 실패하면 Appendix trajectory/final gate를 확정하고 generative final 행을 제거한다.
+3. 통과하면 validation generation을 한 번 수행한다.
+4. DiReCT `Obscomp>.2130`과 `Expcom>.0650`, DDXPlus generation grounding gate를 모두 통과한
+   단일 recipe만 locked test로 보낸다.
+5. 1,552 step 이후 epoch/lambda/temperature 자동 탐색은 하지 않는다.
+
+### 지금 돌리지 않을 작업
+
+- promotion을 통과하지 않은 SFT/D10/D16 checkpoint의 locked-test generation
+- test 결과를 보고 threshold/layer/prompt를 다시 고르는 DDXPlus sweep
+- 이미 locked 수치가 확정된 probe와 structured reader의 불필요한 재학습
+- identity와 matched-over-shuffled protocol이 동결되지 않은 AR patching
+- old pilot 71/100을 새 72/106 결과로 바꾸어 쓰는 재집계
+
+### 가장 빠른 실제 순서
+
+1. 지금 CPU에서 fixed-cell sync/check와 provenance 파일 목록을 완결한다.
+2. Vanilla sidecar prompt와 DDXPlus semantic mapper를 동결한다.
+3. 4090 네 장이 비면 DDXPlus Vanilla 10,028행을 두 2-GPU shards로 실행한다.
+4. 동시에 CPU에서 Figure 2/3 전용 plotter와 DiReCT locked-batch wrappers를 구현·fixture test한다.
+5. RunPod D10이 끝나면 final branch/recipe hash를 기록한다.
+6. 같은 날 DiReCT Table 1A -> 1B -> Table 2 Source CoT/Vanilla를 single batch로 실행한다.
+7. Medical-NLA promotion 성공 시에만 conditional row를 추가하고, 실패 시 structured reader를
+   main positive result로 유지한다.
 
 ## 완료 정의
 
-다음 네 조건이면 숫자 표는 완료다.
+다음 조건을 모두 만족하면 branch-independent 숫자 표가 완료된다.
 
-- Table 1A frozen 72/106 재집계 완료.
-- Table 1B DiReCT test-seen closed probe와 label-shuffle 완료.
-- Table 2 Source CoT/Vanilla frozen baseline 완료.
-- D10 step 1,552의 최종 분기 판정 완료.
+- Table 1A frozen 72/106 Direct/CoT 재집계 완료
+- Table 1B DiReCT test-seen closed probe와 label-shuffle 완료
+- Table 2 Source CoT/Vanilla frozen baseline 완료
+- DDXPlus Vanilla full baseline의 prompt/evaluator protocol과 결과 완료
+- D10 step 1,552의 최종 분기 판정 완료
+- Figure 2/3 canonical plot과 source artifact hash 기록 완료
 
-Table 3은 이미 완료됐고 patching table은 gate 실패로 제거됐다. 따라서 D10 결과를 기다리는
-동안에도 나머지 논문 표를 병렬로 채울 수 있다.
+Medical-NLA가 promotion에 실패하면 conditional 행과 AR 표를 삭제하는 것이 완료 상태다. 성공한
+경우에만 validation generation gate와 locked-test conditional row가 추가된다.
 
 ## 판정
 
-현재 상태는 **표 구조 제안 / 사람 확인 대기**다. 승인되면
-`docs/paper/tables_and_figures.md`를 이 구조로 교체하고, Table 1A → Table 1B →
-Table 2 baseline 순서로 실행 스크립트를 고정한다. 승인 전에는 canonical paper table을
-바꾸거나 locked-test 추가 method를 실행하지 않는다.
+실행 순서의 현재 canonical 규칙은 다음과 같다.
 
-## 실행 기록 (2026-08-29)
+1. Fixed cells와 CPU figures/provenance는 지금 완결한다.
+2. DDXPlus Vanilla는 prompt와 semantic mapper를 동결한 뒤 실행한다.
+3. DiReCT 72/106 locked-label batch는 D10 final branch와 recipe hash 기록 뒤 한 번만 연다.
+4. Promotion을 통과하지 않은 adapted generator와 AR은 locked test에서 실행하지 않는다.
 
-사람이 "지금은 기존 확정값과 표 구조만 반영"(엄밀 순서 1단계)을 승인했다.
-`docs/paper/tables_and_figures.md`에 반영 완료:
+## 실행 기록
 
-- Table 3을 method-class panel 구조로 교체하고 probe/structured monitor
-  locked 행을 기입 (Panel A/B 완결)
-- Table 2의 가상 3행 제거, Source CoT/Vanilla 2행 + 조건부 Medical-NLA 규칙
-- Table 1A에 재집계 규칙(기존 496 출력 CPU 재집계, 분석 접근 기록, batch 일괄
-  실행) 명시
-- Appendix development gates 표 기입 (Full SFT/D10/D14/D16, budget run 진행 중)
-- Methods에 D9a protocol 기록 (`P=.90/D=0/M=0`, coverage .9993, false support
-  .0378, pairs 3,104)
-- Vanilla 재사용 조건 추가: 기존 출력의 생성 설정이 동결 recipe와 일치할 때만
-  재사용, 불일치 시 178건 전부 재생성
+### 2026-08-29
 
-2-4단계(분기 판정 → batch baseline → Medical-NLA 행 추가/제거)는 D10 budget
-run 종료 후 진행한다.
+사람이 "지금은 기존 확정값과 표 구조만 반영"을 승인했다.
+`docs/paper/tables_and_figures.md`에 다음을 반영했다.
+
+- Table 3을 method-class panel 구조로 교체하고 probe/structured monitor locked 행 기입
+- Table 2의 가상 행 제거, Source CoT/Vanilla와 조건부 Medical-NLA 규칙만 유지
+- Appendix development gates에 Full SFT/D10/D14/D16 수치 기입
+- D9a protocol 기록 (`P=.90/D=0/M=0`, coverage .9993, false support .0378, pairs 3,104)
+- Vanilla artifact 재사용은 prompt/model/decoding hash가 일치할 때만 허용
+
+### 2026-08-30
+
+실행 계획을 수치 원장에서 이 문서로 분리했다. 수치·분모·hyperparameter의 canonical 기록은
+`2026-08-29-paper-table-values-and-reproducibility.md`, 서버·GPU·실행 순서의 canonical 기록은
+이 문서가 담당한다.
