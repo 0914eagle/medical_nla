@@ -94,16 +94,52 @@ nohup bash scripts/run_ddxplus_oof_teacher_k5_125.sh \
       private_label_prevalence.jsonl   # expected 91
 ```
 
-## 판정
+## K=5 결과
 
-현재 상태: **K=5 실행/검토 대기**.
+산출물은 `9,310` teacher rows와 `91` label-prevalence rows로 완성됐다.
+Student target, validation, locked test는 사용하지 않았다.
 
-- PASS: P2-P4 target/gate를 별도 사람 승인한 뒤 student smoke 설계 문서를 새로 만든다.
-- FAIL: 추가 K/threshold sweep 없이 hard-set text distillation을 중단하고 새 주제
-  문서에서 probabilistic/alternative objective를 논의한다.
+| reader | arm | mean claims | precision | recall | F1 | BCE |
+|---|---|---:|---:|---:|---:|---:|
+| K=2 OOF | original | 6.0745 | .7538 | .9999 | .8595 | .2271 |
+| K=5 OOF | original | 5.1557 | .8881 | .9999 | .9407 | .1479 |
+| full-data frozen | original | 4.7865 | .9567 | 1.0000 | .9779 | .1120 |
+| K=2 OOF | deleted | 8.3590 | .4276 | .9985 | .5988 | .3004 |
+| K=5 OOF | deleted | 6.6644 | .5363 | .9983 | .6977 | .2258 |
+| full-data frozen | deleted | 5.6432 | .6331 | .9979 | .7747 | .1804 |
 
-## 열린 항목
+K=5는 K=2보다 original precision을 `.7538→.8881`, original F1을
+`.8595→.9407`, OOF/full original Jaccard를 `.8535→.9437`로 개선했다.
+Deletion에서도 phantom은 `.5101→.4263`, newly added claims는
+`3.5091→2.3787`로 감소했다.
 
-1. K=5의 D15 일곱 gate 통과 여부
-2. 통과 시 original-only와 original+deleted target contract
-3. 통과 시 P2-P4 `.80/.05/.02` 최종 승인
+그러나 deletion 후 새로 선택된 label `11,073`개 중 `11,071`개(`.9998`)는
+deleted input에 없었다. Threshold 초과 margin 중앙값도 `.1429`이므로 단순히
+`.5` 경계에 걸친 수치 오차로 볼 수 없다.
+
+## 동결 Gate 판정
+
+| criterion | observed | gate | result |
+|---|---:|---:|---|
+| original cue precision | .8881 | >= .90 | **FAIL** |
+| original cue recall | .9999 | >= .98 | PASS |
+| original mean-claims relative gap | 7.71% | <= 10% | PASS |
+| OOF/full original Jaccard | .9437 | >= .90 | PASS |
+| deleted mean-claims relative gap | 18.10% | <= 10% | **FAIL** |
+| deleted phantom absolute gap | .0295 | <= .05 | PASS |
+| minimum fold original precision | .8711 | >= .85 | PASS |
+
+전체 gate는 AND이므로 최종 판정은 **FAIL**이다. Original precision은 기준에
+`.0119` 부족하고, deleted mean-claims gap은 허용치보다 `8.10%p` 크다.
+
+## 최종 판정
+
+1. D14의 hard-set OOF teacher target은 만들지 않는다.
+2. P2-P4 승인과 student set-to-text smoke는 진행하지 않는다.
+3. D15에 따라 K, threshold, epoch를 추가 탐색하지 않는다.
+4. 이 실패는 activation 판독 자체의 불가능을 뜻하지 않는다. Hard threshold로
+   만든 OOF claim set이 frozen calibration contract를 충족하지 못했다는 판정이다.
+5. 다음 learned method는 별도 문서에서 soft/probabilistic auxiliary grounding을
+   논의한다.
+
+현재 상태: **resolved / FAIL**.

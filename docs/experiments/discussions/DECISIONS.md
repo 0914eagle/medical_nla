@@ -19,7 +19,7 @@ archive를 참조한다. 새 데이터 없이 기존 결정을 재론하지 않�
 | D12 | D10 1x2 smoke 실패를 확정하고 budget/lambda/step sweep을 금지한다. | changed gap `.0005/.0028/.0030` vs floor `.05` |
 | D13 | Structured reader는 open NLA가 아니라 control/upper baseline이다. | test finding F1 `.9587`, phantom `.3593`, clean switch `.0804` |
 | D14 | 다음 learned method는 training-only OOF probe teacher를 쓰는 set-to-text NLA다. Inference는 raw HS32→단일 decoder다. | activation-conditioned target |
-| D15 | K=2 teacher는 폐기하고 K=5를 단 한 번 평가한다. Threshold `.5`와 hyperparameter를 유지하며 실패 시 추가 K/threshold sweep을 금지한다. | K=2 precision `.7538` vs full `.9567`; absent additions `16333/16335` |
+| D15 | K=2 teacher는 폐기하고 K=5를 단 한 번 평가한다. Threshold `.5`와 hyperparameter를 유지하며 실패 시 추가 K/threshold sweep을 금지한다. K=5는 gate FAIL로 종료했다. | K=5 precision `.8881`; deleted mean gap `18.10%`; 추가 sweep 금지 |
 
 ## D15 calibration gate
 
