@@ -33,6 +33,7 @@
 | D12 | D10 1x2 smoke는 frozen gate 실패로 확정 (changed-gap `.0005/.0028/.0030` vs δ_min `.05`; seed 17 CI 0 포함·specificity 음수). Single-decoder 1x2 형태 종료, budget/lambda/step 재시도 금지, 사전 등록 분기대로 I/J 이동 | 20-step 실패는 budget과 objective를 구분하지 못하나 재론에는 새 데이터 필요 (R16) | `cac3277`, R17 사람 승인 |
 | D13 | Structured reader는 open NLA 성과가 아니라 control/upper baseline. 두 병목 분해를 공식 기록: 정적 finding 노출은 decoder 병목(test F1 `.9587`, own-shuffled `+.1624`), intervention response는 표현 병목(deletion phantom `.3593`, clean switch `.0804`) — phantom에는 representation-level ceiling이 존재하며 논문 한계 절에 반영 | locked test 재현 (validation과 ≤.005 차이) | `61cbce2`, R17 사람 승인 |
 | D14 | 다음 learned method는 probe-distilled set-to-text NLA. Probe는 학습 시 OOF teacher 전용, inference는 raw HS32 → 단일 decoder. Staged 진행: (1) teacher materialization + target 분포 read-only report → (2) P2-P4 gate 값(`.80/.05/.02` 제안) 사람 승인 → (3) student smoke. Target 순서는 분포 report 전 동결(canonical evidence-ID 순서 검토, R16) | 정답지를 입력이 아니라 activation에서 읽힌 것으로 정렬 — D3의 완성형 | `4ebbbda`, R17 사람 승인 |
+| D15 | K=2 OOF teacher는 calibration 실패로 폐기하고 K=5를 단 한 번 평가한다. Threshold `.5`와 probe hyperparameter는 유지한다. K=5 gate는 original precision ≥.90, recall ≥.98, full-data 대비 original/deleted mean claims 차이 ≤10%, original Jaccard ≥.90, phantom 차이 ≤.05, 모든 fold precision ≥.85. 실패 시 K/threshold sweep과 hard-set target 생성을 중단한다 | K=2 original precision `.7538` vs full `.9567`; deletion absent additions `16333/16335` | R20 사람 승인 |
 
 ## 라운드 로그
 
@@ -941,3 +942,23 @@ set 전이, newly-added probability margin, deleted input에 없는 추가 label
 fold별 calibration, label prevalence drift를 보고한다. Cue agreement는 activation의
 정답이 아니라 calibration diagnostic으로만 사용한다. 이 감사 결과 전에는 threshold를
 재선택하거나 target을 만들지 않는다.
+
+### R20. Codex — 2026-08-29
+
+**[결과] Calibration audit는 K=2 teacher의 과다 선택과 deletion OOD가 모두
+존재함을 분리했다.** Original에서 K=2 OOF/full-data mean claims는
+`6.0745/4.7865`, precision `.7538/.9567`, F1 `.8595/.9779`, BCE
+`.2271/.1120`이었다. Deleted arm에서도 OOF/full mean claims `8.3590/5.6432`,
+phantom `.5101/.3968`이었다. Newly added label은 평균 `3.5091`, 총
+`16,335`개 중 deleted input에 없는 것이 `16,333`개(`.9999`)였고 threshold
+margin 중앙값은 `.1077`이었다. 따라서 단순 near-threshold noise만으로 설명되지
+않는다.
+
+**[사람 승인] 희재가 K=5 one-shot 변경을 승인했다.** K=2 artifact는 보존하되
+student target에 쓰지 않는다. K=5는 `crc32(base_id)%5`, 각 head가 80% train을
+사용하고 threshold `.5`, validation-selected hyperparameter/epoch를 그대로 유지한다.
+Validation/locked test는 읽지 않는다.
+
+승인된 calibration gate는 원장 D15와 같다. 일곱 조건은 AND이며, 하나라도
+실패하면 K=10, threshold, epoch sweep으로 가지 않고 hard-set text distillation을
+중단한다. 구현 wrapper는 `scripts/run_ddxplus_oof_teacher_k5_125.sh`다.

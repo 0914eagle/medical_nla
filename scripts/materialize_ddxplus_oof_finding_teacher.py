@@ -1,7 +1,7 @@
 """Materialize the official-train HS32 full-label OOF finding teacher.
 
 This stage is deliberately read-only with respect to student supervision. It
-cross-fits the validation-selected finding-probe configuration on the two
+cross-fits the validation-selected finding-probe configuration on deterministic
 official-train folds and stores one 91-label probability vector for every
 original and cue-deleted activation. It does not render natural-language
 targets, freeze student gates, read DDXPlus validation, or open locked test.
@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import zlib
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -20,7 +21,6 @@ import numpy as np
 import torch
 
 from scripts.score_ddxplus_selected_changed_cues import (
-    fold_of,
     load_deletion_rows,
     load_original_rows,
     load_vector,
@@ -34,6 +34,12 @@ from scripts.train_ddxplus_finding_value_probes import (
     finding_targets,
 )
 from src.jsonl import write_jsonl
+
+
+def teacher_fold_of(identifier: str, num_folds: int) -> int:
+    if num_folds < 2:
+        raise ValueError("num_folds must be at least 2")
+    return zlib.crc32(identifier.encode("utf-8")) % num_folds
 
 
 def sha256_file(path: Path) -> str:
@@ -59,17 +65,20 @@ def set_f1(left: set[str], right: set[str]) -> float:
 
 
 def same_fold_diagnosis_donor(
-    own_index: int, rows: list[dict[str, Any]]
+    own_index: int, rows: list[dict[str, Any]], *, num_folds: int = 2
 ) -> int | None:
     """Choose one deterministic same-fold, same-diagnosis hard control."""
 
     own = rows[own_index]
-    own_fold = fold_of(base_id(own))
+    own_fold = teacher_fold_of(base_id(own), num_folds)
     diagnosis = str(own.get("diagnosis_id") or own.get("diagnosis_name") or "")
     own_count = len(own.get("cue_evidence_ids") or [])
     candidates = []
     for index, row in enumerate(rows):
-        if index == own_index or fold_of(base_id(row)) != own_fold:
+        if (
+            index == own_index
+            or teacher_fold_of(base_id(row), num_folds) != own_fold
+        ):
             continue
         other_diagnosis = str(
             row.get("diagnosis_id") or row.get("diagnosis_name") or ""
@@ -103,6 +112,7 @@ def build_teacher(
     output_json: Path,
     summary_md: Path,
     path_maps: list[tuple[str, str]],
+    num_folds: int = 2,
     batch_size: int,
     seed: int,
     device: torch.device,
@@ -139,13 +149,18 @@ def build_teacher(
             f"Original/deletion shape mismatch: {original_features.shape} vs "
             f"{deletion_features.shape}"
         )
+    if num_folds < 2 or num_folds > len(originals):
+        raise ValueError("--num-folds must be between 2 and the base-case count")
     targets = finding_targets(originals, labels)
-    folds = torch.tensor([fold_of(base_id(row)) for row in originals], dtype=torch.long)
+    folds = torch.tensor(
+        [teacher_fold_of(base_id(row), num_folds) for row in originals],
+        dtype=torch.long,
+    )
     original_probabilities = torch.empty((len(originals), len(labels)))
     deletion_probabilities = torch.empty_like(original_probabilities)
     fold_audits = []
 
-    for heldout_fold in (0, 1):
+    for heldout_fold in range(num_folds):
         train_indices = (folds != heldout_fold).nonzero(as_tuple=False).flatten()
         heldout_indices = (folds == heldout_fold).nonzero(as_tuple=False).flatten()
         if not len(train_indices) or not len(heldout_indices):
@@ -175,7 +190,9 @@ def build_teacher(
         fold_audits.append(
             {
                 "heldout_fold": heldout_fold,
-                "training_fold": 1 - heldout_fold,
+                "training_folds": [
+                    value for value in range(num_folds) if value != heldout_fold
+                ],
                 "train_rows": int(len(train_indices)),
                 "heldout_rows": int(len(heldout_indices)),
                 "labels_selected_in_heldout_originals": int(
@@ -211,7 +228,7 @@ def build_teacher(
                     "variant": variant,
                     "official_split": "train",
                     "diagnosis_id": original.get("diagnosis_id"),
-                    "fold": fold_of(identifier),
+                    "fold": teacher_fold_of(identifier, num_folds),
                     "layer": 32,
                     "position_family": "P0",
                     "finding_probabilities": [float(value) for value in probabilities],
@@ -259,7 +276,9 @@ def build_teacher(
     shuffle_jaccard = []
     donor_rows = 0
     for index in range(len(originals)):
-        donor = same_fold_diagnosis_donor(index, originals)
+        donor = same_fold_diagnosis_donor(
+            index, originals, num_folds=num_folds
+        )
         if donor is None:
             continue
         donor_rows += 1
@@ -305,7 +324,8 @@ def build_teacher(
         "finding_threshold": threshold,
         "selected_order": "canonical evidence_id ascending",
         "probability_vector_order": "finding_labels array order",
-        "fold_method": "crc32(base_id) % 2",
+        "fold_method": f"crc32(base_id) % {num_folds}",
+        "num_folds": num_folds,
         "fixed_probe_hyperparameters": {
             "learning_rate": float(selected["learning_rate"]),
             "weight_decay": float(selected["weight_decay"]),
@@ -401,6 +421,7 @@ def write_summary(path: Path, report: dict[str, Any]) -> None:
         f"- original + deleted teacher rows: **{report['n_teacher_rows']}**",
         f"- complete pair coverage: **{report['complete_pair_coverage']:.4f}**",
         f"- finding labels: **{report['n_finding_labels']}**",
+        f"- OOF folds: **{report['num_folds']}**",
         f"- inherited finding threshold: **{report['finding_threshold']:.4f}**",
         "- selected-set order: `canonical evidence_id ascending`",
         "- natural-language target written: **no**",
@@ -495,6 +516,7 @@ def main() -> None:
     parser.add_argument("--output-json", required=True, type=Path)
     parser.add_argument("--summary-md", required=True, type=Path)
     parser.add_argument("--path-map", action="append", default=[])
+    parser.add_argument("--num-folds", type=int, default=2)
     parser.add_argument("--batch-size", type=int, default=512)
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument(
@@ -511,6 +533,7 @@ def main() -> None:
         output_json=args.output_json,
         summary_md=args.summary_md,
         path_maps=parse_path_maps(args.path_map),
+        num_folds=args.num_folds,
         batch_size=args.batch_size,
         seed=args.seed,
         device=torch.device(args.device),

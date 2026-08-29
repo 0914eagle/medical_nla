@@ -20,7 +20,6 @@ import numpy as np
 import torch
 
 from scripts.score_ddxplus_selected_changed_cues import (
-    fold_of,
     load_deletion_rows,
     load_original_rows,
     load_vector,
@@ -255,6 +254,51 @@ def qline(value: dict[str, float] | None) -> str:
     )
 
 
+def calibration_gate(
+    oof: dict[str, Any],
+    full: dict[str, Any],
+    original_jaccard: dict[str, float],
+    fold_audits: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Apply the preregistered one-shot K=5 calibration criteria."""
+
+    criteria = {
+        "original_precision_ge_0p90": oof["original"]["precision"] >= 0.90,
+        "original_recall_ge_0p98": oof["original"]["recall"] >= 0.98,
+        "original_mean_selected_relative_gap_le_0p10": (
+            abs(oof["original"]["mean_selected"] - full["original"]["mean_selected"])
+            / full["original"]["mean_selected"]
+            <= 0.10
+        ),
+        "oof_full_original_jaccard_mean_ge_0p90": original_jaccard["mean"]
+        >= 0.90,
+        "deleted_mean_selected_relative_gap_le_0p10": (
+            abs(
+                oof["cue_deleted"]["mean_selected"]
+                - full["cue_deleted"]["mean_selected"]
+            )
+            / full["cue_deleted"]["mean_selected"]
+            <= 0.10
+        ),
+        "deleted_phantom_absolute_gap_le_0p05": (
+            abs(
+                oof["intervention"]["changed_deleted_phantom"]
+                - full["intervention"]["changed_deleted_phantom"]
+            )
+            <= 0.05
+        ),
+        "every_fold_original_precision_ge_0p85": all(
+            item["original"]["precision"] >= 0.85 for item in fold_audits
+        ),
+    }
+    return {
+        "scope": "one-shot K=5 calibration gate approved before K=5 execution",
+        "criteria": criteria,
+        "passed": all(criteria.values()),
+        "failure_policy": "no K/threshold sweep; stop hard-set target building",
+    }
+
+
 def write_summary(path: Path, report: dict[str, Any]) -> None:
     oof = report["oof_teacher"]
     frozen = report["full_data_frozen_probe"]
@@ -271,6 +315,7 @@ def write_summary(path: Path, report: dict[str, Any]) -> None:
         "",
         f"- base cases: **{report['base_cases']}**",
         f"- finding labels: **{report['finding_labels']}**",
+        f"- OOF folds: **{report['num_folds']}**",
         f"- inherited threshold: **{report['threshold']:.4f}**",
         "- threshold selected or changed: **no**",
         "- student target written: **no**",
@@ -361,6 +406,21 @@ def write_summary(path: Path, report: dict[str, Any]) -> None:
     lines.extend(
         [
             "",
+            "## Preregistered K=5 Calibration Gate",
+            "",
+            "| criterion | pass |",
+            "|---|---:|",
+        ]
+    )
+    for criterion, passed in report["calibration_gate"]["criteria"].items():
+        lines.append(f"| `{criterion}` | {'PASS' if passed else 'FAIL'} |")
+    lines.extend(
+        [
+            "",
+            f"- overall calibration gate: "
+            f"**{'PASS' if report['calibration_gate']['passed'] else 'FAIL'}**",
+            "- failure policy: no additional K or threshold sweep",
+            "",
             "This report does not authorize target building. A large OOF/full-data gap or "
             "broad absent-label additions indicates cross-fit calibration shift or "
             "counterfactual OOD behavior that must be resolved before P2-P4 approval.",
@@ -387,6 +447,7 @@ def run_audit(
     materialization = json.loads(teacher_report.read_text(encoding="utf-8"))
     labels = [str(value) for value in materialization["finding_labels"]]
     threshold = float(materialization["finding_threshold"])
+    num_folds = int(materialization.get("num_folds") or 2)
     if materialization.get("validation_read") or materialization.get("locked_test_read"):
         raise ValueError("Teacher materialization is not train-only")
     if sha256_file(teacher_jsonl) != materialization["teacher_scores_sha256"]:
@@ -486,9 +547,13 @@ def run_audit(
     prevalence = prevalence_rows(labels, oof_original_sets, oof_deleted_sets)
     write_jsonl(label_prevalence_jsonl, prevalence)
 
-    folds = [fold_of(key) for key in ordered_ids]
+    folds = [int(teacher[key]["original"]["fold"]) for key in ordered_ids]
+    if set(folds) != set(range(num_folds)):
+        raise ValueError(
+            f"Teacher fold IDs do not match num_folds={num_folds}: {sorted(set(folds))}"
+        )
     fold_audits = []
-    for fold in (0, 1):
+    for fold in range(num_folds):
         indices = [index for index, value in enumerate(folds) if value == fold]
         fold_audits.append(
             {
@@ -508,22 +573,27 @@ def run_audit(
             }
         )
 
+    original_jaccard = quantiles(
+        [
+            set_jaccard(oof_original_sets[index], full_original_sets[index])
+            for index in range(len(originals))
+        ]
+    )
+    assert original_jaccard is not None
+    gate = calibration_gate(oof, full, original_jaccard, fold_audits)
     report = {
         "schema_version": 1,
         "method": "ddxplus_oof_teacher_calibration_audit",
         "base_cases": len(originals),
         "finding_labels": len(labels),
+        "num_folds": num_folds,
         "threshold": threshold,
         "oof_teacher": oof,
         "full_data_frozen_probe": full,
         "oof_transition": transitions,
-        "oof_full_original_set_jaccard": quantiles(
-            [
-                set_jaccard(oof_original_sets[index], full_original_sets[index])
-                for index in range(len(originals))
-            ]
-        ),
+        "oof_full_original_set_jaccard": original_jaccard,
         "fold_audits": fold_audits,
+        "calibration_gate": gate,
         "label_prevalence": prevalence,
         "inputs": {
             "teacher_jsonl": str(teacher_jsonl),

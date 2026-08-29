@@ -3,7 +3,11 @@ from pathlib import Path
 
 import torch
 
-from scripts.audit_ddxplus_oof_teacher_calibration import run_audit, sha256_file
+from scripts.audit_ddxplus_oof_teacher_calibration import (
+    calibration_gate,
+    run_audit,
+    sha256_file,
+)
 from scripts.score_ddxplus_selected_changed_cues import fold_of
 from src.jsonl import write_jsonl
 
@@ -15,6 +19,26 @@ def identifier_for_fold(fold: int) -> str:
         if fold_of(value) == fold:
             return value
         candidate += 1
+
+
+def test_k5_calibration_gate_is_strictly_conjunctive() -> None:
+    oof = {
+        "original": {"precision": 0.91, "recall": 0.99, "mean_selected": 5.0},
+        "cue_deleted": {"mean_selected": 6.0},
+        "intervention": {"changed_deleted_phantom": 0.40},
+    }
+    full = {
+        "original": {"mean_selected": 5.0},
+        "cue_deleted": {"mean_selected": 6.0},
+        "intervention": {"changed_deleted_phantom": 0.42},
+    }
+    folds = [{"original": {"precision": 0.86}} for _ in range(5)]
+    passed = calibration_gate(oof, full, {"mean": 0.91}, folds)
+    assert passed["passed"] is True
+    folds[-1]["original"]["precision"] = 0.84
+    failed = calibration_gate(oof, full, {"mean": 0.91}, folds)
+    assert failed["passed"] is False
+    assert failed["criteria"]["every_fold_original_precision_ge_0p85"] is False
 
 
 def test_calibration_audit_reports_added_absent_labels(tmp_path: Path) -> None:
@@ -68,6 +92,7 @@ def test_calibration_audit_reports_added_absent_labels(tmp_path: Path) -> None:
                     "id": original["id"],
                     "base_id": identifier,
                     "variant": "original",
+                    "fold": fold,
                     "finding_probabilities": original_probabilities,
                     "selected_evidence_ids": sorted([changed, "C"]),
                 },
@@ -75,6 +100,7 @@ def test_calibration_audit_reports_added_absent_labels(tmp_path: Path) -> None:
                     "id": deletion["id"],
                     "base_id": identifier,
                     "variant": "cue_deleted",
+                    "fold": fold,
                     "finding_probabilities": deleted_probabilities,
                     "selected_evidence_ids": sorted([other, "C"]),
                 },
@@ -93,6 +119,7 @@ def test_calibration_audit_reports_added_absent_labels(tmp_path: Path) -> None:
             {
                 "finding_labels": labels,
                 "finding_threshold": 0.5,
+                "num_folds": 2,
                 "teacher_scores_sha256": sha256_file(teacher_jsonl),
                 "validation_read": False,
                 "locked_test_read": False,

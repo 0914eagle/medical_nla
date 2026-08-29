@@ -141,3 +141,43 @@ tail -f /data1/heejae/medical_nla/logs/ddxplus_oof_teacher_calibration_audit_v1.
 
 기본 출력은 teacher 디렉터리 아래 `calibration_audit_v1/`이다. 이 감사도 threshold를
 고르거나 바꾸지 않으며, student target을 쓰지 않고 validation/locked test를 읽지 않는다.
+
+## K=2 판정과 K=5 one-shot
+
+Calibration audit에서 K=2 OOF/full-data original precision은 `.7538/.9567`, mean
+selected count는 `6.0745/4.7865`였다. Deleted arm의 OOF/full-data phantom은
+`.5101/.3968`이었다. 삭제 후 새로 추가된 `16,335` labels 중 `16,333`(`.9999`)이
+deleted input에 없었고 probability margin 중앙값은 `.1077`이었다. 따라서 K=2는
+student teacher로 폐기한다.
+
+사람 승인에 따라 K=5를 한 번만 실행한다. Threshold `.5`, hyperparameter, epoch는
+그대로 유지한다. 사전 고정 gate는 다음과 같다.
+
+| criterion | gate |
+|---|---:|
+| original precision | `>= .90` |
+| original recall | `>= .98` |
+| full-data 대비 original mean claims 차이 | `<= 10%` |
+| OOF/full original set Jaccard mean | `>= .90` |
+| full-data 대비 deleted mean claims 차이 | `<= 10%` |
+| full-data 대비 deleted phantom 절대차 | `<= .05` |
+| fold별 original precision | 모두 `>= .85` |
+
+```bash
+cd /home/eagle0914/medical_nla
+git pull origin main
+
+PROBE=/data1/heejae/medical_nla/results/ddxplus_finding_value_probe_val_v1/finding_value_hs32.pt
+
+DATA_ROOT=/data1/heejae \
+GPU=0 \
+PROBE_ARTIFACT="$PROBE" \
+nohup bash scripts/run_ddxplus_oof_teacher_k5_125.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_oof_teacher_k5_v2.log 2>&1 &
+```
+
+```bash
+tail -f /data1/heejae/medical_nla/logs/ddxplus_oof_teacher_k5_v2.log
+```
+
+K=5가 실패하면 추가 K/threshold sweep 없이 hard-set target 생성을 중단한다.

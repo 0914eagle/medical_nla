@@ -6,28 +6,31 @@ import torch
 from scripts.materialize_ddxplus_oof_finding_teacher import (
     build_teacher,
     same_fold_diagnosis_donor,
+    teacher_fold_of,
 )
 from scripts.score_ddxplus_selected_changed_cues import fold_of
 from src.jsonl import write_jsonl
 
 
-def identifier_for_fold(fold: int, offset: int) -> str:
+def identifier_for_fold(fold: int, offset: int, num_folds: int = 2) -> str:
     found = []
     candidate = 0
     while len(found) <= offset:
         value = f"teacher_case_{fold}_{candidate}"
-        if fold_of(value) == fold:
+        if teacher_fold_of(value, num_folds) == fold:
             found.append(value)
         candidate += 1
     return found[offset]
 
 
-def make_population(tmp_path: Path) -> tuple[Path, Path, list[dict]]:
+def make_population(
+    tmp_path: Path, *, num_folds: int = 2, cases_per_fold: int = 4
+) -> tuple[Path, Path, list[dict]]:
     originals = []
     deletions = []
-    for fold in (0, 1):
-        for offset in range(4):
-            identifier = identifier_for_fold(fold, offset)
+    for fold in range(num_folds):
+        for offset in range(cases_per_fold):
+            identifier = identifier_for_fold(fold, offset, num_folds)
             changed = "B" if offset % 2 == 0 else "A"
             original_path = tmp_path / f"{identifier}_original.pt"
             deleted_path = tmp_path / f"{identifier}_deleted.pt"
@@ -83,6 +86,11 @@ def test_same_fold_diagnosis_donor_is_deterministic(tmp_path: Path) -> None:
     assert rows[donor]["diagnosis_id"] == rows[0]["diagnosis_id"]
 
 
+def test_teacher_fold_supports_five_frozen_folds() -> None:
+    folds = {teacher_fold_of(f"k5_case_{index}", 5) for index in range(100)}
+    assert folds == {0, 1, 2, 3, 4}
+
+
 def test_full_label_teacher_is_cross_fitted_and_target_free(tmp_path: Path) -> None:
     original_manifest, deletion_manifest, originals = make_population(tmp_path)
     artifact = tmp_path / "finding_value_hs32.pt"
@@ -126,6 +134,7 @@ def test_full_label_teacher_is_cross_fitted_and_target_free(tmp_path: Path) -> N
     assert all("target_text" not in row for row in rows)
     assert all("activation_path" not in row and "prompt" not in row for row in rows)
     assert report["n_teacher_rows"] == 16
+    assert report["num_folds"] == 2
     assert report["complete_pair_coverage"] == 1.0
     assert report["natural_language_target_written"] is False
     assert report["student_dataset_written"] is False
@@ -136,3 +145,45 @@ def test_full_label_teacher_is_cross_fitted_and_target_free(tmp_path: Path) -> N
     summary = (tmp_path / "summary.md").read_text()
     assert "No student target" in summary
     assert "canonical evidence_id ascending" in summary
+
+
+def test_full_label_teacher_runs_all_five_heldout_folds(tmp_path: Path) -> None:
+    original_manifest, deletion_manifest, originals = make_population(
+        tmp_path, num_folds=5, cases_per_fold=2
+    )
+    artifact = tmp_path / "finding_value_hs32_k5.pt"
+    torch.save(
+        {
+            "layer": 32,
+            "finding_labels": ["A", "B", "C"],
+            "finding_threshold": 0.5,
+            "finding_selected": {
+                "learning_rate": 0.01,
+                "weight_decay": 0.0,
+                "positive_weighting": False,
+                "best_epoch": 1,
+            },
+        },
+        artifact,
+    )
+    output = tmp_path / "teacher_k5.jsonl"
+    report = build_teacher(
+        original_manifest=original_manifest,
+        counterfactual_manifest=deletion_manifest,
+        probe_artifact=artifact,
+        output_jsonl=output,
+        output_json=tmp_path / "report_k5.json",
+        summary_md=tmp_path / "summary_k5.md",
+        path_maps=[],
+        num_folds=5,
+        batch_size=8,
+        seed=17,
+        device=torch.device("cpu"),
+    )
+
+    rows = [json.loads(line) for line in output.read_text().splitlines()]
+    assert len(rows) == 2 * len(originals) == 20
+    assert report["num_folds"] == 5
+    assert len(report["fold_audits"]) == 5
+    assert {item["heldout_fold"] for item in report["fold_audits"]} == set(range(5))
+    assert {row["fold"] for row in rows} == set(range(5))

@@ -9,7 +9,7 @@
 | E0 | DiReCT data/evaluator audit | 완료 | canonical split, evaluator smoke |
 | E1 | Source CoT and activation extraction | 완료 | 496 cases, P0/P1/P2 x HS16/24/32 |
 | E2 | P0 representation audit | 대부분 완료 | diagnosis/category 및 DDXPlus finding/value locked probe 완료; source-decision 대기 |
-| E3 | Medical-NLA training | D10 실패, D14 teacher 구현 | structured test finding F1 .9587; HS32 full-label OOF teacher report가 다음 gate |
+| E3 | Medical-NLA training | D14 K=5 one-shot 대기 | K=2 calibration 실패; K=5 사전 고정 gate 통과 전 student 중단 |
 | E4 | DiReCT explanation evaluation | validation 완료 | Common SFT 의미 채점 실패; 새 objective 고정 전 locked 72/106 중단 |
 | E5 | DDXPlus activation grounding | structured monitor test 완료 | own-shuffled +.1624, removal .6407, retained .9987; value intervention은 미통과 |
 | E6 | Text patching | E5 조건부 | Table 4, Figure 4 |
