@@ -6,6 +6,7 @@ import pytest
 from scripts.make_ddxplus_d9a_supported_pairs import (
     build_pairs,
     load_approved_protocol,
+    select_retained_cue,
 )
 from scripts.select_ddxplus_d9a_support_thresholds import evaluate_grid
 from src.jsonl import write_jsonl
@@ -171,6 +172,30 @@ def test_target_builder_requires_approval_and_excludes_below_cut(tmp_path: Path)
     assert rows[0]["value_edit_included"] is False
     assert "finding A" in rows[0]["target_text"]
     assert "finding B" not in rows[0]["target_text"]
+    assert rows[0]["retained_evidence_id"] == "B"
+    assert rows[0]["retained_cue_text"] == "finding B"
+    assert "finding B" in rows[0]["retained_target_text"]
+    assert "finding A" not in rows[0]["retained_target_text"]
+
+
+def test_retained_cue_uses_frozen_hash_and_requires_exact_common_text() -> None:
+    own = {
+        "base_id": "case",
+        "cue_evidence_ids": ["A", "B", "C"],
+        "cue_targets": ["changed", "stable B", "stable C"],
+    }
+    removed = {
+        "base_id": "case",
+        "cf_original_evidence_id": "A",
+        "cue_evidence_ids": ["B", "C"],
+        "cue_targets": ["stable B", "changed rendering"],
+    }
+    evidence_id, cue, digest = select_retained_cue(
+        identifier="case", original=own, deleted=removed
+    )
+    assert evidence_id == "B"
+    assert cue == "stable B"
+    assert len(digest) == 64
 
 
 def test_target_builder_excludes_donor_unavailable(tmp_path: Path) -> None:

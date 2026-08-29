@@ -101,19 +101,17 @@ The builder emits one claim per supported case and the original/deleted
 activation paths. It excludes ineligible and below-cut cases. It emits no
 abstention, no value arm, and no claim for untested cues.
 
-## Deliberate Stop Before Training
+## Approved D10 Contract
 
-The approved discussion currently says both:
+Human approval on 2026-08-29 resolved the earlier terminology conflict. The
+first smoke is one changed claim scored under original and deleted activations,
+not a literal 2x2. No deleted-state target, negation, abstention, or untested cue
+is invented. Literal 2x2 is deferred to D9b/value-edit work.
 
-1. D9a deleted/unsupported cases must not receive abstention or untested-cue
-   targets.
-2. D10 starts with a deletion-only 2x2 ranking objective.
-
-A literal 2x2 needs two activation states and two valid targets. D9a defines
-only the positive selected-cue target. The deleted-state target is not yet
-defined. Training therefore stops after pair construction until that four-cell
-contract is approved. Implementing a one-target original-versus-deleted ranker
-would be a 1x2 objective, not the agreed 2x2.
+One retained cue is fixed for evaluation only. It must have the exact same cue
+text in original and deleted rows and is selected by the minimum
+`SHA256(base_id || NUL || cue_text)`. The model never sees its score during
+selection or D10 training.
 
 ## Completed Results — 2026-08-29
 
@@ -283,9 +281,45 @@ frozen selected-cue population. The D5 gate remains:
 - disease-cluster bootstrap CI excludes zero;
 - paired ranking improves changed-claim contrast by at least `0.05` over the
   original-only arm on the same subset;
+- ranking improves `changed_gap - retained_gap` specificity over original-only
+  and its diagnosis-cluster bootstrap interval excludes zero;
 - original-arm changed-cue hit does not decrease;
 - deleted-arm phantom does not increase.
 
 The literal 2x2 objective is deferred to D9b. It requires per-cue deletion
 activations so the deleted state can use another independently supported claim
 instead of abstention, an untested cue, or an invented negation.
+
+## Run D10 On Server 125
+
+The wrapper rebuilds the 3,104 train pairs with retained-control fields, builds
+the frozen validation pair population, then runs original-only and ranking arms
+for seeds 17/29/43. Each wave uses GPUs 0,1 for control and 2,3 for ranking.
+
+```bash
+cd /home/eagle0914/medical_nla
+git pull origin main
+
+DATA_ROOT=/data1/heejae \
+nohup bash scripts/run_ddxplus_d10_1x2_smoke_4gpu_125.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_d10_1x2_smoke20_v1_queue.log 2>&1 &
+```
+
+Monitor:
+
+```bash
+tail -f /data1/heejae/medical_nla/logs/ddxplus_d10_1x2_smoke20_v1_queue.log
+tail -f /data1/heejae/medical_nla/logs/ddxplus_d10_1x2_smoke20_v1_{original_only,ranking}_seed17_{train,specificity}.log
+```
+
+The aggregate output is:
+
+```text
+/data1/heejae/restricted/direct/e4/
+  ddxplus_d10_1x2_smoke20_v1_validation_v1/
+    paired_arm_comparison_summary.md
+```
+
+Teacher-forced results settle changed-gap and specificity conditions. The full
+D5 promotion remains pending until generated original-hit and deleted-phantom
+rates are compared on the same frozen validation pairs.

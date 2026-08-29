@@ -9,7 +9,7 @@
 | E0 | DiReCT data/evaluator audit | 완료 | canonical split, evaluator smoke |
 | E1 | Source CoT and activation extraction | 완료 | 496 cases, P0/P1/P2 x HS16/24/32 |
 | E2 | P0 representation audit | 대부분 완료 | diagnosis/category 및 DDXPlus finding/value locked probe 완료; source-decision 대기 |
-| E3 | Medical-NLA training | D9a pair 구축 완료 | 3,104 selected-cue pairs; 1x2 ranking objective 승인 대기 |
+| E3 | Medical-NLA training | D10 1x2 smoke 구현 완료, 실행 대기 | D9a 3,104 pairs; lambda=T=1; original-only/ranking seeds 17/29/43 |
 | E4 | DiReCT explanation evaluation | validation 완료 | Common SFT 의미 채점 실패; 새 objective 고정 전 locked 72/106 중단 |
 | E5 | DDXPlus activation grounding | NLA validation 부분 신호 | probe availability 통과; CF seed17 deletion contrast 증가, value switch 실패; locked test 중단 |
 | E6 | Text patching | E5 조건부 | Table 4, Figure 4 |

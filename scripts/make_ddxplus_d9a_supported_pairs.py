@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +54,59 @@ def load_approved_protocol(path: Path) -> dict[str, Any]:
     return protocol
 
 
+def clean(value: Any) -> str:
+    return " ".join(str(value or "").split())
+
+
+def cue_map(row: dict[str, Any]) -> dict[str, str]:
+    evidence_ids = [str(value) for value in row.get("cue_evidence_ids") or []]
+    cue_targets = [clean(value) for value in row.get("cue_targets") or []]
+    if len(evidence_ids) != len(cue_targets):
+        raise ValueError(
+            f"Cue ID/text length mismatch for {row.get('base_id')}: "
+            f"{len(evidence_ids)} != {len(cue_targets)}"
+        )
+    if len(set(evidence_ids)) != len(evidence_ids):
+        raise ValueError(f"Duplicate cue evidence ID for {row.get('base_id')}")
+    return dict(zip(evidence_ids, cue_targets, strict=True))
+
+
+def select_retained_cue(
+    *, identifier: str, original: dict[str, Any], deleted: dict[str, Any]
+) -> tuple[str, str, str]:
+    """Freeze one unchanged cue without consulting model scores or outputs."""
+    original_cues = cue_map(original)
+    deleted_cues = cue_map(deleted)
+    changed = str(deleted.get("cf_original_evidence_id") or "")
+    candidates = []
+    for evidence_id, cue_text in original_cues.items():
+        if evidence_id == changed or deleted_cues.get(evidence_id) != cue_text:
+            continue
+        digest = hashlib.sha256(
+            f"{identifier}\0{cue_text}".encode("utf-8")
+        ).hexdigest()
+        candidates.append((digest, evidence_id, cue_text))
+    if not candidates:
+        raise ValueError(f"No exact retained cue for {identifier}")
+    digest, evidence_id, cue_text = min(candidates)
+    return evidence_id, cue_text, digest
+
+
+def one_cue_target(row: dict[str, Any], cue: str, suffix: str) -> str:
+    target_row = {
+        **row,
+        "id": f"{row.get('base_id')}__{suffix}",
+        "cue_targets": [cue],
+    }
+    return cue_first_target_text(
+        target_row,
+        max_cues=1,
+        seed=17,
+        include_assessment=False,
+        cue_order="source",
+    )
+
+
 def build_pairs(
     *,
     train_scores: Path,
@@ -89,18 +142,23 @@ def build_pairs(
 
     rows_out = []
     counts: Counter[str] = Counter()
+    disposition_by_diagnosis: dict[str, Counter[str]] = defaultdict(Counter)
     for identifier in sorted(originals):
         score = score_by_id[identifier]
+        diagnosis = clean(originals[identifier].get("diagnosis_id")) or "<missing>"
         if not score.get("score_eligible"):
             counts["ineligible_excluded"] += 1
+            disposition_by_diagnosis[diagnosis]["ineligible_excluded"] += 1
             continue
         if int(score.get("fold_training_positive_count") or 0) < 5:
             raise ValueError(f"Eligible row violates min fold positives: {identifier}")
         if int(score.get("donor_count") or 0) <= 0:
             counts["donor_unavailable_excluded"] += 1
+            disposition_by_diagnosis[diagnosis]["donor_unavailable_excluded"] += 1
             continue
         if not passes(score, presence, deletion, donor):
             counts["eligible_below_cut_excluded"] += 1
+            disposition_by_diagnosis[diagnosis]["eligible_below_cut_excluded"] += 1
             continue
         original = originals[identifier]
         deleted = deletions[identifier]
@@ -116,14 +174,12 @@ def build_pairs(
             raise FileNotFoundError(
                 original_activation if not original_activation.is_file() else deleted_activation
             )
-        target_row = {
-            **original,
-            "id": f"{identifier}__d9a_selected_changed_cue",
-            "cue_targets": [claim],
-        }
+        retained_id, retained_cue, retained_hash = select_retained_cue(
+            identifier=identifier, original=original, deleted=deleted
+        )
         rows_out.append(
             {
-                "id": target_row["id"],
+                "id": f"{identifier}__d9a_selected_changed_cue",
                 "base_id": identifier,
                 "source_dataset": "ddxplus",
                 "diagnosis_id": original.get("diagnosis_id"),
@@ -131,14 +187,17 @@ def build_pairs(
                 "layer": 32,
                 "changed_evidence_id": changed,
                 "selected_changed_cue_text": claim,
+                "retained_evidence_id": retained_id,
+                "retained_cue_text": retained_cue,
+                "retained_cue_sha256": retained_hash,
+                "retained_cue_selection_rule": (
+                    "minimum sha256(base_id + NUL + exact retained cue text)"
+                ),
                 "original_activation_path": str(original_activation),
                 "deleted_activation_path": str(deleted_activation),
-                "target_text": cue_first_target_text(
-                    target_row,
-                    max_cues=1,
-                    seed=17,
-                    include_assessment=False,
-                    cue_order="source",
+                "target_text": one_cue_target(original, claim, "changed_target"),
+                "retained_target_text": one_cue_target(
+                    original, retained_cue, "retained_target"
                 ),
                 "support_scores": {
                     "p_original": score["p_original"],
@@ -152,6 +211,7 @@ def build_pairs(
             }
         )
         counts["supported_pairs"] += 1
+        disposition_by_diagnosis[diagnosis]["supported_pairs"] += 1
 
     if not rows_out:
         raise ValueError("Approved support cuts retained no D9a pairs")
@@ -161,6 +221,10 @@ def build_pairs(
         "schema_version": 1,
         "scope": "D9a selected changed cue only",
         "counts": dict(sorted(counts.items())),
+        "disposition_by_diagnosis": {
+            diagnosis: dict(sorted(values.items()))
+            for diagnosis, values in sorted(disposition_by_diagnosis.items())
+        },
         "cuts": {
             "presence_threshold": presence,
             "deletion_delta_threshold": deletion,
@@ -174,6 +238,10 @@ def build_pairs(
         "validation_scores_sha256": observed_validation_hash,
         "unsupported_policy": "exclude; never abstention",
         "target_claims_per_case": 1,
+        "retained_control_claims_per_case": 1,
+        "retained_cue_selection_rule": (
+            "minimum sha256(base_id + NUL + exact retained cue text)"
+        ),
         "value_edit_included": False,
         "locked_test_read": False,
     }
@@ -181,27 +249,37 @@ def build_pairs(
         json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    summary_md.write_text(
-        "\n".join(
-            [
-                "# DDXPlus D9a Approved Selected-Cue Pairs",
-                "",
-                "Mechanism-smoke dataset; not a multi-claim Medical-NLA corpus.",
-                "",
-                f"- supported pairs: **{counts['supported_pairs']}**",
-                f"- ineligible excluded: **{counts['ineligible_excluded']}**",
-                f"- donor unavailable excluded: **{counts['donor_unavailable_excluded']}**",
-                f"- eligible below cut excluded: **{counts['eligible_below_cut_excluded']}**",
-                "- target claims per retained case: **1**",
-                "- unsupported policy: **exclude**",
-                "- abstention targets: **none**",
-                "- value-edit arms: **none**",
-                "- locked test read: **no**",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
+    lines = [
+        "# DDXPlus D9a Approved Selected-Cue Pairs",
+        "",
+        "Mechanism-smoke dataset; not a multi-claim Medical-NLA corpus.",
+        "",
+        f"- supported pairs: **{counts['supported_pairs']}**",
+        f"- ineligible excluded: **{counts['ineligible_excluded']}**",
+        f"- donor unavailable excluded: **{counts['donor_unavailable_excluded']}**",
+        f"- eligible below cut excluded: **{counts['eligible_below_cut_excluded']}**",
+        "- target claims per retained case: **1**",
+        "- retained specificity controls per retained case: **1**",
+        "- retained cue: exact original/deleted common cue with minimum "
+        "`SHA256(base_id || NUL || cue_text)`",
+        "- unsupported policy: **exclude**",
+        "- abstention targets: **none**",
+        "- value-edit arms: **none**",
+        "- locked test read: **no**",
+        "",
+        "## Diagnosis Distribution",
+        "",
+        "| diagnosis | retained | donor unavailable | below cut | ineligible |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for diagnosis, values in sorted(disposition_by_diagnosis.items()):
+        lines.append(
+            f"| {diagnosis} | {values['supported_pairs']} | "
+            f"{values['donor_unavailable_excluded']} | "
+            f"{values['eligible_below_cut_excluded']} | "
+            f"{values['ineligible_excluded']} |"
+        )
+    summary_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return report
 
 

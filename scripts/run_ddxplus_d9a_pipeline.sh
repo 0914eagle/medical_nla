@@ -114,7 +114,8 @@ case "${MODE}" in
       --protocol-json "${PAIRS}/protocol.json" \
       --summary-md "${PAIRS}/summary.md"
     cat "${PAIRS}/summary.md"
-    echo "[stop] D10 ranking trainer awaits an explicit four-cell 2x2 target contract"
+    echo "[done] D9a pairs rebuilt with the approved D10 retained-cue control"
+    echo "[next] bash scripts/run_ddxplus_d10_1x2_smoke_4gpu_125.sh"
     ;;
   *)
     echo "[error] MODE must be audit, select, or build" >&2

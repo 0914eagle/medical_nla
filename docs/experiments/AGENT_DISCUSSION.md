@@ -23,11 +23,12 @@
 | D2 | Primary는 changed-claim paired ranking. GRPO는 3조건(F/H에서 ranking-생성 괴리 확인, reward 사전 검증, H로 gate 미통과) 충족 전 금지 | 지표가 verbosity 오염 — RL은 결함 증폭기 | 검토 문서, `c011f98` |
 | D3 | DDXPlus cue는 gold가 아니라 candidate claim pool. 학습 전 cross-fitted support mask(`crc32(base_id)%2`) 필수, 전체 cue SFT는 prompt 재구성기 위험 | probe label이 `cue_evidence_ids`, shuffled F1 `.7938` | 2차 검토, `961f0dd` |
 | D4 | Gate A HS32 ceiling은 validation으로 종결: finding `.9607`(HS24와 동일), value `.6990`(−.071). Locked test는 layer 결정에 열지 않음 | validation probe 결과 | `961f0dd` |
-| D5 | Smoke 승격 = seed 3개(17/29/43) 부호 일치 + cluster-bootstrap CI 0 배제 + δ_min `.05` + hit 유지 + phantom 비증가, 전체/supported 이중 분모 | baseline seed 격차 +.0276이 0 미배제, 결함 CE도 +.0713 | 1a 감사, `b5045cb` |
+| D5 | Smoke 승격 = seed 3개(17/29/43) 부호 일치 + cluster-bootstrap CI 0 배제 + δ_min `.05` + hit 유지 + phantom 비증가 + changed-minus-retained specificity가 original-only보다 개선되고 diagnosis-cluster CI 0 배제. Retained cue는 exact common cue 중 `SHA256(base_id || NUL || cue_text)` 최소 1개 | baseline seed 격차 +.0276이 0 미배제; deletion-detector 퇴화 통제 | 1a 감사, R10-R11 사람 승인 |
 | D6 | 1a 감사 판정: seed 17 contrast `.2092`는 threshold 허상 아님(.3/.5/.7에서 안정). CF 이득은 seed 간 미재현(+.0713 vs −.0046), phantom 2배(.2138→.4253). 전체 sequence CE 확장 중단 | `$E5_ROOT/cf_uncertainty_audit_v1/` | `b5045cb` |
 | D7 | Gate C bar = source CoT 자기설명(Obscomp `.2130`/Expcom `.0650`) 초과 | 논문 대전제의 최소 조건 | `eeeee43` |
 | D8 | Value gate는 n=82로 판정 불능 → Phase 1에서 "악화되지 않음"으로 강등, full run에서 family 확대 | CI 중첩 | `eeeee43` |
-| D9 | D9a는 기존 4,655쌍의 selected changed cue 하나만 검사한다. 통과 cue만 target으로 쓰고 탈락·donor 부재는 제외한다. Abstention과 multi-claim 주장은 D9b 전까지 금지 | per-cue deletion은 21,331개 중 4,655개만 존재; approved pair 3,104개 | R5-R9 |
+| D9 | D9a 완료. 기존 4,655쌍의 selected changed cue 하나만 검사하고 동결 cut `.90/0/0`을 통과한 3,104쌍만 사용한다. 탈락·donor 부재 제외, abstention/multi-claim 금지. Train/validation/protocol SHA256 고정 | validation coverage `.9993`, false support `.0378` `[.0315,.0453]`; approved pair 3,104개 | `d17d3f7`, R11 사람 승인 |
+| D10 | 첫 smoke는 1 claim x 2 activations ranking. `L_SFT(y|h_orig) + lambda*T*softplus(-(NLL_del-NLL_orig)/T)`, lambda=T=1.0. 동일 original-only 대조군, seeds 17/29/43. Literal 2x2/value는 D9b 이후 | deleted-state target을 발명하지 않고 paired margin만 학습 | R9-R11 사람 승인 |
 | D11 | Support는 presence AND deletion delta AND same-fold/same-diagnosis cue-absent donor margin. Fold minimum positive=5, donor 최대 5, validation false-support ≤.05 뒤 coverage 최대. 동결 cut은 `.90/0/0` | validation positive `3032/3034`, null false support `112/2964=.0378` | approved protocol `a968a63f...` |
 
 ## 라운드 로그
@@ -593,3 +594,26 @@ subpopulation"까지다. 진단별 retained/excluded 분포를 smoke 리포트�
 이 세 항목이 승인되면 trainer 구현이 열린다. 구현 순서 제안: trainer +
 teacher-forced margin 평가기(specificity 포함)를 한 커밋으로, GPU queue는
 그다음.
+
+### R11. Codex — 2026-08-29
+
+**[사람 승인/구현] 희재가 D9a 완료 원장 반영, D10 1x2 계약, D5 specificity
+보강을 명시적으로 승인했다.** 승인문에 따라 다음 자유도를 동결했다.
+
+1. D9a artifact는 cut `.90/0/0`, train pair `3,104`, train score SHA256
+   `6ac12c0...`, validation score SHA256 `ec9a8c6...`, approved protocol SHA256
+   `a968a63...`로 원장에 반영한다.
+2. D10은 `lambda=1.0`, `T=1.0`, seeds `17/29/43`, 동일 pair order와 step
+   budget의 original-only/ranking 두 arm만 실행한다. Hyperparameter sweep은 없다.
+3. Retained cue는 original/deleted 양쪽에 exact text로 남는 cue 중
+   `SHA256(base_id || NUL || cue_text)`가 가장 작은 한 개다. 모델 score나 출력은
+   선택에 사용하지 않는다. Train/validation의 retained/excluded 진단별 분포를
+   보고한다.
+
+구현은 `make_ddxplus_d9a_supported_pairs.py`의 retained-control 확장,
+`make_ddxplus_d10_validation_pairs.py`, `train_ddxplus_d10_1x2.py`,
+`evaluate_ddxplus_d10_specificity.py`, `summarize_ddxplus_d10_arms.py`와 server-125
+4-GPU wrapper로 구성한다. Teacher-forced gate는 changed gap과 retained gap을
+분리하고 `specificity = changed_gap - retained_gap`을 보고한다. 기존 D5의 생성
+기반 original-hit/deleted-phantom 조건은 제거하지 않았으며, 해당 생성 감사가
+끝나기 전에는 full D5 pass를 선언하지 않는다. Locked test는 읽지 않는다.
