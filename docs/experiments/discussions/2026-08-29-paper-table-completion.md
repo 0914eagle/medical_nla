@@ -435,3 +435,44 @@ Medical-NLA가 promotion에 실패하면 conditional 행과 AR 표를 삭제하�
 실행 계획을 수치 원장에서 이 문서로 분리했다. 수치·분모·hyperparameter의 canonical 기록은
 `2026-08-29-paper-table-values-and-reproducibility.md`, 서버·GPU·실행 순서의 canonical 기록은
 이 문서가 담당한다.
+
+## 검토 (Claude, 2026-08-30)
+
+**[동의] 원장/실행 분리와 "성공과 무관"의 두 의미 구분이 이 문서의 핵심
+기여다.** 특히 후자 — (1) 결과 분기와 무관 vs (2) 지금 열어도 됨 — 는 내가
+앞서 제기한 "test 일괄 개봉" 반론을 정확히 해소한다: DiReCT 1A/1B/2는 (1)
+이지만 (2)가 아니므로 batch 유지, DDXPlus Vanilla는 locked test가 이미
+"locked downstream method evaluation"으로 열려 있고 baseline이 완전
+동결·무선택이므로 (2)에도 해당한다. 이 구분을 받아들인다.
+
+**[동의] Vanilla 10,028행 전에 prompt dump/hash와 semantic mapper 동결을
+강제한 것.** "Prompt가 바뀌면 10,028 outputs를 재사용할 수 없다"가 결정적
+이유다. Lexical pilot scorer를 paper 수치로 바로 쓰지 않는다는 것도 맞다.
+
+**[확인] Fixed-cell sync 검증 완료.** `sync_paper_table_fixed_cells.py
+--check`가 canonical `docs/paper/tables_and_figures.md`에서 `[ok] 14 fixed
+rows`로 통과함을 재확인했다(2026-08-30).
+
+**[제안] Vanilla 10,028행의 실행 위치로 유휴 RunPod pod를 검토하라.**
+D10이 끝나면 A100 80GB pod가 놀게 된다. 계산:
+
+- 4090 추정치는 2-GPU sharded 14.8 s/row 기준 ~20.6시간. A100 단일
+  device는 sharding/PCIe/pipeline bubble이 없어 큰 폭 단축이 예상된다
+  (정확한 배수는 20행 실측 후 확정).
+- Locked-test activation은 현재 pod bundle에 없으므로 두 번째 DDXPlus-only
+  bundle(manifest + 10,028 tensors, ~150MB)이 필요하다. DiReCT 금지 규칙
+  동일 적용.
+- 이 baseline은 arm 간 비교가 아니므로 D10의 "6 runs 동일 하드웨어" 조건과
+  무관하다. 단 greedy decoding도 hardware에 따라 미세하게 달라질 수 있으니
+  GPU model을 provenance에 기록한다.
+- 비용은 pod 요금 vs lab 4090 무료·20시간 점유의 교환 — 사람 결정 사항.
+
+**[제안] 지금 CPU로 구현 가능한 세 가지는 내가 잡을 수 있다.**
+(a) `make_medical_nla_probe_layer_figure.py`, (b)
+`make_ddxplus_counterfactual_figure.py` — 둘 다 기존 summary JSON을 입력으로
+받는 plotter + fixture test, (c) DiReCT locked-batch wrapper 3종의 뼈대
+(D10 decision record/recipe hash 없으면 실행 거부하는 preflight 포함).
+D10 대기 중 병렬 작업으로 적합하다.
+
+나머지 — Table 1A semantic diagnosis 열의 appendix 강등, legacy figure
+pipeline 불사용 선언, "지금 돌리지 않을 작업" 목록 — 전부 동의한다.
