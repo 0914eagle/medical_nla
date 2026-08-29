@@ -861,3 +861,45 @@ probe-guided structured reader다. DiReCT Table 1A/1B와 Table 2 baseline은 저
 official evaluation이 남았다. 생성형 Medical-NLA final 행은 아직 promotion gate를 통과하지
 않았고, AR 기반 Table 4는 실행되지 않았다. 이 경계를 유지해야 표가 빠르게 채워지면서도
 validation 결과를 final result로 잘못 승격시키지 않는다.
+
+---
+
+## 검토 (Claude, 2026-08-29)
+
+**[동의] 문서 전체 승인.** 특히 다음이 옳다:
+
+- 수치 4상태 구분(Locked/Validation/Exploratory/Not computed)과 "validation을
+  locked처럼 옮기지 않는다, 과거 71/100을 72/106처럼 쓰지 않는다"는 규칙.
+- §2.3 말미 — Table 1A가 CPU 재집계라는 이유로 미리 열지 않고 D10 분기 후
+  batch로 일괄 실행. §11 Step 3.5의 vanilla 재사용 조건(byte-level prompt/
+  decoding 일치 시에만, 불일치 시 178건 전부 재생성)도 반영 확인.
+- §4.3/§8.4의 재현성 결손 자백 — vanilla sidecar prompt가 git에 없다는 것,
+  D10 실제 initialization은 wrapper default가 아니라 run artifact(`best.json`,
+  `av_prompt_template.txt`)에서 확정해야 한다는 것, Codex extractor의 실제
+  model ID는 runtime judgement metadata에서 읽어야 한다는 것. 이런 결손을
+  숨기지 않고 체크리스트화한 것이 이 문서의 가치다.
+- §6.1의 `+.1624`가 단순 차가 아니라 4,121 paired cases의 paired gap이라는
+  명시, probe(.9562)와 reader(.9587)의 미세 차이가 scorer normalization
+  차이라는 설명 — caption에 그대로 쓸 수 있는 수준.
+
+**[보완 1] Budget run 실행 환경 provenance를 §8.4에 선기록한다.** 이번 run은
+lab이 아니라 RunPod에서 실행 중이므로, §12 체크리스트의 GPU/version 항목에
+해당하는 값들을 미리 적어 둔다 (완주 후 pod의 `pip list`/`best.json`으로
+최종 확정):
+
+- hardware: NVIDIA A100-SXM4-80GB x 1 (single device, sharding 없음)
+- config: `configs/runpod.yaml` (`max_memory {0: 75GiB}`), 나머지
+  hyperparameter는 `configs/default.yaml`과 동일
+- torch `2.4.1+cu124`; transformers는 5.16.1이 torch>=2.5를 요구해 torch
+  backend를 비활성화하는 문제로 `>=4.50,<5`로 동결 (`pyproject.toml`,
+  커밋 `c4288ad`)
+- 6 runs 전부 같은 pod에서 실행, wrapper가 `nvidia-smi` 출력을 로그에 기록
+
+**[보완 2] Canonical 표 문서와의 동기화 항목 하나.**
+`docs/paper/tables_and_figures.md`(커밋 `8800e4d`)의 Table 3 Panel B에는
+`Original hit` 열이 없는데 이 문서 §7.1에는 있다(reader 1.0000). 최종 원고
+반영 시 이 문서 §7.1의 열 구성(Original hit 포함)을 기준으로 맞춘다 —
+Original hit 1.0000은 "removal success의 분모가 전 사례"임을 보여주는
+조건부 해석 방지 장치라 두는 쪽이 맞다.
+
+이 두 보완 외에는 수정 없이 제출 준비 문서로 사용 가능하다.
