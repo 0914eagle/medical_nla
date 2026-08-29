@@ -474,6 +474,34 @@ python scripts/make_ddxplus_counterfactual_figure.py \
   --values-json /data/heejae/medical_nla/results/paper_figures/figure3_counterfactual_values.json
 ```
 
+Figure 2/3은 서버 62에 있는 DDXPlus artifact가 기준이므로 canonical queue도 서버 62에서 CPU로
+실행한다. 서버 125에서 필요한 것은 category probe `validation_results.json` 하나뿐이다. Password가
+필요한 `scp`를 `nohup` 안에 넣지 말고 먼저 한 번 복사한다.
+
+```bash
+mkdir -p /data/heejae/medical_nla/imports/server125/direct_e2_probe_category_val_v1
+
+scp \
+  eagle0914@165.132.76.125:/data1/heejae/restricted/direct/e2/direct_e2_probe_category_val_v1/validation_results.json \
+  /data/heejae/medical_nla/imports/server125/direct_e2_probe_category_val_v1/
+```
+
+그다음 서버 62에서 다음 한 queue만 실행한다.
+
+```bash
+cd /home/eagle0914/medical_nla
+git pull origin main
+mkdir -p /data/heejae/medical_nla/logs
+
+nohup env DATA_ROOT=/data/heejae \
+  bash scripts/run_paper_cpu_metrics_62.sh \
+  > /data/heejae/medical_nla/logs/paper_cpu_metrics_62_v1.log 2>&1 &
+```
+
+이 queue는 GPU를 사용하지 않으며 Figure 2/3 PDF, source-hashed values JSON, 모든 핵심 수치와
+실제 분모가 적힌 `summary.md`를 함께 만든다. 기본 output은
+`/data/heejae/medical_nla/results/paper_cpu_metrics_62_v1/`이다.
+
 DDXPlus Vanilla wrapper는 현재 **실행 준비 완료, protocol 입력 대기** 상태다. 아래 세 파일/hash가
 없으면 10,028행 generation을 시작하지 않는다.
 
