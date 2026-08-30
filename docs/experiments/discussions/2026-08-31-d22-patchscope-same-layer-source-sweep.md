@@ -134,3 +134,49 @@ nohup env \
 둘 다 real이 환자별 finding을 말하고 shuffled/train mean과 분리될 때만 50건 semantic
 audit으로 확대한다. 둘 다 generic하거나 조건 간 분리가 없으면 학습 없는 identity
 Patchscope의 clinical verbalization 경로를 종료한다.
+
+## Relation-specific 결과와 최종 판정
+
+두 report-only 셀 모두 clinical correspondence에 실패했다.
+
+| cell | condition | n | mean KL | unique continuation |
+|---|---|---:|---:|---:|
+| HS16→16 | real | 5 | 11.3162 | 3 |
+| HS16→16 | same-diagnosis shuffled | 5 | 11.2692 | 5 |
+| HS16→16 | train mean | 5 | 10.9691 | 1 |
+| HS24→24 | real | 5 | 18.8529 | 3 |
+| HS24→24 | same-diagnosis shuffled | 5 | 18.8510 | 2 |
+| HS24→24 | train mean | 5 | 18.8674 | 1 |
+
+Public synthetic 원문을 own cue와 donor cue 옆에 놓은 exploratory raw audit에서, 두
+layer의 real continuation 모두 5/5 사례에서 구체적인 own finding을 표면화하지 않았다.
+Shuffled continuation도 donor finding 쪽으로 이동하지 않았다. HS16은 clinical finding을
+어떻게 기술하는지 설명하는 일반 지침으로, HS24는 clinical case presentation을 작성하는
+일반 지침으로 수렴했다. Train mean은 고정된 68세 남성의 호흡곤란/흉통 사례 또는 같은
+일반 지침을 생성했다.
+
+따라서 출력 다양성과 큰 KL은 case-specific decoding 증거가 아니다. Individual vector가
+continuation branch를 바꾸기는 하지만 own activation과 own clinical content 사이의 대응은
+관찰되지 않았다. 50건 확대와 semantic mapper 채점은 실행하지 않는다.
+
+최종 결론은 다음과 같다.
+
+1. Short general-domain entity activation은 same-layer Patchscope로 복원된다.
+2. Long clinical CoT-P0 activation은 동일 identity mapping과 prompt-only target으로
+   case-specific finding을 verbalize하지 못한다.
+3. 이 결과는 probe로 확인된 activation 내 finding 정보를 부정하지 않는다. 학습 없는
+   target interface가 그 정보를 자연어로 변환하지 못한다는 결과다.
+4. 사전 규칙대로 same-model identity Patchscope clinical 경로를 종료한다. 추가 prompt,
+   layer 또는 threshold sweep은 하지 않는다.
+
+## 다음 학습 기반 후보
+
+다음 생성형 후보는 별도 사전 등록이 필요한 learned medical prefix mapper다. Medical
+activation을 작은 projector로 `K`개의 target hidden vector로 변환하고 frozen language
+decoder의 prefix 위치에 주입한다. Decoder가 patient text나 별도 임상 prompt를 볼 수 있는
+bypass를 제거해 출력이 activation에 의존하도록 강제한다.
+
+DDXPlus official train에서 canonical finding text를 target으로 학습하고, validation에서
+matched-vs-same-diagnosis-shuffled dependence와 deletion specificity를 동시에 확인한다.
+이는 학습 없는 Patchscope가 아니라 supervised activation-language decoder이며, D16처럼
+decoder가 auxiliary bottleneck을 무시할 수 없다는 구조적 차이가 있다.
