@@ -212,6 +212,13 @@ Patchscope는 AR/reconstruction 병목 없이 activation의 정보가 상위 lay
 Patchscope도 실패하면, 자연어 decoder가 환자별 신호를 발화하는 부분이 핵심
 병목으로 남는다.
 
+**채점기 동결 (실행 전 고정)**: Patchscope 출력도 open text이므로 채점 규칙을
+사전에 고정한다. 이미 G1–G4를 통과한 frozen semantic mapper 프로토콜
+(SHA `12e4500f...`)을 validation 용도로 사용한다 — cache key가 protocol-bound라
+새 prompt/조건 조합에도 stale 재사용이 없다. 빠른 screen이 필요하면 lexical
+매칭을 보조로 병기하되, 판정은 mapper 결과로만 한다. 실행 후 채점기 교체나
+기준 조정은 무효.
+
 ### D22 다음 실행 순서
 
 1. 기존 160 text의 reconstruction vector를 저장하는 소규모 AR 재실행.
@@ -219,8 +226,15 @@ Patchscope도 실패하면, 자연어 decoder가 환자별 신호를 발화하�
 3. 독립 비학습 baseline으로 DDXPlus validation 50-case Patchscope smoke:
    original/deletion/value-edit x real/shuffled/mean/no-patch.
 4. 공개 AR가 reward gate를 통과하지 못하면 DDXPlus 4,655 Medical-AR pipeline smoke.
-5. smoke의 oracle/reader FVE가 양수이면 official train 47k–100k로 확대.
+5. smoke의 oracle/reader FVE가 양수이면 official train 47k–100k로 확대 —
+   **단, 이 단계는 자동 진행이 아니다.** 47k–100k 규모는 source CoT 생성과
+   activation 추출부터 새로 하는 대형 GPU 작업이므로, smoke 통과 후 별도
+   사전 등록(비용 추정, 실행 위치 — DDXPlus-only면 pod 가능 — 고정, gate 수치
+   동결)과 사람 비용 승인을 거쳐야 연다.
 6. Medical-AR positive control이 통과한 후에만 Medical-AV SFT → AR-reward optimization을 연다.
+
+순서 1–3은 validation-only 소규모 실행이라 사람 승인 후 즉시 가능하다. 4 이후는
+각 단계의 gate 통과 + 해당 단계 사전 등록이 선행 조건이다.
 
 검증된 경로는 둘이다: ① AR-reward RL (원 NLA), ② 대규모 diverse supervised
 (LatentQA/AO). D22가 ①을 택한 이유는 공개 checkpoint 호환과 원 방법 재현성이며,
