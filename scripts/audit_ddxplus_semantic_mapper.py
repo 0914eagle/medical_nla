@@ -6,8 +6,13 @@ import argparse
 import hashlib
 import json
 import math
+import sys
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.score_ddxplus_semantic_readouts import read_protocol, semantic_decisions
 from src.ddxplus_semantic_mapping import (
