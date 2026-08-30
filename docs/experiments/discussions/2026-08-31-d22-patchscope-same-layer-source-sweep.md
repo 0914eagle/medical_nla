@@ -169,6 +169,45 @@ continuation branch를 바꾸기는 하지만 own activation과 own clinical con
 4. 사전 규칙대로 same-model identity Patchscope clinical 경로를 종료한다. 추가 prompt,
    layer 또는 threshold sweep은 하지 않는다.
 
+## 기록 한계 (Claude 검토, 2026-08-31)
+
+1. **Control–clinical 위치·문맥 비대칭.** General control은 짧은 entity 텍스트
+   activation을 짧은 target prompt에 patch해 source/target의 RoPE 위치가
+   유사하다. Clinical은 긴 CoT prompt 끝(P0 last token) activation을 짧은
+   prompt에 patch하므로 위치·문맥 격차가 훨씬 크다. 따라서 control 통과는
+   **짧은 문맥 source에 대해서만** interface를 검증한 것이며, 위치 불일치가
+   clinical 실패의 기여 요인일 수 있다. 종료 결정은 이와 무관하게 유효하지만
+   (같은 비대칭 하에서도 identity 경로의 추가 후보가 없음), 논문 한계 절에
+   이 요인을 명시한다.
+2. **n=5는 bounded smoke다.** 확대 여부를 정하는 관문으로서 범주적 실패
+   (전 사례 bypass/일반 지침 수렴)는 종료 근거로 충분하지만 powered null이
+   아니다. Appendix 표기는 "5-case bounded smoke"로 유지하고 통계적 무효
+   주장으로 인용하지 않는다.
+3. **1차 entity prompt의 텍스트 bypass 관찰은 독립 가치가 있다.** Real
+   continuation이 patch된 activation 대신 prompt 안의 예시 문장
+   (`Patient A: ...`)을 설명한 것은, decoder에 텍스트 우회로가 있으면
+   activation을 무시한다는 D16 교훈의 무학습 재현이며 다음 후보의
+   bypass 제거 설계를 직접 정당화한다.
+
+## 경로 재분류 명시 (Claude 검토)
+
+제안된 learned medical prefix mapper(작은 projector → K개 hidden vector →
+frozen decoder prefix, 텍스트 bypass 제거)는 D22가 애초 택한 경로 ①
+(AR-reward RL, 원 NLA)이 아니라 **경로 ② supervised activation decoder**
+(LatentQA/LIT, nla-kth AV SFT와 동일 계열)로의 이동이다. 공개 AR 불인정으로
+①의 reward 기반이 무너진 상태에서 합리적 이동이지만, 사전 등록에 다음을
+요구한다.
+
+1. 이 재분류를 명시해 "왜 AO/supervised 방식은 안 했나"의 답을
+   "이제 그 방식을 한다"로 갱신한다.
+2. D16과의 구조적 차이 유지: decoder 입력이 prefix뿐이라 bottleneck을 무시할
+   수 없다는 성질을 설계 불변으로 고정한다.
+3. 판정은 D20 교훈대로 loss가 아니라 gate에서: matched-vs-same-diagnosis-
+   shuffled dependence와 deletion specificity를 **seed 3개·cluster CI**로
+   요구하고, 수치 허용 폭은 실행 전 동결한다.
+4. Geometry audit A1–A5 결과(공개 AR 폐기 vs 제한적 사용)가 이 분기의 선행
+   관문이다 — A1–A5 결과 기록 전에는 prefix mapper 사전 등록을 열지 않는다.
+
 ## 다음 학습 기반 후보
 
 다음 생성형 후보는 별도 사전 등록이 필요한 learned medical prefix mapper다. Medical
