@@ -217,6 +217,25 @@
   - `Expall`: 전체 explanation chain의 일치 비율
 - 진단명 언급만으로는 observation alignment를 인정하지 않음
 
+DiReCT의 physician annotation은 `observation -> rationale -> diagnosis` graph이고, 원래 생성 CoT가 이 graph를 얼마나 복원하는지 평가하기 위해 설계되었습니다. 본 연구에서는 Source CoT뿐 아니라 NLA가 생성한 clinical explanation에도 같은 evaluator를 적용합니다. `O`를 physician gold observation set, `O_hat`을 생성 설명에서 추출한 observation set, `M`을 두 set 사이에서 의미상 대응된 observation, `m`을 observation과 그 rationale-diagnosis edge까지 모두 맞춘 항목 수라고 정의합니다.
+
+```text
+Obspre  = |M| / (|O_hat| + 1)
+Obsrec  = |M| / (|O| + 1)
+Obscomp = |M| / |O union O_hat|
+Expcom  = m / |M|
+Expall  = m / |O union O_hat|
+```
+
+- `Accdiag`: 생성 설명의 최종 diagnosis가 gold diagnosis와 일치하는가
+- `Obspre`: 모델이 observation이라고 생성한 내용 중 physician observation과 대응되는 비율. 불필요한 finding을 많이 말하면 낮아집니다.
+- `Obsrec`: physician observation 중 생성 설명이 회수한 비율. 중요한 finding을 누락하면 낮아집니다.
+- `Obscomp`: 누락과 불필요한 finding을 동시에 벌점 주는 semantic Jaccard입니다. 현재 observation-only Medical-NLA의 주 DiReCT 지표입니다.
+- `Expcom`: 이미 observation이 대응된 항목만 놓고 rationale와 linked diagnosis까지 맞았는지 측정합니다.
+- `Expall`: observation 누락·추가와 rationale·diagnosis edge 오류를 모두 포함한 end-to-end explanation-chain alignment입니다.
+
+공식 `Obspre/Obsrec`은 분모에 `+1` smoothing을 사용하므로 완전한 oracle도 정확히 1.0이 되지 않을 수 있습니다. 현재 Medical-AV SFT target은 diagnosis와 rationale를 제거한 `<observed>` finding schema이므로 `Obscomp`를 primary로 사용하고, `Expcom/Expall`은 Source CoT 비교와 향후 Full Medical-NLA를 위한 exploratory metric으로 해석합니다.
+
 ### DDXPlus semantic mapper
 
 | stage | input/operation | output/control |
