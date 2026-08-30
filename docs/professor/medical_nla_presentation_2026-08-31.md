@@ -1145,8 +1145,25 @@ gap     = crossed - matched
 - `matched win`: 개별 patient pair 중 `gap > 0`인 비율
 
 따라서 아래 숫자는 Slide 22~23의 recall과 직접 비교하는 성능 수치가 아닙니다. 이 gate를 충분한
-효과 크기로 통과한 checkpoint만 동일한 generation metric으로 넘어가야 했지만, 관측 gap이
-`+.0013~+.0051`에 그쳐 여기서 promotion하지 않았습니다.
+효과 크기로 통과한 checkpoint만 동일한 generation metric으로 넘어가는 단계형 설계였습니다.
+
+### 20-step mechanism pilot을 어떻게 돌렸는가?
+
+| item | frozen pilot setting |
+|---|---|
+| initialization | 시도 1의 full-data SFT `seed29` adapter |
+| train population | DDXPlus/DiReCT에서 source별 최대 124 within-stratum pairs를 같은 수로 표집 |
+| pair construction | DDXPlus는 same `diagnosis_id`, DiReCT는 same `disease_category`; 서로 다른 target text만 허용 |
+| one pair forward | `A→A`, `B→B` matched 2개와 `A→B`, `B→A` crossed 2개 |
+| primary arms | `SFT=1, lambda=.1`과 `SFT=1, lambda=1` |
+| report-only objective screen | `SFT=1, lambda=5`; `SFT=0, lambda=1` |
+| budget | 20 optimizer steps, pair temperature `.1`, learning rate `5e-5`, dropout off |
+| evaluation | DiReCT validation 50행 중 within-category derangement가 가능한 45 pairs / 13 clusters |
+
+이것은 완성 모델 학습이 아니라, “문장 수준 pairwise loss가 사례 구분 신호를 키울 가능성이 있는가”를
+싸게 확인하는 mechanism smoke였습니다. 원하는 결과는 warm-start full-SFT보다
+`crossed-minus-matched gap`이 커지고, category-cluster CI가 0보다 높으며, matched-win도 유지 또는
+개선되는 것이었습니다.
 
 | objective | symmetric cross-minus-matched | cluster 95% CI | matched win |
 |---|---:|---:|---:|
@@ -1157,7 +1174,18 @@ gap     = crossed - matched
 
 ### 문제와 다음 변경
 
-- 일부 CI는 0을 배제했지만 절대 효과는 `+.0013~+.0051`로 매우 작았습니다.
+- 학습 전 warm-start full-SFT seed29 자체가 이미 `gap=+.0051`, CI `[+.0011,+.0091]`,
+  matched-win `.7333`이었습니다.
+- Primary `lambda=.1/1`은 gap이 `+.0013/+.0022`로 **baseline보다 작아졌고**, 두 cluster CI 모두
+  0을 포함했으며 matched-win도 `.5556/.5778`로 낮아졌습니다.
+- `lambda=5`는 gap `+.0051`을 회복했지만 baseline을 넘지 못했고 matched-win은 `.5333`이었습니다.
+  `SFT=0`도 `+.0030`으로 baseline보다 작았습니다.
+- Matched 문장 NLL 자체는 baseline `3.9629`에서 primary arms `3.7378/3.7154`로 감소했습니다.
+  즉 optimizer가 멈춘 것이 아니라, 문장을 전반적으로 쉽게 만든 반면 **자기 환자와 다른 환자를
+  구분하는 activation-specific signal은 강화하지 못한 것**입니다.
+- 이 초기 pilot에는 이후 D10에서 사용한 `.05` frozen effect floor가 아직 없었으므로 그 기준을
+  소급 적용하지 않습니다. 중단 근거는 primary CI 실패와 warm-start baseline 비개선입니다.
+- 따라서 validation text generation과 locked evaluation으로 승격하지 않고 이 branch를 종료했습니다.
 - 문장 전체 NLL에는 길이, 문체, target 자체의 난이도가 섞여 환자별 finding 신호를 희석합니다.
 - **다음 변경:** 전체 문장 대신 deletion으로 실제 바뀐 **한 개 cue claim**만 original/deleted activation에서 비교했습니다.
 
