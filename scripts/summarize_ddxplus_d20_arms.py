@@ -48,12 +48,19 @@ def metric_delta(
     offset: int,
 ) -> dict[str, Any]:
     identifiers = sorted(control)
-    deltas = [anchored[item][metric] - control[item][metric] for item in identifiers]
+    control_values = [control[item][metric] for item in identifiers]
+    anchored_values = [anchored[item][metric] for item in identifiers]
+    deltas = [
+        after - before
+        for before, after in zip(control_values, anchored_values, strict=True)
+    ]
     clusters: dict[str, list[float]] = defaultdict(list)
     for identifier, value in zip(identifiers, deltas, strict=True):
         diagnosis = clean(control[identifier].get("diagnosis_id")) or "<missing>"
         clusters[diagnosis].append(value)
     return {
+        "control_mean": mean(control_values),
+        "anchored_mean": mean(anchored_values),
         "anchored_minus_control": mean(deltas),
         "row_bootstrap_95_ci": bootstrap_ci(deltas, seed=seed + offset),
         "diagnosis_cluster_bootstrap_95_ci": cluster_bootstrap_ci(
@@ -96,8 +103,8 @@ def load_protocol(path: Path) -> dict[str, Any]:
     gates = protocol.get("gates") or {}
     required = {
         "retained_gap_delta_max",
-        "changed_original_nll_delta_max",
-        "retained_original_nll_delta_max",
+        "changed_original_nll_relative_increase_max",
+        "retained_original_nll_relative_increase_max",
         "mean_claim_relative_drop_max",
     }
     if set(gates) < required or any(gates[name] is None for name in required):
@@ -105,6 +112,8 @@ def load_protocol(path: Path) -> dict[str, Any]:
     hashes = protocol.get("control_score_sha256") or {}
     if set(hashes) != {str(seed) for seed in SEEDS}:
         raise ValueError("D20 gate protocol lacks all three control score hashes")
+    if set(protocol.get("control_baselines") or {}) != {str(seed) for seed in SEEDS}:
+        raise ValueError("D20 gate protocol lacks all three control baselines")
     return protocol
 
 
@@ -117,11 +126,12 @@ def build_report(
     incomplete = any(set(items) != {"control", "anchored"} for items in paths.values())
     if set(paths) != set(SEEDS) or incomplete:
         raise ValueError("D20 comparison requires control/anchored for all three seeds")
-    for seed in SEEDS:
-        observed = sha256_file(paths[seed]["control"])
-        expected = protocol["control_score_sha256"][str(seed)]
-        if observed != expected:
-            raise ValueError(f"Seed {seed} control score hash does not match protocol")
+    if not report_only:
+        for seed in SEEDS:
+            observed = sha256_file(paths[seed]["control"])
+            expected = protocol["control_score_sha256"][str(seed)]
+            if observed != expected:
+                raise ValueError(f"Seed {seed} control score hash does not match protocol")
     results = {
         str(seed): compare_seed(
             metrics_by_id(paths[seed]["control"]),
@@ -130,6 +140,20 @@ def build_report(
         )
         for seed in SEEDS
     }
+    if not report_only:
+        for seed in SEEDS:
+            expected = protocol["control_baselines"][str(seed)]
+            observed = results[str(seed)]["deltas"]
+            metrics = (
+                "retained_gap",
+                "changed_original_nll",
+                "retained_original_nll",
+            )
+            for metric in metrics:
+                if abs(observed[metric]["control_mean"] - expected[metric]) > 1e-9:
+                    raise ValueError(
+                        f"Seed {seed} {metric} baseline does not match protocol"
+                    )
     gates = protocol["gates"]
     changed = [
         results[str(seed)]["deltas"]["changed_gap"]["anchored_minus_control"]
@@ -141,14 +165,6 @@ def build_report(
     ]
     retained = [
         results[str(seed)]["deltas"]["retained_gap"]["anchored_minus_control"]
-        for seed in SEEDS
-    ]
-    changed_original = [
-        results[str(seed)]["deltas"]["changed_original_nll"]["anchored_minus_control"]
-        for seed in SEEDS
-    ]
-    retained_original = [
-        results[str(seed)]["deltas"]["retained_original_nll"]["anchored_minus_control"]
         for seed in SEEDS
     ]
     gate = {
@@ -172,12 +188,14 @@ def build_report(
             value <= gates["retained_gap_delta_max"] for value in retained
         ),
         "changed_original_nll_noninferior_each_seed": all(
-            value <= gates["changed_original_nll_delta_max"]
-            for value in changed_original
+            results[str(seed)]["deltas"]["changed_original_nll"]["anchored_mean"]
+            <= protocol["control_baselines"][str(seed)]["changed_original_nll_max"]
+            for seed in SEEDS
         ),
         "retained_original_nll_noninferior_each_seed": all(
-            value <= gates["retained_original_nll_delta_max"]
-            for value in retained_original
+            results[str(seed)]["deltas"]["retained_original_nll"]["anchored_mean"]
+            <= protocol["control_baselines"][str(seed)]["retained_original_nll_max"]
+            for seed in SEEDS
         ),
     }
     gate["teacher_forced_gate_passed"] = all(gate.values())
@@ -235,10 +253,10 @@ def main() -> None:
     lines.extend(
         [
             f"- retained-gap delta upper bound: **{gates['retained_gap_delta_max']:.6f}**",
-            "- changed-original NLL delta upper bound: "
-            f"**{gates['changed_original_nll_delta_max']:.6f}**",
-            "- retained-original NLL delta upper bound: "
-            f"**{gates['retained_original_nll_delta_max']:.6f}**",
+            "- changed-original NLL relative-increase upper bound: "
+            f"**{gates['changed_original_nll_relative_increase_max']:.6f}**",
+            "- retained-original NLL relative-increase upper bound: "
+            f"**{gates['retained_original_nll_relative_increase_max']:.6f}**",
             "- mean-claim relative-drop upper bound (generation): "
             f"**{gates['mean_claim_relative_drop_max']:.6f}**",
             "",

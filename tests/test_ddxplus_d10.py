@@ -196,7 +196,9 @@ def write_specificity_scores(
     )
 
 
-def test_d20_control_audit_uses_twice_seed_range_with_floors(tmp_path: Path) -> None:
+def test_d20_control_audit_rejects_spread_rule_and_proposes_same_seed_gates(
+    tmp_path: Path,
+) -> None:
     paths = {}
     for seed, retained_gap, changed_nll, retained_nll in (
         (17, 0.00, 1.00, 2.00),
@@ -213,16 +215,20 @@ def test_d20_control_audit_uses_twice_seed_range_with_floors(tmp_path: Path) -> 
         )
         paths[seed] = path
     report = recommendation(paths)
-    assert report["recommended_gates"]["retained_gap_delta_max"] == pytest.approx(
-        0.08
-    )
-    assert report["recommended_gates"][
+    rejected = report["rejected_across_seed_allowances"]
+    assert rejected["retained_gap_delta_max"] == pytest.approx(0.08)
+    assert report["rejected_across_seed_allowances"][
         "changed_original_nll_delta_max"
     ] == pytest.approx(0.2)
-    assert report["recommended_gates"][
+    assert report["rejected_across_seed_allowances"][
         "retained_original_nll_delta_max"
     ] == pytest.approx(0.06)
-    assert report["recommended_gates"]["mean_claim_relative_drop_max"] is None
+    assert report["proposed_same_seed_gates"] == {
+        "retained_gap_delta_max": 0.01,
+        "changed_original_nll_relative_increase_max": 0.10,
+        "retained_original_nll_relative_increase_max": 0.10,
+        "mean_claim_relative_drop_max": 0.10,
+    }
 
 
 def test_d20_claim_count_excludes_xml_scaffold(tmp_path: Path) -> None:
@@ -273,9 +279,21 @@ def test_d20_gate_requires_all_seed_specificity_and_noninferiority(
         },
         "gates": {
             "retained_gap_delta_max": 0.01,
-            "changed_original_nll_delta_max": 0.05,
-            "retained_original_nll_delta_max": 0.05,
+            "changed_original_nll_relative_increase_max": 0.10,
+            "retained_original_nll_relative_increase_max": 0.10,
             "mean_claim_relative_drop_max": 0.10,
+        },
+        "control_baselines": {
+            str(seed): {
+                "retained_gap": 0.0,
+                "changed_original_nll": 1.0,
+                "changed_original_nll_max": 1.1,
+                "retained_original_nll": 1.0,
+                "retained_original_nll_max": 1.1,
+                "mean_claims": 1.0,
+                "mean_claims_min": 0.9,
+            }
+            for seed in (17, 29, 43)
         },
     }
     report = build_d20_report(paths, protocol=protocol, report_only=False)
@@ -283,6 +301,52 @@ def test_d20_gate_requires_all_seed_specificity_and_noninferiority(
     assert report["gate"]["specificity_positive_each_seed"]
     assert report["gate"]["retained_gap_noninferior_each_seed"]
     assert report["gate"]["teacher_forced_gate_passed"]
+
+
+def test_d20_report_only_checkpoint_does_not_require_final_control_hash(
+    tmp_path: Path,
+) -> None:
+    paths = {}
+    for seed in (17, 29, 43):
+        control = tmp_path / f"intermediate_control{seed}.jsonl"
+        anchored = tmp_path / f"intermediate_anchored{seed}.jsonl"
+        write_specificity_scores(
+            control,
+            changed_original=2.0,
+            changed_deleted=2.0,
+            retained_original=2.0,
+            retained_deleted=2.0,
+        )
+        write_specificity_scores(
+            anchored,
+            changed_original=2.0,
+            changed_deleted=2.1,
+            retained_original=2.0,
+            retained_deleted=2.0,
+        )
+        paths[seed] = {"control": control, "anchored": anchored}
+    protocol = {
+        "human_approved": True,
+        "control_score_sha256": {str(seed): "final-only" for seed in (17, 29, 43)},
+        "control_baselines": {
+            str(seed): {
+                "retained_gap": 0.0,
+                "changed_original_nll": 1.0,
+                "changed_original_nll_max": 1.1,
+                "retained_original_nll": 1.0,
+                "retained_original_nll_max": 1.1,
+            }
+            for seed in (17, 29, 43)
+        },
+        "gates": {
+            "retained_gap_delta_max": 0.01,
+            "changed_original_nll_relative_increase_max": 0.10,
+            "retained_original_nll_relative_increase_max": 0.10,
+            "mean_claim_relative_drop_max": 0.10,
+        },
+    }
+    report = build_d20_report(paths, protocol=protocol, report_only=True)
+    assert report["promotion_decision_authorized"] is False
 
 
 def test_validation_builder_uses_positive_rows_and_frozen_cut(tmp_path: Path) -> None:

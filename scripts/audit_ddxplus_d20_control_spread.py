@@ -1,8 +1,8 @@
-"""Derive an unapproved D20 non-inferiority recommendation from D10 controls.
+"""Audit D20 controls and emit the approved same-seed gate proposal.
 
 This script is read-only. It never approves a protocol or reads locked test data.
-The recommendation must be copied into the preregistration and approved before
-the D20 training wrapper will run.
+Across-seed spread remains a diagnostic. It is not used as a non-inferiority
+allowance because the observed seed spread makes that rule non-informative.
 """
 
 from __future__ import annotations
@@ -103,8 +103,8 @@ def recommendation(
             }
             for seed in SEEDS
         },
-        "spread_rule": "max(2 * three-seed control range, absolute floor)",
-        "absolute_floors": {
+        "rejected_spread_rule": "max(2 * three-seed control range, absolute floor)",
+        "rejected_absolute_floors": {
             "retained_gap_delta_max": 0.01,
             "changed_original_nll_delta_max": 0.05,
             "retained_original_nll_delta_max": 0.05,
@@ -115,11 +115,17 @@ def recommendation(
             "changed_original_nll": changed_nll_spread,
             "retained_original_nll": retained_nll_spread,
         },
-        "recommended_gates": {
+        "rejected_across_seed_allowances": {
             "retained_gap_delta_max": max(2 * retained_spread, 0.01),
             "changed_original_nll_delta_max": max(2 * changed_nll_spread, 0.05),
             "retained_original_nll_delta_max": max(2 * retained_nll_spread, 0.05),
             "mean_claim_relative_drop_max": None,
+        },
+        "proposed_same_seed_gates": {
+            "retained_gap_delta_max": 0.01,
+            "changed_original_nll_relative_increase_max": 0.10,
+            "retained_original_nll_relative_increase_max": 0.10,
+            "mean_claim_relative_drop_max": 0.10,
         },
     }
 
@@ -147,7 +153,7 @@ def recommendation(
         relative_spread = spread(means) / mean_level
         result["control_readouts"] = readouts
         result["control_spreads"]["mean_claims_relative"] = relative_spread
-        result["recommended_gates"]["mean_claim_relative_drop_max"] = max(
+        result["rejected_across_seed_allowances"]["mean_claim_relative_drop_max"] = max(
             2 * relative_spread, 0.10
         )
     return result
@@ -171,7 +177,7 @@ def main() -> None:
         "",
         "Read-only recommendation; it does not authorize D20 training.",
         "",
-        "| metric | seed 17 | seed 29 | seed 43 | range | recommended allowance |",
+        "| metric | seed 17 | seed 29 | seed 43 | range | rejected 2x-range allowance |",
         "|---|---:|---:|---:|---:|---:|",
     ]
     rows = (
@@ -184,16 +190,19 @@ def main() -> None:
         lines.append(
             f"| {label} | {values[0]:.6f} | {values[1]:.6f} | {values[2]:.6f} | "
             f"{report['control_spreads'][metric]:.6f} | "
-            f"{report['recommended_gates'][gate]:.6f} |"
+            f"{report['rejected_across_seed_allowances'][gate]:.6f} |"
         )
     if "control_readouts" in report:
         values = [
             report["control_readouts"][str(seed)]["mean_claims"] for seed in SEEDS
         ]
+        rejected_claim_drop = report["rejected_across_seed_allowances"][
+            "mean_claim_relative_drop_max"
+        ]
         lines.append(
             f"| mean claims | {values[0]:.6f} | {values[1]:.6f} | {values[2]:.6f} | "
             f"{report['control_spreads']['mean_claims_relative']:.6f} relative | "
-            f"{report['recommended_gates']['mean_claim_relative_drop_max']:.6f} relative |"
+            f"{rejected_claim_drop:.6f} relative |"
         )
     else:
         lines.extend(
@@ -205,8 +214,12 @@ def main() -> None:
     lines.extend(
         [
             "",
-            "The recommendation uses `max(2 x seed range, floor)`. It must be "
-            "copied into the D20 preregistration and human-approved before training.",
+            "The 2x-range allowances are reported but rejected: the observed seed "
+            "spread would permit severe degradation, including a 75% claim-count drop.",
+            "",
+            "Proposed same-seed paired gates: retained-gap delta <= .01; changed and "
+            "retained original NLL <= 1.10x the same-seed control; mean claims >= "
+            "0.90x the same-seed control. Human approval is still required.",
         ]
     )
     args.summary_md.write_text("\n".join(lines) + "\n", encoding="utf-8")

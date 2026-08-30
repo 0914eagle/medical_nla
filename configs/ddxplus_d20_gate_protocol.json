@@ -1,0 +1,73 @@
+{
+  "schema_version": 2,
+  "decision": "D20 specificity-anchored objective",
+  "human_approved": true,
+  "approved_by": "heejae",
+  "approved_at": "2026-08-30 Asia/Seoul",
+  "approval_record": "Use same-seed paired controls with a 0.01 retained-gap bound and 10% original-NLL/mean-claim non-inferiority bounds.",
+  "comparison": "same-seed anchored versus frozen D10 original-only control",
+  "gates": {
+    "retained_gap_delta_max": 0.01,
+    "changed_original_nll_relative_increase_max": 0.1,
+    "retained_original_nll_relative_increase_max": 0.1,
+    "mean_claim_relative_drop_max": 0.1
+  },
+  "control_baselines": {
+    "17": {
+      "retained_gap": -0.027569748426844072,
+      "changed_original_nll": 0.7367339300134251,
+      "changed_original_nll_max": 0.8104073230147677,
+      "retained_original_nll": 1.0348971938532543,
+      "retained_original_nll_max": 1.1383869132385798,
+      "mean_claims": 2.0,
+      "mean_claims_min": 1.8
+    },
+    "29": {
+      "retained_gap": -0.03232053837353133,
+      "changed_original_nll": 0.6322970193218548,
+      "changed_original_nll_max": 0.6955267212540404,
+      "retained_original_nll": 0.8957896078973615,
+      "retained_original_nll_max": 0.9853685686870978,
+      "mean_claims": 1.0,
+      "mean_claims_min": 0.9
+    },
+    "43": {
+      "retained_gap": -0.0007085307724872176,
+      "changed_original_nll": 0.5889654734557725,
+      "changed_original_nll_max": 0.6478620208013498,
+      "retained_original_nll": 0.8953776505719231,
+      "retained_original_nll_max": 0.9849154156291154,
+      "mean_claims": 1.0,
+      "mean_claims_min": 0.9
+    }
+  },
+  "control_score_sha256": {
+    "17": "76b65f40535d597aefcb11e2cee58bacd989ef8818b02af1a34af4ea8a972a10",
+    "29": "9e8c67c7ef35442581c32588bb9d10c6c83c36030deb0af857801ac7b50d2baf",
+    "43": "59b3f0059ea49f613b1517702be5f6dea286a6b81f67aecfb86b10db516c0854"
+  },
+  "control_readout_sha256": {
+    "17": "a88763ebbdcf55ff010b4dcb15cc76ab7eadd4eb2e219f5a7f94b2d54e741f4e",
+    "29": "b2002fcd4e4826eb285f8d71665783e2b127383a0f0d63c23a81b0065114e6a6",
+    "43": "84a9244f4bdeb7123fd6dddefd8ad0c06e2dd31c19e969447ce5783ca4a82d05"
+  },
+  "calibration_population": {
+    "teacher_forced_pairs": 3032,
+    "generation_rows_per_seed": 952,
+    "validation_shards": [0, 1, 2, 3],
+    "num_validation_shards": 40,
+    "max_new_tokens": 128,
+    "batch_size": 4,
+    "do_sample": false
+  },
+  "frozen_training": {
+    "alpha": 1.0,
+    "lambda": 1.0,
+    "temperature": 1.0,
+    "margin": 0.0,
+    "max_steps": 1552,
+    "checkpoint_steps": [194, 388, 776, 1164, 1552],
+    "seeds": [17, 29, 43]
+  },
+  "locked_test_read": false
+}

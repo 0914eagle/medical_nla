@@ -9,7 +9,7 @@ REPO_DIR="${REPO_DIR:-/home/eagle0914/medical_nla}"
 CONFIG="${CONFIG:-configs/runpod.yaml}"
 CONTROL_RUN_NAME="${CONTROL_RUN_NAME:-ddxplus_d10_budget1552_v1}"
 RUN_NAME="${RUN_NAME:-ddxplus_d20_specificity_anchor1552_v1}"
-GATE_PROTOCOL="${GATE_PROTOCOL:-configs/experiments/ddxplus_d20_gate_protocol.json}"
+GATE_PROTOCOL="${GATE_PROTOCOL:-configs/ddxplus_d20_gate_protocol.json}"
 GPU_A="${GPU_A:-0}"
 GPU_B="${GPU_B:-0}"
 MAX_STEPS=1552
@@ -34,8 +34,8 @@ p = json.load(open(sys.argv[1]))
 assert p.get("human_approved") is True, "D20 protocol is not human-approved"
 required = {
     "retained_gap_delta_max",
-    "changed_original_nll_delta_max",
-    "retained_original_nll_delta_max",
+    "changed_original_nll_relative_increase_max",
+    "retained_original_nll_relative_increase_max",
     "mean_claim_relative_drop_max",
 }
 assert required <= set(p.get("gates") or {}), "D20 protocol lacks numeric gates"
