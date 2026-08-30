@@ -767,9 +767,32 @@ head를 학습하고 validation에서 layer/threshold/hyperparameter를 고정�
   canonical text를 다시 mapping한 end-to-end score입니다. 따라서 `*`와 `†`는 직접적인
   우열 비교값이 아니며, 최종 논문에서는 공통 분모 열과 all-original 열을 분리해야 합니다.
 
+### P0 하나에서 여러 finding을 어떻게 선택하는가?
+
+P0는 “정답 하나”가 아니라 3,840차원 환자-state vector 한 개입니다. Probe는 이 vector를
+서로 다른 91개 finding score로 동시에 투영합니다.
+
+```text
+h_P0 (3,840-d) -> one affine head -> 91 logits -> 91 sigmoid probabilities
+```
+
+| target | output rule | 한 case에서 가능한 출력 수 |
+|---|---|---:|
+| DiReCT diagnosis/category probe | 하나의 softmax에서 top-1 | 1 |
+| DDXPlus finding-presence probe | 91 sigmoid 중 frozen threshold 이상을 모두 선택 | 0~91 |
+| DDXPlus native-value probe | 선택된 value-bearing evidence 안에서 value softmax argmax | evidence당 1 value |
+
+- Finding target은 case마다 91차원 multi-hot vector이고 loss는 `BCEWithLogits`입니다.
+- Threshold는 train에서 정하지 않고 validation grid `.1/.2/.3/.4/.5` 중 micro F1, macro F1
+  순으로 한 개를 선택한 뒤 locked test 전에 동결했습니다. **Top-k를 고정하지 않습니다.**
+- Probability 1등/2등 순서는 bullet 표시 순서에만 사용합니다. F1은 순위를 무시하고
+  threshold를 넘은 predicted set과 gold finding set의 TP/FP/FN으로 계산합니다.
+- 따라서 한 환자에서 fever, cough, dyspnea 세 probability가 threshold를 넘으면 세 finding을
+  모두 출력하며, 그중 “1등만 정답”으로 처리하지 않습니다.
+
 ### Structured reader의 정확한 의미
 
-1. Frozen HS24 probe가 91개 finding과 지원되는 native value의 label/probability를 선택합니다.
+1. Frozen HS24 probe가 위 multi-label rule로 finding set과 지원되는 native value를 선택합니다.
 2. Evaluation 전에 official train 4,655건만 읽어 다음 **고정 lookup 사전**을 만듭니다.
    - Finding ID별로 train의 exact cue text 빈도를 세고 가장 자주 나온 문구 하나를 저장합니다.
    - Value가 있는 finding은 `(finding ID, value ID)`별 최빈 exact 문구를 따로 저장합니다.
@@ -782,6 +805,8 @@ head를 학습하고 validation에서 layer/threshold/hyperparameter를 고정�
 > 따라서 2번은 “label을 자연어로 추론한다”가 아니라 **이미 고른 label의 이름표를 train-only
 > 문구로 바꿔 붙인다**는 뜻입니다. Structured reader는 probe state의 closed rendering control이지,
 > activation에서 claim을 발견하고 문장을 만드는 open-ended NLA가 아닙니다.
+> Finding/value ID 기준으로는 probe와 structured reader가 동일하며, reader를 별도 성능 개선
+> 방법으로 해석하면 안 됩니다.
 
 ### `validation only`는 무슨 뜻이었는가?
 
