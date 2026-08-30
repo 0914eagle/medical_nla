@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from scripts.audit_sft_family_raw_outputs import (
+    audit_direct_judgements,
     finalize_ddxplus,
     finalize_direct,
     prepare_ddxplus,
@@ -280,3 +281,47 @@ def test_finalizers_emit_only_aggregate_text(tmp_path: Path) -> None:
         )
     )
     assert "fever cough" not in (ddx_out / "summary.md").read_text()
+
+
+def test_direct_audit_writes_quote_contract_retry(tmp_path: Path) -> None:
+    bundle = tmp_path / "bundle.jsonl"
+    requests = tmp_path / "requests.jsonl"
+    judgements = tmp_path / "judgements.jsonl"
+    retry = tmp_path / "retry.jsonl"
+    report = tmp_path / "report.json"
+    write_jsonl(
+        bundle,
+        [
+            {
+                "id": "request",
+                "base_id": "case",
+                "methods": [
+                    {"opaque_id": "M01", "method": "model", "method_output": "fever"}
+                ],
+            }
+        ],
+    )
+    write_jsonl(requests, [{"id": "request", "prompt": "original prompt"}])
+    response = {
+        "items": [
+            {
+                "opaque_id": "M01",
+                "physician_observation_supported": True,
+                "supporting_quotes": {},
+            }
+        ]
+    }
+    write_jsonl(judgements, [{"id": "request", "response": json.dumps(response)}])
+    result = audit_direct_judgements(
+        argparse.Namespace(
+            private_bundle=bundle,
+            requests=requests,
+            judgements=judgements,
+            retry_requests=retry,
+            report=report,
+        )
+    )
+    assert result["invalid"] == 1
+    retry_rows = list(read_jsonl(retry))
+    assert len(retry_rows) == 1
+    assert "Every true field must include" in retry_rows[0]["prompt"]
