@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Private DiReCT 50-case raw audit. Restricted text is judged only by the
+# server-local Llama checkpoint and remains under restricted/direct/e4.
+
+DATA_ROOT="${DATA_ROOT:-/data1/heejae}"
+GPU="${GPU:-0}"
+MODE="${MODE:-all}"
+OUT="${OUT:-${DATA_ROOT}/restricted/direct/e4/sft_raw_audit50_v1}"
+
+if [[ "${DATA_ROOT}" != "/data1/heejae" ]]; then
+  echo "[error] this wrapper is frozen for server 125 (/data1/heejae)" >&2
+  exit 2
+fi
+if [[ "${MODE}" != "prepare" && "${MODE}" != "run" && "${MODE}" != "finalize" && "${MODE}" != "all" ]]; then
+  echo "[error] MODE must be prepare, run, finalize, or all" >&2
+  exit 2
+fi
+
+cd /home/eagle0914/medical_nla
+source "${DATA_ROOT}/uv/medical_nla/bin/activate"
+unset MEDICAL_NLA_DATA_ROOT HF_HOME TRANSFORMERS_CACHE
+source scripts/env.sh "${DATA_ROOT}"
+export PYTHONPATH=/home/eagle0914/medical_nla
+
+DIRECT="${DATA_ROOT}/restricted/direct"
+E1="${DIRECT}/e1"
+E3="${DIRECT}/e3"
+E4="${DIRECT}/e4"
+DIRECT_READOUTS="${DIRECT_READOUTS:-${E4}/validation_readouts_v1}"
+DIRECT_SEMANTIC="${DIRECT_SEMANTIC:-${E4}/validation_full_v1}"
+FULL_READOUTS="${FULL_READOUTS:-${E4}/common_medical_nla_full_sft_v1_validation_v1}"
+FULL_SEMANTIC="${FULL_SEMANTIC:-${E4}/common_medical_nla_full_sft_v1_direct_semantic_val_v1}"
+JUDGE="${DATA_ROOT}/models/Meta-Llama-3-8B-Instruct/original"
+
+required=(
+  "${E3}/direct_e3_sft_v1/sft_val.jsonl"
+  "${E1}/direct_e1_trainval_v1/source_cot_answers.jsonl"
+  "${E1}/direct_e1_test_v1/source_cot_answers.jsonl"
+  "${DIRECT_READOUTS}/vanilla.jsonl"
+  "${DIRECT_READOUTS}/medical_nla_seed17.jsonl"
+  "${DIRECT_READOUTS}/medical_nla_seed29.jsonl"
+  "${DIRECT_READOUTS}/medical_nla_seed43.jsonl"
+  "${FULL_READOUTS}/medical_nla_seed17.jsonl"
+  "${FULL_READOUTS}/medical_nla_seed29.jsonl"
+  "${DIRECT_SEMANTIC}/private_extraction_audit.jsonl"
+  "${FULL_SEMANTIC}/private_extraction_audit.jsonl"
+)
+for path in "${required[@]}"; do
+  test -s "${path}" || { echo "[error] missing ${path}" >&2; exit 2; }
+done
+
+prepare() {
+  python scripts/audit_sft_family_raw_outputs.py prepare-direct \
+    --cohort "${E3}/direct_e3_sft_v1/sft_val.jsonl" \
+    --source-answers \
+      "${E1}/direct_e1_trainval_v1/source_cot_answers.jsonl" \
+      "${E1}/direct_e1_test_v1/source_cot_answers.jsonl" \
+    --method "source_cot|-|${FULL_SEMANTIC}|cot|-" \
+    --method "vanilla|${DIRECT_READOUTS}/vanilla.jsonl|${DIRECT_SEMANTIC}|vanilla|-" \
+    --method "direct_only_seed17|${DIRECT_READOUTS}/medical_nla_seed17.jsonl|${DIRECT_SEMANTIC}|medical_nla_seed17|-" \
+    --method "direct_only_seed29|${DIRECT_READOUTS}/medical_nla_seed29.jsonl|${DIRECT_SEMANTIC}|medical_nla_seed29|-" \
+    --method "direct_only_seed43|${DIRECT_READOUTS}/medical_nla_seed43.jsonl|${DIRECT_SEMANTIC}|medical_nla_seed43|-" \
+    --method "full_data_seed17|${FULL_READOUTS}/medical_nla_seed17.jsonl|${FULL_SEMANTIC}|medical_nla_seed17|direct" \
+    --method "full_data_seed29|${FULL_READOUTS}/medical_nla_seed29.jsonl|${FULL_SEMANTIC}|medical_nla_seed29|direct" \
+    --cases 50 \
+    --seed 17 \
+    --out-dir "${OUT}"
+}
+
+if [[ "${MODE}" == "prepare" || "${MODE}" == "all" ]]; then
+  echo "[stage 1/3] deterministic intersection preflight and private bundle"
+  prepare
+fi
+
+if [[ "${MODE}" == "run" || "${MODE}" == "all" ]]; then
+  test -s "${OUT}/requests.jsonl" || { echo "[error] prepare first" >&2; exit 2; }
+  echo "[stage 2/3] local-only AI checklist; no external API"
+  CUDA_VISIBLE_DEVICES="${GPU}" torchrun --nproc_per_node 1 \
+    scripts/run_direct_local_llama_judge.py \
+    --requests "${OUT}/requests.jsonl" \
+    --out "${OUT}/judgements.jsonl" \
+    --official-repo "${DIRECT}/official_repo" \
+    --ckpt-dir "${JUDGE}" \
+    --tokenizer-path "${JUDGE}/tokenizer.model" \
+    --max-seq-len 8192 \
+    --max-batch-size 1 \
+    --max-gen-len 2048 \
+    --temperature 0 \
+    --top-p 1 \
+    --judge-model Meta-Llama-3-8B-Instruct
+fi
+
+if [[ "${MODE}" == "finalize" || "${MODE}" == "all" ]]; then
+  test -s "${OUT}/judgements.jsonl" || { echo "[error] run judge first" >&2; exit 2; }
+  echo "[stage 3/3] validate quotes and emit aggregate-only summary"
+  python scripts/audit_sft_family_raw_outputs.py finalize-direct \
+    --private-bundle "${OUT}/private_bundle.jsonl" \
+    --judgements "${OUT}/judgements.jsonl" \
+    --out-dir "${OUT}"
+fi
+
+echo "[done] ${OUT}"

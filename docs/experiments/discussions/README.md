@@ -20,6 +20,7 @@
 | ready to run | [Locked baseline execution runbook](2026-08-30-locked-baseline-execution.md) | DDXPlus HS32 -> sealed 10,028 generation; D10 뒤 DiReCT 178 batch |
 | proposal | [Paper tables under a successful Medical-NLA](2026-08-29-paper-tables-success-scenario.md) | conditional table structure approval |
 | active | [Paper table values and reproducibility](2026-08-29-paper-table-values-and-reproducibility.md) | canonical values, denominators, recipes, provenance audit |
+| ready to run | [SFT family raw-output audit](2026-08-30-sft-raw-output-audit.md) | DiReCT 50-case census and separate DDXPlus deletion/value-edit 50-case audits |
 
 ## 완료·보관
 
