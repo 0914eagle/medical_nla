@@ -476,13 +476,14 @@ typical disease template.
 
 > 잘 말하는 모델을 찾는 것이 아니라 activation-dependent한 모델을 찾습니다.
 
-### 현재 고려 중인 세 경로
+### 진단 경로의 현재 상태
 
-1. **Geometry audit A1-A5**: mean direction 제거, normalized FVE, own-case retrieval로 공개 AR 실패 원인을 분해
-2. **Patchscopes baseline**: HS32 state를 같은 Gemma의 native HS32 placeholder에 직접 patch해 AV injection 변환을 우회
-3. **Medical AO + Medical AR**: 대규모 supervised clinical-state decoder와 domain AR를 각각 학습한 뒤 constrained renderer에 연결
+1. **Geometry audit A1-A5 완료**: DDXPlus positive control 실패, 모든 arm FVE < 0으로 공개 AR reward 불인정
+2. **Same-layer Patchscope 완료**: short general-domain control은 통과했지만 clinical own/donor correspondence는 0/5
+3. **현재 후보**: text bypass가 없는 learned medical prefix mapper
 
-현재 우선순위는 `geometry audit → Patchscopes smoke → Medical-AR positive control → Medical AO/AV`입니다. Raw cosine이 양성 대조를 통과하기 전에는 AR reward/RL을 열지 않습니다.
+따라서 AR reward/RL과 추가 identity-Patchscope sweep은 열지 않고, 다음 학습은 별도 사전
+등록한 supervised activation-language decoder로만 진행합니다.
 
 ---
 
@@ -789,24 +790,30 @@ typical disease template.
 
 ---
 
-## Slide 21. Medical-NLA development map: 무엇을 바꿨는가?
+## Slide 21. Medical-NLA는 실패 원인에 따라 어떻게 바뀌었는가?
 
-| method | supervision/loss change | 학습이 답해야 한 질문 | primary metric |
-|---|---|---|---|
-| Original/full-data sequence SFT | `CE(y_current | h_current)` | 데이터 양과 임상 target만으로 충분한가? | Obscomp, cue recall |
-| Counterfactual sequence SFT | original/deleted/edited 각 arm의 현재 cue set CE | intervention 예시를 직접 주면 selective response가 생기는가? | contrast, phantom, clean switch |
-| Sentence matched/crossed contrastive | matched sentence NLL을 crossed NLL보다 낮춤 | activation-target pair를 구분하는가? | symmetric NLL gap |
-| Changed-cue 1x2 ranking | 한 changed claim의 original-vs-deleted NLL ranking | 긴 target 난이도를 제거하면 삭제 cue만 배우는가? | changed gap, retained gap, specificity |
-| Budget calibration | loss/data 고정, 20→1,552 steps | 작은 budget이 병목이었는가? | dose-response trajectory |
-| Specificity-anchored ranking | changed ranking + retained claim CE | global deletion shortcut을 loss로 차단할 수 있는가? | seed별 specificity + NLL noninferiority |
-| Soft bottleneck/OOF teacher | 3840→256 latent + auxiliary support | shared latent나 probe teacher가 state를 조직화하는가? | probe/generation delta |
-| Public AR diagnostic | text→activation reconstruction | released AR가 medical activation을 구분하는가? | own-minus-shuffled cosine |
+| 단계 | 먼저 시도한 것 | 관찰된 문제 | 그래서 다음에 바꾼 것 |
+|---:|---|---|---|
+| 1 | Original/full-data sequence SFT | 형식은 배웠지만 환자별 observation 대신 질환 template로 붕괴 | original/deleted/value-edited target을 직접 학습 |
+| 2 | Counterfactual sequence SFT | seed17 recall은 증가했지만 phantom도 약 2배, seed29에서 미재현 | 문장 생성 CE 대신 activation-target pair ranking |
+| 3 | Sentence matched/crossed contrastive | 양의 NLL gap은 생겼지만 효과가 `+.001~+.005`로 매우 작음 | 한 개 changed cue만 비교하는 1x2 ranking |
+| 4 | Changed-cue ranking, 20 steps | 세 seed 방향은 대체로 양수지만 최소 효과 `.05`에 크게 미달 | loss/data를 고정하고 1,552 steps까지 budget만 확대 |
+| 5 | Budget calibration | changed와 retained gap이 함께 증가: deletion activation 전체를 억제하는 shortcut | retained cue CE를 넣은 specificity anchor |
+| 6 | Specificity-anchored ranking | shortcut은 사라졌지만 changed-cue signal도 3 seed 모두 음수 | target/latent 구조를 OOF teacher와 bottleneck으로 변경 |
+| 7 | OOF teacher / 256-d bottleneck | calibration과 3-seed 효과 모두 gate 실패 | 원 NLA의 text-to-activation AR 측정기로 회귀 |
+| 8 | Public AR geometry | 의료 분포 reconstruction 측정기와 reward gate 실패 | AR를 우회하는 same-layer identity Patchscope |
+| 9 | Identity Patchscope | general control은 통과했지만 clinical own/donor finding은 0/5 | text bypass가 없는 learned medical prefix mapper 후보 |
 
-> 이후 슬라이드는 내부 코드명보다 실제로 무엇을 학습하고 무엇으로 판정했는지를 기준으로 배열합니다.
+> 각 변경은 임의의 방법 sweep이 아니라, 직전 실험에서 확인한 실패 모드를 하나씩 제거하기 위한 설계 변경입니다.
 
 ---
 
-## Slide 22. Sequence SFT: 데이터 증가와 counterfactual target
+## Slide 22. 시도 1→2: 데이터 증가만으로 부족해 counterfactual SFT로 이동
+
+### 시도 1. Original-only sequence SFT
+
+`CE(y_current | h_current)`로 현재 finding 문장을 생성하게 하고, DDXPlus 학습량을
+248건에서 4,655건으로 늘렸습니다.
 
 ### Original-only common/full-data SFT, validation
 
@@ -816,7 +823,14 @@ typical disease template.
 | full data, seed17 | **0.3763** | **0.3816** | 0.0216 | 0.3389 | **0.2138** | **0.4052** | **0.0244** |
 | full data, seed29 | 0.3506 | 0.3758 | 0.0076 | **0.3612** | 0.2667 | 0.3232 | 0.0122 |
 
-### Counterfactual sequence SFT, validation 435 bases / 952 readouts
+### 문제 1
+
+- Full-data SFT는 DDXPlus cue recall을 높였지만 DiReCT observation alignment는 여전히 매우 낮았습니다.
+- 출력 형식과 의료 문체를 배우는 것과 환자 activation을 읽는 것은 같지 않았습니다.
+
+### 그래서 바꾼 것: original/deleted/value-edited target을 모두 CE로 학습
+
+Counterfactual sequence SFT, validation 435 bases / 952 readouts:
 
 | method | current recall | original target hit | deleted phantom | deletion contrast | removal success | clean switch |
 |---|---:|---:|---:|---:|---:|---:|
@@ -832,18 +846,19 @@ typical disease template.
 - Counterfactual seed17 clean switch: **0.0488**
 - 평가 가능한 value-edit bases: **82**
 
-### 판정
+### 문제 2와 다음 변경
 
 - Full-data SFT는 DDXPlus finding recall과 deletion response를 개선했습니다.
 - Counterfactual seed17은 deletion contrast가 0.1379에서 0.2092로 증가했지만 phantom도 0.2138에서 0.4253으로 약 2배 증가했습니다.
 - Seed29에서는 contrast 개선이 재현되지 않았습니다.
 - 따라서 sequence CE에 학습 가능한 신호는 있지만 changed finding을 선택적으로 말하게 하는 objective로는 불충분합니다.
+- 다음 단계에서는 문장 전체를 잘 생성하는 CE 대신 `matched activation에서 해당 claim이 더 쉬운가`를 직접 최적화했습니다.
 
 ---
 
-## Slide 23. Pairwise objectives: sentence contrastive와 changed-cue ranking
+## Slide 23. 시도 3→4: 문장 pair ranking에서 한 개 changed cue ranking으로
 
-### Sentence matched/crossed objective
+### 시도 3. Sentence matched/crossed objective
 
 ```text
 L = L_SFT + lambda * softplus(-(NLL_cross - NLL_matched) / T)
@@ -856,7 +871,14 @@ L = L_SFT + lambda * softplus(-(NLL_cross - NLL_matched) / T)
 | SFT=1, lambda=5 | +0.0051 | [+0.0011, +0.0099] | 0.5333 |
 | SFT=0, lambda=1 | +0.0030 | [+0.0003, +0.0057] | 0.6444 |
 
-### Changed-cue 1x2 ranking objective, 3,104 pairs
+### 문제 3
+
+- 일부 CI는 0을 배제했지만 효과는 `+.0013~+.0051`에 불과했습니다.
+- 문장마다 난이도와 길이가 달라 activation 대응 신호가 sentence NLL에 묻힐 수 있었습니다.
+
+### 그래서 바꾼 것: 한 개 changed claim만 original/deleted activation에서 비교
+
+Changed-cue 1x2 ranking objective, 3,104 pairs:
 
 ```text
 g_changed = NLL(y_changed | h_deleted) - NLL(y_changed | h_original)
@@ -873,12 +895,14 @@ specificity = changed_gap - retained_gap
 
 - 3 seed 모두 changed delta는 양수였지만 사전 고정한 최소 효과 `0.05`보다 10배 이상 작았습니다.
 - Seed17의 cluster CI와 specificity CI가 0을 포함해 promotion gate를 통과하지 못했습니다.
+- 이 결과만으로 objective 실패와 20-step budget 부족을 구분할 수 없어, 다음 실험에서는 다른 조건을 고정하고 step만 늘렸습니다.
 
 ---
 
-## Slide 24. Budget calibration: 같은 ranking을 20→1,552 steps
+## Slide 24. 시도 5: budget만 20→1,552 steps로 늘렸더니 shortcut이 성장
 
-> 데이터 3,104 pairs, loss, `lambda=1`, `T=1`, seeds를 고정하고 학습 step만 변경했습니다.
+> 직전 실험의 작은 효과가 단순한 under-training인지 확인하기 위해 데이터 3,104 pairs,
+> loss, `lambda=1`, `T=1`, seeds를 고정하고 학습 step만 변경했습니다.
 
 ### Across-seed means
 
@@ -897,15 +921,21 @@ specificity = changed_gap - retained_gap
 - seed29: **+0.5618**
 - seed43: **+1.1233**
 
-### 해석
+### 무엇이 잘못됐는가?
 
 - 삭제한 cue뿐 아니라 retained cue NLL도 거의 같은 크기로 증가했습니다.
 - 모델은 `어떤 cue가 지워졌는가`가 아니라 `삭제된 activation인가`를 감지했습니다.
 - specificity gate가 없었다면 잘못된 성공 판정을 내릴 수 있었습니다.
+- 따라서 budget 부족은 해소됐지만, objective가 허용한 가장 쉬운 해가 global deletion detector라는 것이 확인됐습니다.
+- 다음 실험은 step을 더 늘리지 않고 retained cue를 원본/삭제본 모두에서 유지하도록 loss를 바꿨습니다.
 
 ---
 
-## Slide 25. Specificity-anchored ranking: retained cue를 loss에 추가
+## Slide 25. 시도 6: retained anchor로 shortcut을 막자 changed signal도 사라짐
+
+### 직전 실패에 대한 변경
+
+삭제본 전체를 억제하면 retained cue CE에서 손해를 보도록 다음 항을 추가했습니다.
 
 ```text
 L = CE(y_changed | h_original)
@@ -922,7 +952,7 @@ all weights = 1.0, max_steps = 1,552, seeds = 17/29/43
 | 29 | -0.0040 | +0.0215 | **-0.0255** | +0.0576 | -0.1834 |
 | 43 | -0.0266 | -0.0049 | **-0.0217** | +0.0622 | -0.2263 |
 
-### 무엇이 확인됐는가?
+### 결과와 다음 변경
 
 1. Retained anchor가 global deletion detector shortcut을 억제했습니다.
 2. 그러나 changed-cue signal도 3 seed 모두 음수로 사라졌습니다.
@@ -931,9 +961,17 @@ all weights = 1.0, max_steps = 1,552, seeds = 17/29/43
 
 > 기존 ranking loss의 큰 효과는 선택적 임상 정보 판독이 아니라 shortcut이었습니다.
 
+Loss 수준에서 shortcut을 막아도 사례별 changed cue가 학습되지 않았으므로, 다음에는
+ranking 계수를 다시 조정하지 않고 target builder와 latent interface 자체를 바꿨습니다.
+
 ---
 
-## Slide 26. 다른 target/architecture 계열의 결과
+## Slide 26. 시도 7: target과 latent 구조를 바꿔도 재현되는 개선은 없었음
+
+### 직전 실패에 대한 변경
+
+- Free-paragraph target 대신 out-of-fold probe가 고른 hard finding set을 teacher로 사용했습니다.
+- 3,840차원 activation을 256차원 latent로 강제해 decoder가 공유된 clinical state를 사용하게 했습니다.
 
 | method | exact change | observed result | verdict |
 |---|---|---|---|
@@ -944,50 +982,68 @@ all weights = 1.0, max_steps = 1,552, seeds = 17/29/43
 - OOF teacher는 deletion activation에서 absent label을 대량 추가해 stable target builder가 되지 못했습니다.
 - Bottleneck auxiliary objective는 3 seed 방향 일치와 최소 효과 `0.005`를 충족하지 못했습니다.
 - 자유문장 target과 pairwise ranking만의 문제가 아니라 latent organization을 바꿔도 개선이 재현되지 않았습니다.
+- 그래서 다음에는 surrogate finding loss를 더 만들지 않고 원 NLA의 핵심 측정기인 AR가 의료 분포에서 유효한지 먼저 확인했습니다.
 
 ---
 
-## Slide 27. Public AR reconstruction diagnostic
+## Slide 27. 시도 8: 공개 AR는 높은 cosine에도 의료 activation을 복원하지 못함
 
 > Released `kitft/nla-gemma3-12b-L32-ar`, validation-only, arm당 n=20
 
-| dataset | arm | own cosine | shuffled cosine | gap | 95% CI |
-|---|---|---:|---:|---:|---:|
-| DDXPlus | structured reader | 0.9765 | 0.9765 | -0.0000 | [-0.0002, +0.0001] |
-| DiReCT | Direct-only seed17 | 0.9744 | 0.9744 | -0.0000 | [-0.0002, +0.0002] |
-| DiReCT | Direct-only seed29 | 0.9772 | 0.9772 | -0.0001 | [-0.0002, +0.0001] |
-| DiReCT | Direct-only seed43 | 0.9758 | 0.9757 | +0.0000 | [-0.0001, +0.0001] |
-| DiReCT | Full-data seed17 | 0.9779 | 0.9780 | -0.0001 | [-0.0002, +0.0001] |
-| DiReCT | Full-data seed29 | 0.9777 | 0.9777 | +0.0000 | [-0.0001, +0.0002] |
-| DiReCT | Source CoT | 0.9835 | 0.9834 | +0.0001 | [-0.0000, +0.0002] |
-| DiReCT | Vanilla NLA | 0.9962 | 0.9961 | +0.0001 | [+0.0000, +0.0002] |
+### Raw cosine 진단
 
-### 해석
+| positive control | own cosine | shuffled cosine | gap |
+|---|---:|---:|---:|
+| DDXPlus structured reader | 0.9765 | 0.9765 | 약 0 |
+| DiReCT Source CoT | 0.9835 | 0.9834 | 약 0 |
+| DiReCT Vanilla, report-only | 0.9962 | 0.9961 | +0.0001 |
 
-- 구조화 reader와 Source CoT 양성 대조도 matched activation을 구분하지 못했습니다.
-- 높은 절대 cosine은 사례 정보 복원보다 공통 방향/anisotropy의 영향을 받은 것으로 보입니다.
-- 이 공개 AR의 cosine을 Medical-NLA reward로 바로 사용할 수 없습니다.
-- 이는 임상 정보가 없다는 증거가 아니라, **AR 측정기가 이 domain에 맞지 않는다는 증거**입니다.
+### 평균 방향을 제거한 geometry audit
+
+| positive control | centered gap [cluster CI] | FVE vs train mean | retrieval result |
+|---|---:|---:|---|
+| DDXPlus structured reader | -.0047 [-.0375,+.0261] | -119.2169 | top-1 0/20; chance보다 낮음 |
+| DiReCT Source CoT | +.0304 [+.0012,+.0635] | -109.3544 | MRR만 chance보다 높음 |
+
+### 문제 8과 다음 변경
+
+- DDXPlus 양성 대조는 centered/retrieval도 실패했고 모든 arm의 FVE가 큰 음수였습니다.
+- DiReCT 일부 rank 신호만으로는 train-mean predictor보다 나쁜 reconstruction을 구제할 수 없습니다.
+- 따라서 공개 AR를 Medical-NLA reward로 사용하지 않고, AR 없는 native-layer Patchscope로 AV 변환 병목을 분리했습니다.
+- 이는 임상 정보 부재가 아니라 공개 AR의 medical distribution mismatch 결과입니다.
 
 ---
 
-## Slide 28. RQ3 상태: 왜 아직 causal intervention을 열지 않았는가?
+## Slide 28. 시도 9: Patchscope는 일반-domain control은 읽었지만 clinical content는 못 읽음
 
-### RQ3에 필요한 선행 조건
+### 왜 시도했는가?
 
-1. RQ1: 생성 설명이 clinical reference와 정렬됨
-2. RQ2: matched activation 및 counterfactual change에 선택적으로 반응함
-3. AR: 설명을 복원했을 때 own activation을 shuffled activation보다 구분함
+공개 AV/AR의 domain 변환을 우회하기 위해 같은 Gemma의 source hidden state를 target
+prompt의 **같은 layer**에 직접 patch했습니다. 가중치 학습은 없습니다.
 
-### 현재 상태
+### General-domain control
 
-| gate | result |
-|---|---|
-| RQ1 alignment | Full-data SFT Obscomp 0.0301 / 0.0296, Source CoT 0.2130에 미달 |
-| RQ2 specificity | changed-cue ranking 및 anchored objective 모두 3-seed gate 실패 |
-| public AR positive control | matched-minus-shuffled cosine 약 0 |
+| prompt family | HS16→16 | HS24→24 | HS32→32 |
+|---|---:|---:|---:|
+| entity description keyword hit | 5/5 | 0/5 | 2/5 |
+| relation-specific keyword hit | 3/5 | 3/5 | 0/5 |
 
-> 이 상태에서 설명을 편집해 source model 행동 변화를 측정하면 grounded intervention인지 language prior 조작인지 구분할 수 없습니다. 따라서 Table 4/Figure 4는 `not run`으로 남깁니다.
+- No-patch hit는 전부 0/5였으므로 short general-domain state에 대해서는 interface가 작동했습니다.
+
+### DDXPlus clinical application, bounded n=5 smoke
+
+| selected cell | real own finding | shuffled donor finding | result |
+|---|---:|---:|---|
+| entity HS16→16 | 0/5 | 0/5 | prompt 예시 문장을 설명 |
+| relation HS16→16 | 0/5 | 0/5 | 일반 clinical-writing 지침 |
+| relation HS24→24 | 0/5 | 0/5 | 일반 case-presentation 지침 |
+
+### 문제 9과 다음 변경
+
+- Vector는 continuation과 KL을 크게 바꿨지만 own patient content와 대응하지 않았습니다.
+- Decoder가 target prompt의 텍스트 우회로를 사용하면 activation을 무시할 수 있었습니다.
+- 그래서 추가 prompt/layer sweep을 중단하고, **activation-derived prefix만 입력으로 허용하는 learned medical prefix mapper**를 다음 후보로 둡니다.
+- RQ3 causal intervention은 grounded readout과 유효한 AR가 없어 여전히 열지 않습니다.
 
 ---
 
@@ -1022,60 +1078,68 @@ all weights = 1.0, max_steps = 1,552, seeds = 17/29/43
 - Vanilla NLA는 DDXPlus locked 10,028행에서 frozen ontology claim 0건
 - Counterfactual SFT는 seed17에서 contrast가 올랐지만 phantom도 0.2138에서 0.4253으로 증가했고 seed29에서 미재현
 - D10 budget은 deletion-detector shortcut, D20은 shortcut 차단 후 changed signal 부재
+- Same-layer Patchscope는 general-domain control을 통과했지만 clinical own/donor finding은 각각 0/5
 
 ### RQ3. 검증된 설명 편집이 상태와 행동을 선택적으로 바꾸는가?
 
 **미실행입니다. RQ2 진입 조건을 통과한 readout과 유효한 AR가 없어 Table 4를 열지 않았습니다.**
 
-- 공개 AR는 structured reader와 Source CoT 양성 대조의 matched-vs-shuffled gap을 구분하지 못함
+- 공개 AR는 DDXPlus structured reader의 centered/retrieval 양성 대조를 통과하지 못했고 모든 arm의 FVE가 음수
 - 따라서 현재 AR cosine을 reward 또는 text-to-activation 복원 근거로 사용하지 않음
 - RQ3 미실행은 인과 개입 실패가 아니라 사전 등록한 안전 gate 적용 결과임
 
 ---
 
-## Slide 30. 논문 표 완성 현황
+## Slide 30. 발표 시점 논문 표 원장: validation은 채우고 locked는 구분
 
-### Table 1A. Backbone behavior
+### Main Table 1. P0 decodability
 
-| population | Direct strict PDD | Direct category | CoT strict PDD | CoT category | status |
-|---|---:|---:|---:|---:|---|
-| exploratory 171 | 0.2105 | 0.5029 | 0.1930 | 0.5088 | 계산 완료, exploratory |
-| test-seen 72 | Not computed | Not computed | Not computed | Not computed | locked batch pending |
-| PDD-heldout 106 | Not computed | Not computed | Not computed | Not computed | locked batch pending |
+| dataset/target | layer와 선택 규칙 | validation | locked evaluation | control |
+|---|---|---:|---:|---|
+| DiReCT category | HS24, validation-selected | 0.5962 | pending, seen 72 | majority 0.0577 |
+| DiReCT PDD | HS24, validation-selected | 0.4423 | pending, seen 72 | majority 0.0962 |
+| DDXPlus finding | HS24, validation-selected | 0.9607 | **0.9562** | shuffled 0.7938, gap +0.1624 |
+| DDXPlus native value | HS24, validation-selected | 0.7700 | **0.7659** | shuffled 0.5791, gap +0.1868 |
 
-### Table 1B. P0 decodability
+- HS24 closed probe와 HS32 generative AV는 같은 layer ablation이 아닙니다. Probe는 validation 선택, AV는 공개 architecture의 native interface입니다.
+- 기존 Table 1A backbone behavior는 핵심 NLA 결과와 중복돼 appendix로 이동하는 안을 사용합니다.
 
-| dataset/target | validation | locked test | control |
-|---|---:|---:|---|
-| DiReCT category HS24 | 0.5962 | Not computed | majority 0.0577 |
-| DiReCT PDD HS24 | 0.4423 | Not computed | majority 0.0962 |
-| DDXPlus finding HS24 | 0.9607 | **0.9562** | shuffled 0.7938, gap +0.1624 |
-| DDXPlus native value HS24 | 0.7700 | **0.7659** | shuffled 0.5791, gap +0.1868 |
+### Main Table 2. DiReCT explanation alignment, validation 50
 
-### Table 2. DiReCT explanation alignment
+| method | input | extraction | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | source text | 50/50 | 0 | .2835 | .3726 | **.2130** | **.0650** | .0153 |
+| Vanilla NLA | HS32 AV | 10/50 (pilot) | 0 | .0000 | .0000 | .0000 | .0000 | .0000 |
+| Medical-AV, SFT only seed17 | HS32 AV | 50/50 | 0 | .0544 | .0502 | .0301 | .0000 | .0000 |
+| Medical-AV, SFT only seed29 | HS32 AV | 50/50 | 0 | .0553 | .0388 | .0296 | .0000 | .0000 |
+| **Medical-NLA, final** | layer/recipe 사전 동결 | pending | pending | pending | pending | pending | pending | pending |
 
-| method | validation Obscomp | validation Expcom | test-seen 72 | PDD-heldout 106 |
-|---|---:|---:|---|---|
-| Source CoT | **0.2130** | **0.0650** | Not computed | Not computed |
-| Vanilla NLA | 0.0000 | 0.0000 | Not computed | Not computed |
-| Full-data SFT seed17 | 0.0301 | 0.0000 | promotion fail | promotion fail |
-| Full-data SFT seed29 | 0.0296 | 0.0000 | promotion fail | promotion fail |
+- 위 숫자는 교수님 발표를 위한 **validation 결과**입니다. 논문 주표의 seen 72 / PDD-heldout 106 locked 셀은 baseline batch 뒤 별도 패널로 교체합니다.
+- Vanilla 행은 같은 50-case validation pilot의 frozen output이며, `10/50`은 빈 출력 수가 아니라 평가 가능한 observation extraction coverage입니다.
+- `Medical-NLA, final`은 성공 방법의 조건부 행입니다. 실제로 구별되는 checkpoint가 생기기 전에는 reconstruction/full objective라는 가상 행으로 나누지 않습니다.
 
-### Table 3. DDXPlus locked grounding
+### Main Table 3A. DDXPlus static grounding, locked test
 
-| method | finding F1 | shuffled | gap | value acc | phantom | removal | retention | replacement | old persist | clean switch |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Frozen probe | 0.9562 | 0.7938 | +0.1624 | 0.7659 | 0.3593 | 0.6407 | 0.9987 | 0.1466 | 0.5955 | 0.0804 |
-| Structured reader | 0.9587 | 0.7938 | +0.1624 | 0.7654 | 0.3593 | 0.6407 | 0.9987 | 0.1466 | 0.5955 | 0.0804 |
-| Vanilla NLA | 0.0000 | 0.0000 | +0.0000 | 0.0000 | 0.0000 | N/A | N/A | 0.0000 | 0.0000 | N/A |
+| method class | method | input layer | finding F1 | shuffled | pair gap | value acc |
+|---|---|---:|---:|---:|---:|---:|
+| closed decoder | Frozen probe | HS24 | .9562 | .7938 | +.1624 | .7659 |
+| structured monitor | Probe-guided reader | HS24 | **.9587** | .7938 | +.1624 | **.7654** |
+| open generator | Vanilla NLA | HS32 | .0000 | .0000 | .0000 | .0000 |
+| open generator | Medical-AV, SFT only | HS32 | validation only | validation only | promotion fail | validation only |
+| open generator | **Medical-NLA, final** | 사전 동결 | pending | pending | pending | pending |
 
-- Probe와 reader의 counterfactual set 선택은 같은 frozen threshold를 사용하므로 해당 열이 동일합니다. Static F1/value의 작은 차이는 rendered text의 end-to-end normalization 차이입니다.
+### Main Table 3B. DDXPlus counterfactual grounding
+
+| method | deletion phantom | removal | retention | replacement | old persist | clean switch |
+|---|---:|---:|---:|---:|---:|---:|
+| Probe-guided reader | .3593 | .6407 | .9987 | .1466 | .5955 | .0804 |
+| Vanilla NLA | .0000 | N/A | N/A | .0000 | .0000 | N/A |
+| Medical-AV, SFT only | validation development only | validation development only | validation development only | validation development only | validation development only | validation development only |
+| **Medical-NLA, final** | pending | pending | pending | pending | pending | pending |
+
 - Vanilla의 phantom 0은 성공이 아닙니다. Original hit도 0이라 removal/retention/clean-switch 조건부 분모가 없습니다.
-
-### 아직 표에 넣지 않는 행
-
-- Generative Medical-NLA locked row: validation promotion gate 미통과
-- Table 4 text patching: AR identity/grounding gate 미통과로 현재 닫힘
+- Final Medical-NLA는 DiReCT clinical alignment와 DDXPlus activation grounding을 모두 통과해야 두 표의 최종 행이 됩니다.
+- Table 4 text patching은 AR identity/grounding gate를 통과할 때만 엽니다.
 
 ### 논문의 현재 중심 주장
 
@@ -1083,80 +1147,46 @@ all weights = 1.0, max_steps = 1,552, seeds = 17/29/43
 
 ---
 
-## Slide 31. 지금 검토 중인 다음 방법
+## Slide 31. 현재 다음 후보: learned medical prefix mapper
 
-### 왜 free-paragraph SFT를 더 반복하지 않는가?
+### 왜 이 구조인가?
 
-- gold clinical text는 activation에 실제로 존재하지 않는 세부사항까지 포함할 수 있음
-- sequence CE는 activation을 무시하고 disease template를 학습하기 쉬움
-- deletion ranking은 global detector shortcut을 허용함
-- 공개 AR은 이 의료 activation 분포를 구분하지 못함
-
-### Lane 1. 공개 AR geometry audit, 가장 먼저
-
-| audit | 질문 |
+| 이전 실패 | 다음 구조가 제거하는 경로 |
 |---|---|
-| A1 | same/different-diagnosis activation cosine 자체가 얼마나 높은가? |
-| A2 | train mean direction 제거 후 matched-over-shuffled gap이 생기는가? |
-| A3 | train-mean predictor 대비 direction-normalized FVE가 양수인가? |
-| A4 | same-diagnosis donor가 different-diagnosis donor보다 어려운가? |
-| A5 | 같은 diagnosis 후보 중 own-case retrieval top-1/MRR가 chance를 넘는가? |
+| Free-paragraph SFT의 disease template | decoder에 patient text를 주지 않음 |
+| D16 bottleneck을 decoder가 무시 | activation-derived prefix만 decoder 입력으로 허용 |
+| D10 deletion detector | changed cue와 retained cue specificity를 동시에 gate |
+| Public AR distribution mismatch | AR reward 없이 supervised target으로 먼저 학습 |
+| Identity Patchscope의 prompt bypass | 임상 예시/질문이 없는 fixed minimal prompt 사용 |
 
-- A2 또는 A5 양성 대조 통과 시 공개 AR를 초기화/비교용으로만 재론합니다.
-- A2, A5, A3가 모두 통과하기 전에는 AV reward로 사용하지 않습니다.
-
-### Lane 2. Patchscopes, 학습 없는 native-layer baseline
+### 제안 architecture
 
 ```text
-source CoT-P0 HS32 state
-        -> target prompt의 HS32 placeholder에 직접 patch
-        -> remaining Gemma layers가 finding/value를 생성
+P0 medical activation h (3,840-d)
+            |
+            v
+small learned projector
+            |
+            v
+K activation-derived prefix vectors
+            |
+            v
+frozen Gemma decoder -> canonical finding/value claims
 ```
 
-| patch condition | 분리하는 요인 |
-|---|---|
-| real activation | 실제 patient state |
-| same-diagnosis shuffled | 사례 특이성 |
-| train-mean activation | 공통 방향 baseline |
-| no patch | target prompt/model prior |
-| cue-deleted | changed finding 선택적 제거 |
-| value-edited | old/new value 전환 |
+- 이것은 공개 AR를 이용한 원 NLA RL이 아니라 supervised activation-language decoder 계열입니다.
+- Source layer, `K`, projector 크기, target contract와 training budget은 실행 전에 동결합니다.
+- 첫 smoke는 DDXPlus official train 4,655와 validation만 사용하고 locked test를 읽지 않습니다.
 
-이 방법은 HS32를 layer-0 embedding으로 바꾸는 AV injection 병목을 우회합니다. 성공하면 activation은 읽히지만 기존 AV 변환/학습이 병목이었다고 원인 분리할 수 있습니다.
+### 성공 관문
 
-### Lane 3. Medical AO + Medical AR
+1. Own activation이 same-diagnosis shuffled activation보다 높음, 3 seed cluster CI > 0
+2. Cue deletion에서 changed claim은 감소하고 retained claim은 비열등
+3. Value edit에서 replacement 증가와 old persistence 감소
+4. 출력 coverage를 떨어뜨려 점수를 회피하지 않음
+5. DDXPlus 통과 뒤 DiReCT validation에서 Source CoT floor에 접근 또는 사전 고정 개선폭 충족
 
-#### 제안 파이프라인
-
-```text
-Medical activation
-      |
-      v
-Medical Activation Oracle
-  - finding/value/uncertainty set
-      |
-      +--> domain Medical-AR matched-vs-shuffled 검증
-      |
-      v
-constrained text renderer
-  - claim selection과 문장 생성을 분리
-```
-
-#### 단계
-
-1. Train-only DDXPlus finding/value로 Medical Activation Oracle 학습
-2. DiReCT claim ontology와 연결 가능한 공통 clinical-state schema 정의
-3. Medical text-activation pair로 AR을 domain-adapt
-4. Structured reader 양성 대조가 matched > shuffled를 통과하는지 확인
-5. 그 이후에만 AV를 reconstruction/preference objective로 학습
-
-### 실행 우선순위
-
-1. 기존 160 text의 reconstruction vector 저장 및 A1-A5 계산
-2. DDXPlus validation 50-case Patchscope smoke
-3. 공개 AR가 탈락하면 DDXPlus 4,655 Medical-AR smoke
-4. reader/oracle matched-vs-shuffled와 FVE가 양수일 때 official train 47k-100k로 확장
-5. Medical-AR positive control 통과 후에만 Medical-AV SFT와 AR-reward optimization
+> 성공하면 Slide 30의 `Medical-NLA, final` 행을 채우고, 실패하면 새 prompt/layer sweep 없이 supervised prefix 계열의 음성 결과로 기록합니다.
 
 ---
 
@@ -1164,25 +1194,25 @@ constrained text renderer
 
 ### 결정 1. 논문의 중심 프레이밍
 
-- 제안: `Medical-NLA를 완성했다`가 아니라
-- **`의료 activation의 정보 존재와 자연어 readout 사이의 격차를 규명했다`**로 중심 주장 설정
+- 현재 확정 결과: **의료 activation의 정보 존재와 자연어 readout 사이의 격차**
+- Positive lane: learned prefix mapper가 gate를 통과하면 `Medical-NLA, final`을 주표에 추가
 
-### 결정 2. 제출 범위
+### 결정 2. Table 1A의 위치
 
-- 현재 baseline/closed-monitor 논문을 먼저 완결
-- Medical AO + Medical AR은 후속 positive method로 분리할지 결정
+- P0 decodability를 Main Table 1로 유지
+- Direct/CoT backbone 진단 정확도는 Table 2의 Accdiag와 일부 중복되므로 appendix로 이동 제안
 
 ### 결정 3. DiReCT locked batch 개봉
 
-- Table 1A source behavior
-- Table 1B HS24 probe
+- Main Table 1 HS24 probe
 - Table 2 Source CoT/Vanilla NLA
 - 동일 decision record/hash 아래 한 번에 수행
 
-### 결정 4. 생성형 Medical-NLA 표기
+### 결정 4. 다음 생성형 실험
 
-- 주표에서는 validation gate 미통과로 제외
-- 개발 실패와 shortcut 분석은 appendix/main analysis에 포함
+- Learned medical prefix mapper를 별도 사전 등록해 validation-only smoke 실행
+- `Medical-NLA, final` 행은 표 설계에 유지하되 성공 전에는 locked 숫자를 만들지 않음
+- 기존 SFT/ranking/AR/Patchscope 실패와 전환 논리는 Results와 appendix에 기록
 
 ---
 
@@ -1193,8 +1223,8 @@ constrained text renderer
 3. **정적 readout은 가능합니다.** Structured reader finding F1은 0.9587입니다.
 4. **자유 자연어 readout은 실패했습니다.** Vanilla NLA는 locked 10,028행에서 ontology claim을 하나도 내지 못했습니다.
 5. **단순 SFT/ranking은 충분하지 않습니다.** Template collapse와 deletion detector shortcut이 확인됐습니다.
-6. **공개 AR도 그대로는 사용할 수 없습니다.** Positive-control matched-vs-shuffled gap이 약 0입니다.
-7. 다음 route는 **geometry audit → Patchscopes → Medical Activation Oracle + domain-adapted AR + constrained renderer**입니다.
+6. **공개 AR도 그대로는 사용할 수 없습니다.** DDXPlus positive control의 centered/retrieval gate가 실패했고 모든 arm의 FVE가 음수였습니다.
+7. Geometry audit와 identity Patchscope까지 종료됐고, 다음 route는 **text bypass가 없는 learned medical prefix mapper**입니다.
 
 ---
 
