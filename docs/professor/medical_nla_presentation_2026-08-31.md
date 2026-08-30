@@ -141,7 +141,7 @@
 | Linear/multi-label probe | P0 activation | 고정 diagnosis/finding/value ontology | 선형 decodability와 same-diagnosis 사례 특이성 | 새 claim·관계·자유 문장 생성 |
 | Structured reader | frozen probe가 선택한 label/value | train-only canonical phrases | selected closed state의 결정론적 렌더링 | probe 없이 activation에서 claim을 발견하는 open NLA |
 | Vanilla/Medical NLA | P0 activation | 자유 자연어 | activation-conditioned open-text readout | 임상 정렬·activation grounding의 자동 보장 |
-| Activation reconstructor (AR) | 생성 text | reconstructed activation | text가 state를 보존하는지에 대한 matched-vs-shuffled 진단 | text의 임상적 정확성·인과성의 자동 보장 |
+| Activation reconstructor (AR) | 생성 text | reconstructed activation | own activation이 같은 진단의 다른 환자 activation보다 가까운지 측정 | text의 임상적 정확성·인과성의 자동 보장 |
 
 ### Closed와 open score를 같은 accuracy로 비교하지 않는 이유
 
@@ -204,7 +204,58 @@
 
 ---
 
-## Slide 7. Counterfactual 평가 규약
+## Slide 7. Open-ended 설명을 어떻게 변환하고 채점하는가?
+
+### DiReCT
+
+- physician observation과 생성 설명을 claim 단위로 비교
+- 주요 지표:
+  - `Obspre`: observation precision
+  - `Obsrec`: observation recall
+  - `Obscomp`: gold/predicted observation set의 semantic Jaccard completeness
+  - `Expcom`: matched observation에서 rationale와 diagnosis edge까지 일치한 비율
+  - `Expall`: 전체 explanation chain의 일치 비율
+- 진단명 언급만으로는 observation alignment를 인정하지 않음
+
+### DDXPlus semantic mapper
+
+| stage | input/operation | output/control |
+|---|---|---|
+| 0. deterministic split | `<observed>` bullet 우선, 없으면 문장 분리 | 빈 출력도 0-claim case로 분모 유지 |
+| 1. frozen lexical | official-train modal phrase + release metadata alias | ambiguous alias 제외, 수동 동의어 없음 |
+| 2. method-blind AI | 잔여 claim + frozen 91-evidence ontology | JSON `(evidence_id, value_id/null, exact quote)` |
+| aggregation | case별 evidence/value set dedupe | structured reader와 같은 metric 코드 재사용 |
+
+### AI mapper에 주지 않은 정보
+
+- method 이름, case ID, diagnosis, split, gold cue/value
+- probe probability와 intervention type
+- 다른 method의 출력
+
+### 결정론과 provenance
+
+- exact supporting quote가 원문에 없으면 mapping을 거부합니다.
+- claim, ontology, prompt, model ID를 묶은 SHA-256 key로 cache합니다.
+- alias table, prompt, mapper code commit, model ID, G1-G4 receipt를 locked scoring 전에 동결합니다.
+
+### Mapper validation
+
+- G1 reader round-trip
+- G2 absent-cue false mapping
+- G3 cache/replay determinism
+- G4 independent AI concordance
+
+> 이 계측기는 open-generator끼리 공통으로 사용하며, probe/reader의 closed score를 대체하지 않습니다.
+
+### Slide 7의 역할
+
+- DiReCT에서는 생성 text를 physician observation/rationale/diagnosis reference와 비교해 **RQ1 clinical alignment metric**을 만듭니다.
+- DDXPlus에서는 생성 text를 frozen evidence/value ontology로 변환합니다. Semantic mapper 자체는 metric이 아니라 **text-to-label 계측기**입니다.
+- 변환된 DDXPlus label set에 finding F1, value accuracy와 아래 counterfactual metric을 적용합니다.
+
+---
+
+## Slide 8. Counterfactual paired grounding을 어떻게 측정하는가?
 
 ### 왜 정적 정확도만으로는 부족한가?
 
@@ -249,7 +300,7 @@ Counterfactual 평가는 **같은 환자에서 한 정보만 바꾸고 나머지
 - hidden dimension을 임의로 편집하지 않고 source model을 다시 실행해 각 activation이 실제 입력에서 나온 on-manifold state가 되게 합니다.
 - test에서 새 intervention 또는 threshold를 만들지 않습니다.
 
-### Cue deletion
+### Cue deletion metric
 
 ```text
 Original activation: cue A + cue B + cue C
@@ -262,7 +313,7 @@ Deleted activation:          cue B + cue C
 - removal success: 원본에서 읽힌 cue가 삭제본에서 사라졌는가
 - untouched retention: 삭제하지 않은 cue가 유지되는가
 
-### Native-value edit
+### Native-value edit metric
 
 ```text
 Original: rash severity = 3
@@ -280,51 +331,6 @@ Edited:   rash severity = 5
 - static F1이 낮음: activation state selection 또는 decoder 모두 문제일 수 있음
 - static F1은 높고 phantom이 높음: 삭제 후에도 representation에 cue가 남는 표현 병목
 - probe는 반응하지만 NLA가 반응하지 않음: language decoder 병목
-
----
-
-## Slide 8. Open-ended 설명 평가
-
-### DiReCT
-
-- physician observation과 생성 설명을 claim 단위로 비교
-- 주요 지표:
-  - `Obspre`: observation precision
-  - `Obsrec`: observation recall
-  - `Obscomp`: gold/predicted observation set의 semantic Jaccard completeness
-  - `Expcom`: matched observation에서 rationale와 diagnosis edge까지 일치한 비율
-  - `Expall`: 전체 explanation chain의 일치 비율
-- 진단명 언급만으로는 observation alignment를 인정하지 않음
-
-### DDXPlus semantic mapper
-
-| stage | input/operation | output/control |
-|---|---|---|
-| 0. deterministic split | `<observed>` bullet 우선, 없으면 문장 분리 | 빈 출력도 0-claim case로 분모 유지 |
-| 1. frozen lexical | official-train modal phrase + release metadata alias | ambiguous alias 제외, 수동 동의어 없음 |
-| 2. method-blind AI | 잔여 claim + frozen 91-evidence ontology | JSON `(evidence_id, value_id/null, exact quote)` |
-| aggregation | case별 evidence/value set dedupe | structured reader와 같은 metric 코드 재사용 |
-
-### AI mapper에 주지 않은 정보
-
-- method 이름, case ID, diagnosis, split, gold cue/value
-- probe probability와 intervention type
-- 다른 method의 출력
-
-### 결정론과 provenance
-
-- exact supporting quote가 원문에 없으면 mapping을 거부합니다.
-- claim, ontology, prompt, model ID를 묶은 SHA-256 key로 cache합니다.
-- alias table, prompt, mapper code commit, model ID, G1-G4 receipt를 locked scoring 전에 동결합니다.
-
-### Mapper validation
-
-- G1 reader round-trip
-- G2 absent-cue false mapping
-- G3 cache/replay determinism
-- G4 independent AI concordance
-
-> 이 계측기는 open-generator끼리 공통으로 사용하며, probe/reader의 closed score를 대체하지 않습니다.
 
 ---
 
