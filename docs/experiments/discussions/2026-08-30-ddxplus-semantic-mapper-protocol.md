@@ -455,3 +455,26 @@ Open-text evidence G4의 100건과 `.05` 기준은 바꾸지 않는다. 이 보�
 `MODE=run`은 사람이 이 별도 표본 계약을 승인한 뒤
 `VALUE_AUDIT_CONFIRMATION=I_APPROVE_VALIDATION_VALUE_ENRICHED_G4`를 제공해야만
 열린다. 승인 전에는 `MODE=prepare`로 분모와 request 규모만 확인한다.
+
+## Validation v2 최종 결과 (2026-08-30)
+
+별도 value-enriched validation 계약을 사람이 승인한 뒤 primary
+`gpt-5.6-sol`, auditor `gpt-5.4`로 재실행했다. Locked test는 읽지 않았다.
+
+| gate | metric | result | threshold | 판정 |
+|---|---|---:|---:|---:|
+| G1 | reader finding micro F1 | 1.0000 | >= .98 | PASS |
+| G1 | reader native-value accuracy | 1.0000 | >= .98 | PASS |
+| G2 | absent-target false map | 0/2,609 = .0000 | <= .05 | PASS |
+| G3 | cache replay byte-identical | true | true | PASS |
+| G3 | cold duplicate agreement | 1.0000 | report-only | - |
+| G4 | open evidence disagreement | 2/100 = .0200 | <= .05 | PASS |
+| G4 | value disagreement | 0/30 = .0000 | <= .05; n >= 20 | PASS |
+| G4 | primary value-reference accuracy | 1.0000 | >= .98 | PASS |
+| G4 | auditor value-reference accuracy | 1.0000 | >= .98 | PASS |
+
+Frozen semantic protocol SHA-256은
+`12e4500fa45f90d11c0146ad12e972afd9b5bd80128f49b388b11dea360b506b`다.
+네 gate가 모두 통과했으므로 aggregate-only receipt를 git에 기록한 뒤, 이미
+봉인된 DDXPlus Vanilla 10,028행을 이 protocol과 primary model로 한 번만
+semantic scoring할 수 있다. V1 실패 artifact와 V2 통과 artifact는 모두 유지한다.
