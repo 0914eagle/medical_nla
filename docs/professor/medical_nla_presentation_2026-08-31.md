@@ -970,6 +970,29 @@ clean switch         = P(v_after = v_new | v_before = v_old)        [n=398]
 
 > 다음 10장은 각각 한 시도만 다루며, `변경 → 학습/평가 → 실제 값 → 실패 진단 → 다음 변경` 순서로 읽습니다.
 
+### 중요: 1→10은 checkpoint stack이 아니라 실험 계보다
+
+앞 시도의 실패가 다음 가설을 정했지만, 모든 adapter에 이전 adapter를 차례로 누적한 것은 아닙니다.
+각 branch는 가능한 한 같은 초기화와 control을 두고 변경점 하나를 비교했습니다. 예외적으로 sentence
+contrastive만 full-data SFT seed29를 warm start로 사용했습니다.
+
+| 시도 | 학습 초기화/관계 | gradient에 사용한 데이터 |
+|---:|---|---|
+| 1 full-data SFT | released AV에서 독립 학습 | DDXPlus official train original 4,655 + DiReCT train 248 |
+| 2 counterfactual SFT | 시도 1의 모델을 이어 학습한 것이 아닌 독립 arm; 시도 1은 same-seed control | DDXPlus official train 4,655 family의 original/deleted/value-edited arms |
+| 3 sentence contrastive | **시도 1 full-data seed29 warm start** | DDXPlus와 DiReCT source-balanced within-stratum pairs |
+| 4 D10 ranking | 시도 3을 이어 학습하지 않은 별도 control/ranking branch | DDXPlus train D9a-supported 3,104 pairs |
+| 5 D10 budget | 시도 4와 데이터/loss/초기화를 유지하고 step budget만 다시 1,552로 설정 | 같은 DDXPlus 3,104 pairs |
+| 6 D20 anchor | D10 final ranking checkpoint를 이어 쓰지 않고 same control에 anchor loss를 추가 | 같은 DDXPlus 3,104 pairs |
+| 7 OOF teacher | student 학습 전 target audit에서 중단 | DDXPlus official train 4,655, original/deleted 9,310 arms |
+| 8 soft bottleneck | 별도 control/auxiliary branch | DiReCT 248 language rows + DDXPlus D9a pairs/OOF soft labels |
+| 9 public AR | **학습 없음**, released AR 진단 | validation text/activation만 forward evaluation |
+| 10 Patchscope | **학습 없음**, hidden-state intervention | general-domain control 선택 후 DDXPlus validation smoke |
+
+따라서 공통 원칙은 “DDXPlus train만 계속 누적”이 아니라 **학습에는 official train만 사용하고,
+가설에 따라 DDXPlus-only 또는 DDXPlus+DiReCT mixed branch를 구성**한 것입니다. Validation은
+checkpoint/gate 판정에만 사용했고 locked test는 gradient나 방법 선택에 사용하지 않았습니다.
+
 ---
 
 ## Slide 22. 시도 1: 데이터만 늘린 original-only sequence SFT
