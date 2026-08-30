@@ -1077,17 +1077,31 @@ clean switch에는 포함되지 않습니다.
 
 ### 무엇을 어떻게 바꿨는가?
 
-같은 disease category 안에서 환자 A의 activation과 target 문장을 짝지었습니다.
+같은 임상 stratum 안에서 환자 A의 activation과 target 문장을 짝지었습니다. 여기서 stratum은
+두 데이터셋에서 동일한 필드가 아니라, 사전에 사용 가능한 가장 구체적인 그룹 키입니다.
+
+| source dataset | pair를 만드는 stratum | 실제 의미 |
+|---|---|---|
+| DDXPlus | `diagnosis_id` | 같은 47개 exact diagnosis 중 하나 |
+| DiReCT | `disease_category` | 같은 coarse disease category |
+
+따라서 DDXPlus도 묶을 수 있었지만 `disease_category`로 묶은 것이 아니라 dataset이 제공하는
+gold `diagnosis_id`로 묶었습니다. 각 source 안에서만 pair를 만들고, DDXPlus 환자와 DiReCT
+환자를 서로 cross하지 않았습니다.
 
 - `matched`: `NLL(y_A | h_A)`
-- `crossed`: `NLL(y_A | h_B)`, B는 같은 category의 다른 환자
+- `crossed`: `NLL(y_A | h_B)`, B는 같은 source와 같은 stratum의 다른 환자
 - 양의 gap은 자기 activation이 다른 환자 activation보다 자기 문장을 더 잘 설명한다는 뜻입니다.
 
 ```text
 L = L_SFT + lambda * softplus(-(NLL_cross - NLL_matched) / T)
 ```
 
-### Direct validation, 45 paired rows / 13 category clusters
+### DiReCT-only validation, 45 paired rows / 13 disease-category clusters
+
+아래 표는 mixed-source training 전체를 직접 채점한 표가 아니라, physician observation target이
+있는 **DiReCT validation row만** 골라 같은 `disease_category` 안에서 donor를 만든 alignment gate입니다.
+DDXPlus 쪽은 이후 changed-cue deletion 실험에서 exact same-diagnosis donor로 별도 평가했습니다.
 
 | objective | symmetric cross-minus-matched | cluster 95% CI | matched win |
 |---|---:|---:|---:|
