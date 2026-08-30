@@ -1221,6 +1221,20 @@ gap     = crossed - matched
 - `cluster 95% CI`: disease category 단위 bootstrap에서 gap이 0보다 안정적으로 큰지 검사
 - `matched win`: 개별 patient pair 중 `gap > 0`인 비율
 
+`symmetric`은 A 문장만 `h_A/h_B`에서 비교하는 one-sided score가 아니라, `A→A/B→B` matched
+두 개와 `A→B/B→A` crossed 두 개를 모두 평균한다는 뜻입니다. A 문장이 B 문장보다 원래 길거나
+어려워 생기는 target-difficulty NLL 차이를 양방향 평균으로 상쇄합니다.
+
+45 pair를 서로 독립으로 bootstrap하지 않고, 함께 표현·target 분포를 공유하는 13개
+`disease_category`를 복원추출한 뒤 선택된 category의 모든 pair를 함께 넣어 gap을 다시 계산했습니다.
+반복 분포의 2.5/97.5 percentile이 `cluster 95% CI`입니다. CI 하한까지 0보다 커야 특정 category
+몇 개가 평균을 끌어올린 것이 아닌 안정적인 양의 효과로 판정했습니다.
+
+`matched win`은 NLL 차이의 크기를 버리고 각 pair에서 `NLL_matched<NLL_crossed`였는지만 세므로
+높을수록 좋고 `.5`가 대략 우연 수준입니다. 반면 symmetric gap은 차이의 크기까지 평균합니다.
+따라서 소수 pair의 큰 양의 gap이 평균을 끌어올리면 gap/CI는 양수여도 matched win은 낮을 수 있습니다.
+실제로 `lambda=5`는 gap `+.0051`을 만들었지만 win `.5333`으로 SFT baseline `.7333`보다 낮았습니다.
+
 따라서 아래 숫자는 Slide 22~23의 recall과 직접 비교하는 성능 수치가 아닙니다. 이 gate를 충분한
 효과 크기로 통과한 checkpoint만 동일한 generation metric으로 넘어가는 단계형 설계였습니다.
 
