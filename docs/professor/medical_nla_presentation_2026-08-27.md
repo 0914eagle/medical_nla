@@ -1,1163 +1,1797 @@
-# Medical-NLA 교수님 미팅 자료
+# Medical-NLA 교수님 발표 구성 (2026-08-27)
 
-> **2026-08-31 갱신본**<br>
-> 2026-08-27 예정 미팅이 진행되지 않아, 당시 초안을 현재 실험 결과와 수치로 대체했습니다.
+이 문서는 현재 연구 방향, DiReCT 데이터 구성, 실제 baseline prompt와 실행 설정,
+P0/P1/P2 activation 위치, 현재까지 나온 결과, 최종 논문 표를 처음 듣는 사람에게 설명하기
+위한 **슬라이드 구성과 발표 원고**다. Restricted DiReCT 원문과 환자 식별자는 포함하지 않는다.
 
----
+Legacy 발표 원고의 형식만 차용해 전체를 `Introduction -> Methodology -> Data and
+Experimental Setup -> Experimental Results(RQ1 -> RQ2 -> RQ3) -> Conclusion` 순서로
+구성한다. 과거 wrong-note 연구의 문제, 가설, 수치, 표는 현재 발표에 가져오지 않는다.
 
-## 자료 사용 원칙
+각 슬라이드의 표, code block, 짧은 bullet은 **화면에 실제로 놓을 내용**이다. 뒤의 줄글은
+**발표자 노트**다. 발표할 때는 표의 모든 숫자를 읽지 않고 먼저 모집단과 비교축을 설명한 뒤,
+굵은 셀과 그 셀이 답하는 RQ만 연결한다.
 
-- Method와 Data를 먼저 고정한 뒤 Results를 제시합니다.
-- validation, locked test, post-hoc audit을 명확히 구분합니다.
-- 아직 실행하지 않은 DiReCT locked 셀은 `pending`으로 남기며 추정값을 넣지 않습니다.
-- 생성형 Medical-NLA의 실패 결과도 개발 gate와 함께 그대로 보고합니다.
-- DDXPlus의 closed probe/structured reader와 open-ended NLA를 같은 방법처럼 해석하지 않습니다.
+| 대단원 | 발표에서 답하는 질문 |
+|---|---|
+| Introduction | 왜 CoT만으로 부족하며 왜 open-text internal readout이 필요한가 |
+| Methodology | 무엇을 어디서 읽고, 어떤 조작·통제·중단 기준으로 검증하는가 |
+| Data and Experimental Setup | 각 검증에 어떤 데이터와 모집단·split을 사용하는가 |
+| Experimental Results | RQ1, RQ2, RQ3에 현재 데이터가 각각 무엇이라고 답하는가 |
+| Conclusion | 확립된 기여, 아직 성립하지 않은 주장, 다음 실행은 무엇인가 |
+
+## 발표에서 먼저 구분할 것
+
+- **현재 결과가 없는 것이 아니다.** E1 exploratory backbone 결과, E2 validation diagnosis
+  probe와 forced-answer likelihood, vanilla AV semantic audit, E4 SFT-only validation 결과가 있다.
+- 논문 주표의 빈칸은 `test_seen=72`, `test_pdd_heldout=106` locked evaluation과 아직 구현하지
+  않은 reconstruction/full Medical-NLA 결과를 validation SFT-only 값으로 미리 채우지 않았기 때문이다.
+- 발표에서는 `현재까지 확인한 결과`와 `최종 locked-test 표`를 서로 다른 슬라이드로 보여준다.
+- `PDD`는 **Primary Discharge Diagnosis**다. 퇴원 기록 자체가 아니라 disease category보다
+  세분화된 최종 진단 label이다. 예를 들어 category가 `Heart Failure`일 때 PDD는 `HFrEF`,
+  `HFpEF`가 될 수 있다.
+- `Seen PDD`는 같은 환자를 봤다는 뜻이 아니다. 환자는 split 간 분리되어 있고, PDD label이
+  train에 있었던 새 환자다. `Held-out PDD`는 PDD label 자체가 train에 없었던 새 환자다.
 
 ---
 
 # Part I. Introduction
 
----
+Introduction에서는 데이터셋 세부사항을 먼저 말하지 않는다. `CoT의 충실성 문제 -> closed
+internal tool과 open explanation의 간극 -> 검증 가능한 Medical-NLA -> 세 RQ`까지만 세운다.
+데이터셋 역할, prompt, activation 위치, evaluator는 Methodology에서 소개한다.
 
-## Slide 1. 한 문장 요약
+## Slide 1. 두괄식 연구 요약
 
-> 의료 LLM의 hidden activation에는 환자별 임상 finding과 값 정보가 강하게 존재하지만, 현재의 공개 NLA와 여러 생성형 fine-tuning 방법은 그 정보를 사례 특이적인 자연어 설명으로 안정적으로 변환하지 못했습니다.
+### 화면에 넣을 내용
 
-### 현재 가장 강한 양성 결과
+- CoT는 유용한 임상 설명을 생성하지만 모델의 실제 내부 판단 과정을 충실하게 보고한다고
+  보장할 수 없다.
+- Linear probe는 사전에 정의한 진단 label을 내부에서 잘 탐지하지만, 환자 고유 관찰·속성·
+  관계를 하나의 열린 자연어 설명으로 직접 제공하지 않는다.
+- Vanilla AV는 현재 DiReCT validation의 생성 전 P0에서 진단 target과 physician observation을
+  안정적으로 복원하지 못했다.
+- 본 연구는 activation을 임상 자연어로 판독하는 Medical-NLA를 만들고, **임상 설명 품질**과
+  **해당 activation에 대한 사례 특이적 의존성**을 별도로 검증한다.
+- 검증된 판독이 확보된 뒤에만 selective correction과 text patching을 통해 진단 성능 개선을
+  평가한다.
 
-- DDXPlus locked-test finding probe micro F1: **0.9562**
-- 같은 진단 내 activation shuffle 대비 finding gap: **+0.1624**
-- native-value accuracy: **0.7659**
-- probe-guided structured reader finding F1: **0.9587**
+### 발표 줄글
 
-### 현재 가장 중요한 음성 결과
-
-- Vanilla NLA, DDXPlus locked 10,028 readouts: ontology claim **0건**
-- Full-data Medical-NLA SFT, DiReCT validation Obscomp: **0.0301 / 0.0296**
-- D20 specificity-anchored objective: 3개 seed 모두 changed-gap 개선 실패
-- 공개 AR matched-vs-shuffled 양성 대조 실패: gap 약 **0.0000**
-
-### 발표 핵심
-
-1. 정보의 **존재**는 probe와 intervention으로 확인했습니다.
-2. 정보의 **자연어 변환**은 별도 문제이며 현재 방법으로 해결되지 않았습니다.
-3. 다음 단계는 free-paragraph SFT 반복이 아니라 AR geometry audit과 Patchscopes 원인 분리, 이후 Medical Activation Oracle/domain-adapted AR입니다.
-
----
-
-## Slide 2. 연구 질문
-
-### RQ1. Activation에 임상 정보가 존재하는가?
-
-- 진단 category/PDD를 읽을 수 있는가?
-- 환자별 finding presence와 native value를 읽을 수 있는가?
-- 같은 진단 내 다른 환자 activation과 구분되는가?
-
-### RQ2. 그 정보를 자연어로 읽을 수 있는가?
-
-- Vanilla NLA가 환자별 finding을 말하는가?
-- Medical SFT가 physician observation 또는 입력 cue에 정렬되는가?
-- activation을 바꾸면 설명도 선택적으로 바뀌는가?
-
-### RQ3. 설명은 activation에 충실한가?
-
-- cue deletion 시 해당 claim만 사라지는가?
-- untouched claim은 유지되는가?
-- value edit 시 새 값으로 바뀌고 이전 값은 사라지는가?
-
-### 성공 조건
-
-> 유창한 의료 문장을 만드는 것만으로는 성공이 아닙니다. 사례 특이성, counterfactual specificity, seed 안정성을 동시에 만족해야 합니다.
+연구의 최종 목표는 설명가능성과 진단 성능을 모두 개선하는 것이다. 그러나 자연어 설명이
+의학적으로 그럴듯하다는 이유만으로 내부 상태를 충실하게 읽었다고 할 수는 없다. 따라서 먼저
+읽을 수 있고 검증할 수 있는 Medical-NLA를 만들고, 그 다음에만 해당 판독을 교정에 사용한다.
+성능 향상은 사전 결론이 아니라 마지막 실험에서 판정할 downstream hypothesis다.
 
 ---
 
-## Slide 3. 8월 27일 초안 이후 달라진 점
+## Slide 2. 기존 연구에서 남은 문제
 
-| 당시 상태 | 현재 상태 |
-|---|---|
-| DDXPlus finding/value probe 계획 | validation 및 locked test 완료 |
-| DDXPlus activation 추출 예정 | validation 10,006행, test 10,028행 완료 |
-| Vanilla NLA 평가 미완료 | locked 10,028행 생성 및 semantic scoring 완료 |
-| Medical-NLA SFT pilot 중심 | full-data SFT, counterfactual SFT, ranking, bottleneck, anchored objective까지 평가 |
-| intervention 설계만 존재 | deletion/value edit locked 결과 확보 |
-| AR reconstruction 가설 | 공개 AR 양성 대조 실패 확인 |
-| 결과표 다수 `TBD` | DDXPlus 및 development gate 수치 대부분 확정 |
+### 화면에 넣을 내용
 
-### 아직 남은 핵심 미완료
+1. CoT faithfulness 연구는 모델이 말한 설명과 실제 판단 원인이 다를 수 있음을 보였다.
+2. Probe와 mechanistic interpretability 연구는 내부에 특정 label 또는 속성 신호가 있는지
+   탐지할 수 있음을 보였다.
+3. 그러나 의료 사례의 관찰·속성·관계를 **열린 자연어로 판독**하면서, 그 문장이 실제
+   activation에서 나왔는지를 함께 검증하는 문제는 남아 있다.
 
-- DiReCT locked Table 1A: test-seen 72, PDD-heldout 106 source behavior 재집계
-- DiReCT locked Table 1B: frozen HS24 diagnosis probe 적용
-- DiReCT locked Table 2: Source CoT와 Vanilla NLA baseline
-- 생성형 Medical-NLA locked 행: validation gate를 통과한 모델이 없어 아직 열지 않음
+### 발표 줄글
+
+우리의 신규성은 단순히 같은 사례에서 CoT와 activation을 비교하는 데 있지 않다. 핵심은
+환자 고유의 observation, attribute, relation을 open-vocabulary clinical text로 읽고,
+임상적 정답성과 activation 의존성을 서로 다른 시험으로 평가한 뒤, 검증된 판독만 개입에
+사용하는 데 있다.
 
 ---
 
-# Part II. Method
+## Slide 3. 대전제, 가설, 연구 질문
 
----
+### 화면에 넣을 내용
 
-## Slide 4. Activation 위치와 공통 표현
+> **대전제:** 믿을 수 있는 의료 내부 설명은 임상적으로 타당한 문장일 뿐 아니라,
+> 실제 source-model activation에 사례 특이적으로 근거해야 한다.
 
-| 위치 | 정의 | 역할 |
+| 가설 | 핵심 주장 | 대응 연구 질문 |
 |---|---|---|
-| CoT-P0 | clinical input과 CoT instruction을 읽고 첫 reasoning token을 생성하기 직전 | primary |
-| P1 | generated reasoning과 `The answer is` marker를 읽고 진단명을 쓰기 직전 | leakage sensitivity |
-| P2 | generated diagnosis의 마지막 subtoken | positive/leakage control |
+| H1 | Medical-NLA는 CoT와 vanilla NLA보다 의사가 표시한 관찰과 관찰-진단 연결을 더 잘 복원한다 | RQ1: Medical-NLA가 CoT·vanilla NLA보다 임상 설명을 잘 복원하는가? |
+| H2 | 임상적으로 그럴듯한 문장만으로는 내부 판독이라 할 수 없으며, Medical-NLA 설명은 해당 사례 activation에 의존해야 한다 | RQ2: 설명이 해당 사례 activation에 의존하는가? |
+| H3 | Activation-grounded한 설명은 dataset-native claim 편집을 통해 내부 상태와 진단 출력을 선택적으로 바꿀 수 있다 | RQ3: 설명을 편집해 상태와 진단을 선택적으로 바꿀 수 있는가? |
 
-### 레이어
+### 발표 줄글
 
-- 후보: **HS16, HS24, HS32**
-- diagnosis closed probe는 validation 기준 **HS24** 선택
-- 공개 NLA/AR checkpoint는 구조상 **HS32** 사용
+세 질문은 병렬 체크리스트가 아니라 단계적 자격 조건이다. RQ1만 통과하면 Medical-NLA는
+의사 기준에 잘 맞는 **의료 설명 생성기**다. RQ2까지 통과해야 그 설명이 현재 사례의 내부
+상태에서 읽혔다고 말할 수 있는 **내부 판독기**가 된다. RQ3까지 통과해야 판독을 이용해
+내부 상태와 진단을 선택적으로 제어하는 **성능 개선 방법**이라고 부를 수 있다. CoT의 한계,
+probe의 closed-label 능력, P0의 정보 존재 여부는 이 세 RQ를 정당화하고 해석하기 위한 선행
+근거이지 별도의 RQ가 아니다.
 
-### 중요한 통제
-
-- DiReCT와 DDXPlus primary activation을 모두 **CoT-P0**로 맞춤
-- Direct-P0는 instruction-sensitivity control로만 사용
-- P1/P2의 높은 성능을 P0 내부 표현 증거로 과대해석하지 않음
+| 단계 | 표 | 통과했을 때 가능한 주장 |
+|---|---|---|
+| 선행 representation audit | Table 1 | P0에서 진단·source decision·finding/value가 decode 가능한지 설명 가능 |
+| RQ1: clinical explanation quality | Table 2 | Medical-NLA는 임상 설명 생성기로서 CoT·vanilla NLA보다 우수 |
+| RQ2: activation grounding | Table 3 | Medical-NLA는 해당 사례 activation을 읽는 내부 판독기 |
+| RQ3: text-mediated intervention | Table 4 | Medical-NLA는 상태와 진단을 선택적으로 바꾸는 성능 개선 방법 |
 
 ---
 
-## Slide 5. 평가를 세 층으로 분리
+# Part II. Methodology
 
-| 층 | 질문 | 방법 | 해석 범위 |
+Methodology는 데이터셋을 먼저 나열하지 않고, **무엇을 검증하며 어떤 반론을 어떤 통제로
+막을 것인지**를 먼저 고정한다.
+
+```text
+무엇을 성공으로 부를 것인가
+ -> source model의 어느 상태를 읽는가
+ -> P0에 목표 정보가 실제로 decode 가능한가
+ -> Medical-NLA가 임상적으로 맞는 설명을 만드는가
+ -> 그 설명이 자기 activation에 사례 특이적으로 의존하는가
+ -> 자연어 병목을 거친 개입이 identity와 비목표 상태를 보존하는가
+```
+
+핵심은 physician annotation과 activation ground truth를 혼동하지 않는 것이다. Methodology에서는
+각 가설의 조작, 비교군, failure condition을 먼저 설명한다. 구체적인 데이터 구조와 split은 이
+검증 설계를 이해한 뒤 Experimental Results 바로 앞의 Data and Experimental Setup에서 제시한다.
+
+## Slide 4. 평가 프로토콜
+
+| 단계 | 데이터 | 질문 | 통과했을 때 가능한 표현 |
 |---|---|---|---|
-| Closed probe | 정보가 activation에 있는가? | linear diagnosis/finding/value probe | 정보 존재 및 사례 특이성 |
-| Structured reader | 선택된 상태를 결정론적으로 말로 렌더링할 수 있는가? | frozen probe + train-only lexicon | closed structured monitor |
-| Open-ended NLA | activation만으로 자유 자연어 설명을 생성하는가? | Vanilla AV, Medical-NLA adapters | 자연어 readout |
+| Clinical alignment | DiReCT | 의사 observation-rationale-diagnosis를 복원하는가 | clinically aligned explanation |
+| Activation grounding | DDXPlus | 판독이 해당 사례 activation 변화에 따라가는가 | activation-grounded readout |
+| Causal utility | DDXPlus | 판독 기반 개입이 목표 상태와 행동을 선택적으로 바꾸는가 | useful correction/patching |
 
-### 왜 분리하는가?
+이 세 단계는 한 기존 논문의 이름을 가져온 표준 관문이 아니라, 본 연구가 기존 평가 개념을
+조합해 만든 단계적 검증 프로토콜이다. Clinical alignment만 통과하면 좋은 의료 설명
+생성기라고 말할 수 있지만 내부 판독기라고 부르지 않는다. Grounding까지 통과해야 내부
+판독기라고 말하며, utility까지 통과해야 설명과 성능을 함께 개선한다고 주장한다.
 
-- probe 성공은 자연어 decoder 성공을 보장하지 않습니다.
-- structured reader 성공은 probe가 선택한 ontology를 렌더링한 결과입니다.
-- open-ended NLA는 claim 선택과 문장 생성을 동시에 해결해야 합니다.
+### Methodology에서 고정하는 검증 질문
 
----
-
-## Slide 6. Closed probe 검증 규약
-
-### Probe 1. DiReCT diagnosis probe
-
-| item | protocol |
-|---|---|
-| input | CoT-P0 last-token activation, HS16/24/32 |
-| train / validation | 266 / 52 |
-| targets | canonical PDD 49-way, disease category 25-way |
-| decoder | one affine linear layer + softmax |
-| learning-rate grid | `3e-4`, `1e-3` |
-| weight-decay grid | `0`, `1e-4`, `1e-3`, `1e-2` |
-| class weighting | on/off 모두 비교 |
-| training | 최대 300 epochs, patience 30, seed 17 |
-| selection | validation NLL 최소, accuracy는 선택에 사용하지 않음 |
-| control | majority baseline; locked test는 설정 동결 전 미접근 |
-
-### Probe 2. DDXPlus finding/value probe
-
-| item | protocol |
-|---|---|
-| input | CoT-P0 last-token activation, HS16/24/32 |
-| train / validation | 4,655 / 4,525 originals |
-| finding targets | train-supported 91 evidence IDs, multi-label sigmoid |
-| value targets | evidence ID별 conditional native-value classifier, 6 tasks/32 values |
-| support minimum | finding 20 train cases, value 10 train cases |
-| learning-rate grid | `1e-3`, `3e-3` |
-| weight-decay grid | `0`, `1e-3` |
-| finding weighting | weighted/unweighted 비교 |
-| threshold grid | `.1`, `.2`, `.3`, `.4`, `.5` |
-| training | 최대 80 epochs, patience 8, batch 512, seed 17 |
-| selection | own micro F1와 same-diagnosis shuffled gap을 우선해 HS24/threshold .5 동결 |
-
-### 사례 특이성 control
-
-1. 각 환자에 같은 diagnosis의 다른 `base_id`를 deterministic donor로 배정합니다.
-2. 원래 text/label을 own activation과 donor activation에 각각 적용합니다.
-3. `own score - shuffled score`를 paired gap으로 계산합니다.
-4. 따라서 diagnosis template만 공통으로 읽는 probe는 높은 own score를 내더라도 gap이 작습니다.
-
-### Probe가 증명하는 범위
-
-- 증명: 고정 ontology의 label 정보가 activation에 선형적으로 존재함
-- 증명하지 않음: 자유 자연어 설명 생성, 새로운 finding 발견, causal faithfulness
-
----
-
-## Slide 7. Counterfactual 평가 규약
-
-### Counterfactual activation을 만드는 방법
-
-| arm | input text 변경 | activation 재추출 | gold/target |
+| 검증 질문 | 주 조작 | 반드시 필요한 비교군 | 실패하면 남는 주장 |
 |---|---|---|---|
-| original | 없음 | CoT-P0 | 원래 cue set/value |
-| cue deletion | 사전 선택한 cue 1개를 물리적으로 제거 | 같은 CoT prompt로 재추출 | 삭제 cue와 공통 retained cues |
-| native-value edit | 하나의 categorical value를 다른 유효 native value로 교체 | 같은 CoT prompt로 재추출 | old/new value pair |
+| P0에 목표 정보가 존재하는가 | Target별 probe decoding | Majority, label/answer/value shuffle | 해당 target을 NLA 평가 범위에서 제외 |
+| 임상 설명이 맞는가 | 동일 case의 CoT/NLA를 physician tree와 비교 | 공통 method-blind extractor | 좋은 설명 생성 여부만 판정 |
+| 자기 activation을 읽는가 | Matched pair 대 hard shuffle, finding edit | Mean/zero, activation swap | Activation-grounded 주장을 철회 |
+| 자연어 병목이 상태를 보존하는가 | AV->text->AR identity와 native-value edit | Raw/oracle patch, no intervention | Patching 기여를 철회 |
+| 전체 행동이 개선되는가 | Validation-gated selective intervention | Patch-all, probe gate, oracle gate | 조건부 정보 가치만 유지 |
 
-- diagnosis text나 label을 prompt에 추가하지 않습니다.
-- original/deleted/value-edited family는 같은 `base_id`로 묶습니다.
-- deletion은 한 번에 cue 하나만 바꿔 어떤 정보가 변했는지 식별 가능하게 합니다.
-- test에서 새 intervention 또는 threshold를 만들지 않습니다.
-
-### Cue deletion
-
-```text
-Original activation: cue A + cue B + cue C
-Deleted activation:          cue B + cue C
-```
-
-- deletion probability drop: 지운 cue의 probe probability가 얼마나 감소했는가
-- original hit: 원본에서 지운 cue를 실제로 읽었는가
-- deletion phantom: 삭제본에서도 그 cue를 계속 말하는가
-- removal success: 원본에서 읽힌 cue가 삭제본에서 사라졌는가
-- untouched retention: 삭제하지 않은 cue가 유지되는가
-
-### Native-value edit
-
-```text
-Original: rash severity = 3
-Edited:   rash severity = 5
-```
-
-- replacement hit: 새 값을 출력했는가
-- old-value persistence: 이전 값을 계속 출력했는가
-- clean switch: 새 값은 출력하고 이전 값은 출력하지 않았는가
-
-> 단순 정확도보다 intervention에 대한 선택적 반응이 grounding의 더 강한 증거입니다.
-
-### 두 병목을 분리하는 판정
-
-- static F1이 낮음: activation state selection 또는 decoder 모두 문제일 수 있음
-- static F1은 높고 phantom이 높음: 삭제 후에도 representation에 cue가 남는 표현 병목
-- probe는 반응하지만 NLA가 반응하지 않음: language decoder 병목
+이제 이 질문들을 실제로 구현하기 위해 source prompt와 activation 위치부터 정의한다.
 
 ---
 
-## Slide 8. Open-ended 설명 평가
+## Slide 5A. Backbone에 실제로 넣은 prompt
 
-### DiReCT
+### 공통 임상 prefix
 
-- physician observation과 생성 설명을 claim 단위로 비교
-- 주요 지표:
-  - `Obspre`: observation precision
-  - `Obsrec`: observation recall
-  - `Obscomp`: gold/predicted observation set의 semantic Jaccard completeness
-  - `Expcom`: matched observation에서 rationale와 diagnosis edge까지 일치한 비율
-  - `Expall`: 전체 explanation chain의 일치 비율
-- 진단명 언급만으로는 observation alignment를 인정하지 않음
+```text
+You are an expert physician. A patient presents as follows:
 
-### DDXPlus semantic mapper
+[Chief complaint, HPI, PMH, family history, physical exam,
+and pertinent results assembled as one restricted clinical note]
+```
 
-| stage | input/operation | output/control |
+### Direct instruction
+
+```text
+What is the single most likely diagnosis?
+
+Give the diagnosis only. Do not explain your reasoning.
+
+You MUST end your response with exactly "The answer is <diagnosis>."
+```
+
+Direct에서는 assistant turn을 `The answer is`로 미리 시작한다. 단순히 “설명하지 말라”고
+적어도 Gemma가 긴 reasoning을 생성해 Direct arm이 CoT arm으로 변했기 때문이다. Prefill은
+답만 완성하게 하며, causal attention상 prefill 이전의 P0 activation을 바꾸지 않는다.
+
+### CoT instruction
+
+```text
+Work through this case as a natural reasoning process.
+
+Think about:
+- What the key clinical findings suggest
+- Which diagnoses fit the presentation and which do not
+- Whether your conclusion holds up under scrutiny
+
+You MUST end your response with exactly "The answer is <diagnosis>."
+```
+
+두 조건은 임상 note까지 byte-identical한 prefix를 공유하고 instruction suffix만 다르다.
+
+**왜 Direct와 CoT를 둘 다 생성하는가.** Direct는 진단 행동 기준선이고 CoT는 RQ1의 설명
+기준선이다. 두 arm이 같은 사례에서 어떤 답을 내는지 기록해야 CoT 설명 품질과 단순 진단 정확도를
+혼동하지 않고, instruction이 P0 상태를 바꾸는지도 sensitivity로 확인할 수 있다.
+
+---
+
+## Slide 5B. Source generation 실행 설정
+
+| 항목 | Direct | CoT |
+|---|---:|---:|
+| Backbone | Gemma-3-12B-IT | Gemma-3-12B-IT |
+| Decoding | greedy, `do_sample=false` | greedy, `do_sample=false` |
+| Temperature / top-p | 미사용 | 미사용 |
+| Assistant prefill | `The answer is` | 없음 |
+| Max new tokens | 64 | 2,048 |
+| Batch size | 4 | 1 |
+| Answer parser | 마지막 `The answer is <diagnosis>.` | 동일 |
+| Forced second answer | 없음 | 이번 E1에서는 비활성화 |
+
+Greedy decoding을 사용한 이유는 sampling variance를 설명 방법의 차이로 오인하지 않기 위해서다.
+Direct와 CoT의 token budget이 다른 것은 두 arm의 목적이 다르기 때문이다. Direct는 진단명만
+완성하고, CoT는 자연스러운 reasoning과 마지막 진단까지 생성한다.
+
+**왜 다음에 P0/P1/P2가 필요한가.** “Activation을 읽었다”는 주장은 activation을 어느 token에서
+뽑았는지에 따라 완전히 달라진다. 특히 CoT나 진단명이 이미 출력된 뒤의 activation을 읽으면,
+내부 판단을 발견한 것이 아니라 방금 생성된 문자열을 재독해한 것일 수 있다.
+
+---
+
+## Slide 6. P0, P1, P2는 무엇인가
+
+### 이 슬라이드가 필요한 이유
+
+NLA 성능은 같은 layer라도 **언제 뽑은 activation인가**에 따라 다른 질문에 답한다. 생성 전
+상태를 읽는 것과, CoT나 진단명이 이미 context에 적힌 뒤 그 문자열을 읽는 것은 같은
+faithfulness 증거가 아니다. Slide 6은 좋은 결과가 output leakage에서 생겼다는 반론을 막고,
+논문의 primary readout 위치를 사전에 고정하기 위해 필요하다.
+
+```text
+[clinical note + CoT instruction]  <- P0: prompt의 마지막 token
+                 ↓ free generation
+[model reasoning ... The answer is] <- P1: 마지막 answer marker의 마지막 subtoken
+[diagnosis]                          <- P2: 실제 생성 진단명의 마지막 subtoken
+```
+
+| 위치 | 정확한 정의 | 해석 | 논문에서의 역할 |
+|---|---|---|---|
+| P0 | source prompt 마지막 token, 생성 전 | note를 읽고 답하기 직전의 통합 상태 | 주 Medical-NLA 입력 |
+| P1 | assistant의 마지막 `The answer is` marker 직후, diagnosis 전 | reasoning을 마친 뒤 답을 쓰기 직전 상태 | leakage sensitivity |
+| P2 | parsed diagnosis의 마지막 subtoken | 답 문자열이 이미 생성된 상태 | positive control |
+
+P0는 모델이 note와 instruction을 모두 읽었지만 아직 한 글자도 답하지 않은 시점이다. 따라서
+P0에서 복원된 정보는 출력 문자열의 직접적인 흔적만으로 설명할 수 없다. P1과 P2는 source CoT
+response를 teacher-force하여 같은 trajectory에서 추출한다. P1에는 최종 diagnosis token이 아직
+없지만 앞선 reasoning에 진단명이 이미 적혔을 수 있고, P2에는 진단명 자체가 있다.
+
+실제로 171행 pilot에서 모델이 최종 선택한 diagnosis alias가 CoT reasoning에 이미 등장한
+사례가 156/171(.9123)이었다. `diagnosis_alias_in_reasoning=false`인 P1 clean subset은 15행뿐이다.
+따라서 P1/P2의 높은 진단 회수율을 곧바로 내부 추론 판독 능력으로 해석하지 않는다.
+
+### 본 논문의 위치 규칙
+
+- **Primary:** CoT instruction을 본 직후의 `P0/HS32`. RQ1의 CoT와 같은 source condition에서
+  아직 CoT가 출력되기 전 내부 상태를 읽는다.
+- **Instruction sensitivity:** Direct instruction의 P0. P0 자체가 CoT 전용 위치는 아니지만,
+  instruction suffix가 다르면 activation도 달라지므로 primary와 섞지 않는다.
+- **Leakage sensitivity:** P1과 diagnosis alias가 reasoning에 없던 P1 clean subset.
+- **Positive control:** P2. 이미 출력된 진단 정보를 NLA가 읽을 수 있는지 확인한다.
+
+**왜 다음에 HS32를 설명하는가.** P0/P1/P2가 시간축의 선택이라면 HS16/24/32는 network 깊이축의
+선택이다. Token 위치를 고정한 뒤 어느 layer의 벡터를 AV에 넣는지 정해야 동일한 NLA checkpoint와
+공정하게 비교할 수 있다.
+
+---
+
+## Slide 7. HS32는 무엇이며 왜 primary인가
+
+```text
+P0 = 어느 token 위치에서 activation을 뽑는가
+HS32 = 어느 hidden-state layer/index에서 activation을 뽑는가
+
+h(P0, HS32) in R^3840
+```
+
+| 축 | 후보 | 역할 |
 |---|---|---|
-| 0. deterministic split | `<observed>` bullet 우선, 없으면 문장 분리 | 빈 출력도 0-claim case로 분모 유지 |
-| 1. frozen lexical | official-train modal phrase + release metadata alias | ambiguous alias 제외, 수동 동의어 없음 |
-| 2. method-blind AI | 잔여 claim + frozen 91-evidence ontology | JSON `(evidence_id, value_id/null, exact quote)` |
-| aggregation | case별 evidence/value set dedupe | structured reader와 같은 metric 코드 재사용 |
+| Token position | P0, P1, P2 | 생성 전, answer boundary, 생성 진단 뒤 상태 비교 |
+| Hidden state | HS16, HS24, HS32 | layer sensitivity |
+| Primary NLA input | P0/HS32 | 공개 AV/AR checkpoint와 학습 위치를 맞춤 |
 
-### AI mapper에 주지 않은 정보
+`HS32`는 32차원이라는 뜻이 아니라 hidden-state index 32의 **3,840차원 벡터**다. Validation
+probe에서는 HS24가 가장 좋았지만 공개 `nla-gemma3-12b-L32-av/ar`가 HS32용이므로 NLA와
+round-trip의 primary는 HS32로 고정한다. HS16/24 NLA는 다른 layer activation을 HS32 decoder에
+넣는 distribution-shift sensitivity이지 공정한 primary 비교가 아니다.
 
-- method 이름, case ID, diagnosis, split, gold cue/value
-- probe probability와 intervention type
-- 다른 method의 출력
-
-### 결정론과 provenance
-
-- exact supporting quote가 원문에 없으면 mapping을 거부합니다.
-- claim, ontology, prompt, model ID를 묶은 SHA-256 key로 cache합니다.
-- alias table, prompt, mapper code commit, model ID, G1-G4 receipt를 locked scoring 전에 동결합니다.
-
-### Mapper validation
-
-- G1 reader round-trip
-- G2 absent-cue false mapping
-- G3 cache/replay determinism
-- G4 independent AI concordance
-
-> 이 계측기는 open-generator끼리 공통으로 사용하며, probe/reader의 closed score를 대체하지 않습니다.
+**왜 다음에 baseline을 비교하는가.** 이제 동일한 P0에서 likelihood, probe, vanilla NLA가 각각
+무엇을 출력할 수 있는지 비교해야 Medical-NLA가 해결하려는 간극이 closed-label detection인지
+open-text explanation인지 명확해진다.
 
 ---
 
-## Slide 9. 생성형 Medical-NLA 개발 규율
+## Slide 8. RQ에 앞서 비교하는 내부 측정 채널
 
-### 공통 출력 prompt/schema
+| Method | 입력 | 출력 공간 | 할 수 있는 것 | 구조적 한계 |
+|---|---|---|---|---|
+| Forced-answer likelihood | source prompt와 고정 후보 문자열 | supplied diagnosis ontology | 후보 간 행동 선호 순위 | 열린 observation을 생성하지 못함 |
+| Linear/multi-label probe | P0 activation | 고정 diagnosis, source answer, finding/value ontology | 읽으려는 정보의 decodability 감사 | 새 속성·관계·문장을 출력하지 못함 |
+| Vanilla NLA | P0 activation | 자유 자연어 | open-text 판독 | 길고 잡음이 많고 통합 상태 복원 실패 가능 |
+| Medical-NLA | P0 activation | 구조화 임상 자연어 | observation·관계·source answer 판독 목표 | 별도 grounding 검증이 필요 |
 
-```text
-The vector above was extracted after a clinical presentation and a reasoning
-instruction, immediately before the source model began its response.
-Read the patient-specific clinical state represented by the vector.
+네 방법의 숫자는 모두 같은 종류의 accuracy가 아니다. Likelihood와 probe는 닫힌 후보 공간,
+NLA는 열린 생성 공간을 사용한다. 따라서 Table 1은 probe 기반 representation audit만 담당하고,
+open-text NLA는 Table 2와 Table 3에서 평가한다. Probe는 diagnosis마다 따로 만들지 않는다.
+Diagnosis/category/source decision은 multiclass, finding presence는 multi-label, finding value는
+native value를 대상으로 한 conditional decoder다.
 
-Report only concrete clinical findings represented by the vector.
-Do not infer a diagnosis, add background medical knowledge, or complete a
-typical disease template.
+**왜 다음에 학습을 설명하는가.** Baseline 분석은 P0에 정보가 있다는 것과 vanilla NLA의 한계를
+보여줄 뿐이다. 그 간극을 메우려면 어떤 activation-text pair로 AV를 적응시키고, 어떤 데이터는
+평가에만 남기는지 공개해야 한다.
 
-<explanation><readout><observed>
-- patient-specific clinical finding
-</observed></readout></explanation>
-```
+---
 
-### Common/full-data SFT recipe
+## Slide 9A. Medical-NLA를 어떤 supervision으로 학습하는가
 
-| setting | value |
+### 현재 실행 가능한 SFT-only v1
+
+| 항목 | 현재 설정 |
 |---|---|
-| base | `kitft/nla-gemma3-12b-L32-av` |
-| activation | CoT-P0/HS32/last token |
-| train | DDXPlus 4,655 + DiReCT 248 |
-| validation | DDXPlus 50 + DiReCT 50 |
-| source sampling | exponent alpha=.5; DiReCT case당 약 4.3회 exposure |
-| optimizer | AdamW, learning rate `2e-4`, weight decay 0, gradient clipping 1.0 |
-| batch | 4, gradient accumulation 2, effective 8 |
-| LoRA | rank 16, alpha 32, dropout .05 |
-| modules | q/k/v/o, gate/up/down projections |
-| precision | frozen base bf16, trainable LoRA fp32 |
-| checkpoint selection | DDXPlus/DiReCT source-macro content-token NLL |
-| generation | greedy, max new tokens 512, batch 4 |
+| 데이터 | DiReCT confirmatory `train`과 `val_seen`만 사용 |
+| 원 split | Train 266 / validation 52 |
+| Primary 학습 분모 | Gold PDD 문자열이 note에 직접 노출된 18/2행 제외 후 248/50 |
+| Activation 입력 | 같은 사례 source trajectory의 P0/HS32, 3,840차원 |
+| `<observed>` target | Note에서 exact substring으로 확인된 physician observations, 최대 12개 |
+| `<answer>` target | Physician gold가 아니라 backbone이 같은 source run에서 실제 생성한 진단 |
+| 사용하지 않는 데이터 | Locked `test_seen=72`, `test_pdd_heldout=106`, DDXPlus heldout, MCR |
+| 현재 loss | Target token next-token cross-entropy, LoRA SFT |
+| Checkpoint 선택 | `val_seen`의 `<observed>` content-token loss |
+| 반복 | 동일 ID와 recipe로 seeds 17, 29, 43 |
 
-### Target construction
+실제 target schema는 다음과 같다.
 
-- DDXPlus: original presentation의 train-supported cue를 입력 순서대로 중복 제거, 최대 12개
-- DiReCT: physician deduction 중 `observation_exact_in_note=true`만 사용, 최대 12개
-- diagnosis와 backbone source answer는 common target에서 제거
-- bullet content token loss와 XML scaffold token loss를 분리
+```text
+<explanation>
+<readout>
+<observed>
+- note에 문자 그대로 근거한 physician observation 1
+- note에 문자 그대로 근거한 physician observation 2
+</observed>
+<answer>backbone source answer</answer>
+</readout>
+</explanation>
+```
 
-### 실제로 시도한 방법 계열
+`<answer>`에 physician gold를 넣지 않는 이유는 source model이 틀린 사례의 activation을 정답
+상태처럼 강제로 설명하지 않기 위해서다. 하지만 현재 v1은 source-wrong 행의 `<observed>`에도
+physician gold observations를 사용한다. Observation이 note에 존재한다는 사실은 source model이
+그 정보를 실제로 사용했다는 뜻이 아니므로, 이 부분에는 여전히 clinical target과 source-state
+target의 충돌 가능성이 있다.
 
-| phase | supervision/objective | 핵심 질문 |
+따라서 SFT-only v1은 최종 faithful reader가 아니라 다음을 확인하는 **ablation**이다.
+
+1. 의료 형식과 physician observation supervision이 vanilla NLA의 설명 품질을 높이는가
+2. Seen PDD 문구나 상투적인 임상 표현을 암기하는 분류기로 붕괴하는가
+3. RQ1은 좋아지지만 RQ2의 shuffled/counterfactual grounding에는 실패하는가
+
+Final recipe에서는 source-correct 행에만 physician clinical target을 적용하거나, source-wrong
+행의 observation loss를 mask하고 source-answer/grounding loss만 적용하는 field-level ablation을
+비교해야 한다. 현재 코드에는 이 field mask가 구현돼 있지 않으므로 완료된 방법처럼 말하지 않는다.
+
+---
+
+## Slide 9B. Vanilla, SFT-only, Reconstruction, Full은 무엇이 다른가
+
+### Clinical supervision이 뜻하는 것
+
+여기서 `Clinical supervision`은 단순히 의료 용어를 유창하게 말하게 하는 것보다 구체적이다.
+Activation을 입력받았을 때 **어떤 환자 관찰과 진단을 어떤 임상 구조로 출력해야 하는지**를
+DiReCT physician annotation으로 가르치는 것이다.
+
+| Supervision target | 모델에게 가르치는 것 | 이것만으로 보장되지 않는 것 |
 |---|---|---|
-| Direct-only SFT | DiReCT 248 physician observation | 소량 domain target만으로 읽는가? |
-| Common mixed SFT | DiReCT 248 + DDXPlus 248 | 동일 schema가 transfer를 돕는가? |
-| Full-data SFT | DiReCT 248 + DDXPlus 4,655 | 데이터 양이 병목인가? |
-| Counterfactual sequence SFT | original/deletion/value-edit 각각의 현재 cue set CE | intervention 예시를 직접 보여주면 반응하는가? |
-| Sentence contrastive | matched text NLL < crossed text NLL | activation-target alignment를 직접 키울 수 있는가? |
-| D10 1x2 ranking | one claim, original NLL < deleted NLL | 긴 문장 난이도를 제거하면 changed cue를 배우는가? |
-| D14 OOF distillation | OOF probe가 선택한 hard finding set | activation-supported target만 학습하면 되는가? |
-| D16 soft bottleneck | 3840→256→3840 + training-only auxiliary head | continuous support가 shared latent를 조직화하는가? |
-| D20 specificity anchor | D10 + retained claim CE on original/deleted | global deletion-detector shortcut을 막을 수 있는가? |
-| D22 public AR | text reconstruction matched vs shuffled | 원 NLA의 AR가 medical distribution을 측정하는가? |
+| `<observed>` physician observations | 환자별 임상 finding을 짧고 구조적으로 표현 | Source model이 그 finding을 실제 판단에 사용했는지 |
+| `<answer>` source-model diagnosis | 현재 backbone이 내릴 준비가 된 진단을 명시 | 진단에 이른 내부 근거 전체가 충실하게 설명됐는지 |
+| XML output schema | 일관된 형식, 짧은 출력, 자동 평가 가능성 | 설명 내용의 사례 특이성과 activation 의존성 |
 
-### 공통 promotion 원칙
+따라서 clinical supervision이 통과하면 “의학적으로 적절한 내용을 구조화해 말할 수 있다”고
+할 수 있지만, “바로 이 activation을 읽어서 말했다”고 할 수는 없다. 질환별 전형적인 문장이나
+학습에서 자주 본 PDD 표현을 암기해도 SFT cross-entropy는 낮아질 수 있기 때문이다.
 
-- 3개 seed 방향 일치
-- category-cluster bootstrap CI가 0보다 큼
-- 최소 효과 크기 충족
-- changed cue뿐 아니라 retained cue specificity 통과
-- validation gate 통과 전 locked test 금지
-- 실패 후 checkpoint/threshold를 사후 선택하지 않음
+이 때문에 아래 표의 세 열은 서로 다른 질문이다.
 
-> 잘 말하는 모델을 찾는 것이 아니라 activation-dependent한 모델을 찾습니다.
+```text
+Clinical supervision: 무엇을 어떤 의료 언어로 말해야 하는가?
+Reconstruction:       그 설명이 원 activation 정보를 보존하는가?
+Pair specificity:     다른 비슷한 환자가 아니라 바로 이 activation에 해당하는가?
+```
 
-### 현재 고려 중인 세 경로
+| Method | Clinical supervision | AV-AR reconstruction | Pair/counterfactual grounding | 실험상 역할 |
+|---|---:|---:|---:|---|
+| Vanilla NLA | No | 일반 도메인 pretrained | No | 의료 적응 전 공개 baseline |
+| Medical-AV, SFT only | Yes | No | No | 의료 문장 supervision만의 효과와 classifier collapse 검사 |
+| Medical-NLA, reconstruction | Yes | Yes | No | 자연어가 원 activation 정보를 보존하도록 강제하는 ablation |
+| Medical-NLA, full | Yes | Yes | Yes | 사례 특이성과 evidence 변화 추종까지 강제하는 제안법 |
 
-1. **Geometry audit A1-A5**: mean direction 제거, normalized FVE, own-case retrieval로 공개 AR 실패 원인을 분해
-2. **Patchscopes baseline**: HS32 state를 같은 Gemma의 native HS32 placeholder에 직접 patch해 AV injection 변환을 우회
-3. **Medical AO + Medical AR**: 대규모 supervised clinical-state decoder와 domain AR를 각각 학습한 뒤 constrained renderer에 연결
+표의 `No`는 해당 능력이 절대로 없다는 뜻이 아니라, 현재 의료 학습 objective가 그 능력을
+명시적으로 강제하지 않는다는 뜻이다. `Medical-NLA, reconstruction`과 `Medical-NLA, full`의
+`Yes`도 현재 완료된 결과가 아니라 아래 objective를 실제로 구현했을 때의 제안 설계다.
 
-현재 우선순위는 `geometry audit → Patchscopes smoke → Medical-AR positive control → Medical AO/AV`입니다. Raw cosine이 양성 대조를 통과하기 전에는 AR reward/RL을 열지 않습니다.
+### Reconstruction과 Full의 핵심 차이
+
+Reconstruction 모델은 생성한 자연어 `z`만으로 원 activation `h`를 복원하도록 AV와 AR을
+학습한다.
+
+```text
+h -> AV -> z -> AR -> h_hat
+L_recon = ||h - h_hat||^2
+```
+
+이 objective는 설명이 activation 복원에 필요한 정보를 담도록 강제한다. 그러나 같은 질환의
+여러 환자에게 비슷한 전형적 설명을 생성하거나, AR이 질환별 평균 activation을 복원해도 matched
+reconstruction이 높을 수 있다. 따라서 reconstruction만 통과했다고 해서 그 설명이 바로 해당
+환자의 activation에 고유하다고 말하지 않는다.
+
+Full 모델은 같은 clinical supervision과 reconstruction 위에 다음 grounding objective를
+추가한다.
+
+1. 같은 activation-text pair가 같은 진단의 shuffled pair보다 높은 점수를 받아야 함
+2. Finding을 삭제하면 해당 claim이 감소해야 함
+3. DDXPlus native value를 바꾸면 해당 value claim이 같은 방향으로 바뀌어야 함
+4. 편집하지 않은 finding은 유지되어야 함
+5. Zero, mean activation과 activation swap이 실제 matched activation보다 낮아야 함
+
+따라서 두 모델의 차이는 다음 한 문장으로 요약한다.
+
+> Reconstruction은 자연어가 activation 정보를 보존하도록 학습하고, Full은 그 정보가 질환별
+> 상투 문구가 아니라 해당 사례의 activation에 고유하며 evidence 변화에 반응하도록 추가로
+> 학습한다.
+
+Full Medical-NLA의 제안 학습은 두 데이터 역할을 결합한다.
+
+| 학습 단계 | 데이터 | 제공하는 supervision | 목적 |
+|---|---|---|---|
+| Medical warm-start | DiReCT train/val | Physician observations와 source decision text | 임상적으로 읽을 수 있는 출력 형식과 내용 |
+| Grounding development | DDXPlus train/validation | Evidence ID/value, matched activation, hard negative와 cue counterfactual | Case specificity와 evidence 변화 추종 |
+| AV-AR reconstruction | DiReCT/DDXPlus의 train activation-text pair | `h -> text -> h_hat` | 자연어가 원 activation 정보를 보존하도록 강제 |
+| Locked evaluation only | DiReCT 72/106, DDXPlus heldout, MCR | 학습에 사용하지 않음 | Seen/PDD-OOD, grounding, natural-text OOD 평가 |
+
+원 NLA 구조는 `h -> AV -> text -> AR -> h_hat`이다. Reconstruction 모델은 clinical text를 잘
+생성하는 것뿐 아니라 생성 text로부터 원 activation을 복원해야 한다. Full 모델은 여기에 matched
+pair가 shuffled pair보다 높은 점수를 받고 evidence counterfactual을 따라가도록 하는 조건을
+추가한다. Reconstruction은 FVE로, pair specificity는 matched-shuffled와 counterfactual 변화로
+평가한다.
+
+현재 구현된 코드는 **DiReCT SFT-only의 CE loss까지**다. DDXPlus paired training,
+AR regression, reconstruction reward, pair-specific objective는 아직 구현·smoke 전이다. 그러므로
+논문의 full row는 이 objective가 실제 구현되고 다음 조건을 통과한 뒤에만 유지한다.
+
+1. Matched text가 shuffled text보다 activation을 더 잘 복원함
+2. Mean/zero activation이 실제 matched activation보다 높은 reward를 받지 않음
+3. Cue를 제거하거나 값을 바꾸면 해당 설명 claim만 따라 변함
+4. SFT-only보다 RQ1 설명 점수와 RQ2 grounding을 모두 개선함
+
+**왜 다음에 평가기를 설명하는가.** 학습 target의 physician observation과 source answer는 서로
+다른 의미를 갖는다. 따라서 결과도 하나의 loss나 accuracy로 합치지 않고 DiReCT clinical
+alignment와 DDXPlus activation grounding으로 다시 분리해 채점한다.
 
 ---
 
-## Method subsection. Experimental setup and data
+## Slide 10. 설명과 activation을 서로 다른 평가기로 검증한다
+
+```text
+DiReCT free-text output
+   -> 공통 method-blind quote-constrained claim extractor
+   -> official prediction JSON
+   -> 제공된 native Llama-3-8B Yes/No semantic matcher
+   -> Accdiag, Obs*, Exp*
+
+DDXPlus paired activation
+   -> own pair / same-diagnosis hard shuffle
+   -> finding deletion / native value edit / activation swap
+   -> pair gap, target change, untouched retention
+```
+
+### 검증 단위와 사전 판정 규칙
+
+| 축 | 한 행의 단위 | 주 효과 | 함께 봐야 하는 보존 지표 | 통과 뒤 가능한 주장 |
+|---|---|---|---|---|
+| Clinical alignment | 동일 DiReCT case-method output | Physician observation/rationale/diagnosis match | Extraction coverage, unsupported prediction | Clinically aligned explanation |
+| Pair specificity | 동일 DDXPlus case의 matched/shuffled pair | `score(own)-score(shuffled)` | Diagnosis와 finding-count가 같은 hard donor | Case-specific readout |
+| Finding counterfactual | 같은 base case의 original/edited prompt pair | 편집한 finding claim의 방향성 있는 변화 | Untouched-finding retention | Counterfactual grounding |
+| AV-AR reconstruction | 같은 activation의 matched/shuffled text | `FVE_matched-FVE_shuffled` | Mean/zero activation floor | Text preserves activation information |
+| Text intervention | 같은 case의 original/no-op/edited activation | Target value/logit change | Identity preservation, off-target KL | Selective state intervention |
+| Final policy | 같은 locked case의 keep/intervene outcome | Wrong-to-right minus right-to-wrong | Intervention rate, correct-case preservation | Net behavioral improvement |
+
+Pair gap과 net correction은 전체 평균을 따로 빼지 않고 case-level paired difference로 계산한다.
+환자 반복 note가 있는 DiReCT CI는 `patient_group`을 cluster 단위로 bootstrap한다. Test에서
+threshold나 donor 난이도를 다시 고르지 않는다.
+
+Codex는 자유 산문을 official schema로 바꾸는 **앞단 claim extractor**에만 사용할 수 있다.
+Observation/rationale 의미 일치 판정을 Codex로 바꾸면 official DiReCT metric이 아니다. Primary
+semantic matcher는 제공된 `Meta-Llama-3-8B-Instruct` native checkpoint, temperature 0,
+top-p 1, exact `Yes`, official prompt와 greedy one-to-one matching을 유지한다.
+
+DiReCT는 physician-reference clinical alignment를, DDXPlus는 paired activation dependence를
+평가한다. 어느 한 데이터셋의 점수를 다른 축의 ground truth로 부르지 않는다.
+
+**왜 다음에 개입 규칙을 미리 정하는가.** 설명이 좋아 보인 뒤 사후적으로 유리한 patch 사례만
+고르면 RQ3가 성립한 것처럼 보일 수 있다. RQ2 grounding 결과를 보기 전에 identity 보존,
+target selectivity, net correction의 순서와 중단 기준을 고정한다.
 
 ---
 
-## Slide 10. 데이터 모집단
+## Slide 11. RQ3 개입은 grounding 통과 후에만 평가한다
 
-### DiReCT
+| 단계 | 조작 | 성공 조건 |
+|---|---|---|
+| Decode-encode identity | text를 고치지 않고 AV->text->AR | 원 답과 비목표 상태 보존 |
+| Text patch | dataset-native evidence value 하나만 편집 | 목표 속성/logit만 선택적으로 변화 |
+| Selective correction | validation에서 고정한 detector가 flag한 사례만 재검토 | net correction 양수, correct-case preservation 유지 |
+| Oracle activation patch | 실제 paired activation을 주입 | 달성 가능한 인과 효과의 상한 |
 
-| split | rows | 사용 |
+DDXPlus primary activation은 DiReCT 학습과 동일한 **CoT-P0/HS32**로 고정했다. E5 builder는
+primary `activation_rows_{validation,test}.jsonl`에 CoT-P0 prompt를 쓰고, Direct-P0는 validation
+base case만 별도 파일로 내보내 instruction sensitivity로 분리한다. P1/P2는 grounding 주결과가
+아니라 leakage/positive control이므로 필요 시 subset에서만 추가한다.
+
+**Methodology에서 Data/Setup으로 넘어가는 논리.** 이제 source prompt, activation 위치,
+hidden-state index, 학습 objective, 평가기와 중단 기준이 고정됐다. 다음 Data/Setup에서는
+각 검증에 쓰는 모집단과 split을 연결한다. 그 뒤 Results에서 Table 1의 representation audit,
+Table 2의 RQ1, Table 3의 RQ2, Table 4의 RQ3를 순서대로 판정한다.
+
+---
+
+# Part III. Data and Experimental Setup
+
+Method에서 정의한 각 검증 질문을 실제 데이터와 분모에 연결한다. 이 절에서는 데이터가
+무엇을 제공하는지, 어떤 행이 제외됐는지, train/validation/test가 어떻게 분리됐는지만
+설명한다. 성능 수치는 다음 Results 절에서만 제시한다.
+
+## Slide 12. 데이터셋별 역할
+
+| 데이터셋 | 원래 제공하는 정보 | 본 연구의 역할 | 사용하지 않을 주장 |
+|---|---|---|---|
+| DiReCT | 임상 note, physician observation, rationale, diagnosis tree | Clinical warm-start와 RQ1 설명 품질, seen/PDD-heldout 평가 | activation ground truth |
+| DDXPlus | pathology, evidence ID/value, differential | Grounding objective 개발, matched/shuffled, finding 반사실, patching | 자연 임상 산문의 최종 품질 |
+| MedCaseReasoning | case-report 산문과 diagnosis/reasoning | 향후 frozen natural-text OOD | 정확한 gold evidence span |
+
+Intro에서는 “임상 설명과 activation grounding을 서로 다른 적합한 데이터로 검증한다”는
+한 문장만 말한다. 이 역할표와 데이터 구조는 Data and Experimental Setup에서 설명한다.
+
+**왜 DiReCT를 먼저 자세히 보는가.** DiReCT는 RQ1 평가 자료일 뿐 아니라 현재 실행 중인
+Medical-NLA의 clinical warm-start 자료다. 따라서 note의 입력 섹션, physician deduction,
+PDD label이 각각 backbone 입력과 학습 target에서 무엇이 되는지 먼저 정의해야 한다.
+
+---
+
+## Slide 13A. DiReCT 한 사례에는 무엇이 들어 있는가
+
+DiReCT restricted release는 **511개의 임상 note JSON**과 **24개의 diagnostic KG JSON**을
+포함한다. 임상 note 한 행이 본 연구의 한 사례이며, 다음 여섯 섹션을 합쳐 backbone prompt의
+환자 기록으로 사용한다.
+
+| 원 필드 | 임상 섹션 | 실제로 담는 정보 | 진단에서의 역할 |
+|---|---|---|---|
+| `input1` | Chief Complaint, 주호소 | 환자가 병원에 온 가장 직접적인 이유 | 문제의 출발점과 가장 두드러진 증상 |
+| `input2` | History of Present Illness, 현병력 | 증상의 시작, 기간, 변화, 유발·완화 요인, 동반 증상 | 현재 질환의 시간적 경과와 증상 조합 |
+| `input3` | Past Medical History, 과거력 | 기존 질환, 과거 입원·수술 등 | 기저 위험과 감별진단의 사전확률 |
+| `input4` | Family History, 가족력 | 가족의 질환과 유전적 위험 | 유전성·가족성 질환 가능성 |
+| `input5` | Physical Exam, 신체검진 | 활력징후와 의료진이 관찰·측정한 징후 | 환자 진술과 구분되는 객관적 임상 소견 |
+| `input6` | Pertinent Results, 주요 검사 결과 | 혈액검사, 영상, 심전도 등 관련 검사 | 진단을 지지하거나 배제하는 검사 증거 |
+
+여섯 필드는 서로 다른 여섯 환자가 아니라 **같은 환자의 한 임상 기록을 구성하는 여섯 부분**이다.
+모델은 특정 cue 하나만 보는 것이 아니라 주호소, 경과, 위험요인, 진찰, 검사를 함께 읽고 진단해야
+한다. 일부 필드는 원자료에서 비어 있을 수 있으며, 빈 필드에는 내용을 보충하지 않고 그대로 둔다.
+
+---
+
+## Slide 13B. Disease category, PDD, physician deduction
+
+### Disease category와 PDD는 같은 것이 아니다
+
+```text
+넓은 질환군: Disease category = Heart Failure
+구체적 주 퇴원 진단: Primary Discharge Diagnosis (PDD) = HFrEF 또는 HFpEF
+```
+
+`PDD`는 환자 퇴원 기록 전체를 뜻하지 않고, 그 기록에 부여된 **구체적인 주 퇴원 진단 label**을
+뜻한다. DiReCT에는 25개 disease category와 이를 세분화한 61개 canonical PDD가 있다. 따라서
+category accuracy는 넓은 질환군을 맞혔는지, strict PDD accuracy는 세부 진단까지 맞혔는지를
+서로 다르게 측정한다.
+
+### 의사 주석이 제공하는 설명 구조
+
+```text
+환자 기록의 observation
+        -> 그 관찰이 진단을 지지하는 rationale
+        -> intermediate 또는 final diagnosis
+```
+
+예를 들어 실제 restricted 원문이 아닌 일반적인 예시는 다음과 같다.
+
+```text
+observation: 휴식 중에도 발생하는 흉통
+rationale:   휴식 시 흉통은 안정형보다 급성 관상동맥 증후군 가능성을 더 지지함
+diagnosis:   불안정 협심증
+```
+
+본 연구에서는 annotation tree를 `observation -> rationale -> diagnosis` deduction으로
+정규화한다. 이 구조 덕분에 단순히 최종 진단을 맞혔는지만 보지 않고 다음을 분리해 평가한다.
+
+1. 설명이 진단에 필요한 환자 관찰을 회수했는가
+2. 기록이나 의사 주석에 없는 관찰을 불필요하게 추가했는가
+3. 관찰과 진단 사이의 임상적 이유를 올바르게 연결했는가
+4. 최종 diagnosis를 올바른 specificity로 제시했는가
+
+---
+
+## Slide 13C. 데이터 감사 수치는 무엇을 보장하는가
+
+여기서 **감사(audit)**는 CoT나 Medical-NLA의 성능 평가가 아니다. 모델 실험 전에 원자료를
+정상적으로 읽을 수 있는지, label 정의가 일관적인지, 같은 환자가 train과 test에 섞일 위험은
+없는지, 의사 observation이 실제 note에 근거하는지를 확인한 데이터 품질 검사다.
+
+| 감사 항목 | 값 | 이 값이 의미하는 것 | 이 값이 의미하지 않는 것 |
+|---|---:|---|---|
+| Raw notes / valid JSON | 511 / 511 | 제공된 511개 note가 모두 JSON으로 정상 파싱됨 | 511개 내용과 label이 모두 오류 없이 완벽함 |
+| Disease categories | 25 | 넓은 상위 질환군이 25개임 | 서로 균등한 25-class 데이터임 |
+| Canonical PDD labels | 61 | 공식 목록과 annotation root를 정규화한 세부 주 퇴원 진단 수 | 폴더 이름만 세어 얻은 최초 62개가 정본임 |
+| Manifest patient-group keys | 469 | 환자 ID가 확인된 468개 그룹과 unparsed 4행의 공통 placeholder 1개 | 469명의 환자가 모두 확인됨 |
+| Physician deductions | 5,109 | 전체 note에 존재하는 observation-rationale-diagnosis 연결 수 | 5,109명의 환자 또는 독립 표본이 존재함 |
+| Exact-substring grounded observations | 4,965/5,109 (.9718) | 의사가 표시한 observation의 97.18%가 note 원문에서 문자 그대로 확인됨 | 모델이 observation을 97.18% 정확도로 복원함 |
+
+### 각 감사가 필요한 이유
+
+- **JSON 유효성:** parse 실패 사례가 조건별로 조용히 빠져 분모가 달라지는 문제를 막는다.
+- **Category/PDD 정규화:** 복수형, 개행, 표기 차이와 폴더-label 충돌을 별도 진단으로 잘못 세는
+  문제를 막는다. 정본은 공식 `data_list.csv`와 annotation root를 기준으로 한 61 PDD다.
+- **Patient grouping:** 같은 환자의 반복 note가 train과 test에 동시에 들어가 환자 고유 표현을
+  기억하는 일을 막는다. 이후 split은 note-random이 아니라 patient-disjoint로 만든다.
+- **Deduction 수:** note 하나에 여러 임상 관찰과 추론 연결이 있음을 보여준다. 설명 평가의 단위는
+  환자 수와 같지 않으며, case-level 집계와 deduction-level 집계를 구분해야 한다.
+- **Exact-substring grounding:** physician observation이 원문에서 실제로 추적 가능한지 확인한다.
+  남은 144개는 곧바로 잘못된 주석으로 처리하지 않고 약어, 문장 변형, 정규화 차이를 별도 감사한다.
+
+### Raw 511행과 실제 실험 496행의 차이
+
+| 제외 사유 | 행 수 | 이유 |
 |---|---:|---|
-| train | 266 | probe 및 데이터 구축 |
-| SFT train eligible | 248 | note에 gold label이 직접 등장한 행 제외 |
-| validation | 52 | layer/hyperparameter/development gate |
-| SFT validation | 50 | generation evaluation |
-| test-seen | 72 | locked, pending batch |
-| PDD-heldout | 106 | locked OOD, pending batch |
+| Canonical PDD 의미 충돌 | 10 | 폴더 PDD와 annotation root가 임상적으로 다른 label을 가리킴 |
+| Patient ID parse 실패 | 4 | 환자 단위 분리를 보장할 수 없음 |
+| Exact duplicate copy | 1 | 동일 사례를 두 번 세는 것을 방지 |
+| **최종 eligible population** | **496** | 이후 patient-disjoint split의 고정 모집단 |
 
-- canonical eligible total: **496**
-- source answer rows: **496**
-- P0/P1/P2 position rows: **1,488**
-- HS16/24/32 tensors: **4,464**
+따라서 `511`은 배포본 감사의 분모이고, `496`은 primary split과 후속 실험의 모집단이다.
+두 숫자를 같은 표의 분모로 섞지 않는다. 원 audit의 469 grouping keys는 환자 ID가 확인된
+468개 그룹과 unparsed 4행을 묶은 placeholder 하나이며, 제외 후 split의 458 patient groups와
+같은 수가 아니다.
 
-### DDXPlus
+마지막으로 physician annotation은 **임상적으로 바람직한 설명의 reference**이지 source model
+activation의 정답이 아니다. 모델이 오답을 선택한 사례에서는 의사 gold diagnosis와 모델 내부의
+현재 결론이 다를 수 있다. 그러므로 다음 두 질문을 하나의 점수로 합치지 않는다.
 
-| split/artifact | originals | activation rows |
-|---|---:|---:|
-| official train development | 4,655 | 4,655 original P0 |
-| validation | 4,525 | 10,006 |
-| locked test | 4,543 | 10,028 |
+```text
+Clinical alignment: 설명이 의사 주석과 임상적으로 일치하는가?
+Source-decision fidelity: 설명이 실제 source model의 현재 판단을 충실하게 읽는가?
+```
 
-- D9a supported training pairs: **3,104**
-
----
-
-## Slide 11. DDXPlus 평가 분모
-
-| Metric family | validation | locked test | 사용 목적 |
-|---|---:|---:|---|
-| same-diagnosis hard-shuffle pairs | 4,106 | 4,121 | 사례 특이성 |
-| native-value targets | 2,183 | 2,136 | 원래 값 판독 |
-| cue-deletion pairs | 4,523 | 4,540 | 삭제 반응 |
-| native-value-edit pairs | 533 | 539 | 값 변경 반응 |
-| clean-switch eligible | 395 | 398 | old/new 완전 전환 |
-
-### 숫자가 다른 이유
-
-- 모든 환자가 multi-value evidence를 갖지는 않습니다.
-- value edit은 실제로 다른 유효 값으로 바꿀 수 있는 행만 포함합니다.
-- clean switch는 원본에서 old value를 읽은 사례에 조건화됩니다.
-- hard shuffle은 같은 diagnosis 안에서 유효 donor가 존재해야 합니다.
+**왜 다음에 split을 고정하는가.** 같은 환자의 반복 note나 같은 PDD가 학습과 시험에 함께
+들어가면 Medical-NLA가 activation을 읽은 것이 아니라 환자 표현이나 label 문구를 외운 결과가
+될 수 있다. 데이터 구조를 확인한 뒤 patient-disjoint와 PDD-heldout split을 먼저 동결한다.
 
 ---
 
-# Part III. Experimental Results
+## Slide 14. DiReCT 모집단과 split
+
+Canonical PDD 의미 충돌 10행, patient ID parse 실패 4행, duplicate copy 1행을 제외해
+496행을 사용한다. 같은 환자가 여러 PDD에 걸치는 경우 연결된 PDD들을 component로 묶어
+환자와 label leakage를 동시에 막았다.
+
+| Split | Notes | Patient groups | PDDs | 역할 |
+|---|---:|---:|---:|---|
+| Train | 266 | 244 | 49 | probe 및 Medical-NLA 학습 |
+| Validation seen | 52 | 47 | 24 | layer, prompt, epoch 선택 |
+| Test seen PDD | 72 | 64 | 25 | 학습에서 본 PDD의 새 환자 |
+| Test PDD held-out | 106 | 103 | 12 | 학습에 없던 PDD의 새 환자 |
+
+이 72/106행은 Medical-NLA 선택 이후 평가를 고정한 `locked downstream evaluation`이다.
+과거 backbone output이 일부 또는 전부 materialize되어 완전히 untouched dataset test라고
+부르지는 않는다. 하지만 이 시점 이후 test readout을 보고 prompt, layer, epoch, threshold를
+바꾸지 않는다.
+
+**왜 다음에 Results로 넘어가는가.** 데이터 역할, raw/eligible 분모, patient-disjoint split과 locked-test 분모가 모두 고정됐다. 이제 Results에서는 각 수치가 exploratory 171, validation 52/50, locked 72/106 중 어디에서 나온 것인지 표 제목에서 분리한다.
 
 ---
 
-## Slide 12. Source model: Direct vs CoT exploratory 결과
 
-> 전체 eligible 171건에 대한 exploratory 결과이며, locked 72/106 최종 표가 아닙니다.
+# Part IV. Experimental Results
 
-| condition | n | parse | strict PDD | category | token F1 |
-|---|---:|---:|---:|---:|---:|
-| Direct | 171 | 1.0000 | 0.2105 | 0.5029 | 0.1593 |
-| CoT | 171 | 1.0000 | 0.1930 | 0.5088 | 0.1850 |
+결과는 먼저 capability baseline을 확인한 뒤 RQ1, RQ2, RQ3 순서로 읽는다. 현재 값이 있는
+exploratory/validation 결과와 아직 비어 있는 locked-test 주표를 같은 종류의 증거처럼 섞지
+않는다.
 
-- strict PDD McNemar: **p = 0.6291**
-- category McNemar: **p = 1.0000**
-- CoT reasoning에 answer alias가 등장한 비율: **156/171 = 0.9123**
+## Preliminary baseline. 생성 전 내부에는 무엇이 있으며 기존 채널은 무엇을 읽는가
 
-### 해석
+**왜 세 RQ 전에 이 분석이 필요한가.** P0 activation에 임상·진단 정보가 없거나 vanilla NLA가
+이미 통합 설명을 충분히 복원한다면 새로운 Medical-NLA를 만들 이유가 약하다. 먼저 backbone
+행동, closed-label decodability, open readout의 성공과 실패 범위를 같은 사례에서 확인한다.
+이 분석은 Medical-NLA의 필요성과 비교 기준을 세우지만, 그 자체가 RQ1의 답은 아니다.
 
-- CoT가 strict diagnosis accuracy를 개선하지 않았습니다.
-- token overlap은 조금 높지만 category accuracy 차이는 없습니다.
-- P1/P2는 문자열 leakage control이며 primary evidence는 P0입니다.
+## Slide 15. 설명을 평가하기 전에 모델이 실제로 내린 판단을 고정한다
 
----
+이 슬라이드의 목적은 Direct와 CoT 중 승자를 정하는 것이 아니다. 이후 CoT와 Medical-NLA를
+비교하려면 먼저 **동일한 source run이 어떤 진단을 냈는지**, 그리고 CoT instruction이 Direct
+조건과 다른 사례를 맞히거나 틀리게 만드는지를 확인해야 한다. 이 표는 locked 72/106 split을
+고정하기 전에 실행한 exploratory 171건의 descriptive baseline이다.
 
-## Slide 13. DiReCT P0: 진단 정보는 읽히는가?
+### A. Overall source behavior, n=171
 
-### Linear probe, validation n=52
-
-| target | HS | majority | Top-1 | Top-5 | MRR | macro recall | val NLL |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| canonical PDD | 16 | 0.0962 | 0.3846 | 0.6923 | 0.5294 | 0.3597 | 2.5533 |
-| canonical PDD | **24** | 0.0962 | **0.4423** | **0.7692** | **0.5762** | **0.3868** | **2.0489** |
-| canonical PDD | 32 | 0.0962 | 0.3846 | 0.6923 | 0.5335 | 0.2771 | 2.3784 |
-| disease category | 16 | 0.0577 | 0.5000 | 0.7885 | 0.6374 | 0.4833 | 1.9679 |
-| disease category | **24** | 0.0577 | **0.5962** | **0.9038** | **0.7284** | **0.5000** | **1.3961** |
-| disease category | 32 | 0.0577 | 0.5192 | 0.8654 | 0.6609 | 0.4426 | 1.6869 |
-
-### Forced-answer likelihood baseline
-
-| target/ranking | candidates | Top-1 | Top-5 | MRR | mean gold rank |
-|---|---:|---:|---:|---:|---:|
-| category raw | 25 | 0.4808 | 0.6731 | 0.5814 | 5.02 |
-| category calibrated sensitivity | 25 | 0.2308 | 0.3077 | 0.3091 | 9.58 |
-| PDD raw, full ontology | 61 | 0.1538 | 0.4423 | 0.3168 | 8.77 |
-| PDD raw, train ontology | 49 | 0.1538 | 0.5192 | 0.3250 | 7.92 |
-| PDD calibrated sensitivity | 49 | 0.0577 | 0.1346 | 0.1486 | 15.83 |
-
-### 해석
-
-- P0 activation에 진단 관련 선형 정보가 존재합니다.
-- calibration prompt는 `Clinical case:\nN/A\n\nWhat is the most likely diagnosis?`이며 후보 문자열 prior를 차감했지만 성능을 크게 낮췄습니다.
-- HS24가 validation에서 category와 PDD 모두 최선이었습니다.
-- Raw PDD는 35/52에서 하나의 희귀 후보를 top-1으로 골라 candidate surface-form prior가 강했습니다.
-
----
-
-## Slide 14. DiReCT Vanilla NLA: P0를 자연어로 읽는가?
-
-### P0 blinded semantic audit, validation n=52
-
-| prompt | input HS | parse | source answer | gold PDD | category |
-|---|---:|---:|---:|---:|---:|
-| Default | 16 | 1.0000 | 0/52 | 0/52 | 1/52 |
-| Default | 24 | 1.0000 | 0/52 | 0/52 | 0/52 |
-| **Default primary** | **32** | **1.0000** | **0/52** | **0/52** | **0/52** |
-| Task-aligned | 16 | 1.0000 | 0/52 | 0/52 | 1/52 |
-| Task-aligned | 24 | 1.0000 | 0/52 | 0/52 | 0/52 |
-| Task-aligned | 32 | 1.0000 | 0/52 | 0/52 | 0/52 |
-
-- 총 P0 readouts: 52 cases x 2 prompts x 3 layers = **312**
-- local Llama-3-8B judge가 `match=true`일 때 readout의 exact supporting quote를 요구했습니다.
-- Lexical default/task-aligned HS32도 source/gold/category가 모두 0이었습니다.
-
-### P1/P2 leakage control, source-answer lexical mention
-
-| prompt | P1 | P2 | leakage-free P1 subset |
-|---|---:|---:|---:|
-| Default | 0.5192 | 0.5962 | 0/5 |
-| Task-aligned | 0.5577 | 0.5000 | 0/5 |
-
-### 해석
-
-- 공개 Vanilla NLA는 P0의 진단 정보를 읽지 못했습니다.
-- P1/P2의 절대 mention은 reasoning/answer 문자열 노출과 일치하고, leakage-free P1은 0/5이므로 P0 reader 성공이 아닙니다.
-- HS16/24 입력은 HS32용 decoder와 layer mismatch가 있으므로 sensitivity일 뿐 primary 성능이 아닙니다.
-
----
-
-## Slide 15. DDXPlus closed probe: locked test
-
-### Finding presence
-
-| metric | own | same-diagnosis shuffled | gap | 95% CI |
+| Generation | Parse | Strict PDD | Disease category | Diagnosis token F1 |
 |---|---:|---:|---:|---:|
-| micro F1 | **0.9562** | 0.7938 | **+0.1624** | [0.1576, 0.1672] |
+| Direct, answer-prefilled | 1.0000 | .2105 | .5029 | .1593 |
+| Source CoT | 1.0000 | .1930 | .5088 | .1850 |
 
-### Native value
+### B. Paired Direct-versus-CoT breakdown, n=171
 
-| metric | own | same-diagnosis shuffled | gap | 95% CI |
-|---|---:|---:|---:|---:|
-| conditional accuracy | **0.7659** | 0.5791 | **+0.1868** | [0.1650, 0.2091] |
-
-### Validation finding layer sensitivity, n=4,525
-
-| HS | labels | coverage | micro F1 | macro F1 | micro AUROC | shuffled F1 | own-shuffled |
-|---:|---:|---:|---:|---:|---:|---:|---:|
-| 16 | 91 | 0.9997 | 0.9636 | 0.9097 | 1.0000 | 0.7985 | +0.1651 |
-| **24** | 91 | 0.9997 | **0.9607** | 0.9049 | 1.0000 | 0.7954 | **+0.1653** |
-| 32 | 91 | 0.9997 | 0.9607 | **0.9134** | 0.9999 | 0.8062 | +0.1546 |
-
-### Validation native-value layer sensitivity, n=2,183
-
-| HS | tasks/classes | accuracy | macro recall | MRR | shuffled accuracy | own-shuffled |
-|---:|---:|---:|---:|---:|---:|---:|
-| 16 | 6/32 | 0.7641 | 0.6957 | 0.8582 | 0.5799 | +0.1842 |
-| **24** | 6/32 | **0.7700** | **0.7152** | **0.8636** | 0.5758 | **+0.1942** |
-| 32 | 6/32 | 0.6990 | 0.6197 | 0.8144 | 0.5786 | +0.1205 |
-
-### 해석
-
-- activation에는 환자별 finding과 값 정보가 강하게 존재합니다.
-- 같은 진단 내 shuffle gap이 양수이므로 diagnosis template만 읽은 결과가 아닙니다.
-- HS16의 raw finding F1이 0.0029 높지만, finding/value own-minus-shuffled joint 규칙으로 HS24를 frozen layer로 선택했습니다.
-- Locked test에서 layer, threshold, ontology 또는 checkpoint를 다시 선택하지 않았습니다.
-
----
-
-## Slide 16. DDXPlus structured reader: locked test
-
-> Frozen probe가 선택한 state를 train-only lexicon으로 렌더링한 closed monitor입니다. Open-ended NLA가 아닙니다.
-
-### Static readout
-
-| metric | validation | locked test |
-|---|---:|---:|
-| original cases | 4,525 | 4,543 |
-| mean emitted claims | 4.9485 | 4.9353 |
-| finding micro F1 | 0.9607 | **0.9587** |
-| same-diagnosis shuffled F1 | 0.7954 | 0.7938 |
-| own-shuffled gap | +0.1630 | **+0.1624** |
-| native-value accuracy | 0.7700 | **0.7654** |
-| value emission coverage | 1.0000 | 0.9995 |
-
-### Counterfactual response
-
-| metric | validation | locked test | locked denominator |
-|---|---:|---:|---:|
-| deletion original hit | 1.0000 | 1.0000 | 4,540 |
-| deletion phantom | 0.3626 | 0.3593 | 4,540 |
-| removal success | 0.6374 | 0.6407 | original-hit conditional |
-| untouched retention | 0.9985 | 0.9987 | 16,105 |
-| replacement hit | 0.1407 | 0.1466 | 539 |
-| old-value persistence | 0.5722 | 0.5955 | 539 |
-| clean switch | 0.1038 | 0.0804 | 398 |
-
-### 해석
-
-- static finding state는 매우 잘 읽힙니다.
-- deletion 반응은 부분적이고 value-edit 전환은 약합니다.
-- 높은 static F1과 낮은 clean switch가 동시에 존재합니다.
-
----
-
-## Slide 17. DDXPlus semantic mapper validation
-
-| gate | metric | result | criterion |
-|---|---|---:|---:|
-| G1 | reader finding round-trip F1 | 1.0000 | >= 0.98 |
-| G1 | reader native-value accuracy | 1.0000 | >= 0.98 |
-| G2 | absent-target false map | 0/2,609 = 0.0000 | <= 0.05 |
-| G3 | cache replay byte-identical | True | True |
-| G3 | cold duplicate agreement | 1.0000 | report |
-| G4 | evidence disagreement | 2/100 = 0.0200 | <= 0.05 |
-| G4 | conditional value disagreement | 0/30 = 0.0000 | <= 0.05 |
-
-- primary mapper: `gpt-5.6-sol`
-- independent auditor: `gpt-5.4`
-- validation에서 동결한 뒤 locked generation에 적용
-
-### 주의
-
-- G4는 두 AI judge의 concordance입니다.
-- 사람 임상 타당도 검증으로 표현하지 않습니다.
-
----
-
-## Slide 18. DDXPlus Vanilla NLA: locked 10,028행
-
-### 생성 모집단
-
-- original: **4,543**
-- cue-deleted: **4,543**
-- value-edited: **942**
-- total readouts: **10,028**
-
-### Frozen generation protocol
-
-| item | setting |
-|---|---|
-| model | `kitft/nla-gemma3-12b-L32-av` |
-| activation | DDXPlus locked CoT-P0/HS32 |
-| decoding | greedy, max new tokens 512, batch 4 |
-| execution | 5,013/5,015 two shards, exact 10,028-row merge |
-| pre-scoring control | actor prompt/model/config/manifest hash 기록 후 generation seal 검증 |
-| evaluation order | mapper V2 G1-G4 receipt를 먼저 커밋한 뒤 sealed outputs 1회 채점 |
-
-### Frozen mapper 결과
-
-| item | count |
-|---|---:|
-| lexical mappings | 0 |
-| raw AI mappings | 0 |
-| accepted AI mappings | 0 |
-| rows with emitted ontology claim | 0/10,028 |
-
-### Post-hoc diagnosis-stratified 20-case audit
-
-| audit item | result |
-|---|---:|
-| generic clinical prose only | 20/20 |
-| possible frozen-mapper miss | 0/20 |
-| expected-cue paraphrase match | 0/20 |
-| malformed/empty | 0/20 |
-| median readout length | 683.5 characters |
-
-> Vanilla NLA는 비어 있거나 깨진 출력이 아니라, activation과 환자에 특이적이지 않은 일반적 임상 문장을 생성했습니다.
-
----
-
-## Slide 19. Medical-NLA SFT: DiReCT alignment
-
-### Common mixed pilot population
-
-| method | obs rows | extracted obs | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Source CoT | 50/50 | 562 | 0 | 0.3110 | 0.4069 | **0.2399** | 0.0657 | 0.0168 |
-| Vanilla NLA | 10/50 | 10 | 0 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
-| Common SFT seed17 | 50/50 | 150 | 0 | 0.0100 | 0.0037 | 0.0034 | 0.0000 | 0.0000 |
-| Common SFT seed29 | 50/50 | 150 | 0 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
-| Common SFT seed43 | 50/50 | 329 | 0 | 0.0070 | 0.0054 | 0.0043 | 0.0000 | 0.0000 |
-
-### Full-data population
-
-| method | obs rows | extracted obs | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Source CoT | 50/50 | 558 | 0 | 0.2835 | 0.3726 | **0.2130** | 0.0650 | 0.0153 |
-| Full-data SFT seed17 | 50/50 | 471 | 0 | 0.0544 | 0.0502 | 0.0301 | 0.0000 | 0.0000 |
-| Full-data SFT seed29 | 50/50 | 228 | 0 | 0.0553 | 0.0388 | 0.0296 | 0.0000 | 0.0000 |
-
-### 해석
-
-- DDXPlus train 4,655건을 추가해도 DiReCT case-specific alignment는 Source CoT floor에 미달했습니다.
-- SFT는 출력 형식을 학습했지만 activation-dependent observation을 안정적으로 복원하지 못했습니다.
-- Common seed43의 `obs rows=50/50`은 extractor 결과이며, raw `<observed>` schema parse는 Direct subset에서 4/50이었습니다. 두 분모를 혼동하지 않습니다.
-
----
-
-## Slide 20. Medical-NLA SFT: DDXPlus grounding
-
-### Original-only common/full-data SFT, validation
-
-| method | DDX cue recall | cue precision | DiReCT lexical recall | current finding | deletion phantom | removal success | clean switch |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| 248+248 pilot, seed29 | 0.1784 | 0.2533 | 0.0000 | 0.1499 | 0.1356 | 0.0000 | 0.0000 |
-| full data, seed17 | **0.3763** | **0.3816** | 0.0216 | 0.3389 | **0.2138** | **0.4052** | **0.0244** |
-| full data, seed29 | 0.3506 | 0.3758 | 0.0076 | **0.3612** | 0.2667 | 0.3232 | 0.0122 |
-
-### Counterfactual sequence SFT, validation 435 bases / 952 readouts
-
-| method | current recall | original target hit | deleted phantom | deletion contrast | removal success | clean switch |
+| Target | Both correct | Direct only | CoT only | Neither | CoT-Direct | McNemar exact p |
 |---|---:|---:|---:|---:|---:|---:|
-| original-only seed17 | 0.3389 | 0.3517 | 0.2138 | 0.1379 | 0.4052 | 0.0244 |
-| counterfactual seed17 | **0.5632** | **0.6345** | **0.4253** | **0.2092** | 0.3659 | **0.0488** |
-| original-only seed29 | 0.3612 | 0.3770 | 0.2667 | 0.1103 | 0.3232 | 0.0122 |
-| counterfactual seed29 | 0.3475 | 0.3770 | 0.2713 | 0.1057 | **0.4268** | 0.0000 |
+| Strict PDD | 26 | 10 | 7 | 128 | -.0175 | .6291 |
+| Disease category | 77 | 9 | 10 | 75 | +.0058 | 1.0000 |
 
-### Value-edit 상세
+### 이 결과가 이후 평가를 어떻게 바꾸는가
 
-- Counterfactual seed17 replacement hit: **0.0732**
-- Counterfactual seed17 old-value persistence: **0.4024**
-- Counterfactual seed17 clean switch: **0.0488**
-- 평가 가능한 value-edit bases: **82**
+현재 결과만으로 CoT가 진단을 악화시켰다고 말할 수 없다.
 
-### 판정
+1. 차이는 3건, 1.75%p이며 paired test에서 유의하지 않다.
+2. Disease category에서는 오히려 CoT가 `.5088`로 Direct `.5029`보다 1건 높다.
+3. Strict PDD는 매우 세분화된 label exact/alias 판정이다. CoT가 같은 disease family 안에서
+   다른 subtype이나 더 구체적·서술적인 진단명을 출력하면 category는 맞고 strict PDD는
+   틀릴 수 있다.
+4. Direct는 answer cue에서 즉시 진단명을 완성하지만 CoT는 2,048-token reasoning을 거친다.
+   이 과정이 어떤 사례는 구하고 7건, 다른 사례는 바꾸어 10건을 잃었다. 평균만 보면 이
+   사례 교체가 가려진다.
+5. CoT의 diagnosis token F1은 오히려 더 높아, 단순히 gold label에서 더 멀어진 것으로도
+   해석할 수 없다.
 
-- Full-data SFT는 DDXPlus finding recall과 deletion response를 개선했습니다.
-- Counterfactual seed17은 deletion contrast가 0.1379에서 0.2092로 증가했지만 phantom도 0.2138에서 0.4253으로 약 2배 증가했습니다.
-- Seed29에서는 contrast 개선이 재현되지 않았습니다.
-- 따라서 sequence CE에 학습 가능한 신호는 있지만 changed finding을 선택적으로 말하게 하는 objective로는 불충분합니다.
+더 중요한 결과는 CoT가 Direct와 같은 정답 사례를 그대로 유지하지 않았다는 점이다. CoT는
+Direct가 틀린 7건을 맞혔지만 Direct가 맞힌 10건을 틀렸다. 따라서 CoT는 Direct 답에 설명만
+붙이는 채널이 아니라 source decision 자체를 사례별로 바꿀 수 있다. 이후 Medical-NLA의
+`source-decision fidelity`는 physician gold나 Direct answer가 아니라 **동일한 CoT source
+run이 실제 생성한 answer**에 맞춰 평가한다.
 
----
+```text
+Physician gold alignment  -> 임상적으로 올바른 내용을 말했는가?
+Source-decision fidelity  -> 바로 이 CoT-P0 activation의 실제 결정을 읽었는가?
+```
 
-## Slide 21. SFT 원문 census: template collapse
+Disease-category 열은 현재 category 명칭의 lexical/alias hit이므로, 최종 본문에서는 model answer를
+canonical PDD에 매핑한 뒤 PDD-to-category ontology로 변환하거나 official semantic matcher로
+재채점한다. Diagnosis token F1은 세부 PDD 이름과의 부분적 단어 중첩을 보는 scorer audit이며
+주 정확도 지표로 사용하지 않는다.
 
-> AI checklist가 불안정해 최종 판정에는 사용하지 않고, 전체 50-case deterministic exact-text census를 사용했습니다.
+따라서 발표 문장은 다음으로 제한한다.
 
-| method | Obscomp | exact duplicate rows | unique outputs |
-|---|---:|---:|---:|
-| Direct-only seed17 | 0.0343 | 43/50 | 7 |
-| Direct-only seed29 | 0.0047 | 47/50 | 3 |
-| Direct-only seed43 | 0.0032 | 49/50 | 1 |
-| Full-data seed17 | 0.0301 | 36/50 | 14 |
-| Full-data seed29 | 0.0296 | 48/50 | 2 |
-| Source CoT | **0.2130** | 0/50 | 50 |
+> 이 exploratory cohort에서는 Direct와 CoT의 진단 성능 차이가 확인되지 않았다. CoT는
+> 정답 사례의 구성을 바꾸었지만 strict PDD와 category 모두 통계적 우열이 없었다. CoT의
+> 설명 품질과 faithfulness는 이 정확도 표가 아니라 Table 2와 grounding 실험에서 평가한다.
 
-### 폐기한 AI audit의 품질 문제
+## Backup 15A. E1 세부 split과 artifact completeness
 
-- initial requests: 200
-- 3회 repair 후 valid: **56**, invalid: **144**
-- invalid: true without quote 91, population mismatch 21, non-verbatim quote 30, JSON parse 2
+### Pilot split별 source behavior
 
-### 결론
-
-- 낮은 Obscomp는 lexical scorer의 보수성만으로 설명되지 않습니다.
-- SFT output 자체가 여러 사례에서 동일한 의료 template로 붕괴했습니다.
-
----
-
-## Slide 22. 생성형 개발 gate 전체 결과
-
-| experiment | primary observed result | frozen criterion | verdict |
-|---|---|---|---|
-| Full-data SFT | Obscomp 0.0301 / 0.0296 | > Source CoT 0.2130 | FAIL |
-| Counterfactual sequence SFT | contrast 0.2092 only in seed17; phantom 0.4253 | seed 재현 + phantom 감소 | FAIL |
-| Sentence contrastive | gap 0.0013 / 0.0022 | baseline 0.0051 초과, CI > 0 | FAIL |
-| D10 ranking, 20 steps | changed +0.0005 / +0.0028 / +0.0030 | each >= 0.05, CI/specificity | FAIL |
-| D14 K=5 OOF teacher | precision 0.8881 | >= 0.90 plus calibration gates | FAIL |
-| D16 soft bottleneck | -0.001137 / -0.001476 / +0.001433 | each >= 0.005, CI > 0 | FAIL |
-| D16 frozen-z | finding F1 -0.0009 / -0.0007 / -0.0016 | non-negative improvement | FAIL |
-| D10 budget 1,552 | changed +0.5558, retained +0.5604, specificity -0.0046 | selective changed-cue gain | FAIL |
-| D20 anchored 1,552 | specificity -0.0278 / -0.0255 / -0.0217 | positive each seed, CI > 0 | FAIL |
-| D22 public AR | positive-control gap approximately 0 | matched > shuffled | FAIL as instrument |
-
-### Sentence-level contrastive 세부
-
-| objective | symmetric gap | category-cluster 95% CI | matched win |
-|---|---:|---:|---:|
-| lambda=.1 | +0.0013 | [-0.0006, +0.0033] | 0.5556 |
-| lambda=1 | +0.0022 | [-0.0010, +0.0055] | 0.5778 |
-| SFT=1, lambda=5 | +0.0051 | [+0.0011, +0.0099] | 0.5333 |
-| SFT=0, lambda=1 | +0.0030 | [+0.0003, +0.0057] | 0.6444 |
-
-### D10 20-step paired arm 세부
-
-| seed | changed delta | cluster 95% CI | retained delta | specificity | specificity 95% CI |
-|---:|---:|---:|---:|---:|---:|
-| 17 | +0.0005 | [-0.0006, +0.0016] | +0.0010 | -0.0005 | [-0.0020, +0.0010] |
-| 29 | +0.0028 | [+0.0017, +0.0039] | -0.0000 | +0.0029 | [+0.0015, +0.0045] |
-| 43 | +0.0030 | [+0.0015, +0.0048] | -0.0007 | +0.0037 | [+0.0017, +0.0059] |
-
-### 공통 교훈
-
-- 작은 training budget만의 문제가 아니었습니다.
-- 큰 margin은 global deletion detector shortcut으로도 만들 수 있습니다.
-- specificity를 loss에 넣으면 shortcut은 줄지만 목표 신호도 사라졌습니다.
-
----
-
-## Slide 23. D10 budget trajectory
-
-### Across-seed means
-
-| step | changed-gap delta | retained-gap delta | specificity delta |
-|---:|---:|---:|---:|
-| 20 | +0.0019 | +0.0002 | +0.0018 |
-| 194 | +0.0329 | -0.0032 | +0.0361 |
-| 388 | +0.2690 | +0.3044 | -0.0354 |
-| 776 | +0.0965 | +0.0428 | +0.0536 |
-| 1,164 | +0.3527 | +0.4055 | -0.0527 |
-| 1,552 | **+0.5558** | **+0.5604** | **-0.0046** |
-
-### 최종 seed별 changed gap
-
-- seed17: **-0.0177**
-- seed29: **+0.5618**
-- seed43: **+1.1233**
-
-### 해석
-
-- 삭제한 cue뿐 아니라 retained cue NLL도 거의 같은 크기로 증가했습니다.
-- 모델은 `어떤 cue가 지워졌는가`가 아니라 `삭제된 activation인가`를 감지했습니다.
-- specificity gate가 없었다면 잘못된 성공 판정을 내릴 수 있었습니다.
-
----
-
-## Slide 24. D20: specificity를 loss에 넣은 결과
-
-| seed | changed gap | retained gap | specificity | changed original NLL | retained original NLL |
-|---:|---:|---:|---:|---:|---:|
-| 17 | -0.0143 | +0.0135 | **-0.0278** | -0.0756 | -0.3342 |
-| 29 | -0.0040 | +0.0215 | **-0.0255** | +0.0576 | -0.1834 |
-| 43 | -0.0266 | -0.0049 | **-0.0217** | +0.0622 | -0.2263 |
-
-### 무엇이 확인됐는가?
-
-1. Retained anchor가 global deletion detector shortcut을 억제했습니다.
-2. 그러나 changed-cue signal도 3 seed 모두 음수로 사라졌습니다.
-3. retained original NLL은 개선되어 optimization 자체가 멈춘 것은 아닙니다.
-4. teacher-forced gate 실패로 generation, extension, sweep을 실행하지 않았습니다.
-
-> 기존 ranking loss의 큰 효과는 선택적 임상 정보 판독이 아니라 shortcut이었습니다.
-
----
-
-## Slide 25. D22: 공개 AR reconstruction 진단
-
-> Released `kitft/nla-gemma3-12b-L32-ar`, validation-only, arm당 n=20
-
-| dataset | arm | own cosine | shuffled cosine | gap | 95% CI |
+| Pool | Generation | Parse | Strict PDD | Disease category | Diagnosis token F1 |
 |---|---|---:|---:|---:|---:|
-| DDXPlus | structured reader | 0.9765 | 0.9765 | -0.0000 | [-0.0002, +0.0001] |
-| DiReCT | Direct-only seed17 | 0.9744 | 0.9744 | -0.0000 | [-0.0002, +0.0002] |
-| DiReCT | Direct-only seed29 | 0.9772 | 0.9772 | -0.0001 | [-0.0002, +0.0001] |
-| DiReCT | Direct-only seed43 | 0.9758 | 0.9757 | +0.0000 | [-0.0001, +0.0001] |
-| DiReCT | Full-data seed17 | 0.9779 | 0.9780 | -0.0001 | [-0.0002, +0.0001] |
-| DiReCT | Full-data seed29 | 0.9777 | 0.9777 | +0.0000 | [-0.0001, +0.0002] |
-| DiReCT | Source CoT | 0.9835 | 0.9834 | +0.0001 | [-0.0000, +0.0002] |
-| DiReCT | Vanilla NLA | 0.9962 | 0.9961 | +0.0001 | [+0.0000, +0.0002] |
+| Seen PDD, n=71 | Direct, answer-prefilled | 1.0000 | .2535 | .3944 | .2921 |
+| Seen PDD, n=71 | Source CoT | 1.0000 | .2254 | .3803 | .2530 |
+| PDD held-out, n=100 | Direct, answer-prefilled | 1.0000 | .1800 | .5800 | .0650 |
+| PDD held-out, n=100 | Source CoT | 1.0000 | .1700 | .6000 | .1367 |
 
-### 해석
+Heldout과 seen은 label 및 category 구성이 다르므로 두 pool의 절대 정확도를 난이도 차이로
+해석하지 않는다. 이 71/100은 과거 pilot split이며 최종 downstream 72/106 split과 구분한다.
 
-- 구조화 reader와 Source CoT 양성 대조도 matched activation을 구분하지 못했습니다.
-- 높은 절대 cosine은 사례 정보 복원보다 공통 방향/anisotropy의 영향을 받은 것으로 보입니다.
-- 이 공개 AR의 cosine을 Medical-NLA reward로 바로 사용할 수 없습니다.
-- 이는 임상 정보가 없다는 증거가 아니라, **AR 측정기가 이 domain에 맞지 않는다는 증거**입니다.
+### E1 source/activation artifact completeness
 
----
+| Artifact universe | Source answers | Position rows | Stored tensors | Positions | HS indices | Max prompt tokens |
+|---|---:|---:|---:|---|---|---:|
+| Train + validation | 325 | 975 | 2,925 | P0/P1/P2 | 16/24/32 | 4,834 |
+| Exploratory test | 171 | 513 | 1,539 | P0/P1/P2 | 16/24/32 | 4,304 |
+| **Merged eligible population** | **496** | **1,488** | **4,464** | **P0/P1/P2** | **16/24/32** | **4,834** |
 
-# Part IV. Conclusion
-
----
-
-## Slide 26. 현재 RQ별 답
-
-### RQ1. Activation에 임상 정보가 존재하는가?
-
-**예.**
-
-- DiReCT diagnosis category/PDD linear probe가 majority를 크게 상회
-- DDXPlus finding F1 0.9562, native value 0.7659
-- same-diagnosis shuffled gap +0.1624 / +0.1868
-
-### RQ2. Vanilla NLA가 그 정보를 자연어로 읽는가?
-
-**현재 공개 checkpoint에서는 아니오.**
-
-- DiReCT P0 target mention 거의 0
-- DDXPlus locked 10,028행 frozen ontology claim 0
-- 20-case audit에서 모두 generic clinical prose
-
-### RQ3. Medical fine-tuning이 해결했는가?
-
-**현재 시도한 surrogate 계열에서는 아니오.**
-
-- SFT는 형식을 학습했지만 template collapse
-- ranking은 deletion detector shortcut
-- retained anchor는 shortcut을 막았으나 changed signal도 소거
-- public AR은 medical matched-vs-shuffled 측정기로 실패
+재색인된 downstream split에서도 266/52/72/106 cases가 2,394/468/648/954 tensors와 정확히
+대응하며 전체 case x position x layer grid의 누락과 중복은 0이다. E1의 주 역할은 이 공통
+source transcript와 activation universe를 E2-E5에 공급하는 것이다.
 
 ---
 
-## Slide 27. 논문 표 완성 현황
+## Slide 16. 생성 전 P0에 닫힌 진단 정보가 있는가
 
-### Table 1A. Backbone behavior
+아래는 locked test가 아니라 `val_seen=52`에서 layer와 baseline을 선택하기 위한 결과다.
+모든 행의 분모가 52이므로 `n`은 열에서 제거한다.
 
-| population | Direct strict PDD | Direct category | CoT strict PDD | CoT category | status |
-|---|---:|---:|---:|---:|---|
-| exploratory 171 | 0.2105 | 0.5029 | 0.1930 | 0.5088 | 계산 완료, exploratory |
-| test-seen 72 | Not computed | Not computed | Not computed | Not computed | locked batch pending |
-| PDD-heldout 106 | Not computed | Not computed | Not computed | Not computed | locked batch pending |
+### A. Early forced-answer candidate ranking 전체 결과
 
-### Table 1B. P0 decodability
+| Variant | Target | Candidates | Top-1 | Top-5 | MRR | Mean gold rank |
+|---|---|---:|---:|---:|---:|---:|
+| Raw | Disease category | 25 | .4808 | .6731 | .5814 | 5.02 |
+| Content-free calibrated | Disease category | 25 | .2308 | .3077 | .3091 | 9.58 |
+| Raw, train-matched ontology | Canonical PDD | 49 | .1538 | .5192 | .3250 | 7.92 |
+| Content-free calibrated | Canonical PDD | 49 | .0577 | .1346 | .1486 | 15.83 |
 
-| dataset/target | validation | locked test | control |
+Forced-answer ranking은 저장된 P0 벡터를 직접 vocabulary로 unembed하지 않는다. 동일한 CoT-P0
+prompt 뒤에 `The answer is`를 붙이고, 사전 고정한 후보 진단 문자열을 하나씩 teacher-force한
+뒤 후보 token의 평균 log probability로 순위를 만든다.
+
+```text
+score(c | x) = mean_t log p(c_t | x, "The answer is", c_<t)
+rank_i       = case i에서 gold candidate의 순위
+Top-k        = mean_i 1[rank_i <= k]
+MRR          = mean_i 1/rank_i
+Mean rank    = mean_i rank_i
+```
+
+`Top-1`은 gold가 첫 후보인 비율, `Top-5`는 상위 다섯 후보 안에 든 비율이다. `MRR`은 gold가
+1위면 1, 2위면 .5, 5위면 .2를 주므로 틀린 사례에서도 gold를 얼마나 위에 두었는지 반영한다.
+`Mean gold rank`는 낮을수록 좋다. 후보 ontology를 미리 주므로 이 값은 open diagnosis generation
+정확도가 아니라 **ontology-given behavioral ranking**이다.
+
+`Raw`는 임상 prompt의 후보 점수를 그대로 사용한다. `Content-free calibrated`는
+`Clinical case: N/A`라는 고정 prompt에서 같은 후보가 받는 점수를 빼 label 문자열 자체의 prior를
+제거하려는 sensitivity다. 이번에는 category Top-1이 `.4808 -> .2308`, PDD가
+`.1538 -> .0577`로 악화됐으므로 이 한 개 content-free prompt 보정을 primary로 사용하지 않는다.
+
+### B. Linear probe layer sensitivity 전체 결과
+
+| Target | HS | Classes | Majority | Top-1 | Top-5 | MRR | Macro recall | Val NLL |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Disease category | 16 | 25 | .0577 | .5000 | .7885 | .6374 | .4833 | 1.9679 |
+| Disease category | **24** | 25 | .0577 | **.5962** | **.9038** | **.7284** | **.5000** | **1.3961** |
+| Disease category | 32 | 25 | .0577 | .5192 | .8654 | .6609 | .4426 | 1.6869 |
+| Canonical PDD | 16 | 49 | .0962 | .3846 | .6923 | .5294 | .3597 | 2.5533 |
+| Canonical PDD | **24** | 49 | .0962 | **.4423** | **.7692** | **.5762** | **.3868** | **2.0489** |
+| Canonical PDD | 32 | 49 | .0962 | .3846 | .6923 | .5335 | .2771 | 2.3784 |
+
+Linear probe는 train 266건의 P0 activation에 `W h + b` multiclass head 하나를 학습하고,
+patient-disjoint validation 52건에서 평가한다. Category는 25-way head 하나, PDD는 train에 나타난
+49-way head 하나이며 진단마다 별도 probe를 만든 것이 아니다.
+
+- `Majority`: train에서 가장 흔한 label 하나를 모든 validation case에 예측한 정확도
+- `Top-1/Top-5/MRR`: forced-answer 표와 같은 rank metric이지만 probe logits로 계산
+- `Macro recall`: 각 validation class의 recall을 먼저 구해 class별 동일 가중 평균
+- `Val NLL`: `-mean log p(gold | h)`인 validation cross-entropy이며 낮을수록 좋음
+
+Accuracy가 흔한 class에 의해 높아지는 것을 `Macro recall`이 확인하고, 같은 Top-1에서도 gold에
+더 높은 확률을 주는 모델을 `Val NLL`이 구분한다. Hyperparameter, stopping epoch와 layer 선택은
+validation NLL로 고정하고 locked test를 보지 않는다. HS24 category Top-1 `.5962`는 31/52,
+Top-5 `.9038`은 47/52이며, PDD Top-1 `.4423`은 23/52, Top-5 `.7692`는 40/52다.
+
+세 hidden-state index를 모두 비교했고 HS24가 두 closed-label target에서 가장 높았다. Table 1B에는
+validation 선택 절차를 반복하지 않고 고정된 probe의 locked-test 값만 넣는다. Medical-NLA는
+공개 AV/AR checkpoint 호환 때문에 HS32를 primary로 유지하므로, HS24 probe의 우세를
+Medical-NLA layer 선택으로 전용하지 않는다.
+
+PDD raw ranking은 한 희귀 후보를 35/52행에서 top-1으로 선택해 label surface prior에
+취약했다. 따라서 forced-answer ranking은 probe와 함께 행동 기준선으로만 두고, content-free
+보정은 appendix sensitivity로 보고한다.
+
+Probe의 결과는 P0에 진단 정보가 없지 않다는 증거다. 그러나 probe는 train에서 정의한 49개
+PDD 또는 25개 category 중 하나를 고르는 분류기이므로 열린 observation 설명 기준선이 아니다.
+정확한 발표 결론은 “생성 전 P0에 seen closed-label diagnosis information이 선형적으로
+decode된다”까지다. 이 정보가 실제 인과적 판단 근거였는지, unseen PDD를 설명할 수 있는지,
+환자별 observation과 relation을 자연어로 말할 수 있는지는 이 표로 답하지 않는다.
+
+---
+
+## Slide 17. P0 representation audit: 확인된 것과 남은 것
+
+Table 1은 probe 기반 decodability만 보고한다. 서로 다른 출력 공간인 NLA 생성 점수를 같은
+표에 섞지 않는다.
+
+| Target | Decoder | Validation | Locked test | 상태 |
+|---|---|---:|---:|---|
+| Gold disease category | 25-way linear probe | HS24 Top-1 .5962 | TBD | layer 선택 완료 |
+| Gold canonical PDD | 49-way linear probe | HS24 Top-1 .4423 | TBD | layer 선택 완료 |
+| Source decision | multiclass probe | label-space audit 중 | TBD | 자유 생성 답의 ontology 정규화율을 먼저 확인 |
+| Finding presence | multi-label probe | HS24 micro F1 .9607 | **.9562** | hard shuffle .7938; gap +.1624 [.1576,.1672] |
+| Finding value | conditional probe | HS24 accuracy .7700 | **.7659** | 6 tasks/32 classes; shuffle .5791; gap +.1868 [.1650,.2091] |
+
+각 행은 서로 다른 target을 묻는다. `Gold disease category/PDD`는 physician label이 P0에
+decode되는지, `Source decision`은 backbone이 같은 run에서 실제로 생성할 진단이 P0에
+decode되는지를 묻는다. Backbone이 틀렸을 때 두 target은 다를 수 있으므로 하나로 합치지 않는다.
+`Finding presence`는 어떤 evidence ID가 표현됐는지를 동시에 예측하는 multi-label 과제이고,
+`Finding value`는 해당 evidence가 존재하는 행에서 `present/absent`, severity, location 등
+DDXPlus가 정의한 native value를 고르는 conditional 과제다.
+
+`Source decision`은 자유 생성 답이라 그대로 class ID로 쓰면 거의 모든 표현이 희소 class가 된다.
+따라서 train answer가 frozen 49-PDD/25-category ontology에 유일하게 매핑되는 비율을 먼저
+감사한다. Coverage가 낮거나 하나의 답이 여러 label에 매핑되면 closed probe 결과를 만들지 않고
+RQ2의 open-text source-decision fidelity로만 평가한다. Finding/value는 DiReCT physician prose를
+임의 label로 만들지 않고 native evidence/value ID가 있는 DDXPlus에서만 학습한다.
+
+**다음 슬라이드로 넘어가는 이유.** Slide 16은 P0에 닫힌 진단 정보가 존재함을 확인했다.
+Slide 18은 같은 P0 정보를 기존 open-text reader인 vanilla AV가 별도 label head 없이 자연어로
+꺼낼 수 있는지를 검사한다.
+
+---
+
+## Slide 18. Vanilla AV의 CoT-P0 validation 결과
+
+Validation 52 cases x 2 prompts x 3 layers의 312 readout을 모두 quote-constrained semantic
+judge로 판정했다.
+
+| Prompt | HS | Source answer | Gold PDD | Category |
+|---|---:|---:|---:|---:|
+| Default | 16 | 0/52 | 0/52 | 1/52 |
+| Default | 24 | 0/52 | 0/52 | 0/52 |
+| **Default** | **32** | **0/52** | **0/52** | **0/52** |
+| Task-aligned | 16 | 0/52 | 0/52 | 1/52 |
+| Task-aligned | 24 | 0/52 | 0/52 | 0/52 |
+| Task-aligned | 32 | 0/52 | 0/52 | 0/52 |
+
+`Default`는 공개 NLA checkpoint의 원 actor prompt이고, `Task-aligned`는 같은 가중치에 의료
+finding과 diagnosis를 구조적으로 말하도록 suffix만 추가한 prompt-engineering sensitivity다.
+`HS16/24`는 HS32용 공개 AV에 다른 layer activation을 넣는 layer sensitivity이며, checkpoint와
+extraction index가 일치하는 `Default/HS32/P0`가 primary arm이다.
+
+각 셀의 분모는 같은 validation 52건이다.
+
+- `Source answer`: readout이 동일한 CoT source run의 실제 최종 진단을 의미상 명시한 사례 수
+- `Gold PDD`: readout이 physician canonical PDD를 의미상 명시한 사례 수
+- `Category`: readout이 physician disease category를 의미상 명시한 사례 수
+
+Source answer는 임상 정답률이 아니다. Backbone이 틀렸더라도 readout이 그 source decision을
+정확히 이름 붙이면 source-answer recovery에서는 성공한다. 반대로 gold PDD를 말했지만 현재
+activation의 source answer와 다르면 clinical correctness 가능성은 있어도 source-state fidelity로
+바로 인정하지 않는다.
+
+이 judge는 readout과 무작위 순서의 세 target만 보고, 환자 note·gold deduction·method 이름은
+보지 않는다. 의미 일치를 인정할 때 readout에 실제 존재하는 evidence quote를 요구하고,
+후처리에서 quote 존재를 검증한다. 따라서 primary `Default/HS32/P0`의 0/52는 단순 약칭이나
+미등록 동의어를 strict string matcher가 놓친 결과만으로 설명되지 않는다. 그러나 여전히
+“진단 개념을 명시적으로 이름 붙였는가”만 판정하므로 observation 품질, rationale 품질,
+activation grounding이 0이라는 뜻은 아니다. 현재 단일 local Llama-3-8B judge 결과이므로
+human-validated score라고 부르지 않는다.
+
+### Exploratory position sensitivity, n=171
+
+| Position | Source-answer mention | Gold-PDD mention | Category mention | Hard-shuffle rows | Own source | Shuffled source | Pair gap |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| P0, pre-generation | .0000 | .0000 | .0000 | 164 | .0000 | .0000 | .0000 |
+| P1, after CoT | .4912 | .1404 | .5848 | 164 | .4939 | .0793 | .4146 |
+| P2, after diagnosis | .3918 | .0819 | .4854 | 164 | .4024 | .0427 | .3598 |
+
+이 하단 표는 과거 171건에서 기존 lexical/alias matcher로 계산한 위치 민감도다. Hard-shuffle은
+같은 disease category 안에서 source answer가 다른 donor를 찾을 수 있었던 164행만 사용한다.
+
+```text
+own_i      = match(readout_i, source_answer_i)
+shuffled_i = match(readout_i, source_answer_j)
+mention gap = mean_i(own_i - shuffled_i)
+```
+
+따라서 현재 표의 `Pair gap`은 최종 RQ2의 finding/value grounding gap이 아니라
+**source-answer mention gap**이다. 최종 표에서는 이름을 바꿔 두 값을 구분한다.
+
+P1에서 source answer alias가 reasoning에 없었던 leakage-free subset은 15행뿐이며 source-answer
+mention은 1/15=.0667이었다. 따라서 P1/P2의 높은 전체 mention과 pair gap은 생성된 CoT 또는
+diagnosis 문자열의 재독해가 섞인 positive/leakage control로 해석하고 P0 결과와 합치지 않는다.
+
+Slide 16의 HS24 probe가 category `.5962`, PDD `.4423`을 보였는데 같은 P0의 vanilla AV는
+진단 target을 거의 명시하지 않았다. 따라서 가능한 결론은 “P0에 정보가 없다”가 아니라
+“closed probe가 읽는 진단 정보를 vanilla AV가 생성 전 통합 자연어 판독으로 안정적으로
+꺼내지 못했다”이다. DDXPlus cue-token에서는 vanilla AV가 held-out cue를 읽은 양성 결과가
+있으므로 “vanilla AV는 의료 정보를 전혀 읽지 못한다”라고 일반화하지 않는다.
+
+---
+
+## Slide 19. SFT-only validation 결과: 의료 형식 학습만으로 충분하지 않다
+
+동일한 50-case validation에서 공통 quote extractor와 official DiReCT evaluator를 적용했다.
+이 값은 method selection 결과이며 locked-test Table 2가 아니다.
+
+| Method | Obs. rows | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| CoT | 50/50 | 0 | **.3009** | **.3903** | **.2349** | **.0573** | **.0144** |
+| Vanilla AV | 0/50 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Medical-AV SFT, seed 17 | 50/50 | 0 | .0771 | .0435 | .0343 | 0 | 0 |
+| Medical-AV SFT, seed 29 | 50/50 | 0 | .0133 | .0047 | .0047 | 0 | 0 |
+| Medical-AV SFT, seed 43 | 50/50 | 0 | .0200 | .0029 | .0032 | 0 | 0 |
+
+Validation 52건 중 note에 normalized gold-label phrase가 직접 노출된 2건을 제외한 공통 50건을
+모든 방법에 동일하게 사용한다. 자유 산문은 공통 method-blind quote-constrained extractor로
+official prediction schema에 변환하고, 제공된 native Llama-3-8B matcher와 official-compatible
+산식으로 채점한다. 방법마다 추출 가능한 행만 남기지 않고 빈 extraction과 parse failure를 0점으로
+유지한다.
+
+```text
+O     = physician gold observation set
+O_hat = method output에서 quote-constrained하게 추출한 observation set
+M     = official matcher가 만든 one-to-one semantic observation pairs
+m     = M 중 rationale도 Yes이고 연결 diagnosis도 맞는 pair 수
+```
+
+- `Obs. rows`: 50건 중 하나 이상의 유효 observation claim이 추출된 case 수. 출력 생성 성공률과
+  다르며, `0/50`도 모델 출력이 비었다는 뜻이 아니라 official schema로 옮길 claim이 없었다는 뜻
+- `Accdiag`: extracted chain의 마지막 diagnosis와 physician final diagnosis가 맞은 case 비율
+- `Obspre`: official `|M|/(|O_hat|+1)`. 생성 observation이 gold와 얼마나 대응하는지
+- `Obsrec`: official `|M|/(|O|+1)`. physician observation을 얼마나 회수했는지
+- `Obscomp`: `|M|/|O union O_hat|`. 누락과 불필요한 observation을 함께 벌점 주는 semantic Jaccard
+- `Expcom`: `m/|M|`. 이미 대응된 observation 중 rationale와 linked diagnosis까지 맞는 조건부 비율
+- `Expall`: `m/|O union O_hat|`. observation 누락·추가와 rationale·diagnosis 오류를 모두 포함한
+  가장 엄격한 end-to-end explanation alignment
+
+공식 `Obspre/Obsrec`은 denominator에 `+1`을 사용하므로 완전한 oracle도 정확히 1.0이 되지 않는다.
+이 표의 `Accdiag=0`은 source-answer parse accuracy가 아니라 extracted chain이 physician PDD와
+맞지 않았다는 뜻이다. SFT target의 `<answer>`는 source-model diagnosis였으므로 physician gold와
+다를 수 있다.
+
+SFT-only는 출력을 의료 observation 형식으로 바꾸었지만 CoT보다 임상 alignment가 낮고 seed
+간 편차가 크다. 현재 target에 rationale가 없으므로 Expcom/Expall 0은 구조상 예상되지만,
+observation 지표도 충분하지 않다. 따라서 이 결과는 Full Medical-NLA의 성공이 아니라
+**clinical CE만으로는 부족하며 reconstruction과 pair specificity가 필요하다는 실패 분석**이다.
+
+CoT는 `Obscomp=.2349`로 physician observation set의 일부를 복원했지만 `Expall=.0144`여서
+observation, rationale와 diagnosis edge 전체를 동시에 맞힌 비율은 매우 낮았다. SFT seed 17은
+50/50에서 형식상 observation을 냈지만 `Obscomp=.0343`으로 CoT보다 낮았고, seed 29/43은 더
+낮았다. 즉 의료 XML 형식 준수와 임상 설명 정렬은 다르며, 단순 next-token CE는 질환별 문구 암기와
+seed 불안정성을 막지 못했다.
+
+이것은 validation method-selection 결과이지 locked 72/106의 최종 RQ1 답이 아니다. 또한
+`Obs*/Exp*`는 physician-reference clinical alignment만 평가하므로 activation grounding을
+주장하지 않는다. 다음 단계는 SFT-only 값을 test에 반복하는 것이 아니라 AV-AR reconstruction과
+pair/counterfactual objective를 구현한 뒤, 같은 validation에서 SFT-only를 넘는지 확인하고 방법을
+고정하여 locked Table 2와 DDXPlus Table 3을 한 번 평가하는 것이다.
+
+---
+
+## Slide 20. 최종 Table 1: locked-test에서 채울 표
+
+### Panel A1. Backbone behavior, test seen PDD, n=72
+
+| Generation | Parse coverage | Strict PDD | Disease category | Official semantic diagnosis |
+|---|---:|---:|---:|---:|
+| Direct, answer-prefilled | TBD | TBD | TBD | TBD |
+| Source CoT | TBD | TBD | TBD | TBD |
+
+### Panel A2. Backbone behavior, test PDD held-out, n=106
+
+| Generation | Parse coverage | Strict PDD | Disease category | Official semantic diagnosis |
+|---|---:|---:|---:|---:|
+| Direct, answer-prefilled | TBD | TBD | TBD | TBD |
+| Source CoT | TBD | TBD | TBD | TBD |
+
+### Panel B1. DiReCT CoT-P0 diagnosis decodability on locked test
+
+| Target | Decoder | Output space | Test seen | Test OOD | Control |
+|---|---|---|---:|---:|---|
+| Gold category | Linear probe | 25-way | TBD | N/A | label shuffle |
+| Gold PDD | Linear probe | 49-way train labels | TBD | N/A | label shuffle |
+| Source decision | Linear probe | frozen source labels | TBD | TBD | answer shuffle |
+
+### Panel B2. DDXPlus CoT-P0 finding decodability
+
+| Target | Decoder | Output space | Validation | Locked test | Control |
+|---|---|---|---:|---:|---|
+| Finding presence | Multi-label probe | 91 frozen evidence IDs | .9607 | **.9562** | same-diagnosis hard shuffle .7938 |
+| Finding value | Conditional probe | 6 tasks / 32 native values | .7700 | **.7659** | same-diagnosis hard shuffle .5791 |
+
+`Layer`는 validation에서 고정하므로 주표 열에서 제외한다. Figure 2에는 HS16/24/32 validation
+sensitivity를 모두 보여주고, caption에는 target별 선택 mapping을 적는다. 현재 category와
+canonical PDD와 finding/value는 HS24이며 source decision은 아직 TBD다. Finding HS16과 HS24의
+validation pair-gap 차이는 .0002에 불과하므로 HS24가 압도적으로 우세하다고 해석하지 않는다.
+`N/A`는 실패가 아니라 closed probe에 unseen output node가 없어
+과제가 정의되지 않았다는 뜻이다.
+
+**RQ1로 넘어가는 이유.** Table 1은 P0에서 어떤 의료 정보가 decode 가능한지 확인하는
+선행 감사다. 이제 open-text Medical-NLA가 그 정보를 의사 annotation에 맞는 임상 설명으로
+표현하는지를 Table 2에서 평가한다.
+
+---
+
+## RQ1. Medical-NLA가 CoT·vanilla NLA보다 임상 설명을 잘 복원하는가
+
+RQ1은 설명의 **임상적 내용**만 평가한다. 같은 DiReCT 사례에서 CoT, vanilla NLA,
+Medical-NLA가 의사가 표시한 observation, rationale, diagnosis 구조를 얼마나 복원하는지
+Table 2로 비교한다. 여기서 Medical-NLA가 가장 높더라도 아직 activation을 읽었다는 뜻은
+아니다. RQ1만 통과하면 좋은 의료 설명 생성기라고 부를 수 있다.
+
+이 표의 reconstruction과 full은 clinical supervision의 양을 달리한 이름이 아니다.
+Reconstruction은 AV-AR 정보 보존 objective까지 추가한 모델이고, full은 여기에 pair specificity와
+evidence counterfactual grounding까지 추가한 모델이다. RQ1에서는 grounding objective가 임상
+설명 품질을 손상시키지 않거나 개선하는지를 함께 확인한다. 두 방법의 결정적 차이는 다음 RQ2에서
+평가한다.
+
+## Slide 21. RQ1: DiReCT clinical explanation quality
+
+### Panel A. Test seen PDD, n=72
+
+| Method | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Vanilla NLA | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-AV, SFT only | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, reconstruction | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+
+### Panel B. Test PDD held-out, n=106
+
+| Method | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Vanilla NLA | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-AV, SFT only | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, reconstruction | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+
+- `Accdiag`: 생성 진단과 physician diagnosis의 일치
+- `Obspre`: 생성한 observation 중 physician observation과 맞는 정도
+- `Obsrec`: physician observation을 얼마나 회수했는가
+- `Obscomp`: observation 집합의 completeness
+- `Expcom`: 대응된 observation에서 rationale와 diagnosis edge가 맞는 정도
+- `Expall`: 누락·추가·관계·진단 오류를 포함한 end-to-end explanation alignment
+
+모든 method의 free text를 동일한 claim extractor로 공식 schema에 변환한다. Extractor에는
+method 이름, 원 note, gold annotation을 주지 않는다. Parse/extraction 실패를 삭제하지 않고
+0점 처리하며 coverage를 함께 보고한다. 이 표가 개선되면 clinical alignment를 주장할 수
+있지만 activation faithfulness는 아직 주장하지 않는다. 다음 슬라이드에서 claim extraction과
+official semantic matching이 서로 다른 단계임을 구분한다.
+
+현재 SFT-only v1 target은 `<observed>`와 `<answer>`만 포함하고 rationale 생성은 학습하지
+않는다. 따라서 이 버전에서는 observation 계열과 Accdiag가 주 평가이고, `Expcom/Expall`은
+탐색적으로만 보고한다. Rationale를 포함한 full objective가 실제 구현되기 전부터
+`Expcom/Expall` 개선을 주가설로 쓰지 않는다.
+
+---
+
+## Slide 22A. Official evaluator 전체 흐름
+
+### 전체 평가 흐름
+
+```text
+CoT / Vanilla NLA / Medical-NLA free text
+    ↓ 우리 연구의 공통 quote-constrained claim extractor
+Official prediction JSON
+{observation: [rationale, note_section, diagnosis], ..., "chain": [...]}
+    ↓ DiReCT 제공 Llama-3-8B semantic matcher
+observation match와 rationale match의 Yes/No 기록
+    ↓ official statistics-compatible aggregation
+Accdiag, Obspre, Obsrec, Obscomp, Expcom, Expall
+```
+
+이 파이프라인에서 **claim extraction**과 **official semantic matching**을 같은 LLM-as-a-judge
+단계로 부르면 안 된다.
+
+| 구성요소 | 역할 | 현재 구현 | Official DiReCT metric의 일부인가 |
+|---|---|---|---|
+| Claim extractor | 자유 산문을 official structured prediction으로 변환 | Codex 기본, local Llama 대체 가능 | 아니며 본 연구의 adaptation |
+| Observation matcher | gold/predicted observation 의미 대응 | 제공된 native Meta-Llama-3-8B-Instruct | 예 |
+| Rationale matcher | 대응 observation의 rationale 의미 대응 | 동일 official Llama-3-8B | 예 |
+| Metric aggregator | official 산식으로 집계 | `statistics.py` 호환 local wrapper | 예 |
+| E2 semantic diagnostic audit | readout에 target diagnosis가 명시됐는지 검사 | 같은 local Llama checkpoint, 별도 custom prompt | 아니며 Table 1 보조 진단 |
+
+---
+
+## Slide 22B. 공통 quote-constrained claim extraction
+
+CoT와 NLA는 자유 산문이지만 DiReCT evaluator는 구조화 prediction JSON을 요구한다. 따라서
+모든 방법에 같은 extractor를 적용한다. 현재 wrapper의 기본 backend는 Codex이며, 필요하면
+같은 prompt를 local Llama-3-8B로 실행할 수 있다.
+
+현재 validation 실행 단위는 gold-label phrase가 note에 직접 노출된 2행을 제외한 50개
+사례다. 비교 method는 CoT, vanilla NLA, Medical-NLA seed 17/29/43의 다섯 개이며 총
+250개의 method-blind extraction request를 만든다. Request 순서는 seed 17로 섞는다.
+
+Extractor가 받는 정보:
+
+- 해당 method가 생성한 output text
+- 사전 고정한 canonical PDD candidate label 목록
+
+Extractor가 받지 않는 정보:
+
+- 원 환자 note
+- physician gold observations와 rationale
+- case ID와 split 이름
+- output을 만든 method 이름
+
+Extractor는 최대 12개의 patient-specific observation을 뽑는다. Observation, rationale,
+diagnosis에는 method output에 실제로 연속해서 존재하는 exact quote가 필요하다. 외부 의학
+지식으로 관찰이나 이유를 보충하면 안 되며, diagnosis는 candidate label과 같은 specificity로
+명시된 경우에만 선택한다. 후처리는 quote가 실제 output에 없으면 claim을 거절하고, JSON parse
+실패와 빈 extraction을 숨기지 않고 extraction coverage와 failure로 기록한다.
+
+Codex는 이 **구조 변환 단계**에 사용할 수 있다. 그러나 Codex가 observation 또는 rationale의
+gold-prediction 의미 일치를 판정하도록 바꾸면 더 이상 official DiReCT semantic matcher가
+아니다. 논문에서는 이를 다음처럼 표기한다.
+
+> DiReCT official semantic scores computed after a common, method-blind,
+> quote-constrained extraction step.
+
+즉 산식과 semantic matcher는 official이지만, 자유 산문을 공식 schema로 옮기는 앞단은 본
+연구가 추가한 adaptation임을 숨기지 않는다. Extractor backend, model version, prompt hash,
+parse coverage를 결과와 함께 고정한다.
+
+현재 shell wrapper는 extractor backend를 Codex로 기본 설정하지만 model 이름을 환경 변수로
+받아 비워둘 수도 있다. 이는 full evaluation 전에 닫아야 할 재현성 항목이다. Confirmatory
+실행에서는 Codex model/version을 명시적으로 고정하고, 동일 request를 local Llama extractor로
+처리한 결과를 sensitivity로 남긴다. Model을 기록하지 않은 결과는 최종 표에 넣지 않는다.
+
+현재 schema converter는 명시적으로 추출된 diagnosis label을 canonical PDD ontology의 대표
+chain에 매핑한다. 따라서 chain category는 모델이 자유롭게 생성한 별도 category 예측이 아니라
+진단 label에서 결정론적으로 정규화된 값이다. 이를 독립적인 reasoning 성능처럼 해석하지 않고,
+ontology mapping 규칙과 candidate 수를 공개한다. Observation과 rationale는 여전히 method
+output의 exact quote만 허용한다.
+
+---
+
+## Slide 22C. 제공된 Llama-3-8B official semantic matching
+
+| 설정 | 값 |
+|---|---|
+| Judge checkpoint | `Meta-Llama-3-8B-Instruct` native original weights |
+| Runtime | DiReCT 제공 native Llama code + FairScale, `torchrun --nproc_per_node 1` |
+| Max sequence length | 8,192 |
+| Max batch size | 4 |
+| Temperature | 0 |
+| Top-p | 1.0 |
+| Observation prompt | official `discriminate_similarity_observation()` |
+| Rationale prompt | official `discriminate_similarity_reason()` |
+| Positive decision | response가 정확히 `"Yes"`인 경우만 인정 |
+| Matching | gold observation 순서의 greedy one-to-one matching |
+
+Wrapper는 원본 evaluator의 GPU 번호 하드코딩만 제거했다. Greedy matching, exact `Yes`, 공식
+prompt와 native checkpoint는 유지하고 raw judge response와 exception을 restricted audit에
+남긴다. `strip/casefold Yes`나 maximum bipartite matching은 primary가 아니라 sensitivity다.
+
+### Official statistics-compatible aggregation
+
+```text
+O     = physician gold observation set
+O_hat = extracted predicted observation set
+M     = official matcher가 만든 one-to-one observation pairs
+m     = rationale가 Yes이고 연결 diagnosis도 맞는 pairs
+```
+
+| Metric | Official 계산과 해석 |
+|---|---|
+| Accdiag | predicted chain의 마지막 diagnosis와 gold final diagnosis 비교 |
+| Obspre | `\|M\| / (\|O_hat\| + 1)` |
+| Obsrec | `\|M\| / (\|O\| + 1)` |
+| Obscomp | `\|M\| / \|O union O_hat\|` |
+| Expcom | `m / \|M\|` |
+| Expall | `m / \|O union O_hat\|` |
+
+`Obspre`와 `Obsrec`은 공식 코드가 denominator에 `+1`을 넣으므로 oracle도 1.0이 되지 않는다.
+평가 JSON이 누락되거나 invalid하면 공식 통계 동작과 동일하게 모든 metric을 0으로 처리한다.
+Unsmoothed observation precision/recall은 별도 sensitivity이며 official score라고 부르지 않는다.
+
+---
+
+## Slide 22D. Official evaluator 재현 smoke와 민감도
+
+Gold annotation에서 만든 oracle prediction 10건을 전체 evaluator에 넣었다.
+
+| Metric | Oracle-10 mean | 해석 |
+|---|---:|---|
+| Acccat | 1.0000 | category chain 일치 |
+| Accdiag | 1.0000 | final diagnosis 일치 |
+| Obspre | .8104 | 공식 `+1` denominator |
+| Obsrec | .8104 | 공식 `+1` denominator |
+| Obscomp | 1.0000 | observation set 완전 일치 |
+| Expcom | 1.0000 | matched observation의 relation 일치 |
+| Expall | 1.0000 | end-to-end chain 일치 |
+
+10/10 evaluation JSON이 생성됐고 missing/invalid는 0이었다. 이 smoke는 evaluator wrapper가
+공식 동작을 재현한다는 검사이지, CoT나 NLA의 성능 결과가 아니다.
+
+### 알려진 민감도
+
+- Observation은 gold 순서대로 첫 `Yes` prediction을 선택하므로 dictionary 순서에 민감할 수 있다.
+- 응답이 `Yes.` 또는 ` yes `이면 primary official mode에서는 불일치다.
+- Rationale가 의미상 맞아도 연결 diagnosis가 exact rule을 통과하지 못하면 Expcom/Expall에
+  포함되지 않는다.
+- Claim extractor가 explicit quote만 허용하므로 implicit하지만 타당한 설명은 누락될 수 있다.
+- 따라서 prediction-order permutation, normalized-Yes, alternative matching, extractor backend,
+  일부 human/clinician audit은 보조 민감도로 보고하고 primary official score를 사후 교체하지 않는다.
+
+**RQ1의 현재 답.** 공식 evaluator 재현과 공통 extraction protocol, vanilla/pilot baseline은
+준비됐지만, 동일한 locked test에서 CoT·vanilla NLA·Medical-NLA 3 seeds를 비교한 Table 2는
+아직 완성되지 않았다. 따라서 현재 Medical-NLA가 임상 설명을 더 잘 복원한다고 결론 내리지
+않는다. Table 2에서 Medical-NLA가 observation과 explanation 지표를 개선하면 RQ1을 통과하며,
+이때의 자격은 **임상 설명 생성기**까지다.
+
+**RQ2로 넘어가는 이유.** 전문가 설명과 잘 맞는 출력도 언어 모델이 의학 지식으로 그럴듯하게
+만든 문장일 수 있다. 다음에는 설명과 activation의 짝을 깨고 evidence를 바꾸어, 그 설명이
+해당 사례 내부 상태에 실제로 의존하는지를 검사한다.
+
+---
+
+## RQ2. 설명이 해당 사례 activation에 의존하는가
+
+RQ2는 설명의 **activation faithfulness**를 평가한다. RQ1의 physician-reference 점수를 반복하지
+않고, matched-vs-shuffled, finding deletion/value edit, activation swap, AV-AR round-trip으로 같은 설명이
+자기 사례 activation에만 결합되는지를 시험한다. RQ2까지 통과해야 Medical-NLA를 내부 판독기라고
+부를 수 있다.
+
+## Slide 23A. RQ2 데이터와 DDXPlus native value
+
+RQ2의 primary controlled testbed는 DDXPlus다. 최신 primary 설정에서는 Medical-NLA를
+DiReCT에만 적응하고 DDXPlus를 cross-corpus grounding test로 사용한다. DDXPlus
+`validate.csv`는 scoring threshold, hard-shuffle 규칙, counterfactual 생성 규칙과 mean
+activation control을 고정하는 데 사용하고, `test.csv`는 locked Table 3에만 사용한다.
+`train.csv`는 **Medical-NLA primary adaptation에는 사용하지 않는다**. 다만 선행 closed-probe
+availability audit에는 official train 4,655건을 사용해 91개 finding ID와 6개 multi-value task의
+head를 학습했다. 이 probe supervision을 Medical-NLA 학습으로 혼동하지 않는다. 향후 DDXPlus
+grounding-adaptation은 별도 ablation이다. MCR은 정확한 finding/value annotation이 없으므로 Table 3 전체가 아니라
+natural-text OOD 보조 평가만 담당한다.
+
+DDXPlus의 `value`는 본 연구가 임의로 만든 label이 아니다. 환자 CSV의 `EVIDENCES`에는 다음
+두 형태가 있고, `release_evidences.json`이 evidence 질문과 가능한 value ID의 의미를 정의한다.
+
+```text
+E_DYSPNEA             값 없는 bare evidence ID: 해당 이진 finding이 기록됨
+E_TRAVEL_@_N          evidence ID와 native value ID가 함께 기록됨
+
+release_evidences.json 예시
+E_TRAVEL.value_meaning = {N: "no", Y: "yes"}
+```
+
+Value edit은 현재 case에 실제 value ID가 있고, **같은 evidence ID의 사전에 다른 value가 명시돼
+있으며**, 두 값을 모두 정상적인 cue 문장으로 렌더링할 수 있을 때만 만든다.
+
+```text
+같은 base case, 같은 evidence ID
+E_TRAVEL: N -> Y
+나머지 findings는 모두 그대로 유지
+```
+
+값 없이 bare ID로만 등장하는 binary evidence는 absence를 원자료가 기록하지 않는다. 따라서
+`E_DYSPNEA -> no dyspnea`처럼 음성 값을 발명하지 않고 해당 cue를 삭제하는 deletion만 적용한다.
+결과적으로 value accuracy와 value-edit response의 분모는 모든 test case가 아니라 **native
+value가 실제로 선언되고 대안 값이 존재하는 적격 subset**이다. Deletion과 value edit은 별도
+분모로 보고하고, 하나의 평균으로 합친 값은 보조 분석으로만 둔다.
+
+Population은 official validation과 test 모두에 적격 사례가 존재하는 diagnosis 교집합으로
+고정한다. 각 split에서 diagnosis별 최대 100건을 seed 17로 독립 sampling하고, clean rendered
+findings가 3개 이상이며 prompt에 gold diagnosis/alias가 직접 노출되지 않은 사례만 사용한다.
+최종 분모는 두 split 전체 audit 후 protocol에 기록하며 4,900건이라고 미리 가정하지 않는다.
+
+---
+
+## Slide 23B. Claim grounding and pair specificity
+
+### Panel A. Claim grounding and pair specificity
+
+| Method | Finding F1 | Value accuracy | Source-decision fidelity | Hard shuffle | Pair gap |
+|---|---:|---:|---:|---:|---:|
+| CoT | TBD | TBD | TBD | TBD | TBD |
+| Vanilla NLA | TBD | TBD | TBD | TBD | TBD |
+| Medical-AV, SFT only | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, reconstruction | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD |
+
+### Finding F1
+
+Readout에서 추출한 finding ID 집합을 같은 case의 DDXPlus gold evidence ID 집합과 비교한다.
+Precision은 생성한 finding 중 맞는 비율, recall은 gold finding을 회수한 비율이며 F1은 두 값의
+조화평균이다. 누락과 불필요한 finding을 동시에 감점한다.
+
+### Native value accuracy
+
+서로 대응된 value-bearing finding에서 readout이 DDXPlus 사전의 정확한 native value를
+복원했는지 본다. Finding 종류를 맞히고 `mild`를 `severe`로 읽은 경우 finding hit는 맞지만
+value는 오답이다. Bare binary evidence와 대안 값이 없는 evidence는 이 분모에 넣지 않는다.
+
+### Source-decision fidelity
+
+Readout의 진단이 physician gold가 아니라 같은 source backbone run이 실제 생성한 진단과
+일치하는지 본다. Backbone이 gold를 틀렸더라도 readout이 backbone 답을 정확히 읽었다면 이
+지표에서는 성공이다. RQ2는 정답 교정 전에 현재 내부 판단의 충실한 판독을 먼저 묻기 때문이다.
+
+### Hard shuffle과 Pair gap
+
+Hard shuffle은 case `i`의 readout을 같은 diagnosis, 비슷한 finding 수와 prompt 길이를 가진
+다른 case `j`의 finding/value target에 대조한다. 같은 진단 안에서 섞어 질환명과 설명 길이만으로
+점수를 얻는 shortcut을 막는다.
+
+```text
+own_i      = score(readout_i, findings_i)
+shuffled_i = score(readout_i, findings_j)
+pair_gap_i = own_i - shuffled_i
+Pair gap   = mean_i(pair_gap_i)
+```
+
+Hard-shuffle score는 낮고 Pair gap은 높아야 한다. Pair gap의 case-level paired bootstrap CI가
+0을 배제해야 사례 특이성의 근거로 인정한다. Finding F1이 높더라도 Pair gap이 0이면 같은 질환의
+전형적인 설명을 생성했을 가능성이 남는다.
+
+---
+
+## Slide 23C. Counterfactual response and reconstruction
+
+### Panel B. Counterfactual response and reconstruction
+
+먼저 실행한 closed linear-probe gate는 다음과 같다. 이는 자연어 Medical-NLA 결과가 아니라
+P0 target availability와 반사실 민감도의 상한/통제다.
+
+| Probe intervention | eligible | locked-test response | 판정 |
 |---|---:|---:|---|
-| DiReCT category HS24 | 0.5962 | Not computed | majority 0.0577 |
-| DiReCT PDD HS24 | 0.4423 | Not computed | majority 0.0962 |
-| DDXPlus finding HS24 | 0.9607 | **0.9562** | shuffled 0.7938, gap +0.1624 |
-| DDXPlus native value HS24 | 0.7700 | **0.7659** | shuffled 0.5791, gap +0.1868 |
+| Cue deletion | 4,540 | probability drop +.6103; removal success .6407 | 부분 통과 |
+| Native value edit | 539 | replacement hit .1466; old persistence .5955 | 실패 |
+| Native value clean switch | 398 | .0804 | 실패 |
 
-### Table 2. DiReCT explanation alignment
+정적 own-vs-shuffled value accuracy가 높아도 value를 바꿨을 때 probe가 새 값으로 전환하지
+않았다. 따라서 “P0에 자연 분포의 value 정보가 decode된다”와 “value 변화에 충실하게
+반응한다”를 분리한다.
 
-| method | validation Obscomp | validation Expcom | test-seen 72 | PDD-heldout 106 |
-|---|---:|---:|---|---|
-| Source CoT | **0.2130** | **0.0650** | Not computed | Not computed |
-| Vanilla NLA | 0.0000 | 0.0000 | Not computed | Not computed |
-| Full-data SFT seed17 | 0.0301 | 0.0000 | promotion fail | promotion fail |
-| Full-data SFT seed29 | 0.0296 | 0.0000 | promotion fail | promotion fail |
+| Method | Edited-finding response | Untouched retention | Matched FVE | Shuffled FVE | FVE gap |
+|---|---:|---:|---:|---:|---:|
+| CoT | TBD | TBD | N/A | N/A | N/A |
+| Vanilla NLA | TBD | TBD | TBD | TBD | TBD |
+| Medical-AV, SFT only | TBD | TBD | N/A | N/A | N/A |
+| Medical-NLA, reconstruction | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA, full objective | TBD | TBD | TBD | TBD | TBD |
 
-### Table 3. DDXPlus locked grounding
+이 Panel에서 reconstruction과 full의 차이가 직접 검증된다. Reconstruction 모델은 matched FVE가
+높아도 shuffled FVE가 함께 높거나 finding edit에 반응하지 않을 수 있다. Full 모델은 양의 FVE
+gap, 더 높은 edited-finding response, 높은 untouched retention을 함께 보여야 한다. 즉
+reconstruction은 **자연어가 activation 정보를 담는가**, full은 **그 정보가 바로 이 사례에
+고유하고 evidence 변화에 선택적으로 반응하는가**를 묻는다.
 
-| method | finding F1 | shuffled | gap | value acc | phantom | removal | retention | replacement | old persist | clean switch |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Frozen probe | 0.9562 | 0.7938 | +0.1624 | 0.7659 | 0.3593 | 0.6407 | 0.9987 | 0.1466 | 0.5955 | 0.0804 |
-| Structured reader | 0.9587 | 0.7938 | +0.1624 | 0.7654 | 0.3593 | 0.6407 | 0.9987 | 0.1466 | 0.5955 | 0.0804 |
-| Vanilla NLA | 0.0000 | 0.0000 | +0.0000 | 0.0000 | 0.0000 | N/A | N/A | 0.0000 | 0.0000 | N/A |
+### Edited-finding response
 
-- Probe와 reader의 counterfactual set 선택은 같은 frozen threshold를 사용하므로 해당 열이 동일합니다. Static F1/value의 작은 차이는 rendered text의 end-to-end normalization 차이입니다.
-- Vanilla의 phantom 0은 성공이 아닙니다. Original hit도 0이라 removal/retention/clean-switch 조건부 분모가 없습니다.
+같은 base case에서 finding 하나만 삭제하거나 native value 하나만 바꾼 뒤 CoT-P0 activation을
+다시 추출한다. Deletion이면 원 readout에서 존재하던 target claim이 사라져야 하고, value edit이면
+원 value에서 replacement value로 정해진 방향으로 변해야 한다. 단순히 설명 전체가 달라졌는지가
+아니라 **편집한 finding에 대응하는 claim이 올바르게 반응했는지**를 측정한다.
 
-### 아직 표에 넣지 않는 행
+### Untouched retention
 
-- Generative Medical-NLA locked row: validation promotion gate 미통과
-- Table 4 text patching: AR identity/grounding gate 미통과로 현재 닫힘
+편집하지 않은 나머지 findings가 readout에 얼마나 보존되는지 본다. 이 지표가 없으면 모든
+claim을 지우는 reader가 deletion response에서 높은 점수를 받을 수 있다. Edited-finding
+response와 untouched retention이 함께 높아야 선택적 counterfactual grounding이다.
 
-### 논문의 현재 중심 주장
+### Matched FVE, Shuffled FVE, FVE gap
 
-> Closed monitor는 의료 activation의 환자별 상태를 읽지만, 범용 NLA 또는 단순 domain fine-tuning은 이를 신뢰할 수 있는 자유 자연어 설명으로 변환하지 못한다.
-
----
-
-## Slide 28. 지금 검토 중인 다음 방법
-
-### 왜 free-paragraph SFT를 더 반복하지 않는가?
-
-- gold clinical text는 activation에 실제로 존재하지 않는 세부사항까지 포함할 수 있음
-- sequence CE는 activation을 무시하고 disease template를 학습하기 쉬움
-- deletion ranking은 global detector shortcut을 허용함
-- 공개 AR은 이 의료 activation 분포를 구분하지 못함
-
-### Lane 1. 공개 AR geometry audit, 가장 먼저
-
-| audit | 질문 |
-|---|---|
-| A1 | same/different-diagnosis activation cosine 자체가 얼마나 높은가? |
-| A2 | train mean direction 제거 후 matched-over-shuffled gap이 생기는가? |
-| A3 | train-mean predictor 대비 direction-normalized FVE가 양수인가? |
-| A4 | same-diagnosis donor가 different-diagnosis donor보다 어려운가? |
-| A5 | 같은 diagnosis 후보 중 own-case retrieval top-1/MRR가 chance를 넘는가? |
-
-- A2 또는 A5 양성 대조 통과 시 공개 AR를 초기화/비교용으로만 재론합니다.
-- A2, A5, A3가 모두 통과하기 전에는 AV reward로 사용하지 않습니다.
-
-### Lane 2. Patchscopes, 학습 없는 native-layer baseline
+AV가 생성한 문장 `z_i`만 AR에 넣어 원 activation `h_i`를 복원한다.
 
 ```text
-source CoT-P0 HS32 state
-        -> target prompt의 HS32 placeholder에 직접 patch
-        -> remaining Gemma layers가 finding/value를 생성
+h_i -> AV -> z_i -> AR -> h_hat_i
+
+FVE_matched
+= 1 - MSE(h_i, AR(z_i)) / MSE(h_i, h_mean_validation)
+
+FVE_shuffled
+= 1 - MSE(h_i, AR(z_j)) / MSE(h_i, h_mean_validation)
+
+FVE gap = FVE_matched - FVE_shuffled
 ```
 
-| patch condition | 분리하는 요인 |
+`FVE=1`은 완전 복원, `FVE=0`은 validation mean activation을 예측한 수준이며 음수는 mean보다도
+못한 복원이다. Matched FVE는 자기 설명으로 자기 activation을 복원하고, Shuffled FVE는 같은
+진단의 다른 case 설명으로 복원한다. FVE gap이 양수이고 paired CI가 0을 배제해야 자연어가
+사례 고유 activation 정보를 보존한다고 본다. AR이 없는 CoT와 Medical-AV SFT-only에는 FVE를
+계산하지 않아 `N/A`다.
+
+### 표 밖의 필수 controls
+
+| Control | 무엇을 바꾸는가 | 실패하면 의미하는 것 |
+|---|---|---|
+| Zero activation | 실제 activation 대신 영벡터 입력 | 출력이 AV의 language prior만으로 생성됨 |
+| Validation mean activation | 모든 case에 같은 평균벡터 입력 | 사례 고유 정보 없이 평균 상태만 읽음 |
+| Activation swap | Case A metadata에 case B activation 결합 | Readout이 activation보다 metadata/prompt를 따름 |
+| Direct-P0 sensitivity | 같은 validation case에서 instruction만 Direct로 변경 | CoT-P0 결과가 instruction에 과도하게 의존 |
+
+RQ2 통과는 한 metric으로 결정하지 않는다. Own finding/value score, 양의 Pair gap, 방향성 있는
+edited-finding response, 높은 untouched retention, 그리고 AR 모델의 matched-over-shuffled FVE가
+함께 필요하다. Panel A는 **자기 환자의 내용을 읽었는가**, Panel B는 **상태를 바꾸면 설명이
+선택적으로 따라 변하고 그 설명이 activation 정보를 보존하는가**를 답한다.
+
+**RQ2의 현재 답.** Closed probe는 finding availability와 정적 case specificity를 통과했다
+(`F1 .9562`, gap `+.1624 [.1576,.1672]`). 제한된 native-value subset도 정적 gap은 양수였지만,
+value edit clean switch가 `.0804`여서 반사실 추종은 실패했다. Medical-NLA matched/shuffled,
+untouched retention, round-trip Table 3은 아직 완료되지 않았다. 따라서 현재는 Medical-NLA
+설명이 자기 activation에 의존한다고 결론 내리지 않으며 value-edit patching으로 넘어가지 않는다.
+
+**RQ3로 넘어가는 조건.** Table 2만 높은 방법은 임상 문장 생성기일 수 있고, Table 3만 높은
+방법은 의미가 빈약한 activation 식별기일 수 있다. 두 관문을 모두 통과한 방법만 text patching
+또는 selective correction의 입력으로 사용한다.
+
+---
+
+## RQ3. 설명을 편집해 상태와 진단을 선택적으로 바꿀 수 있는가
+
+RQ3는 grounding을 통과한 설명의 dataset-native claim을 편집하고 AR을 통해 activation으로
+되돌렸을 때, 목표 속성과 진단 likelihood가 선택적으로 변하는지를 묻는다. 먼저 표상 수준의
+선택성을 확인하고 그 다음 최종 진단 행동과 순이득을 본다. 개입으로 기존 오답이 줄더라도 원래
+정답을 더 많이 깨뜨리면 성능 개선 방법이라고 부르지 않는다.
+
+## Slide 24. RQ3: text patching과 selective correction
+
+Table 3 grounding을 통과한 방법만 평가한다.
+Reconstruction 모델이 FVE만 통과하고 pair specificity 또는 counterfactual grounding에 실패하면
+비교군으로는 남길 수 있지만 faithful text intervention의 주 방법으로 사용하지 않는다. RQ2에서
+clinical alignment와 사례 특이적 grounding을 모두 통과한 full 모델만 RQ3의 주 text-patching
+방법이 된다.
+
+### Panel A. Identity preservation and target selectivity
+
+| Intervention | Identity preservation | Edited-value decoding | Target logit delta | Off-target KL |
+|---|---:|---:|---:|---:|
+| Raw activation patch | TBD | TBD | TBD | TBD |
+| Vanilla NLA round-trip | TBD | TBD | TBD | TBD |
+| Medical-NLA round-trip | TBD | TBD | TBD | TBD |
+| Oracle counterfactual activation | TBD | TBD | TBD | TBD |
+
+먼저 아무것도 편집하지 않은 decode-encode identity가 원 답과 비목표 logits를 보존해야 한다.
+그 다음 DDXPlus가 정의한 evidence value만 편집한다. Text patching이 불안정하면 먼저 detector가
+위험하다고 판단한 사례에서 readout을 재검토 prompt로 제공하는 selective correction을
+평가한다.
+
+### Panel B. Final behavioral utility
+
+| Policy | Overall accuracy | Wrong-to-right | Right-to-wrong | Net correction | Intervention rate |
+|---|---:|---:|---:|---:|---:|
+| No intervention | TBD | TBD | TBD | 0 | 0 |
+| Patch all | TBD | TBD | TBD | TBD | 1.0 |
+| Probe-gated | TBD | TBD | TBD | TBD | TBD |
+| Medical-NLA-gated | TBD | TBD | TBD | TBD | TBD |
+| Oracle-gated | TBD | TBD | TBD | TBD | TBD |
+
+**RQ3의 현재 답.** 아직 Table 3을 통과한 Medical-NLA와 frozen intervention policy가 없으므로
+`진단 성능을 개선했다`는 결론은 성립하지 않는다. 현재 성립하는 것은 평가 기준과 실행 순서다.
+Identity preservation -> target selectivity -> behavioral net correction을 순서대로 통과해야 하며,
+어느 단계든 실패하면 성능 개선 주장은 해당 단계에서 중단한다.
+
+---
+
+# Part V. Conclusion
+
+Conclusion에서는 빈 표를 숨기지 않는다. 현재 확립된 답, 아직 미결인 답, 실패 시에도 남는
+기여를 같은 화면에서 구분한다.
+
+## Slide 25. 세 RQ에 대한 현재 답
+
+**화면에 넣을 내용**
+
+| RQ | 현재 답 | 가장 강한 현재 근거 | 아직 필요한 증거 |
+|---|---|---|---|
+| RQ1: CoT·vanilla NLA 대비 임상 설명 복원 | 현재 SFT-only 실패 | 50-case validation에서 seed 17이 최고였지만 Obscomp .0343으로 CoT .2349보다 낮음 | Reconstruction/full 모델과 locked 72/106 Table 2 |
+| RQ2: 해당 사례 activation 의존성 | 미결 | 평가 population·hard shuffle·counterfactual·FVE 정의 고정 | DDXPlus CoT-P0 matched/shuffled·counterfactual Table 3 |
+| RQ3: 설명 편집을 통한 선택적 상태·진단 제어 | 미결 | 개입 protocol과 policy metric 고정 | Identity, target-selective patching, positive net correction Table 4 |
+
+**발표자 노트.** Table 1의 선행 baseline에서는 P0 내부 진단 신호와 vanilla reader의 범위를
+확인했다. 그러나 이것은 RQ1의 성공 결과가 아니다. RQ1은 Medical-NLA가 CoT와 vanilla NLA보다
+임상 설명을 잘 복원해야 닫히고, RQ2는 그 개선된 설명이 자기 activation에 의존해야 닫힌다.
+RQ3는 그 후 설명 편집이 목표 상태와 진단을 선택적으로 바꾸면서 비목표 정보와 기존 정답을
+보존할 때 닫힌다.
+
+---
+
+## Slide 26. 현재 논문의 기여
+
+**화면에 넣을 내용**
+
+1. CoT, likelihood, linear probe, vanilla NLA, Medical-NLA를 같은 source trajectory의 위치에
+   정렬해 비교하는 의료 internal-readout protocol을 구성했다.
+2. Closed diagnosis detection과 open clinical explanation을 같은 능력처럼 평균하지 않고
+   별도의 평가 열로 분리했다.
+3. DiReCT physician reference와 DDXPlus paired counterfactual을 분리해 clinical alignment와
+   activation grounding의 혼동을 막았다.
+4. 자유 산문 claim extraction과 official DiReCT Llama-3 semantic matching의 경계를 명시하고
+   official evaluator를 oracle smoke로 재현했다.
+5. 설명가능성과 진단 성능을 함께 주장하려면 grounding 이후 identity 보존과 selective net
+   correction까지 필요하다는 검증 순서를 제시했다.
+
+**발표자 노트.** 기여를 `Medical-NLA를 이미 완성했다`고 쓰지 않는다. 현재 가장 강한 기여는
+어떤 자연어 판독을 믿을 수 있는 내부 설명이라고 부르기 위한 실험 구조와 baseline 경계를
+정확히 세운 것이다. 최종 모델 기여는 Table 2와 Table 3이 채워진 뒤 결정한다.
+
+---
+
+## Slide 27. 한계와 주장 경계
+
+| 현재 말할 수 있는 것 | 반드시 함께 말할 제한 |
 |---|---|
-| real activation | 실제 patient state |
-| same-diagnosis shuffled | 사례 특이성 |
-| train-mean activation | 공통 방향 baseline |
-| no patch | target prompt/model prior |
-| cue-deleted | changed finding 선택적 제거 |
-| value-edited | old/new value 전환 |
+| P0에서 진단 label이 선형 decode됨 | DiReCT validation 52행, supervised closed ontology |
+| HS24 probe가 likelihood보다 높음 | NLA primary는 HS32 checkpoint 호환; 지표 공간도 다름 |
+| Vanilla AV가 P0 진단 target을 명시적으로 복원하지 못함 | observation 전체의 부재나 activation 정보 부재를 뜻하지 않음 |
+| DiReCT evaluator를 재현함 | 앞단 quote-constrained extractor는 본 연구 adaptation |
+| SFT-only Medical-AV가 의료 형식으로 출력함 | validation 임상 alignment는 CoT보다 낮고 seed 불안정성이 큼 |
 
-이 방법은 HS32를 layer-0 embedding으로 바꾸는 AV injection 병목을 우회합니다. 성공하면 activation은 읽히지만 기존 AV 변환/학습이 병목이었다고 원인 분리할 수 있습니다.
-
-### Lane 3. Medical AO + Medical AR
-
-#### 제안 파이프라인
-
-```text
-Medical activation
-      |
-      v
-Medical Activation Oracle
-  - finding/value/uncertainty set
-      |
-      +--> domain Medical-AR matched-vs-shuffled 검증
-      |
-      v
-constrained text renderer
-  - claim selection과 문장 생성을 분리
-```
-
-#### 단계
-
-1. Train-only DDXPlus finding/value로 Medical Activation Oracle 학습
-2. DiReCT claim ontology와 연결 가능한 공통 clinical-state schema 정의
-3. Medical text-activation pair로 AR을 domain-adapt
-4. Structured reader 양성 대조가 matched > shuffled를 통과하는지 확인
-5. 그 이후에만 AV를 reconstruction/preference objective로 학습
-
-### 실행 우선순위
-
-1. 기존 160 text의 reconstruction vector 저장 및 A1-A5 계산
-2. DDXPlus validation 50-case Patchscope smoke
-3. 공개 AR가 탈락하면 DDXPlus 4,655 Medical-AR smoke
-4. reader/oracle matched-vs-shuffled와 FVE가 양수일 때 official train 47k-100k로 확장
-5. Medical-AR positive control 통과 후에만 Medical-AV SFT와 AR-reward optimization
+Backbone은 현재 Gemma-3-12B-IT 하나다. DiReCT는 511 notes의 제한된 corpus이고 supervised
+train은 266행, exact-label 노출 제외 후 SFT train은 248행이다. DDXPlus는 큰 통제 실험에는
+적합하지만 synthetic fixed ontology이므로 자연 임상 산문의 외적 타당성을 대신하지 않는다.
+MCR 또는 추가 natural-text OOD가 필요하다.
 
 ---
 
-## Slide 29. 교수님께 확인받을 결정
+## Slide 28. 현재 완료 상태와 남은 작업
 
-### 결정 1. 논문의 중심 프레이밍
+### 완료
 
-- 제안: `Medical-NLA를 완성했다`가 아니라
-- **`의료 activation의 정보 존재와 자연어 readout 사이의 격차를 규명했다`**로 중심 주장 설정
+- DiReCT 511행 schema, PDD, 중복, patient grouping, official evaluator 감사
+- Eligible 496행 및 frozen 266/52/72/106 split
+- Gemma source CoT 496행과 exploratory Direct 비교
+- P0/P1/P2 x HS16/24/32 activation tensor 4,464개
+- Validation diagnosis/category linear probe와 early forced-answer likelihood
+- Vanilla NLA P0 312 outputs의 blinded semantic diagnostic audit
+- Medical-AV SFT-only seeds 17/29/43 학습
+- CoT, vanilla NLA, SFT-only의 공통 50-case DiReCT validation 평가
 
-### 결정 2. 제출 범위
+### 아직 최종 표를 채우기 위해 필요한 것
 
-- 현재 baseline/closed-monitor 논문을 먼저 완결
-- Medical AO + Medical AR은 후속 positive method로 분리할지 결정
+1. DiReCT source-decision free-text label-space audit
+2. DDXPlus validation CoT-P0 HS16/24/32 activation 추출
+3. Finding-presence/value probe 구현과 validation layer/hyperparameter 선택
+4. Medical-AR와 reconstruction/pair-specific Medical-NLA 구현
+5. Validation grounding gate를 통과한 recipe만 동결
+6. Frozen recipe로 DiReCT 72/106 Table 1·2와 DDXPlus locked Table 3을 한 번 평가
+7. Grounding 통과 시 round-trip, patching, selective correction Table 4
+8. MCR frozen OOD 또는 추가 외부 데이터에서 일반화 확인
 
-### 결정 3. DiReCT locked batch 개봉
+### 교수님께 확인받을 결정
 
-- Table 1A source behavior
-- Table 1B HS24 probe
-- Table 2 Source CoT/Vanilla NLA
-- 동일 decision record/hash 아래 한 번에 수행
-
-### 결정 4. 생성형 Medical-NLA 표기
-
-- 주표에서는 validation gate 미통과로 제외
-- 개발 실패와 shortcut 분석은 appendix/main analysis에 포함
-
----
-
-## Slide 30. 결론
-
-1. **정보는 있습니다.** DDXPlus locked probe에서 finding F1 0.9562, value accuracy 0.7659입니다.
-2. **환자별 정보입니다.** 같은 진단 내 shuffle gap이 +0.1624와 +0.1868입니다.
-3. **정적 readout은 가능합니다.** Structured reader finding F1은 0.9587입니다.
-4. **자유 자연어 readout은 실패했습니다.** Vanilla NLA는 locked 10,028행에서 ontology claim을 하나도 내지 못했습니다.
-5. **단순 SFT/ranking은 충분하지 않습니다.** Template collapse와 deletion detector shortcut이 확인됐습니다.
-6. **공개 AR도 그대로는 사용할 수 없습니다.** Positive-control matched-vs-shuffled gap이 약 0입니다.
-7. 다음 route는 **geometry audit → Patchscopes → Medical Activation Oracle + domain-adapted AR + constrained renderer**입니다.
+> DiReCT로 physician-reference clinical alignment를 평가하고, DDXPlus로 activation grounding과
+> 개입 가능성을 검증하는 역할 분담이 적절한지, 그리고 SFT-only validation 실패를 근거로
+> probe audit 뒤 AR reconstruction/pair-specific objective로 넘어가는 실행 순서가 타당한지
+> 확인을 부탁드립니다.
 
 ---
 
-# Appendix
+## Slide 29. 최종 결론
+
+**화면에 넣을 내용**
+
+> 생성 전 의료 LLM activation에는 닫힌 진단 정보가 존재하지만, 기존 vanilla natural-language
+> reader는 긴 사례의 통합 상태를 안정적인 임상 설명으로 복원하지 못했다. 본 연구는 이 간극을
+> Medical-NLA로 메우되, 의사 설명과의 일치만으로 faithfulness를 선언하지 않고 paired
+> activation grounding을 별도로 요구한다.
+
+> Medical-NLA가 clinical alignment와 activation grounding을 모두 통과하고, 그 판독을 사용한
+> 선택적 개입이 기존 정답을 보존하면서 positive net correction을 만들 때에만 설명가능성과
+> 진단 성능을 함께 개선했다고 결론 내린다.
+
+**발표자 노트.** 첫 문장은 세 RQ에 앞선 capability baseline과 연구 필요성을 요약한다. 둘째
+문장은 RQ1·RQ2·RQ3의 단계적 성공 조건이며 아직 결과가 아니라 사전 고정한 판정 기준이다.
+Table 2만 통과하면 임상 설명 생성기, Table 3까지 통과하면 내부 판독기, Table 4까지 통과하면
+선택적 성능 개선 방법이라고 결론 내린다.
 
 ---
 
-## Appendix A1. 주요 모델과 고정 설정
+## Appendix A. 실험별 재현 설정
 
-| component | setting |
+### A1. Source backbone generation
+
+| 항목 | 설정 |
 |---|---|
-| source model | `google/gemma-3-12b-it` |
-| vanilla AV | `kitft/nla-gemma3-12b-L32-av` |
-| released AR | `kitft/nla-gemma3-12b-L32-ar` |
-| primary activation | CoT-P0 |
-| closed probe frozen layer | HS24 |
-| NLA/AR layer | HS32 |
-| dtype | bfloat16 |
-| semantic mapper primary | `gpt-5.6-sol` |
-| semantic mapper auditor | `gpt-5.4` |
+| Model | `google/gemma-3-12b-it` |
+| Precision | bfloat16 |
+| Placement | 2 x RTX 4090, 각 GPU `max_memory=22GiB` |
+| Chat formatting | Hugging Face model chat template, `add_generation_prompt=true` |
+| Sampling | greedy, `do_sample=false`, temperature/top-p 미사용 |
+| Direct | assistant prefill `The answer is`, max new tokens 64, batch 4 |
+| CoT | free generation, max new tokens 2,048, batch 1 |
+| Parse | 마지막 `The answer is <diagnosis>.` pattern |
+| Random seed | 17 |
+
+Direct prefill과 CoT instruction은 출력 조건을 다르게 하지만, 각 조건 안에서 correctness label과
+activation은 동일한 stored prompt/source transcript에 조인한다. 이번 E1 CoT에서는 truncated
+response의 forced second-answer를 비활성화했다.
+
+### A2. Activation extraction
+
+| 항목 | 설정 |
+|---|---|
+| Hidden-state layers | HS16, HS24, HS32 |
+| Hidden dimension | 3,840 |
+| Primary position | P0 `last_token` |
+| P1/P2 selection | target string의 `last_subtoken` |
+| Forward precision | backbone bfloat16 |
+| Stored tensor dtype | float32 |
+| Extraction batch | 1 |
+| Completeness | 496 cases x 3 positions x 3 layers = 4,464 tensors |
+
+P1/P2는 새 응답을 생성하지 않고 source CoT transcript를 teacher-force한다. 동일 prompt의 여러
+position과 layer는 가능한 한 같은 forward pass의 hidden states에서 저장한다.
+
+### A3. Linear probe validation
+
+| 항목 | 설정 |
+|---|---|
+| Input | P0 activations, HS16/24/32 |
+| Train / validation | 266 / 52, patient-disjoint |
+| Targets | canonical PDD 49-way, disease category 25-way |
+| Model | single `torch.nn.Linear` layer |
+| Feature preprocessing | train feature mean/std로 dimension-wise standardization |
+| Optimizer | AdamW |
+| Learning-rate grid | `3e-4`, `1e-3` |
+| Weight-decay grid | `0`, `1e-4`, `1e-3`, `1e-2` |
+| Class weighting | unweighted와 inverse-frequency balanced 모두 탐색 |
+| Maximum epochs / patience | 300 / 30 |
+| Selection | validation NLL 최소, tie-break Top-1과 weight decay |
+| Seed | 17 |
+
+Locked test manifest는 probe training interface에 존재하지 않는다. HS24가 validation에서 가장
+좋았지만, NLA/AR의 primary layer는 공개 checkpoint 호환 때문에 HS32로 유지한다.
+
+### A4. Early forced-answer likelihood
+
+| 항목 | 설정 |
+|---|---|
+| Source prompt | CoT P0 prompt |
+| Completion prefix | `The answer is` |
+| Candidate scoring | candidate diagnosis 전체 문자열 teacher forcing |
+| Primary score | label token mean log probability |
+| Candidate sets | category 25, canonical PDD 61, probe-matched PDD 49 |
+| Cases | validation 52 only |
+| Candidate batch | 실제 완료 run 4 |
+| Calibration sensitivity | fixed content-free prompt prior subtraction |
+
+이 값은 raw next-token logit도, 저장된 P0 vector의 직접 unembedding도 아니다. 후보 ontology를
+제공한 closed ranking이며 PDD 문자열 prior에 강하게 오염된 결과를 함께 보고한다.
+
+### A5. Vanilla AV validation
+
+| 항목 | 설정 |
+|---|---|
+| Decoder | `kitft/nla-gemma3-12b-L32-av` |
+| Precision / placement | bfloat16, 2 x RTX 4090 |
+| Primary activation | HS32/P0 |
+| Sensitivity | HS16/P0, HS24/P0, P1, P2 |
+| Prompts | checkpoint sidecar default, medical task-aligned suffix |
+| Decoding | greedy, max new tokens 256, batch 4 |
+| Validation outputs | P0 312 + P1/P2 208 = 520 |
+
+HS16/24는 HS32에서 학습된 decoder에 다른 layer activation을 넣는 distribution-shift sensitivity다.
+따라서 HS24 probe가 좋다는 이유만으로 HS24 vanilla AV를 primary 결과로 바꾸지 않는다.
+
+### A6. Medical-NLA SFT-only v1
+
+| 항목 | 설정 |
+|---|---|
+| Base decoder | released HS32 AV checkpoint |
+| Activation | DiReCT P0/HS32 |
+| Train / validation | 248 / 50 after exact gold-label-in-note exclusion |
+| Target | grounded `<observed>` items + source-model `<answer>` |
+| Max observations | 12 |
+| Seeds | 17, 29, 43 |
+| Epochs | 3 |
+| Batch / gradient accumulation | 1 / 8 |
+| Learning rate / weight decay | `2e-4` / `0` |
+| LoRA | rank 16, alpha 32, dropout .05 |
+| Target modules | q/k/v/o projections and gate/up/down projections |
+| Memory | gradient checkpointing enabled |
+| Checkpoint selection | validation clinical content-token loss |
+
+XML scaffold token loss가 빠르게 낮아지는 현상을 피하기 위해 전체 validation loss가 아니라 실제
+clinical content span의 token loss로 epoch를 선택한다. SFT-only는 reconstruction 또는
+pair-specificity objective를 포함하지 않는다.
+
+### A7. E4 validation evaluation
+
+| 항목 | 설정 |
+|---|---|
+| Cases | 50 validation cases |
+| Methods | CoT, vanilla, Medical-NLA seeds 17/29/43 |
+| Extraction requests | 250, method-blind shuffled order |
+| Extractor | quote-constrained Codex primary; model/version pin 필수 |
+| Extractor sensitivity | same prompt with local Llama-3-8B |
+| Official matcher | native Meta-Llama-3-8B-Instruct, temperature 0, top-p 1 |
+| Failure handling | parse/extraction failure 유지, missing eval은 official rule대로 0 |
+
+모든 private note, generated output, extraction request, judge response, prediction JSON은 restricted
+data root에만 저장한다. Git에는 aggregate summary, code, prompt template만 올린다.
 
 ---
 
-## Appendix A2. D9a support protocol
+## 현재 수치와 최종 표를 혼동하지 않기 위한 원칙
 
-| item | value |
-|---|---:|
-| presence threshold | 0.90 |
-| deletion-delta threshold | 0.00 |
-| donor-margin threshold | 0.00 |
-| validation positive coverage | 3,032/3,034 = 0.9993 |
-| validation null false support | 112/2,964 = 0.0378 |
-| supported train pairs | 3,104 |
-| claims per retained case | 1 |
-| unsupported policy | exclude |
-| value edit included | no |
+- `n=171` Direct/CoT 결과는 exploratory pilot이다.
+- `n=52` probe, likelihood, vanilla NLA 결과는 validation method-selection 결과다.
+- `n=72/106` 결과만 frozen downstream main table에 들어간다.
+- 과거 DDXPlus `.7247/.7506`은 local cue-readout positive control이며 DiReCT P0 점수와 직접
+  평균하거나 같은 과제로 부르지 않는다.
+- `N/A`는 실패 0점이 아니라 해당 방법에 출력 공간이 정의되지 않았다는 뜻이다.
+- Clinical alignment, source-decision fidelity, activation grounding을 하나의 faithfulness
+  점수로 합치지 않는다.
 
----
+## 정본 결과 기록 위치
 
-## Appendix A3. Counterfactual score의 해석
-
-### 좋은 모델
-
-- original에서 changed cue를 말함
-- deletion 후 changed cue만 사라짐
-- retained cue는 유지됨
-- value edit 후 old 값은 사라지고 new 값이 나타남
-
-### 나쁜 shortcut
-
-- deletion activation이면 모든 claim NLL을 올림
-- changed-gap은 커 보이지만 retained-gap도 같이 증가
-- specificity = changed-gap - retained-gap이 0 또는 음수
-
-### D10 실제 패턴
-
-- step 1,552 changed mean: +0.5558
-- retained mean: +0.5604
-- specificity: -0.0046
-
----
-
-## Appendix A4. D20 frozen gate와 결과
-
-- changed-gap delta >= 0.05 in every seed
-- changed-gap cluster CI > 0 in every seed
-- specificity positive in every seed
-- specificity cluster CI > 0 in every seed
-- retained-gap non-inferiority upper bound: 0.0100
-- changed/retained original NLL relative-increase upper bound: 0.1000
-- teacher-forced gate 실패 시 generation/extension/sweep 금지
-
-### 실제 결과
-
-- changed-gap delta: -0.0143, -0.0040, -0.0266
-- specificity: -0.0278, -0.0255, -0.0217
-- final decision: **FAIL**
-
----
-
-## Appendix A5. D22 해석 경계
-
-### 말할 수 있는 것
-
-- released AR은 현재 의료 CoT-P0 activation의 case-specificity 측정기로 부적합
-- 절대 cosine만으로 text-grounding을 판정하면 안 됨
-
-### 말할 수 없는 것
-
-- activation에 의료 정보가 없음
-- structured reader text가 임상적으로 틀림
-- AR 기반 학습이 원리적으로 불가능함
-
-### 다음 전제
-
-- domain-adapted Medical-AR 자체가 matched-vs-shuffled positive control을 먼저 통과해야 함
-
----
-
-## Appendix A6. 남은 locked 실행과 완료 조건
-
-| order | job | output |
-|---:|---|---|
-| 1 | decision record 및 recipe hash 동결 | 접근 규율 증빙 |
-| 2 | DiReCT test-seen 72 source 재집계 | Table 1A seen |
-| 3 | DiReCT PDD-heldout 106 source 재집계 | Table 1A OOD |
-| 4 | frozen HS24 probe 적용 | Table 1B DiReCT locked |
-| 5 | Source CoT/Vanilla NLA semantic evaluation | Table 2 baseline |
-
-### 현재 실행하지 않는 것
-
-- validation gate 미통과 Medical-NLA의 locked generation
-- DDXPlus locked threshold/layer 재선택
-- D20 사후 checkpoint 선택 또는 추가 sweep
-- public AR cosine을 바로 reward로 사용한 AV 학습
-
----
-
-## Appendix A7. 발표 시 강조할 문장
-
-> Probe는 activation에 정보가 있다는 것을 보여주지만, NLA가 그 정보를 읽었다는 것을 보여주지는 않습니다.
-
-> Structured reader는 강한 closed-monitor baseline이지만 open-ended explanation model은 아닙니다.
-
-> Vanilla NLA의 0점은 빈 출력 때문이 아니라, 환자별 frozen ontology finding을 포함하지 않는 generic clinical prose 때문입니다.
-
-> D10의 큰 margin은 성공이 아니라 retained cue까지 억제하는 deletion-detector shortcut이었습니다.
-
-> D20은 shortcut을 차단했지만 목표 signal도 사라졌고, 공개 AR은 positive control을 통과하지 못했습니다.
-
-> 따라서 다음 방법은 더 많은 free-text SFT가 아니라 clinical-state selection과 language rendering의 분리입니다.
+- DiReCT data/split: `docs/data/direct_dataset_and_split.md`
+- E1 source 및 activation: `docs/experiments/01-direct-source-and-activations.md`
+- E2 capability baselines: `docs/experiments/02-capability-baselines.md`
+- Medical-NLA training: `docs/experiments/03-medical-nla-training.md`
+- DiReCT explanation evaluation: `docs/experiments/04-direct-explanation-evaluation.md`
+- 전체 실행 상태: `docs/paper/experiment_status.md`
+- 최종 논문 표와 그림: `docs/paper/tables_and_figures.md`
