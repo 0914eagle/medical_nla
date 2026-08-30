@@ -546,55 +546,44 @@ typical disease template.
 
 ## Slide 12. Results map: 질문별로 무엇을 먼저 보는가?
 
-| 단계 | 질문 | 첫 번째 메인 결과 | 뒤따르는 보조 결과 |
-|---|---|---|---|
-| Gate 0 | activation에 임상정보가 실제로 존재하는가? | DiReCT diagnosis probe + DDXPlus finding/value probe | layer sensitivity, same-diagnosis shuffle, Vanilla P0 audit |
-| RQ1 | 생성 설명이 physician observation과 정렬되는가? | DiReCT semantic alignment | output duplication/template collapse |
-| RQ2 | 설명이 해당 activation과 intervention에 grounded되는가? | DDXPlus structured/open readout comparison | deletion/value edit, mapper validation, zero-score audit |
-| Medical-NLA development | 어떤 supervision과 loss를 시도했고 어디서 실패했는가? | sequence SFT, ranking, specificity anchor | budget trajectory, bottleneck, public AR diagnostic |
-| RQ3 | 검증된 설명 편집이 내부 상태와 행동을 바꾸는가? | 아직 열지 않음 | RQ2 promotion gate 통과 모델 필요 |
+| 연구 단계 | 대응 논문 표 | 질문 | 메인 슬라이드 | 보조/감사 슬라이드 |
+|---|---|---|---:|---|
+| Gate 0 | Main Table 1 | activation에 임상정보가 실제로 존재하는가? | 13 | layer sensitivity 14, Vanilla boundary 15 |
+| RQ1 | Main Table 2 | 생성 설명이 physician observation과 정렬되는가? | 16 | template-collapse audit 17 |
+| RQ2 | Main Table 3A | 설명이 해당 사례 activation에 grounded되는가? | 18 | semantic-mapper audit 20 |
+| RQ2 | Main Table 3B | 삭제/value edit에 선택적으로 반응하는가? | 19 | 평가 분모 11 |
+| Development | Appendix gate table | 어떤 실패가 다음 Medical-NLA 설계를 만들었는가? | 21~28 | seed/gate 세부 결과 |
+| RQ3 | Conditional Table 4 | 검증된 설명 편집이 내부 상태와 행동을 바꾸는가? | 아직 닫힘 | grounded readout + AR gate 필요 |
 
 > Direct-vs-CoT 171-case pilot과 McNemar 검정은 최종 RQ 표가 아니라 source behavior 보조 통제이므로 Appendix로 이동합니다.
 
 ---
 
-## Slide 13. Gate 0 main: activation에 임상정보가 있는가?
+## Slide 13. Gate 0 = Main Table 1: P0에 설명할 의료 정보가 있는가?
 
-### DiReCT diagnosis probe, validation n=52, frozen candidate HS24
+| dataset/target | decoder와 layer | validation | locked evaluation | control |
+|---|---|---:|---:|---|
+| DiReCT disease category | 25-way linear, HS24 | **.5962** | pending, seen 72 | majority .0577 |
+| DiReCT canonical PDD | 49-way linear, HS24 | **.4423** | pending, seen 72 | majority .0962 |
+| DDXPlus finding presence | 91-label linear, HS24 | .9607 | **.9562** | shuffled .7938; gap +.1624 [.1576,.1672] |
+| DDXPlus native value | 6 tasks/32 values, HS24 | .7700 | **.7659** | shuffled .5791; gap +.1868 [.1650,.2091] |
 
-| target | majority | Top-1 | Top-5 | MRR | macro recall | val NLL |
-|---|---:|---:|---:|---:|---:|---:|
-| canonical PDD | 0.0962 | **0.4423** | 0.7692 | 0.5762 | 0.3868 | 2.0489 |
-| disease category | 0.0577 | **0.5962** | 0.9038 | 0.7284 | 0.5000 | 1.3961 |
+### 실험 설계
 
-두 행은 같은 CoT-P0/HS24 activation에 multiclass linear probe를 적용하되, `canonical PDD`는 세부 진단명을, `disease category`는 더 상위의 질환군을 target으로 사용한 결과입니다.
-
-- `majority`: activation을 전혀 보지 않고 validation에서 가장 빈번한 class만 항상 예측했을 때의 accuracy입니다. PDD `0.0962`, category `0.0577`은 probe 성능을 비교할 최소 class-frequency baseline입니다.
-- `Top-1`: 가장 높은 확률을 받은 하나의 class가 gold와 같은 비율입니다. HS24에서 PDD는 `23/52=0.4423`, category는 `31/52=0.5962`입니다.
-- `Top-5`: gold class가 probe의 상위 5개 후보 안에 포함된 비율입니다. 정확히 1등을 맞히지 못했더라도 activation이 gold를 높은 순위로 좁혔는지 측정합니다.
-- `MRR`(mean reciprocal rank): 각 사례에서 gold class 순위 `r`의 역수 `1/r`을 평균합니다. 1등은 `1.0`, 2등은 `0.5`, 5등은 `0.2`의 점수를 받아 전체 후보 순위를 Top-5보다 연속적으로 평가합니다.
-- `macro recall`: class별 recall을 먼저 계산한 뒤 class에 동일 가중치를 주어 평균합니다. 빈도가 높은 진단만 잘 맞혀 전체 accuracy가 높아지는 문제를 통제합니다.
-- `val NLL`: gold class에 부여한 확률의 negative log-likelihood 평균이며 낮을수록 좋습니다. 정답 순위뿐 아니라 정답에 얼마나 높은 확률을 배정했는지를 측정하고, validation에서 layer와 regularization을 선택하는 loss로 사용했습니다.
-
-따라서 Top-1은 직접 판독 정확도, Top-5/MRR은 gold 진단의 후보 순위, macro recall은 희귀 class를 포함한 균형 성능, NLL은 확률적 confidence를 각각 보완합니다. 모든 지표가 majority를 크게 넘는다는 것은 P0 activation에 진단 관련 선형 정보가 존재한다는 증거이지만, 이 probe 결과만으로 open-text NLA가 그 정보를 자연어로 복원한다고 결론 내리지는 않습니다.
-
-### DDXPlus finding/value probe, locked test
-
-| target | own | same-diagnosis shuffled | gap | bootstrap 95% CI |
-|---|---:|---:|---:|---:|
-| finding micro F1 | **0.9562** | 0.7938 | **+0.1624** | [0.1576, 0.1672] |
-| conditional native-value accuracy | **0.7659** | 0.5791 | **+0.1868** | [0.1650, 0.2091] |
+- Official train activation으로 linear probe를 학습하고 validation에서 layer/regularization을 선택했습니다.
+- DDXPlus는 같은 diagnosis의 다른 환자 activation을 donor로 붙인 hard-shuffle control을 사용했습니다.
+- DiReCT PDD-heldout 106은 train 49-way head에 output node가 없으므로 PDD probe가 `0`이 아니라 `N/A`입니다.
 
 ### Gate 0 판정
 
-- DiReCT P0에서 diagnosis/category 정보가 majority baseline보다 높게 선형 판독됩니다.
-- DDXPlus에서는 finding 존재와 native value가 높은 정확도로 판독됩니다.
-- 같은 diagnosis의 다른 환자 activation으로 바꾸면 성능이 하락하므로 diagnosis template만 읽은 결과가 아닙니다.
-- DiReCT 72/106 protocol-locked final probe 셀은 아직 pending이며 validation 수치와 구분합니다.
+- DiReCT P0에서 diagnosis/category 정보가 majority보다 높게 선형 판독됩니다.
+- DDXPlus finding/value는 locked test에서도 높고, own activation이 same-diagnosis donor보다 유의하게 높습니다.
+- 따라서 생성형 NLA 실패를 `activation에 의료 정보가 없음`으로 설명할 수 없습니다.
+- 이 표는 closed-space feasibility audit이며 open-text Medical-NLA 성공을 의미하지 않습니다.
 
 ---
 
-## Slide 14. Gate 0 support: 어느 layer를 선택했는가?
+## Slide 14. Main Table 1 support / Figure 2: 왜 probe는 HS24인가?
 
 ### Linear probe, validation n=52
 
@@ -637,10 +626,11 @@ typical disease template.
 
 - HS16의 finding F1이 0.0029 높았지만 HS24가 finding gap, value accuracy, value gap의 공동 기준에서 우세했습니다.
 - HS24를 validation에서 동결한 뒤 DDXPlus locked test에서 다시 선택하지 않았습니다.
+- HS32 Vanilla/Medical-AV는 공개 AV architecture의 native input이고, HS24 probe와의 차이는 표의 `input layer`에서 명시합니다.
 
 ---
 
-## Slide 15. Gate 0 support: Vanilla NLA는 P0 정보를 말로 읽는가?
+## Slide 15. Main Table 1 support: 정보 존재와 Vanilla verbalization의 차이
 
 ### P0 blinded semantic audit, validation n=52
 
@@ -672,35 +662,29 @@ typical disease template.
 
 ---
 
-## Slide 16. RQ1 main: 설명이 physician observation과 정렬되는가?
+## Slide 16. RQ1 = Main Table 2: physician explanation과 정렬되는가?
 
-### Common mixed pilot population
+> 교수님 발표에서는 현재 사용 가능한 validation 50 결과를 채웁니다. 논문 최종본은
+> 같은 열로 test-seen 72와 PDD-heldout 106을 별도 panel에 보고합니다.
 
-| method | obs rows | extracted obs | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Source CoT | 50/50 | 562 | 0 | 0.3110 | 0.4069 | **0.2399** | 0.0657 | 0.0168 |
-| Vanilla NLA | 10/50 | 10 | 0 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
-| Common SFT seed17 | 50/50 | 150 | 0 | 0.0100 | 0.0037 | 0.0034 | 0.0000 | 0.0000 |
-| Common SFT seed29 | 50/50 | 150 | 0 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
-| Common SFT seed43 | 50/50 | 329 | 0 | 0.0070 | 0.0054 | 0.0043 | 0.0000 | 0.0000 |
+| method | input | extraction | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | source text | 50/50 | 0 | .2835 | .3726 | **.2130** | **.0650** | .0153 |
+| Vanilla NLA | HS32 AV | 10/50 (pilot) | 0 | .0000 | .0000 | .0000 | .0000 | .0000 |
+| Medical-AV, SFT only seed17 | HS32 AV | 50/50 | 0 | .0544 | .0502 | .0301 | .0000 | .0000 |
+| Medical-AV, SFT only seed29 | HS32 AV | 50/50 | 0 | .0553 | .0388 | .0296 | .0000 | .0000 |
+| **Medical-NLA, final** | layer/recipe 사전 동결 | pending | pending | pending | pending | pending | pending | pending |
 
-### Full-data population
+### RQ1 판정
 
-| method | obs rows | extracted obs | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Source CoT | 50/50 | 558 | 0 | 0.2835 | 0.3726 | **0.2130** | 0.0650 | 0.0153 |
-| Full-data SFT seed17 | 50/50 | 471 | 0 | 0.0544 | 0.0502 | 0.0301 | 0.0000 | 0.0000 |
-| Full-data SFT seed29 | 50/50 | 228 | 0 | 0.0553 | 0.0388 | 0.0296 | 0.0000 | 0.0000 |
-
-### 해석
-
-- DDXPlus train 4,655건을 추가해도 DiReCT case-specific alignment는 Source CoT floor에 미달했습니다.
-- SFT는 출력 형식을 학습했지만 activation-dependent observation을 안정적으로 복원하지 못했습니다.
-- Common seed43의 `obs rows=50/50`은 extractor 결과이며, raw `<observed>` schema parse는 Direct subset에서 4/50이었습니다. 두 분모를 혼동하지 않습니다.
+- DDXPlus train 4,655건을 추가한 SFT도 Source CoT의 Obscomp `.2130`에 크게 미달했습니다.
+- SFT는 extraction 가능한 의료 형식을 만들었지만 observation/rationale alignment를 복원하지 못했습니다.
+- Vanilla의 `10/50`은 빈 출력이 아니라 평가 가능한 observation claim을 추출한 case coverage입니다.
+- `Medical-NLA, final`은 성공 방법을 위한 조건부 행이며, validation gate 뒤에만 locked 72/106을 엽니다.
 
 ---
 
-## Slide 17. RQ1 support: 낮은 alignment가 scorer 문제인가?
+## Slide 17. Main Table 2 support: 낮은 alignment가 scorer 문제인가?
 
 > 전체 50-case deterministic exact-text census입니다. 불안정했던 AI checklist 결과는 최종 판정에서 제외했습니다.
 
@@ -719,13 +703,15 @@ typical disease template.
 
 ---
 
-## Slide 18. RQ2 main: closed monitor와 open-ended NLA 비교
+## Slide 18. RQ2 = Main Table 3A: 해당 사례 activation을 읽는가?
 
-| method class | method | finding F1 | own-shuffled gap | native-value accuracy | ontology claims |
-|---|---|---:|---:|---:|---:|
-| closed decoder | frozen linear probe | 0.9562 | +0.1624 | 0.7659 | label prediction |
-| closed renderer | structured reader | **0.9587** | +0.1624 | **0.7654** | mean 4.9353/case |
-| open generator | Vanilla NLA | 0.0000 | 0.0000 | 0.0000 | **0/10,028 rows** |
+| method class | method | input layer | finding F1 | shuffled F1 | pair gap | native-value acc |
+|---|---|---:|---:|---:|---:|---:|
+| closed decoder | Frozen probe | HS24 | .9562 | .7938 | +.1624 | .7659 |
+| structured monitor | Probe-guided reader | HS24 | **.9587** | .7938 | +.1624 | **.7654** |
+| open generator | Vanilla NLA | HS32 | .0000 | .0000 | .0000 | .0000 |
+| open generator | Medical-AV, SFT only | HS32 | validation only | validation only | promotion fail | validation only |
+| open generator | **Medical-NLA, final** | 사전 동결 | pending | pending | pending | pending |
 
 ### Structured reader의 정확한 의미
 
@@ -735,29 +721,31 @@ typical disease template.
 
 > 따라서 structured reader는 “probe가 고른 state를 말로 표시할 수 있다”는 closed-monitor 양성 대조이지, activation에서 자유 문장을 생성하는 NLA의 성공이 아닙니다.
 
----
-
-## Slide 19. RQ2 support: counterfactual response
-
-### Structured reader, locked test
-
-| intervention metric | value | denominator |
-|---|---:|---:|
-| deletion original hit | 1.0000 | 4,540 |
-| deletion phantom | 0.3593 | 4,540 |
-| removal success given original hit | 0.6407 | conditional |
-| untouched finding retention | 0.9987 | 16,105 |
-| value-edit replacement hit | 0.1466 | 539 |
-| old-value persistence | 0.5955 | 539 |
-| clean value switch | 0.0804 | 398 |
-
-- Static finding state는 매우 잘 읽히지만 cue deletion 반응은 부분적입니다.
-- Value edit에서는 새 값을 읽는 비율이 낮고 이전 값이 지속됩니다.
-- 높은 static F1과 낮은 clean switch가 동시에 존재하므로 information presence와 state update를 분리해야 합니다.
+- Pair gap은 own activation 점수에서 같은 diagnosis의 다른 환자 activation 점수를 뺀 값입니다.
+- HS24는 closed probe의 validation-selected layer이고 HS32는 generative AV의 architecture-native input입니다.
 
 ---
 
-## Slide 20. RQ2 support: open-ended Vanilla가 0인 이유
+## Slide 19. RQ2 = Main Table 3B: counterfactual change에 선택적으로 반응하는가?
+
+| method | original hit | deletion phantom | removal | retention | replacement | old persist | clean switch |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Probe-guided reader | 1.0000 | .3593 | .6407 | .9987 | .1466 | .5955 | .0804 |
+| Vanilla NLA | .0000 | .0000 | N/A | N/A | .0000 | .0000 | N/A |
+| Medical-AV, SFT only | validation development only | validation development only | validation development only | validation development only | validation development only | validation development only | validation development only |
+| **Medical-NLA, final** | pending | pending | pending | pending | pending | pending | pending |
+
+### Locked 분모와 해석
+
+- Deletion: 4,540 pairs; untouched retention: 16,105 finding occurrences
+- Native value edit: 539 pairs; clean-switch eligible: 398
+- Static finding state는 잘 읽히지만 cue deletion 반응은 부분적이고 value clean switch는 `.0804`입니다.
+- Vanilla phantom `.0000`은 성공이 아닙니다. Original hit도 `.0000`이라 removal/retention/clean-switch 분모가 없습니다.
+- Final Medical-NLA는 changed cue 제거뿐 아니라 retained cue 보존과 old→new value 전환을 동시에 통과해야 합니다.
+
+---
+
+## Slide 20. Main Table 3 audit: open-ended Vanilla가 0인 이유
 
 ### Frozen semantic mapper validation
 
@@ -1092,7 +1080,7 @@ prompt의 **같은 layer**에 직접 patch했습니다. 가중치 학습은 없�
 
 ## Slide 30. 발표 시점 논문 표 원장: validation은 채우고 locked는 구분
 
-### Main Table 1. P0 decodability
+### Main Table 1 (Gate 0). P0 decodability
 
 | dataset/target | layer와 선택 규칙 | validation | locked evaluation | control |
 |---|---|---:|---:|---|
@@ -1104,7 +1092,7 @@ prompt의 **같은 layer**에 직접 patch했습니다. 가중치 학습은 없�
 - HS24 closed probe와 HS32 generative AV는 같은 layer ablation이 아닙니다. Probe는 validation 선택, AV는 공개 architecture의 native interface입니다.
 - 기존 Table 1A backbone behavior는 핵심 NLA 결과와 중복돼 appendix로 이동하는 안을 사용합니다.
 
-### Main Table 2. DiReCT explanation alignment, validation 50
+### Main Table 2 (RQ1). DiReCT explanation alignment, validation 50
 
 | method | input | extraction | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
@@ -1118,7 +1106,7 @@ prompt의 **같은 layer**에 직접 patch했습니다. 가중치 학습은 없�
 - Vanilla 행은 같은 50-case validation pilot의 frozen output이며, `10/50`은 빈 출력 수가 아니라 평가 가능한 observation extraction coverage입니다.
 - `Medical-NLA, final`은 성공 방법의 조건부 행입니다. 실제로 구별되는 checkpoint가 생기기 전에는 reconstruction/full objective라는 가상 행으로 나누지 않습니다.
 
-### Main Table 3A. DDXPlus static grounding, locked test
+### Main Table 3A (RQ2). DDXPlus static grounding, locked test
 
 | method class | method | input layer | finding F1 | shuffled | pair gap | value acc |
 |---|---|---:|---:|---:|---:|---:|
@@ -1128,14 +1116,14 @@ prompt의 **같은 layer**에 직접 patch했습니다. 가중치 학습은 없�
 | open generator | Medical-AV, SFT only | HS32 | validation only | validation only | promotion fail | validation only |
 | open generator | **Medical-NLA, final** | 사전 동결 | pending | pending | pending | pending |
 
-### Main Table 3B. DDXPlus counterfactual grounding
+### Main Table 3B (RQ2). DDXPlus counterfactual grounding
 
-| method | deletion phantom | removal | retention | replacement | old persist | clean switch |
-|---|---:|---:|---:|---:|---:|---:|
-| Probe-guided reader | .3593 | .6407 | .9987 | .1466 | .5955 | .0804 |
-| Vanilla NLA | .0000 | N/A | N/A | .0000 | .0000 | N/A |
-| Medical-AV, SFT only | validation development only | validation development only | validation development only | validation development only | validation development only | validation development only |
-| **Medical-NLA, final** | pending | pending | pending | pending | pending | pending |
+| method | original hit | deletion phantom | removal | retention | replacement | old persist | clean switch |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Probe-guided reader | 1.0000 | .3593 | .6407 | .9987 | .1466 | .5955 | .0804 |
+| Vanilla NLA | .0000 | .0000 | N/A | N/A | .0000 | .0000 | N/A |
+| Medical-AV, SFT only | validation development only | validation development only | validation development only | validation development only | validation development only | validation development only | validation development only |
+| **Medical-NLA, final** | pending | pending | pending | pending | pending | pending | pending |
 
 - Vanilla의 phantom 0은 성공이 아닙니다. Original hit도 0이라 removal/retention/clean-switch 조건부 분모가 없습니다.
 - Final Medical-NLA는 DiReCT clinical alignment와 DDXPlus activation grounding을 모두 통과해야 두 표의 최종 행이 됩니다.
