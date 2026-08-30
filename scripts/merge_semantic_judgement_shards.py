@@ -30,6 +30,7 @@ def merge_judgements(
     output_path: Path,
     expected_model: str,
     report_path: Path,
+    replacement_paths: list[Path] | None = None,
 ) -> dict[str, Any]:
     requests = list(read_jsonl(requests_path))
     request_ids = [str(row.get("id") or "").strip() for row in requests]
@@ -55,6 +56,24 @@ def merge_judgements(
             models.add(model)
             by_id[row_id] = row
 
+    replacement_rows = 0
+    replacement_ids: set[str] = set()
+    for path in replacement_paths or []:
+        for row in read_jsonl(path):
+            row_id = str(row.get("id") or "").strip()
+            if row_id not in by_id:
+                raise ValueError(f"Replacement judgement has unknown ID: {row_id}")
+            model = str(row.get("judge_model") or "").strip()
+            if model != expected_model:
+                raise ValueError(
+                    f"Replacement model mismatch for {row_id}: {model!r}"
+                )
+            if not str(row.get("response") or "").strip():
+                raise ValueError(f"Empty replacement response for {row_id}")
+            by_id[row_id] = row
+            replacement_rows += 1
+            replacement_ids.add(row_id)
+
     missing = sorted(set(request_ids) - set(by_id))
     extra = sorted(set(by_id) - set(request_ids))
     if missing or extra:
@@ -75,6 +94,11 @@ def merge_judgements(
         "requests": str(requests_path),
         "requests_sha256": sha256_file(requests_path),
         "judgement_shards": [str(path) for path in judgement_paths],
+        "replacement_judgements": [
+            str(path) for path in replacement_paths or []
+        ],
+        "replacement_rows": replacement_rows,
+        "replacement_unique_ids": len(replacement_ids),
         "expected_model": expected_model,
         "rows": len(ordered),
         "exact_request_population": True,
@@ -96,6 +120,9 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--expected-model", required=True)
     parser.add_argument("--report", required=True, type=Path)
+    parser.add_argument(
+        "--replacement-judgement", action="append", default=[], type=Path
+    )
     args = parser.parse_args()
 
     report = merge_judgements(
@@ -104,6 +131,7 @@ def main() -> None:
         args.output,
         args.expected_model,
         args.report,
+        args.replacement_judgement,
     )
     print(
         f"[merge-judgements] shards={len(args.judgement)} "

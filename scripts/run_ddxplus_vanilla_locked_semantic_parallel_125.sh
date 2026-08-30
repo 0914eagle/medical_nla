@@ -39,6 +39,7 @@ REQUEST_SHARDS="${SHARD_ROOT}/requests"
 JUDGEMENT_SHARDS="${SHARD_ROOT}/judgements"
 LOG_ROOT="${SHARD_ROOT}/logs"
 MERGED="${OUT}/semantic_judgements.jsonl"
+RETRY_ROOT="${SHARD_ROOT}/retries"
 
 for path in "${GENERATION_SEAL}" "${MAPPER_RECEIPT}" "${SEMANTIC_PROTOCOL}" \
   "${READOUT}" "${HARD_PAIRS}" "${COMMITTED_RECEIPT}" "${SCORER}"; do
@@ -76,7 +77,8 @@ python scripts/validate_semantic_mapper_freeze_receipt.py \
   --receipt "${MAPPER_RECEIPT}" \
   --expected-protocol-sha256 "$(sha256sum "${SEMANTIC_PROTOCOL}" | awk '{print $1}')"
 
-mkdir -p "${OUT}" "${REQUEST_SHARDS}" "${JUDGEMENT_SHARDS}" "${LOG_ROOT}"
+mkdir -p "${OUT}" "${REQUEST_SHARDS}" "${JUDGEMENT_SHARDS}" "${LOG_ROOT}" \
+  "${RETRY_ROOT}"
 echo "[stage 1/5] prepare frozen locked-test requests"
 python "${SCORER}" prepare \
   --readouts "${READOUT}" \
@@ -136,12 +138,74 @@ merge_args=()
 for judgement in "${JUDGEMENT_SHARDS}"/request_*.jsonl; do
   merge_args+=(--judgement "${judgement}")
 done
+replacement_args=()
+for replacement in "${RETRY_ROOT}"/retry_judgements_*.jsonl; do
+  [[ -e "${replacement}" ]] || continue
+  replacement_args+=(--replacement-judgement "${replacement}")
+done
 python scripts/merge_semantic_judgement_shards.py \
   --requests "${REQUESTS}" \
   "${merge_args[@]}" \
+  "${replacement_args[@]}" \
   --output "${MERGED}" \
   --expected-model "${PRIMARY_MODEL}" \
   --report "${OUT}/semantic_judgement_merge_report.json"
+
+for repair_attempt in 1 2 3; do
+  repair_tag="$(date +%Y%m%d_%H%M%S)_${repair_attempt}"
+  retry_requests="${RETRY_ROOT}/retry_requests_${repair_tag}.jsonl"
+  audit_report="${RETRY_ROOT}/audit_${repair_tag}.json"
+  python scripts/audit_semantic_judgement_batches.py \
+    --prepared "${PREPARED}" \
+    --requests "${REQUESTS}" \
+    --judgements "${MERGED}" \
+    --protocol "${SEMANTIC_PROTOCOL}" \
+    --retry-requests "${retry_requests}" \
+    --report "${audit_report}"
+  invalid="$(python - "${audit_report}" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["invalid"])
+PY
+)"
+  if [[ "${invalid}" -eq 0 ]]; then
+    break
+  fi
+  retry_judgements="${RETRY_ROOT}/retry_judgements_${repair_tag}.jsonl"
+  echo "[repair ${repair_attempt}/3] rejudge invalid requests=${invalid}"
+  python scripts/run_judge.py \
+    --requests "${retry_requests}" \
+    --out "${retry_judgements}" \
+    --backend codex \
+    --model "${PRIMARY_MODEL}" \
+    --codex-cmd "${CODEX_CMD}" \
+    --timeout "${TIMEOUT}"
+  replacement_args+=(--replacement-judgement "${retry_judgements}")
+  python scripts/merge_semantic_judgement_shards.py \
+    --requests "${REQUESTS}" \
+    "${merge_args[@]}" \
+    "${replacement_args[@]}" \
+    --output "${MERGED}" \
+    --expected-model "${PRIMARY_MODEL}" \
+    --report "${OUT}/semantic_judgement_merge_report.json"
+done
+
+final_audit="${RETRY_ROOT}/audit_final.json"
+python scripts/audit_semantic_judgement_batches.py \
+  --prepared "${PREPARED}" \
+  --requests "${REQUESTS}" \
+  --judgements "${MERGED}" \
+  --protocol "${SEMANTIC_PROTOCOL}" \
+  --retry-requests "${RETRY_ROOT}/retry_requests_final.jsonl" \
+  --report "${final_audit}"
+final_invalid="$(python - "${final_audit}" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["invalid"])
+PY
+)"
+if [[ "${final_invalid}" -ne 0 ]]; then
+  echo "[error] semantic parser still rejects ${final_invalid} requests" >&2
+  exit 1
+fi
 
 echo "[stage 5/5] frozen finalize"
 generation_protocol="$(python - "${GENERATION_SEAL}" <<'PY'

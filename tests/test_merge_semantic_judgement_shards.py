@@ -37,6 +37,35 @@ def test_merge_reorders_to_frozen_request_population(tmp_path: Path) -> None:
     assert result["exact_request_population"] is True
 
 
+def test_merge_applies_latest_replacement(tmp_path: Path) -> None:
+    requests = tmp_path / "requests.jsonl"
+    shard = tmp_path / "shard.jsonl"
+    replacement_a = tmp_path / "replacement_a.jsonl"
+    replacement_b = tmp_path / "replacement_b.jsonl"
+    output = tmp_path / "merged.jsonl"
+    write_jsonl(requests, [{"id": "r1", "prompt": "a"}])
+    write_jsonl(shard, [judgement("r1")])
+    first = judgement("r1")
+    first["response"] = "first"
+    second = judgement("r1")
+    second["response"] = "second"
+    write_jsonl(replacement_a, [first])
+    write_jsonl(replacement_b, [second])
+
+    result = merge_judgements(
+        requests,
+        [shard],
+        output,
+        "gpt-5.6-sol",
+        tmp_path / "report.json",
+        [replacement_a, replacement_b],
+    )
+
+    assert list(read_jsonl(output))[0]["response"] == "second"
+    assert result["replacement_rows"] == 2
+    assert result["replacement_unique_ids"] == 1
+
+
 @pytest.mark.parametrize("failure", ["missing", "duplicate", "model"])
 def test_merge_rejects_invalid_population(tmp_path: Path, failure: str) -> None:
     requests = tmp_path / "requests.jsonl"
