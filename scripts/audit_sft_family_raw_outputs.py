@@ -22,6 +22,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from src.ddxplus_semantic_mapping import extract_json_object
 from src.jsonl import read_jsonl, write_jsonl
+from scripts.score_direct_official_eval import score_record
 
 
 DIRECT_FIELDS = (
@@ -861,6 +862,152 @@ def finalize_ddxplus(args: argparse.Namespace) -> None:
     print((args.out_dir / "summary.md").read_text(encoding="utf-8"))
 
 
+def finalize_direct_deterministic(args: argparse.Namespace) -> None:
+    """Summarize the full DiReCT audit without selecting valid AI responses."""
+    require_restricted_direct(args.out_dir)
+    private_rows = list(read_jsonl(args.private_bundle))
+    if not private_rows:
+        raise ValueError("Empty DiReCT private bundle")
+    stats: dict[str, Counter[str]] = defaultdict(Counter)
+    obscomp: dict[str, list[float]] = defaultdict(list)
+    private_case_rows = []
+    seen: set[tuple[str, str]] = set()
+    for request in private_rows:
+        identifier = str(request["base_id"])
+        for method in request["methods"]:
+            label = str(method["method"])
+            key = (identifier, label)
+            if key in seen:
+                raise ValueError(f"Duplicate deterministic audit row {identifier}/{label}")
+            seen.add(key)
+            evaluation = method["official_evaluation"]
+            len_gt = int(evaluation["len_ob_gt"])
+            len_pred = int(evaluation["len_ob_pred"])
+            paired = len(evaluation.get("ob_record_paired") or {})
+            if paired > min(len_gt, len_pred):
+                raise ValueError(f"Impossible paired count for {identifier}/{label}")
+            accepted = len(
+                method["accepted_extraction"].get("accepted_claims") or []
+            )
+            if accepted != len_pred:
+                raise ValueError(
+                    f"Extractor/evaluator count mismatch for {identifier}/{label}: "
+                    f"accepted={accepted} len_ob_pred={len_pred}"
+                )
+            score = score_record(evaluation, "official")
+            values = stats[label]
+            values["rows"] += 1
+            values["rows_with_extractable_observation"] += len_pred > 0
+            values["rows_with_physician_match"] += paired > 0
+            values["rows_with_unmatched_only"] += len_pred > 0 and paired == 0
+            values["rows_without_extractable_observation"] += len_pred == 0
+            values["predicted_observations"] += len_pred
+            values["matched_observations"] += paired
+            values["unmatched_predicted_observations"] += len_pred - paired
+            values["physician_reference_observations"] += len_gt
+            obscomp[label].append(float(score["comp_coverage"]))
+            private_case_rows.append(
+                {
+                    "base_id": identifier,
+                    "method": label,
+                    "len_ob_gt": len_gt,
+                    "len_ob_pred": len_pred,
+                    "paired_observations": paired,
+                    "unmatched_predicted_observations": len_pred - paired,
+                    "obscomp": score["comp_coverage"],
+                }
+            )
+    cases = {str(row["base_id"]) for row in private_rows}
+    expected_rows = len(cases)
+    for label, values in stats.items():
+        if values["rows"] != expected_rows:
+            raise ValueError(
+                f"Method {label} has {values['rows']} rows; expected {expected_rows}"
+            )
+    similarities = method_similarity(private_rows)
+    ai_instrument = {
+        "status": "rejected_measurement_instrument",
+        "reason": "local judge failed the frozen JSON/exact-quote contract",
+        "selected_valid_subset_used": False,
+    }
+    if args.ai_audit_report is not None and args.ai_audit_report.is_file():
+        audit = json.loads(args.ai_audit_report.read_text(encoding="utf-8"))
+        ai_instrument.update(
+            {
+                "requests": audit.get("requests"),
+                "valid": audit.get("valid"),
+                "invalid": audit.get("invalid"),
+                "audit_report": str(args.ai_audit_report),
+                "audit_report_sha256": sha256_file(args.ai_audit_report),
+            }
+        )
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+    write_jsonl(args.out_dir / "private_deterministic_case_audit.jsonl", private_case_rows)
+    report = {
+        "schema_version": 1,
+        "audit": "DiReCT SFT deterministic raw-output audit",
+        "exploratory": True,
+        "frozen_scores_changed": False,
+        "restricted_text_emitted": False,
+        "cases": expected_rows,
+        "methods": len(stats),
+        "extractor_miss": "not assessed",
+        "disease_template_classification": "not assessed",
+        "ai_checklist_instrument": ai_instrument,
+        "counts": {label: dict(values) for label, values in sorted(stats.items())},
+        "mean_obscomp": {
+            label: statistics.fmean(values) for label, values in sorted(obscomp.items())
+        },
+        "cross_case_similarity": similarities,
+    }
+    (args.out_dir / "deterministic_results.json").write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    lines = [
+        "# DiReCT SFT Deterministic Raw-Output Audit",
+        "",
+        "Exploratory 50-case validation census using the frozen exact-quote extractor and",
+        "official evaluator artifacts. Restricted clinical text is omitted; frozen scores",
+        "are unchanged.",
+        "",
+        f"- cases / methods: **{expected_rows} / {len(stats)}**",
+        "- AI checklist instrument: **rejected**; no valid-response subset is used",
+        "- extractor miss: **not assessed**",
+        "- disease-template classification: **not assessed**",
+        "",
+        "| method | n | extractable rows | physician-matched rows | unmatched-only rows | no extractable row | predicted obs. | matched obs. | unmatched obs. | mean Obscomp | duplicate rows | median max Jaccard |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for label in sorted(stats):
+        values = stats[label]
+        similarity = similarities[label]
+        lines.append(
+            f"| {label} | {values['rows']} | "
+            f"{values['rows_with_extractable_observation']} | "
+            f"{values['rows_with_physician_match']} | "
+            f"{values['rows_with_unmatched_only']} | "
+            f"{values['rows_without_extractable_observation']} | "
+            f"{values['predicted_observations']} | "
+            f"{values['matched_observations']} | "
+            f"{values['unmatched_predicted_observations']} | "
+            f"{statistics.fmean(obscomp[label]):.4f} | "
+            f"{similarity['exact_duplicate_rows']} | "
+            f"{similarity['median_max_word_jaccard']:.4f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "`unmatched` means not matched to the available physician reference by the frozen",
+            "official evaluator. It is not asserted to be medically false or hallucinated.",
+            "",
+        ]
+    )
+    (args.out_dir / "deterministic_summary.md").write_text(
+        "\n".join(lines), encoding="utf-8"
+    )
+    print((args.out_dir / "deterministic_summary.md").read_text(encoding="utf-8"))
+
+
 def audit_ddxplus_judgements(args: argparse.Namespace) -> dict[str, Any]:
     private = {str(row["id"]): row for row in read_jsonl(args.private_bundle)}
     requests = {str(row["id"]): row for row in read_jsonl(args.requests)}
@@ -957,6 +1104,11 @@ def main() -> None:
     final_direct.add_argument("--judgements", required=True, type=Path)
     final_direct.add_argument("--out-dir", required=True, type=Path)
 
+    deterministic_direct = sub.add_parser("finalize-direct-deterministic")
+    deterministic_direct.add_argument("--private-bundle", required=True, type=Path)
+    deterministic_direct.add_argument("--out-dir", required=True, type=Path)
+    deterministic_direct.add_argument("--ai-audit-report", type=Path)
+
     audit_direct = sub.add_parser("audit-direct-judgements")
     audit_direct.add_argument("--private-bundle", required=True, type=Path)
     audit_direct.add_argument("--requests", required=True, type=Path)
@@ -983,6 +1135,8 @@ def main() -> None:
         prepare_ddxplus(args)
     elif args.command == "finalize-direct":
         finalize_direct(args)
+    elif args.command == "finalize-direct-deterministic":
+        finalize_direct_deterministic(args)
     elif args.command == "audit-direct-judgements":
         audit_direct_judgements(args)
     elif args.command == "audit-ddxplus-judgements":

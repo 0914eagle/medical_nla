@@ -9,6 +9,7 @@ from scripts.audit_sft_family_raw_outputs import (
     audit_direct_judgements,
     finalize_ddxplus,
     finalize_direct,
+    finalize_direct_deterministic,
     prepare_ddxplus,
     prepare_direct,
 )
@@ -374,3 +375,48 @@ def test_ddxplus_audit_retries_non_verbatim_quote(tmp_path: Path) -> None:
     )
     assert result["invalid"] == 1
     assert "character-for-character" in list(read_jsonl(retry))[0]["prompt"]
+
+
+def test_deterministic_direct_finalizer_uses_frozen_evaluator_counts(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "restricted" / "direct" / "audit"
+    bundle = out / "private_bundle.jsonl"
+    evaluation = {
+        "chain_gt": ["category", "diagnosis"],
+        "chain_pred": ["", "category", "diagnosis"],
+        "len_ob_gt": 2,
+        "len_ob_pred": 1,
+        "ob_record_paired": {"finding": [None, None, None, None, "No"]},
+    }
+    write_jsonl(
+        bundle,
+        [
+            {
+                "id": "request",
+                "base_id": "case",
+                "methods": [
+                    {
+                        "opaque_id": "M01",
+                        "method": "model",
+                        "method_output": "The patient has fever.",
+                        "accepted_extraction": {
+                            "accepted_claims": [
+                                {"observation": "The patient has fever.", "rationale": None}
+                            ]
+                        },
+                        "official_evaluation": evaluation,
+                    }
+                ],
+            }
+        ],
+    )
+    finalize_direct_deterministic(
+        argparse.Namespace(private_bundle=bundle, out_dir=out, ai_audit_report=None)
+    )
+    result = json.loads((out / "deterministic_results.json").read_text())
+    counts = result["counts"]["model"]
+    assert counts["rows_with_physician_match"] == 1
+    assert counts["matched_observations"] == 1
+    assert counts["unmatched_predicted_observations"] == 0
+    assert result["extractor_miss"] == "not assessed"

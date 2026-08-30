@@ -13,8 +13,8 @@ if [[ "${DATA_ROOT}" != "/data1/heejae" ]]; then
   echo "[error] this wrapper is frozen for server 125 (/data1/heejae)" >&2
   exit 2
 fi
-if [[ "${MODE}" != "prepare" && "${MODE}" != "run" && "${MODE}" != "repair" && "${MODE}" != "finalize" && "${MODE}" != "all" ]]; then
-  echo "[error] MODE must be prepare, run, repair, finalize, or all" >&2
+if [[ "${MODE}" != "prepare" && "${MODE}" != "run" && "${MODE}" != "repair" && "${MODE}" != "finalize" && "${MODE}" != "finalize-deterministic" && "${MODE}" != "all" ]]; then
+  echo "[error] MODE must be prepare, run, repair, finalize, finalize-deterministic, or all" >&2
   exit 2
 fi
 
@@ -181,6 +181,14 @@ if [[ "${MODE}" == "finalize" || "${MODE}" == "all" ]]; then
   python scripts/audit_sft_family_raw_outputs.py finalize-direct \
     --private-bundle "${OUT}/private_bundle.jsonl" \
     --judgements "${judgement_path}" \
+    --out-dir "${OUT}"
+fi
+
+if [[ "${MODE}" == "finalize-deterministic" ]]; then
+  echo "[deterministic] frozen extractor/evaluator census; invalid AI subset is unused"
+  python scripts/audit_sft_family_raw_outputs.py finalize-direct-deterministic \
+    --private-bundle "${OUT}/private_bundle.jsonl" \
+    --ai-audit-report "${OUT}/retries/audit_final.json" \
     --out-dir "${OUT}"
 fi
 

@@ -90,7 +90,18 @@ claim이다. 모든 positive 판정에 exact quote를 요구한다.
 
 ## 결과
 
-실행 대기. 이 절에는 원문을 넣지 않고 방법별 checklist count와 protocol hash만 기록한다.
+DiReCT local Llama checklist는 200개 request 중 최초 34개만 frozen JSON/exact-quote
+계약을 통과했고, 세 차례 deterministic retry 뒤에도 56 valid / 144 invalid였다. Invalid는
+`true_without_quote=91`, `method_population_mismatch=21`, `non_verbatim_quote=30`,
+`json_parse_error=2`였다. 따라서 valid 56개만 선택하면 selection bias가 생기므로 AI checklist
+계측기는 폐기한다.
+
+DiReCT 최종 원문 감사 집계는 이미 동결된 exact-quote extractor와 official evaluator를
+50건 전수에 다시 적용하지 않고 저장된 artifact에서 결정론적으로 계산한다. 보고 항목은
+extractable-observation row, physician-reference matched row, unmatched-only row, no-extractable
+row, observation count와 cross-case repetition이다. `unmatched`는 available physician reference와
+매칭되지 않았다는 뜻이며 의학적 허위라고 단정하지 않는다. 별도 AI 없이는 확인할 수 없는
+extractor miss와 disease-template classification은 `not assessed`로 남긴다.
 
 ## 판정
 
