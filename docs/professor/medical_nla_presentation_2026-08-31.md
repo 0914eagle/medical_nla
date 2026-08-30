@@ -63,6 +63,20 @@
 | RQ2: Activation grounding | 그 설명이 언어 prior가 아니라 해당 사례 activation과 finding 변화에 실제로 근거하는가? | DDXPlus Table 3, Figure 3 |
 | RQ3: Causal intervention | 검증된 판독을 편집하고 AR로 복원했을 때 내부 상태와 행동이 선택적으로 변하는가? | Table 4, Figure 4 |
 
+### 데이터셋별 검증 역할과 허용되는 표현
+
+| 데이터/모집단 | 주 질문 | 제공하는 reference/control | 통과했을 때만 가능한 표현 |
+|---|---|---|---|
+| DiReCT | 생성 설명이 physician observation과 observation-rationale-diagnosis edge를 복원하는가? | physician annotation, Source CoT, seen/PDD-heldout split | clinically aligned explanation |
+| DDXPlus originals | activation에 finding 존재와 native value가 표현되는가? | evidence ID, native value, same-diagnosis hard shuffle | patient-specific state is decodable |
+| DDXPlus deletion/value edit | 설명 또는 probe가 하나의 cue/value 변화만 따라가는가? | matched original/deleted/edited activation family | activation-grounded readout |
+| DiReCT/DDXPlus text-activation pair + AR | 생성 text가 own activation을 shuffled/mean보다 잘 복원하는가? | matched/shuffled reconstruction, positive controls | state-preserving natural-language bottleneck |
+| Validation-gated intervention population | 검증된 text edit/patch가 목표 상태와 행동만 선택적으로 바꾸는가? | no patch, raw/oracle patch, target/non-target behavior | causal utility |
+
+- DiReCT clinical alignment만으로 activation grounding을 주장하지 않습니다.
+- DDXPlus의 closed finding/value 성능만으로 open-ended explanation 성공을 주장하지 않습니다.
+- AR 양성 대조가 실패한 상태에서는 reconstruction 또는 causal utility를 열지 않습니다.
+
 ### RQ 이전의 Gate 0
 
 > Probe로 activation에 진단·finding·value 정보가 decode 가능한지 확인하는 것은 세 RQ의 선행 조건입니다. 이는 Table 1의 representation audit이지 RQ1 자체가 아닙니다.
@@ -120,13 +134,22 @@
 
 ---
 
-## Slide 5. 평가를 세 층으로 분리
+## Slide 5. 내부 측정 도구와 평가 층을 분리
 
-| 층 | 질문 | 방법 | 해석 범위 |
-|---|---|---|---|
-| Closed probe | 정보가 activation에 있는가? | linear diagnosis/finding/value probe | 정보 존재 및 사례 특이성 |
-| Structured reader | 선택된 상태를 결정론적으로 말로 렌더링할 수 있는가? | frozen probe + train-only lexicon | closed structured monitor |
-| Open-ended NLA | activation만으로 자유 자연어 설명을 생성하는가? | Vanilla AV, Medical-NLA adapters | 자연어 readout |
+| 도구 | 실제 입력 | 출력 공간 | 측정하는 것 | 측정하지 못하는 것 |
+|---|---|---|---|---|
+| Early forced-answer behavioral baseline | source CoT prompt + `The answer is` + supplied candidates | 고정 diagnosis ontology의 sequence likelihood rank | reasoning 전에 바로 답하게 했을 때 backbone의 closed 후보 선호 | 저장된 P0 벡터의 직접 판독, 열린 finding 생성 |
+| Linear/multi-label probe | P0 activation | 고정 diagnosis/finding/value ontology | 선형 decodability와 same-diagnosis 사례 특이성 | 새 claim·관계·자유 문장 생성 |
+| Structured reader | frozen probe가 선택한 label/value | train-only canonical phrases | selected closed state의 결정론적 렌더링 | probe 없이 activation에서 claim을 발견하는 open NLA |
+| Vanilla/Medical NLA | P0 activation | 자유 자연어 | activation-conditioned open-text readout | 임상 정렬·activation grounding의 자동 보장 |
+| Activation reconstructor (AR) | 생성 text | reconstructed activation | text가 state를 보존하는지에 대한 matched-vs-shuffled 진단 | text의 임상적 정확성·인과성의 자동 보장 |
+
+### Closed와 open score를 같은 accuracy로 비교하지 않는 이유
+
+- Forced-answer는 ontology를 미리 제공한 **행동 기준선**이며 직접적인 activation probe가 아닙니다.
+- Probe와 structured reader는 정답 공간이 닫혀 있습니다.
+- Open-ended NLA는 claim 선택과 문장 생성을 동시에 해결해야 합니다.
+- AR cosine은 own activation을 shuffled/mean보다 구분하는 양성 대조를 통과해야만 해석합니다.
 
 ### 왜 분리하는가?
 
@@ -279,6 +302,25 @@ Edited:   rash severity = 5
 
 ## Slide 9. 생성형 Medical-NLA 개발 규율
 
+### 용어 계약: 어디까지를 SFT-only와 Full Medical-NLA라고 부르는가?
+
+| 방법 계열 | Clinical CE | Counterfactual/pair grounding | 검증된 medical AR reconstruction | 현재 상태와 허용 명칭 |
+|---|---:|---:|---:|---|
+| Vanilla NLA | No | No | 공개 general-domain pretraining만 | 공개 baseline; Medical-NLA가 아님 |
+| Medical-AV SFT-only | Yes | No | No | 구현·평가 완료; clinical-format SFT ablation |
+| Grounding-aware surrogate | Yes | sequence CE, ranking 또는 retained anchor | No | 구현·평가 완료; 모두 promotion gate 실패 |
+| Reconstruction-capable Medical-NLA | Yes | 선택적 | Yes | domain-valid AR가 없어 아직 미구현 |
+| Full Medical-NLA | Yes | Yes | Yes | 아직 실현되지 않은 최종 계약; 완료된 방법으로 표현하지 않음 |
+
+```text
+Clinical SFT:      무엇을 어떤 의료 언어로 말할 것인가?
+Pair grounding:    바로 이 activation과 cue/value 변화에 해당하는가?
+Reconstruction:    생성 text가 원 activation의 사례 정보를 보존하는가?
+Full Medical-NLA:  세 조건을 모두 학습하고 독립 gate로 검증한 경우
+```
+
+> 현재까지의 `full-data SFT`는 DDXPlus 4,655건을 모두 사용했다는 데이터 규모 이름입니다. `Full Medical-NLA`를 구현했다는 뜻이 아닙니다.
+
 ### 공통 출력 prompt/schema
 
 ```text
@@ -328,11 +370,11 @@ typical disease template.
 | Full-data SFT | DiReCT 248 + DDXPlus 4,655 | 데이터 양이 병목인가? |
 | Counterfactual sequence SFT | original/deletion/value-edit 각각의 현재 cue set CE | intervention 예시를 직접 보여주면 반응하는가? |
 | Sentence contrastive | matched text NLL < crossed text NLL | activation-target alignment를 직접 키울 수 있는가? |
-| D10 1x2 ranking | one claim, original NLL < deleted NLL | 긴 문장 난이도를 제거하면 changed cue를 배우는가? |
-| D14 OOF distillation | OOF probe가 선택한 hard finding set | activation-supported target만 학습하면 되는가? |
-| D16 soft bottleneck | 3840→256→3840 + training-only auxiliary head | continuous support가 shared latent를 조직화하는가? |
-| D20 specificity anchor | D10 + retained claim CE on original/deleted | global deletion-detector shortcut을 막을 수 있는가? |
-| D22 public AR | text reconstruction matched vs shuffled | 원 NLA의 AR가 medical distribution을 측정하는가? |
+| Changed-cue 1x2 ranking (D10) | one claim, original NLL < deleted NLL | 긴 문장 난이도를 제거하면 changed cue를 배우는가? |
+| OOF finding-set distillation (D14) | OOF probe가 선택한 hard finding set | activation-supported target만 학습하면 되는가? |
+| 256-d soft bottleneck (D16) | 3840→256→3840 + training-only auxiliary head | continuous support가 shared latent를 조직화하는가? |
+| Specificity-anchored ranking (D20) | changed ranking + retained claim CE on original/deleted | global deletion-detector shortcut을 막을 수 있는가? |
+| Public AR matched-vs-shuffled diagnostic (D22) | text reconstruction matched vs shuffled | 원 NLA의 AR가 medical distribution을 측정하는가? |
 
 ### 공통 promotion 원칙
 
@@ -464,7 +506,7 @@ typical disease template.
 | disease category | **24** | 0.0577 | **0.5962** | **0.9038** | **0.7284** | **0.5000** | **1.3961** |
 | disease category | 32 | 0.0577 | 0.5192 | 0.8654 | 0.6609 | 0.4426 | 1.6869 |
 
-### Forced-answer likelihood baseline
+### Early forced-answer behavioral baseline
 
 | target/ranking | candidates | Top-1 | Top-5 | MRR | mean gold rank |
 |---|---:|---:|---:|---:|---:|
@@ -473,6 +515,8 @@ typical disease template.
 | PDD raw, full ontology | 61 | 0.1538 | 0.4423 | 0.3168 | 8.77 |
 | PDD raw, train ontology | 49 | 0.1538 | 0.5192 | 0.3250 | 7.92 |
 | PDD calibrated sensitivity | 49 | 0.0577 | 0.1346 | 0.1486 | 15.83 |
+
+> 저장된 P0 activation을 output head로 직접 unembed한 결과가 아닙니다. CoT prompt 뒤에 `The answer is`와 각 후보 문자열을 teacher-force한 ontology-given sequence ranking입니다.
 
 ### 해석
 
