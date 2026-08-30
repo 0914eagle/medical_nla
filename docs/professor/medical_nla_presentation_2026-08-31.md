@@ -834,6 +834,28 @@ Counterfactual sequence SFT, validation 435 bases / 952 readouts:
 - Counterfactual seed17 clean switch: **0.0488**
 - 평가 가능한 value-edit bases: **82**
 
+### 표에서 사용한 metric과 분모
+
+이 슬라이드의 지표는 validation 단계의 lexical diagnostic입니다. 첫 표의 DDXPlus/DiReCT cue recall·precision은 `<observed>`의 정규화된 target-term containment로 계산하고, paired grounding 표의 original/deleted/edited cue hit은 target cue의 content token 중 최소 `0.50`이 출력에 나타나면 읽은 것으로 판정합니다. Locked test의 semantic mapper score와는 구분합니다.
+
+- `DDX cue recall`: original DDXPlus validation case마다 target cue 중 출력에서 발견된 cue의 비율을 계산한 뒤 사례 평균을 냅니다. 환자에게 있어야 할 finding을 얼마나 회수했는지 봅니다.
+- `DDX cue precision`: `<observed>`에서 모델이 생성한 bullet 중 하나 이상의 target cue와 lexical match된 bullet의 비율을 사례별로 계산해 평균합니다. 질환 전형이나 unsupported finding을 많이 추가하면 낮아집니다.
+- `DiReCT lexical recall`: DiReCT validation에서 physician-observation target 표현이 출력에 lexical하게 등장한 비율입니다. 의미 기반 `Obscomp`보다 엄격하고 단순한 screening 지표이며, 최종 DiReCT clinical alignment를 대신하지 않습니다.
+- `current finding recall`: paired grounding population의 original, cue-deleted, value-edited 모든 readout을 각각 **그 arm에 현재 존재해야 하는 cue set**과 비교한 평균 recall입니다. Original-only DDX cue recall과 달리 intervention 이후의 현재 상태까지 포함합니다.
+- `original target hit`: cue-deletion pair에서 삭제 대상으로 선택된 cue가 original activation의 출력에 나타난 비율입니다. 삭제 반응을 평가하기 전에 모델이 원래 그 cue를 읽을 수 있었는지 확인합니다.
+- `deleted phantom`: 같은 target cue가 cue-deleted activation의 출력에도 남아 있는 비율입니다. 낮을수록 좋지만 original target hit이 0인 빈 모델도 phantom 0을 만들 수 있으므로 단독으로 해석하지 않습니다.
+- `deletion contrast`: `original target hit - deleted phantom`입니다. 양수일수록 삭제 전후 출력 차이가 크지만, original hit 유지와 함께 봐야 합니다.
+- `removal success`: original에서 target cue를 읽은 사례만 분모로 하여, deleted 출력에서는 그 cue가 사라진 비율입니다. `P(not phantom | original hit)`이므로 전체 pair 기준의 `1 - phantom`과 다릅니다.
+- `replacement hit`: native-value edit 후 edited 출력에서 old와 new를 구분하는 **new-value content token**이 나타난 pair의 비율입니다.
+- `old-value persistence`: value edit 후에도 edited 출력에 old-value-specific token이 남은 pair의 비율입니다. 낮을수록 좋습니다.
+- `clean switch`: edited 출력에서 new value는 나타나고 old value는 나타나지 않은 pair의 비율입니다. 이 슬라이드의 validation lexical 표에서는 전체 평가 가능 value-edit pair가 분모이며, locked structured-reader 표의 original-old-hit 조건부 clean-switch 분모와 구분합니다.
+
+```text
+deletion contrast = P(old cue in original output) - P(old cue in deleted output)
+removal success   = P(old cue absent after deletion | old cue read originally)
+clean switch      = P(new value present AND old value absent after value edit)
+```
+
 ### 문제 2와 다음 변경
 
 - Full-data SFT는 DDXPlus finding recall과 deletion response를 개선했습니다.
