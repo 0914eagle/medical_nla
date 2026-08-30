@@ -1165,6 +1165,25 @@ gold `diagnosis_id`로 묶었습니다. 각 source 안에서만 pair를 만들�
 L = L_SFT + lambda * softplus(-(NLL_cross - NLL_matched) / T)
 ```
 
+### 식의 각 기호는 무엇인가?
+
+| symbol | 의미 | 이 pilot의 값/역할 |
+|---|---|---|
+| `NLL_matched` | 자기 문장을 자기 activation으로 teacher-force한 token-average NLL | 낮아야 함 |
+| `NLL_cross` | 같은 stratum의 다른 환자 activation으로 같은 문장을 teacher-force한 NLL | matched보다 높아야 함 |
+| `gap` | `NLL_cross - NLL_matched` | 양수일수록 사례 특이적 |
+| `lambda` | SFT CE와 ranking loss의 상대 가중치 | primary `.1`, `1`; report-only `5` |
+| `T` | gap의 크기를 loss에 얼마나 날카롭게 반영할지 정하는 temperature | `.1`로 고정 |
+
+`softplus(x)=log(1+exp(x))`이므로 `gap<0`이면 큰 벌점을 주고, `gap>0`이 커질수록
+벌점이 0에 가까워집니다. Hinge loss처럼 경계에서 gradient가 갑자기 끊기지 않는 smooth
+pairwise-ranking loss라서 사용했습니다. `T=.1`은 예를 들어 NLL gap `.1`을 loss 안에서는
+`1.0` 규모로 확대합니다. `lambda=.1/1/5`는 각각 ranking을 약하게/동등하게/강하게 적용하는
+서로 다른 arm이며, 사후에 가장 좋은 값을 고른 단일 sweep 결과로 합치지 않습니다.
+
+슬라이드 25의 cue-level D10은 별도 사전 등록 실험이므로 `lambda=1, T=1`입니다. 슬라이드 24의
+sentence-level `T=.1`과 같은 값이 아니며 두 표의 loss scale도 직접 비교하지 않습니다.
+
 ### DiReCT-only validation, 45 paired rows / 13 disease-category clusters
 
 아래 표는 mixed-source training 전체를 직접 채점한 표가 아니라, physician observation target이
@@ -1246,10 +1265,36 @@ gap     = crossed - matched
 
 ```text
 g_changed = NLL(y_changed | h_deleted) - NLL(y_changed | h_original)
-L = CE(y_changed | h_original) + softplus(-g_changed / T)
+L = CE(y_changed | h_original) + lambda * softplus(-g_changed / T)
 lambda = 1, T = 1, max_steps = 20, seeds = 17/29/43
 specificity = changed_gap - retained_gap
 ```
+
+### OOF probe support cut은 무엇인가?
+
+Train activation을 학습한 probe로 같은 train 행을 다시 채점하면 memorization 때문에 support를
+과대평가할 수 있습니다. 그래서 case를 deterministic fold로 나누고, 각 행은 **자신이 포함되지 않은
+반대 fold로 학습한 probe**에서만 확률을 받았습니다. 이것이 out-of-fold, 즉 OOF입니다.
+
+삭제 대상 cue `c` 하나에 대해 아래 세 조건을 AND로 적용했습니다.
+
+```text
+presence       = p(c | h_original)                         >= .90
+deletion delta = p(c | h_original) - p(c | h_deleted)     >= 0
+donor margin   = p(c | h_original) - mean p(c | h_donor)  >= 0
+```
+
+- `presence`: original activation에 그 cue가 실제로 강하게 읽혀야 합니다.
+- `deletion delta`: cue 삭제 뒤 확률이 original보다 높아지는 모순이 없어야 합니다.
+- `donor margin`: 같은 diagnosis이지만 cue가 없는 최대 5개 donor보다 original에서 강해야 합니다.
+- Donor는 같은 fold/diagnosis, changed cue absent, cue 수가 가까운 사례로 결정론적으로 골랐습니다.
+
+Validation null false-support를 `<=.05`로 제한한 후보 중 positive coverage가 최대인 cut이
+`.90/0/0`이었습니다. Validation coverage는 `3,032/3,034=.9993`, null false support는
+`112/2,964=.0378`이었습니다. Train 4,655 cases 중 donor unavailable 1,543, ineligible 3,
+cut 미달 5를 제외해 3,104 pairs가 남았습니다. 이 검사는 사례의 모든 finding이 아니라
+**사례마다 사전 선택된 changed cue 한 개**만 검증한 것이므로 full finding annotation으로
+해석하지 않습니다.
 
 ### 20-step D10 pilot을 어떻게 돌렸는가?
 
@@ -1351,6 +1396,19 @@ checkpoint `{20,194,388,776,1164,1552}`를 report-only로 평가했습니다.
 
 ## Slide 27. 시도 6: D20 specificity-anchored ranking
 
+### 먼저: 시도 6~10은 무엇을 순서대로 분리하는가?
+
+| 시도 | 학습 여부 | 독립적으로 묻는 질문 |
+|---:|---|---|
+| 6 D20 anchor | 새 별도 branch 학습 | D10의 큰 gap이 retained cue까지 억제하는 shortcut인가? |
+| 7 OOF teacher | teacher audit만; student 학습 없음 | 자유문장 대신 canonical target을 안정적으로 만들 수 있는가? |
+| 8 soft bottleneck | 새 control/auxiliary branch 학습 | activation을 압축·조직하면 decoder가 사례 정보를 더 쓰는가? |
+| 9 released AR | 학습 없음 | 공개 text-to-activation decoder를 medical reward로 믿을 수 있는가? |
+| 10 Patchscope | 학습 없음 | AV/AR 변환 없이 residual을 직접 옮기면 clinical content가 나오는가? |
+
+따라서 시도 6 checkpoint 위에 7, 8, 9, 10을 계속 누적한 stack이 아닙니다. 직전 실패가 다음
+가설을 정했지만, 각 branch는 같은 control에서 변경점 하나를 검증했습니다.
+
 ### 무엇을 어떻게 바꿨는가?
 
 Global deletion detector가 retained claim까지 억제하면 직접 손해를 보도록 두 CE 항을 추가했습니다.
@@ -1360,6 +1418,12 @@ L = CE(y_changed | h_original) + softplus(-g_changed)
   + CE(y_retained | h_original) + CE(y_retained | h_deleted)
 all weights = 1, max_steps = 1,552, seeds = 17/29/43
 ```
+
+첫 두 항은 D10과 동일하게 original에서 changed cue를 말하고 deleted에서는 어렵게 만듭니다.
+마지막 두 항은 retained cue를 original과 deleted 양쪽에서 계속 쉽게 말하게 합니다. 따라서 모델이
+`deleted activation이면 모든 claim NLL을 올린다`는 global detector를 사용하면 retained CE에서
+직접 손해를 봅니다. `specificity=changed gap-retained gap`이 양수여야 삭제 대상만 선택적으로
+변했다고 판정합니다.
 
 ### Shortcut을 loss에서 어떻게 차단했는가?
 
@@ -1409,6 +1473,17 @@ original NLL delta는 양수일수록 생성 성능 저하입니다.
 - Leakage를 막기 위해 각 사례는 자신이 들어가지 않은 fold들로 학습한 probe에서만 점수를 받았습니다.
 - 여기서 `K=2/K=5`는 **선택 finding 개수가 아니라 cross-fitting fold 수**입니다. Finding 선택은
   validation에서 이미 고정한 threshold `.5`를 사용하므로 사례별 claim 수는 달라집니다.
+
+```text
+fold 0 case -> folds 1..K-1로 학습한 probe -> canonical finding set
+fold 1 case -> 나머지 folds로 학습한 probe -> canonical finding set
+...
+student target = threshold .5를 넘은 evidence ID의 canonical 문장
+```
+
+`hard teacher`라는 이름은 확률 벡터를 그대로 distill하는 대신 threshold를 넘은 finding ID를
+discrete target 문장으로 만든다는 뜻입니다. 이 target이 안정적인지 확인하기 전에는 student
+decoder를 학습하지 않았습니다.
 
 ### Student를 학습하기 전에 teacher부터 감사한 이유
 
@@ -1468,6 +1543,11 @@ HS32 h (3,840) -> learned z (256) -> projection (3,840) -> frozen AV decoder
 
 Decoder가 원 activation의 임의 방향을 이용하지 못하고 압축된 공통 clinical state를 사용하게 했습니다.
 
+여기서 `z`는 자연어 token이 아니라 환자 activation을 압축한 연속 벡터입니다. `frozen-z` 평가는
+학습이 끝난 뒤 같은 `z`를 고정하고 finding/value probe와 deletion 반응을 측정해, auxiliary loss가
+실제로 임상 정보를 더 모았는지 확인하는 절차입니다. PCA reconstruction cosine은 3,840차원 원벡터를
+선형적으로 되살릴 수 있는지만 확인하며, 높은 cosine 자체가 finding grounding 성공을 뜻하지 않습니다.
+
 ### 20-step control/auxiliary pilot을 어떻게 돌렸는가?
 
 | item | setting |
@@ -1516,6 +1596,16 @@ Training-time paired auxiliary effect도 seed17/29/43에서
 복원 vector가 자기 환자 activation에 더 가까운지 same-diagnosis shuffled activation과 비교했습니다.
 양성 대조는 사례별 finding이 확실한 DDXPlus structured reader와 DiReCT Source CoT입니다.
 
+```text
+patient activation h -> text generator -> text y
+text y -> released AR -> reconstructed activation h_hat
+h_hat를 own / same-diagnosis donor / train mean activation과 비교
+```
+
+이 단계의 목적은 Medical-NLA를 학습하는 것이 아니라, 향후 `text가 activation을 보존했다`는 reward로
+AR 점수를 사용해도 되는지 계측기부터 검증하는 것입니다. Own cosine 하나만 높으면 모든 환자에 공통인
+평균 방향을 복원해도 성공처럼 보이므로 centered gap, retrieval, FVE를 함께 요구했습니다.
+
 ### 학습 전에 released AR를 측정기로 검증한 절차
 
 | item | setting |
@@ -1562,6 +1652,18 @@ reward로 인정하려면 두 positive-control arm 모두 A2와 A5를 통과하�
 
 Source prompt에서 얻은 한 token hidden vector를 target prompt의 지정 token residual에 같은 layer에서
 직접 덮어썼습니다. 가중치 학습과 AV/AR 변환은 없습니다. 먼저 general-domain control로 cell을 고정했습니다.
+
+```text
+source prompt --Gemma layer L--> source token residual h_source
+target prompt --Gemma layer L--> target marker residual h_target
+                                   h_target := h_source
+                                   이후 layer L+1..끝까지 generation
+```
+
+즉 activation을 prompt text에 붙인 것도, AV로 자연어로 변환한 것도 아닙니다. 같은 모델의 같은 layer
+residual을 직접 교체해 `정보가 후속 decoder 계산에 영향을 줄 수 있는가`를 보는 intervention입니다.
+출력이 달라지는 것만으로는 부족하고, real patch가 own finding을 말하며 shuffled donor와 분리돼야
+clinical readout으로 인정했습니다.
 
 ### 5-case bounded smoke를 어떻게 돌렸는가?
 
