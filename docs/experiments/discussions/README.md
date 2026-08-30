@@ -13,7 +13,8 @@
 
 | 상태 | 주제 | 다음 판정 |
 |---|---|---|
-| ready to run | [D22 public-AR medical-distribution diagnostic](2026-08-30-d22-public-ar-diagnostic.md) | 공개 AR geometry는 양성 대조 불일치, Patchscope v1은 parse 0/600 측정 실패, 첫 paper calibration은 post-marker 채점 오류로 무효; final-marker V2를 server 125 GPU2,3에서 실행 |
+| ready to run | [D22 Patchscope feature-interface calibration](2026-08-31-d22-patchscope-feature-interface.md) | token identity HS32=.90 통과; 일반-domain control로 prompt family와 target HS를 고른 뒤 clinical 5-case 적용 |
+| active | [D22 public-AR medical-distribution diagnostic](2026-08-30-d22-public-ar-diagnostic.md) | 공개 AR 불인정; final-marker Patchscope는 token decoding PASS/entity description FAIL, 후속 interface calibration으로 분리 |
 | resolved (FAIL) | [D10 budget calibration and program decision](2026-08-29-program-decision-after-d16.md) | budget gate FAIL 확정; 출구는 D20 결과 후 재론 |
 | resolved (FAIL) | [Specificity-anchored 2x2 objective (D20)](2026-08-30-specificity-anchored-objective.md) | teacher-forced gate FAIL; detector 차단 성공·changed-gap 신호 부재; D19/D21 ledger 행 사람 승인 대기 |
 | active | [Paper table completion](2026-08-29-paper-table-completion.md) | Vanilla protocol freeze, D10 decision, then locked baseline batch |

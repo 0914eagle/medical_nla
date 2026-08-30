@@ -318,7 +318,7 @@ finding F1, deletion, value-edit가 모두 0인 것은 임상 정보 부재의 �
    extraction/patch layer 경계가 일치한 것으로 본다.
 2. **few-shot token identity**: 고정된 일반-domain source prompt 20개의 모델 자체 final
    next-token top-1을 정답으로 삼는다. Target은
-   `apple -> apple; river -> river; seven -> seven; music -> music; foo ->`이며 `foo`의
+   `apple -> apple; river -> river; seven -> seven; music -> music; foo`이며 `foo`의
    마지막 subtoken state를 source와 같은 layer의 state로 교체한다. HS16/24/32/40을
    report하고, HS32 precision@1이 `.40` 이상이면서 no-patch precision@1보다 높고 source
    top-1 mean log-probability lift가 양수여야 통과한다.
@@ -329,7 +329,7 @@ finding F1, deletion, value-edit가 모두 0인 것은 임상 정보 부재의 �
    `foo`에 patch한다. 사전 고정 keyword hit가 `3/5` 이상이고 no-patch와 다른 generation이
    `4/5` 이상이어야 통과한다.
 4. **clinical calibration**: 두 양성 대조 뒤에만 v1과 같은 첫 5개 DDXPlus original HS32를
-   `state_a -> ...; state_b -> ...; state_c -> ...; foo ->` few-shot target에 patch한다.
+   `state_a -> ...; state_b -> ...; state_c -> ...; foo` few-shot target에 patch한다.
    real/same-diagnosis-shuffled/train-mean/no-patch의 raw continuation, first-token KL, max logit
    delta만 보고한다. 앞의 두 양성 대조가 하나라도 실패하면 clinical text는 의미적으로
    해석하지 않는다.
@@ -351,6 +351,18 @@ no-patch divergence는 `5/5`였지만 전체 양성 대조가 유효하지 않�
 V2에서는 identity와 clinical target 모두 마지막을 `...; foo`에서 끝내고 그 마지막
 subtoken의 same-layer pre-hook state를 교체한 직후 next-token distribution/generation을
 측정한다. V1 artifact와 protocol은 삭제하거나 덮어쓰지 않는다.
+
+V2 결과에서 extraction consistency는 통과했고 token identity precision@1은
+HS16/24/32/40에서 각각 `.0500/.3500/.9000/.9500`이었다. No-patch precision은 전 layer
+`.0000`, HS32 target log-probability lift는 `+22.4657`, KL은 `21.131322`였다. 즉 source
+HS32 injection과 next-token decoding은 유효하다. 그러나 entity-description keyword hit는
+`2/5 = .4000`으로 동결 기준에 미달했다. Clinical continuation 15개 중 11개는 완전히
+동일했고, 나머지도 환자별 finding이 아니라 `state_a/state_b/state_c`를 knowledge graph로
+표현하는 일반 설명이었다. 따라서 clinical semantic 해석은 열리지 않았다.
+
+후속 target-interface calibration은 별도 사전 등록 문서
+[`2026-08-31-d22-patchscope-feature-interface.md`](2026-08-31-d22-patchscope-feature-interface.md)
+에서 관리한다.
 
 ### D22 다음 실행 순서
 
