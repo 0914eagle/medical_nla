@@ -206,6 +206,35 @@
 
 ## Slide 7. Counterfactual 평가 규약
 
+### 왜 정적 정확도만으로는 부족한가?
+
+원본 activation에서 finding을 맞혔다는 사실만으로는 모델이 해당 환자 상태를 읽었다고 결론낼 수 없습니다. 다음 shortcut도 같은 정답을 만들 수 있기 때문입니다.
+
+- diagnosis별 전형적인 finding을 반복함
+- prompt 또는 데이터셋의 평균 cue 빈도를 복원함
+- 어떤 activation이 들어와도 비슷한 claim을 출력함
+- 삭제본이라는 사실만 감지해 모든 claim을 함께 억제함
+
+Counterfactual 평가는 **같은 환자에서 한 정보만 바꾸고 나머지를 고정**해, 출력이나 probe score가 바로 그 변화만 선택적으로 따라가는지 묻습니다.
+
+```text
+정보 존재:       original에서 cue A를 읽는가?
+사례 특이성:     같은 진단의 다른 환자 activation으로 바꾸면 성능이 떨어지는가?
+변화 추종:       cue A만 삭제하면 A만 감소하고 B/C는 유지되는가?
+값 갱신:         value 3을 5로 바꾸면 old 3은 줄고 new 5는 증가하는가?
+```
+
+### Hard shuffle과 counterfactual의 역할 차이
+
+| control | 바꾸는 것 | 배제하는 shortcut |
+|---|---|---|
+| same-diagnosis hard shuffle | 환자 activation 전체 | diagnosis template만으로 맞히는 경우 |
+| cue deletion | 특정 cue 하나 | 해당 cue가 없어도 계속 말하는 경우 |
+| native-value edit | 한 evidence의 값 | evidence 이름만 읽고 실제 값을 무시하는 경우 |
+| retained-cue control | 바꾸지 않은 cue | 삭제본이면 모든 claim을 억제하는 global detector |
+
+> 여기서 counterfactual은 readout의 activation grounding을 검증하는 paired intervention입니다. 아직 text를 편집해 source-model 행동을 바꾸는 RQ3 causal intervention은 아닙니다.
+
 ### Counterfactual activation을 만드는 방법
 
 | arm | input text 변경 | activation 재추출 | gold/target |
@@ -217,6 +246,7 @@
 - diagnosis text나 label을 prompt에 추가하지 않습니다.
 - original/deleted/value-edited family는 같은 `base_id`로 묶습니다.
 - deletion은 한 번에 cue 하나만 바꿔 어떤 정보가 변했는지 식별 가능하게 합니다.
+- hidden dimension을 임의로 편집하지 않고 source model을 다시 실행해 각 activation이 실제 입력에서 나온 on-manifold state가 되게 합니다.
 - test에서 새 intervention 또는 threshold를 만들지 않습니다.
 
 ### Cue deletion
