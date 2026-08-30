@@ -341,6 +341,25 @@ def find_subsequence(sequence: list[int], needle: list[int]) -> int:
     return hits[0] + len(needle) - 1
 
 
+def marker_token_span(
+    text: str,
+    offsets: list[tuple[int, int]],
+    marker: str = "<STATE>",
+) -> tuple[int, int]:
+    if text.count(marker) != 1:
+        raise ValueError(f"Expected one {marker} marker in rendered chat text")
+    start = text.index(marker)
+    end = start + len(marker)
+    positions = [
+        index
+        for index, (token_start, token_end) in enumerate(offsets)
+        if token_start < end and token_end > start
+    ]
+    if not positions:
+        raise ValueError(f"No target token overlaps the {marker} character span")
+    return positions[0], positions[-1] + 1
+
+
 @contextlib.contextmanager
 def patched_prefill(
     layer: Any,
@@ -405,10 +424,17 @@ def generate(args: argparse.Namespace) -> None:
         tokenize=False,
         add_generation_prompt=True,
     )
-    encoded = tokenizer(chat_text, add_special_tokens=False, return_tensors="pt")
-    marker_ids = tokenizer("<STATE>", add_special_tokens=False)["input_ids"]
+    encoded = tokenizer(
+        chat_text,
+        add_special_tokens=False,
+        return_offsets_mapping=True,
+        return_tensors="pt",
+    )
+    offsets = [tuple(map(int, pair)) for pair in encoded.pop("offset_mapping")[0].tolist()]
     input_ids = encoded["input_ids"][0].tolist()
-    marker_position = find_subsequence(input_ids, list(marker_ids))
+    marker_start, marker_end = marker_token_span(chat_text, offsets)
+    marker_position = marker_end - 1
+    marker_ids = input_ids[marker_start:marker_end]
     model = load_causal_lm(model_cfg, cache_dir=cache_dir)
     model.eval()
     layer_path, layers = resolve_layer_stack(model)

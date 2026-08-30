@@ -302,13 +302,29 @@ def evaluate(args: argparse.Namespace) -> None:
     for row in scores:
         dataset = str(row["dataset"])
         identifier = str(row["base_id"])
-        if dataset not in pools or identifier not in pools[dataset]:
-            raise ValueError(f"Score row missing from validation pool: {dataset}/{identifier}")
-        pool_row = pools[dataset][identifier]
+        if dataset not in pools:
+            raise ValueError(f"Unknown score dataset: {dataset}")
+        pool_identifier = identifier
+        if pool_identifier not in pools[dataset]:
+            score_activation = str(mapped_path(row.get("activation_path"), args.path_map))
+            matches = [
+                candidate_id
+                for candidate_id, candidate in pools[dataset].items()
+                if str(candidate["activation_path"]) == score_activation
+            ]
+            if len(matches) != 1:
+                raise ValueError(
+                    "Score row cannot be joined to validation pool by base ID or "
+                    f"activation path: {dataset}/{identifier} matches={len(matches)}"
+                )
+            pool_identifier = matches[0]
+        pool_row = pools[dataset][pool_identifier]
         stratum = str(pool_row["stratum"])
         own = activation(str(pool_row["activation_path"]))
         same = activation(str(mapped_path(row["donor_activation_path"], args.path_map)))
-        different_id = deterministic_different_donor(identifier, stratum, pools[dataset])
+        different_id = deterministic_different_donor(
+            pool_identifier, stratum, pools[dataset]
+        )
         different = candidate_vectors[dataset][different_id]
         reconstruction = load_reconstruction(row, args.path_map)
         mean = means[dataset]
@@ -332,7 +348,7 @@ def evaluate(args: argparse.Namespace) -> None:
         )
         candidate_ids = [candidate_id for candidate_id, _ in candidates]
         retrieval_scores = [cosine(reconstruction, vector) for _, vector in candidates]
-        own_index = candidate_ids.index(identifier)
+        own_index = candidate_ids.index(pool_identifier)
         rank = average_rank(retrieval_scores, own_index)
         candidate_count = len(candidates)
         if candidate_count < 2:
@@ -344,6 +360,7 @@ def evaluate(args: argparse.Namespace) -> None:
                 "dataset": dataset,
                 "arm": row["arm"],
                 "base_id": identifier,
+                "validation_pool_base_id": pool_identifier,
                 "stratum": stratum,
                 "a1_same_diagnosis_activation_cosine": cosine(own, same),
                 "a1_different_diagnosis_activation_cosine": cosine(own, different),

@@ -8,6 +8,7 @@ import torch
 
 from scripts.run_ddxplus_d22_patchscope import (
     find_subsequence,
+    marker_token_span,
     output_contract_valid,
     patched_prefill,
     prepare,
@@ -25,6 +26,12 @@ def test_output_contract_accepts_only_none_or_bullets() -> None:
 
 def test_find_subsequence_requires_one_marker() -> None:
     assert find_subsequence([1, 2, 3, 4], [2, 3]) == 2
+
+
+def test_marker_token_span_uses_rendered_character_offsets() -> None:
+    text = "prefix <STATE> suffix"
+    offsets = [(0, 6), (7, 8), (8, 13), (13, 14), (15, 21)]
+    assert marker_token_span(text, offsets) == (1, 4)
 
 
 def test_patched_prefill_replaces_only_the_marker_position() -> None:

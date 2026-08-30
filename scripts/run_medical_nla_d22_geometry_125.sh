@@ -6,9 +6,14 @@ GPU="${GPU:-0}"
 LIMIT_PER_ARM="${LIMIT_PER_ARM:-20}"
 RUN_NAME="${RUN_NAME:-medical_nla_d22_public_ar_geometry20_v1}"
 OUT="${OUT:-${DATA_ROOT}/restricted/direct/e4/${RUN_NAME}}"
+MODE="${MODE:-all}"
 
 if [[ "${DATA_ROOT}" != "/data1/heejae" ]]; then
   echo "[error] this validation/private wrapper is frozen for server 125" >&2
+  exit 2
+fi
+if [[ "${MODE}" != "all" && "${MODE}" != "audit" ]]; then
+  echo "[error] MODE must be all or audit" >&2
   exit 2
 fi
 
@@ -30,9 +35,17 @@ for path in "${DDX_VAL}" "${DDX_TRAIN}" "${DIRECT_VAL}" "${DIRECT_TRAIN}"; do
   test -s "${path}" || { echo "[error] missing ${path}" >&2; exit 2; }
 done
 
-echo "[stage 1/2] reconstruct and persist the frozen 160-vector diagnostic"
-OUT="${OUT}" LIMIT_PER_ARM="${LIMIT_PER_ARM}" DATA_ROOT="${DATA_ROOT}" GPU="${GPU}" \
-  MODE=all bash scripts/run_medical_nla_d22_ar_diagnostic_125.sh
+if [[ "${MODE}" == "all" ]]; then
+  echo "[stage 1/2] reconstruct and persist the frozen 160-vector diagnostic"
+  OUT="${OUT}" LIMIT_PER_ARM="${LIMIT_PER_ARM}" DATA_ROOT="${DATA_ROOT}" GPU="${GPU}" \
+    MODE=all bash scripts/run_medical_nla_d22_ar_diagnostic_125.sh
+else
+  test -s "${OUT}/private_scores.jsonl" || {
+    echo "[error] MODE=audit requires ${OUT}/private_scores.jsonl" >&2
+    exit 2
+  }
+  echo "[stage 1/2] reuse persisted reconstruction vectors"
+fi
 
 echo "[stage 2/2] CPU A1-A5 geometry audit"
 python scripts/audit_medical_nla_d22_geometry.py \
