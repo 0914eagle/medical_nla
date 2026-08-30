@@ -7,7 +7,7 @@ set -euo pipefail
 DATA_ROOT="${DATA_ROOT:-/data1/heejae}"
 GPU="${GPU:-0}"
 MODE="${MODE:-all}"
-OUT="${OUT:-${DATA_ROOT}/restricted/direct/e4/sft_raw_audit50_v1}"
+OUT="${OUT:-${DATA_ROOT}/restricted/direct/e4/sft_raw_audit50_v2}"
 
 if [[ "${DATA_ROOT}" != "/data1/heejae" ]]; then
   echo "[error] this wrapper is frozen for server 125 (/data1/heejae)" >&2
@@ -83,6 +83,7 @@ prepare() {
     --method "full_data_seed29|${FULL_READOUTS}/medical_nla_seed29.jsonl|${FULL_SEMANTIC}|medical_nla_seed29|direct" \
     --cases 50 \
     --seed 17 \
+    --methods-per-request 2 \
     --out-dir "${OUT}"
 }
 
@@ -101,9 +102,9 @@ if [[ "${MODE}" == "run" || "${MODE}" == "all" ]]; then
     --official-repo "${DIRECT}/official_repo" \
     --ckpt-dir "${JUDGE}" \
     --tokenizer-path "${JUDGE}/tokenizer.model" \
-    --max-seq-len 8192 \
+    --max-seq-len 4096 \
     --max-batch-size 1 \
-    --max-gen-len 2048 \
+    --max-gen-len 768 \
     --temperature 0 \
     --top-p 1 \
     --judge-model Meta-Llama-3-8B-Instruct

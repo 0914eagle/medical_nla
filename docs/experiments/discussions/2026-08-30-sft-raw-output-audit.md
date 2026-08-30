@@ -42,8 +42,10 @@
 5. 기존 extractor가 명시된 reference-aligned claim을 놓쳤는가?
 
 각 `true` 판정은 해당 출력의 exact contiguous quote를 요구한다. 방법명은 judge request에서
-opaque ID로 치환한다. 사례 간 상투 반복은 exact duplicate count와 각 출력의 다른 사례 대비
-maximum word-set Jaccard 중앙값으로 별도 계산한다.
+opaque ID로 치환한다. 24 GiB GPU의 local judge attention memory와 방법 간 상호영향을 줄이기
+위해 한 request에는 최대 두 방법만 넣으며, 50건 x ceil(7/2) = 200개 request를 고정한다.
+사례 간 상투 반복은 exact duplicate count와 각 출력의 다른 사례 대비 maximum word-set
+Jaccard 중앙값으로 별도 계산한다.
 
 ### DDXPlus 감사 B
 
@@ -94,4 +96,3 @@ claim이다. 모든 positive 판정에 exact quote를 요구한다.
 
 어떤 결과도 기존 frozen score를 변경하지 않는다. extractor miss가 발견되면 누락 건수만
 exploratory annotation으로 기록한다. 재채점은 별도 승인 없이는 수행하지 않는다.
-

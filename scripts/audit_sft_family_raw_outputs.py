@@ -283,10 +283,12 @@ def prepare_direct(args: argparse.Namespace) -> None:
         selected = selected[: args.cases]
         sampling = f"stable-hash first {args.cases} from method intersection"
 
+    if args.methods_per_request <= 0:
+        raise ValueError("--methods-per-request must be positive")
     requests: list[dict[str, Any]] = []
     private_rows: list[dict[str, Any]] = []
     for identifier in selected:
-        opaque_methods = []
+        all_methods = []
         for index, label in enumerate(
             sorted(methods, key=lambda value: stable_key(identifier, value, args.seed)),
             start=1,
@@ -295,7 +297,7 @@ def prepare_direct(args: argparse.Namespace) -> None:
             text = methods[label]["texts"][identifier]
             if clean(text) != clean(semantic["method_output"]):
                 raise ValueError(f"Output/semantic text mismatch for {label}/{identifier}")
-            opaque_methods.append(
+            all_methods.append(
                 {
                     "opaque_id": f"M{index:02d}",
                     "method": label,
@@ -306,16 +308,25 @@ def prepare_direct(args: argparse.Namespace) -> None:
         observations = [str(value) for value in cohort[identifier].get("cue_targets") or []]
         if not observations:
             raise ValueError(f"No physician observations for {identifier}")
-        request_id = f"direct_sft_raw_{stable_key('request', identifier, args.seed)[:20]}"
-        requests.append({"id": request_id, "prompt": direct_prompt(observations, opaque_methods)})
-        private_rows.append(
-            {
-                "id": request_id,
-                "base_id": identifier,
-                "physician_observations": observations,
-                "methods": opaque_methods,
-            }
-        )
+        for chunk_index, start in enumerate(
+            range(0, len(all_methods), args.methods_per_request)
+        ):
+            opaque_methods = all_methods[start : start + args.methods_per_request]
+            request_id = (
+                f"direct_sft_raw_{stable_key('request', identifier, args.seed)[:20]}_"
+                f"c{chunk_index:02d}"
+            )
+            requests.append(
+                {"id": request_id, "prompt": direct_prompt(observations, opaque_methods)}
+            )
+            private_rows.append(
+                {
+                    "id": request_id,
+                    "base_id": identifier,
+                    "physician_observations": observations,
+                    "methods": opaque_methods,
+                }
+            )
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     write_jsonl(args.out_dir / "requests.jsonl", requests)
@@ -330,6 +341,8 @@ def prepare_direct(args: argparse.Namespace) -> None:
         "cases": len(selected),
         "intersection_cases": len(intersection),
         "methods": list(methods),
+        "methods_per_request": args.methods_per_request,
+        "requests": len(requests),
         "sampling": sampling,
         "seed": args.seed,
         "base_id_sha256": sha256_values(set(selected)),
@@ -357,7 +370,7 @@ def prepare_direct(args: argparse.Namespace) -> None:
     )
     print(
         f"[direct-preflight] cohort={len(cohort)} intersection={len(intersection)} "
-        f"selected={len(selected)} methods={len(methods)}"
+        f"selected={len(selected)} methods={len(methods)} requests={len(requests)}"
     )
     print(f"[private] {args.out_dir}")
 
@@ -650,13 +663,15 @@ def finalize_direct(args: argparse.Namespace) -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     write_jsonl(args.out_dir / "private_adjudications.jsonl", private_results)
     similarities = method_similarity(list(private.values()))
+    case_count = len({str(row["base_id"]) for row in private.values()})
     report = {
         "schema_version": 1,
         "audit": "DiReCT SFT raw-output audit",
         "exploratory": True,
         "frozen_scores_changed": False,
         "restricted_text_emitted": False,
-        "cases": len(private),
+        "cases": case_count,
+        "requests": len(private),
         "counts": {label: dict(values) for label, values in sorted(counts.items())},
         "cross_case_similarity": similarities,
         "judge_models": sorted({str(row.get("judge_model") or "") for row in judgements.values()}),
@@ -669,7 +684,7 @@ def finalize_direct(args: argparse.Namespace) -> None:
         "",
         "Exploratory validation audit. Restricted clinical text is omitted and frozen scores are unchanged.",
         "",
-        f"- cases: **{len(private)}**",
+        f"- cases / requests: **{case_count} / {len(private)}**",
         f"- judge models: `{report['judge_models']}`",
         "",
         "| method | n | physician finding | disease template only | boilerplate/format | unsupported claim | extractor miss | duplicate rows | median max Jaccard |",
@@ -785,6 +800,7 @@ def main() -> None:
     direct.add_argument("--out-dir", required=True, type=Path)
     direct.add_argument("--cases", type=int, default=50)
     direct.add_argument("--seed", type=int, default=17)
+    direct.add_argument("--methods-per-request", type=int, default=2)
 
     ddx = sub.add_parser("prepare-ddxplus")
     ddx.add_argument("--readout", required=True, action="append", type=parse_named_path)

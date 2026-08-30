@@ -108,6 +108,7 @@ def test_prepare_direct_uses_complete_intersection_and_keeps_raw_semantics(
             out_dir=out,
             cases=2,
             seed=17,
+            methods_per_request=2,
         )
     )
     protocol = json.loads((out / "protocol.json").read_text())
