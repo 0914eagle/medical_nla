@@ -552,7 +552,7 @@ typical disease template.
 | RQ1 | Main Table 2 | 생성 설명이 physician observation과 정렬되는가? | 16 | template-collapse audit 17 |
 | RQ2 | Main Table 3A | 설명이 해당 사례 activation에 grounded되는가? | 18 | semantic-mapper audit 20 |
 | RQ2 | Main Table 3B | 삭제/value edit에 선택적으로 반응하는가? | 19 | 평가 분모 11 |
-| Development | Appendix gate table | 어떤 실패가 다음 Medical-NLA 설계를 만들었는가? | 21~28 | seed/gate 세부 결과 |
+| Development | Appendix gate table | 어떤 실패가 다음 Medical-NLA 설계를 만들었는가? | 21~32 | 시도별 seed/gate 세부 결과 |
 | RQ3 | Conditional Table 4 | 검증된 설명 편집이 내부 상태와 행동을 바꾸는가? | 아직 닫힘 | grounded readout + AR gate 필요 |
 
 > Direct-vs-CoT 171-case pilot과 McNemar 검정은 최종 RQ 표가 아니라 source behavior 보조 통제이므로 Appendix로 이동합니다.
@@ -778,297 +778,373 @@ typical disease template.
 
 ---
 
-## Slide 21. Medical-NLA는 실패 원인에 따라 어떻게 바뀌었는가?
+## Slide 21. Medical-NLA 개발 로드맵: 매번 무엇을 고쳤는가?
 
-| 단계 | 먼저 시도한 것 | 관찰된 문제 | 그래서 다음에 바꾼 것 |
+| 시도 | 핵심 변경 | 직전 실패에서 제거하려던 것 | 결과 |
 |---:|---|---|---|
-| 1 | Original/full-data sequence SFT | 형식은 배웠지만 환자별 observation 대신 질환 template로 붕괴 | original/deleted/value-edited target을 직접 학습 |
-| 2 | Counterfactual sequence SFT | seed17 recall은 증가했지만 phantom도 약 2배, seed29에서 미재현 | 문장 생성 CE 대신 activation-target pair ranking |
-| 3 | Sentence matched/crossed contrastive | 양의 NLL gap은 생겼지만 효과가 `+.001~+.005`로 매우 작음 | 한 개 changed cue만 비교하는 1x2 ranking |
-| 4 | Changed-cue ranking, 20 steps | 세 seed 방향은 대체로 양수지만 최소 효과 `.05`에 크게 미달 | loss/data를 고정하고 1,552 steps까지 budget만 확대 |
-| 5 | Budget calibration | changed와 retained gap이 함께 증가: deletion activation 전체를 억제하는 shortcut | retained cue CE를 넣은 specificity anchor |
-| 6 | Specificity-anchored ranking | shortcut은 사라졌지만 changed-cue signal도 3 seed 모두 음수 | target/latent 구조를 OOF teacher와 bottleneck으로 변경 |
-| 7 | OOF teacher / 256-d bottleneck | calibration과 3-seed 효과 모두 gate 실패 | 원 NLA의 text-to-activation AR 측정기로 회귀 |
-| 8 | Public AR geometry | 의료 분포 reconstruction 측정기와 reward gate 실패 | AR를 우회하는 same-layer identity Patchscope |
-| 9 | Identity Patchscope | general control은 통과했지만 clinical own/donor finding은 0/5 | text bypass가 없는 learned medical prefix mapper 후보 |
+| 1 | DDXPlus 248→4,655 original-only SFT | 데이터 부족 | 의료 형식은 습득, 사례 특이성 부족 |
+| 2 | original/deleted/value-edited SFT | intervention 미노출 | seed17 recall과 phantom 동시 증가 |
+| 3 | sentence matched/crossed ranking | CE의 pairwise 비교 부재 | 양의 gap이지만 `+.001~+.005` |
+| 4 | 한 개 changed cue 1x2 ranking | 문장 길이·난이도 noise | 3 seed 효과가 `.05` floor 미달 |
+| 5 | 20→1,552-step budget | under-training 가능성 | deletion detector shortcut 성장 |
+| 6 | retained-cue specificity anchor | 삭제본 전체 억제 shortcut | shortcut과 changed signal 모두 소거 |
+| 7 | OOF hard-target teacher | 자유문장 target의 불안정성 | deletion OOD calibration 실패 |
+| 8 | 256-d soft bottleneck | decoder의 activation 무시 | 3 seed 모두 핵심 decodability 저하 |
+| 9 | 공개 AR reconstruction | surrogate objective 의존 | medical distribution에서 FVE < 0 |
+| 10 | same-layer identity Patchscope | 공개 AV/AR 변환 병목 | 일반-domain 성공, clinical own finding 0/5 |
 
-> 각 변경은 임의의 방법 sweep이 아니라, 직전 실험에서 확인한 실패 모드를 하나씩 제거하기 위한 설계 변경입니다.
+> 다음 10장은 각각 한 시도만 다루며, `변경 → 학습/평가 → 실제 값 → 실패 진단 → 다음 변경` 순서로 읽습니다.
 
 ---
 
-## Slide 22. 시도 1→2: 데이터 증가만으로 부족해 counterfactual SFT로 이동
+## Slide 22. 시도 1: 데이터만 늘린 original-only sequence SFT
 
-### 시도 1. Original-only sequence SFT
+### 무엇을 어떻게 바꿨는가?
 
-`CE(y_current | h_current)`로 현재 finding 문장을 생성하게 하고, DDXPlus 학습량을
-248건에서 4,655건으로 늘렸습니다.
+- Input: 환자별 HS32 activation `h_current`
+- Target: 그 환자에게 현재 존재하는 finding을 `<observed>` 목록으로 직렬화한 `y_current`
+- Loss: token-level cross-entropy `CE(y_current | h_current)`
+- DDXPlus train을 248건 pilot에서 **4,655건 full data**로 확대했습니다.
 
-### Original-only common/full-data SFT, validation
+### Validation 결과
 
-| method | DDX cue recall | cue precision | DiReCT lexical recall | current finding | deletion phantom | removal success | clean switch |
+| method | DDX cue recall | cue precision | DiReCT lexical recall | current finding | deletion phantom | removal | clean switch |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| 248+248 pilot, seed29 | 0.1784 | 0.2533 | 0.0000 | 0.1499 | 0.1356 | 0.0000 | 0.0000 |
-| full data, seed17 | **0.3763** | **0.3816** | 0.0216 | 0.3389 | **0.2138** | **0.4052** | **0.0244** |
-| full data, seed29 | 0.3506 | 0.3758 | 0.0076 | **0.3612** | 0.2667 | 0.3232 | 0.0122 |
+| 248+248 pilot, seed29 | .1784 | .2533 | .0000 | .1499 | .1356 | .0000 | .0000 |
+| full data, seed17 | **.3763** | **.3816** | .0216 | .3389 | .2138 | .4052 | .0244 |
+| full data, seed29 | .3506 | .3758 | .0076 | **.3612** | .2667 | .3232 | .0122 |
 
-### 문제 1
+`cue recall`은 gold finding 중 회수한 비율, `cue precision`은 생성 finding 중 gold로 지지되는
+비율, `DiReCT lexical recall`은 physician observation 표현과의 직접 겹침입니다.
 
-- Full-data SFT는 DDXPlus cue recall을 높였지만 DiReCT observation alignment는 여전히 매우 낮았습니다.
-- 출력 형식과 의료 문체를 배우는 것과 환자 activation을 읽는 것은 같지 않았습니다.
+DiReCT 의미 기반 평가에서도 Source CoT `Obscomp=.2130`에 비해 full SFT seed17/29는
+`.0301/.0296`이었습니다.
 
-### 그래서 바꾼 것: loss는 그대로 두고 학습 `(activation, target text)` 쌍을 세 arm으로 확장
+### 무엇이 문제였고 다음에 무엇을 바꿨는가?
 
-기존 original-only SFT는 원본 activation과 원본 finding text만 보았습니다. Counterfactual
-SFT는 같은 환자의 입력을 실제로 수정해 activation을 다시 추출하고, 수정 뒤 **현재 남아
-있어야 할 finding만** target으로 만들었습니다.
-
-| arm | decoder에 주는 activation | CE target 예시 |
-|---|---|---|
-| original | fever, cough, temperature 39 C가 있는 입력의 activation | `fever; cough; temperature 39 C` |
-| cue-deleted | cough를 입력에서 제거한 뒤 다시 추출한 activation | `fever; temperature 39 C` |
-| value-edited | temperature 39→37 C로 바꾼 뒤 다시 추출한 activation | `fever; cough; temperature 37 C` |
-
-세 arm 모두 token-level sequence cross-entropy `CE(y_arm | h_arm)`를 사용했습니다. 즉
-`삭제본에서 cough 확률을 원본보다 직접 낮추라`는 pairwise loss는 아직 없었습니다.
-
-Counterfactual sequence SFT, validation 435 bases / 952 readouts:
-
-| method | current recall | original target hit | deleted phantom | deletion contrast | removal success | clean switch |
-|---|---:|---:|---:|---:|---:|---:|
-| original-only seed17 | 0.3389 | 0.3517 | 0.2138 | 0.1379 | 0.4052 | 0.0244 |
-| counterfactual seed17 | **0.5632** | **0.6345** | **0.4253** | **0.2092** | 0.3659 | **0.0488** |
-| original-only seed29 | 0.3612 | 0.3770 | 0.2667 | 0.1103 | 0.3232 | 0.0122 |
-| counterfactual seed29 | 0.3475 | 0.3770 | 0.2713 | 0.1057 | **0.4268** | 0.0000 |
-
-### Value edit은 무엇을 확인했는가? validation eligible 82 cases
-
-| metric | 질문 | counterfactual seed17 |
-|---|---|---:|
-| replacement hit | 39→37로 바꿨을 때 새 값 `37`을 말했는가? | .0732 |
-| old-value persistence | 바꾼 뒤에도 이전 값 `39`를 계속 말했는가? | .4024 |
-| clean switch | 새 값은 말하고 이전 값은 완전히 제거했는가? | .0488 |
-
-### 표에서 사용한 metric과 분모
-
-이 슬라이드의 지표는 validation 단계의 lexical diagnostic입니다. 첫 표의 DDXPlus/DiReCT cue recall·precision은 `<observed>`의 정규화된 target-term containment로 계산하고, paired grounding 표의 original/deleted/edited cue hit은 target cue의 content token 중 최소 `0.50`이 출력에 나타나면 읽은 것으로 판정합니다. Locked test의 semantic mapper score와는 구분합니다.
-
-- `DDX cue recall`: original DDXPlus validation case마다 target cue 중 출력에서 발견된 cue의 비율을 계산한 뒤 사례 평균을 냅니다. 환자에게 있어야 할 finding을 얼마나 회수했는지 봅니다.
-- `DDX cue precision`: `<observed>`에서 모델이 생성한 bullet 중 하나 이상의 target cue와 lexical match된 bullet의 비율을 사례별로 계산해 평균합니다. 질환 전형이나 unsupported finding을 많이 추가하면 낮아집니다.
-- `DiReCT lexical recall`: DiReCT validation에서 physician-observation target 표현이 출력에 lexical하게 등장한 비율입니다. 의미 기반 `Obscomp`보다 엄격하고 단순한 screening 지표이며, 최종 DiReCT clinical alignment를 대신하지 않습니다.
-- `current finding recall`: paired grounding population의 original, cue-deleted, value-edited 모든 readout을 각각 **그 arm에 현재 존재해야 하는 cue set**과 비교한 평균 recall입니다. Original-only DDX cue recall과 달리 intervention 이후의 현재 상태까지 포함합니다.
-- `original target hit`: cue-deletion pair에서 삭제 대상으로 선택된 cue가 original activation의 출력에 나타난 비율입니다. 삭제 반응을 평가하기 전에 모델이 원래 그 cue를 읽을 수 있었는지 확인합니다.
-- `deleted phantom`: 같은 target cue가 cue-deleted activation의 출력에도 남아 있는 비율입니다. 낮을수록 좋지만 original target hit이 0인 빈 모델도 phantom 0을 만들 수 있으므로 단독으로 해석하지 않습니다.
-- `deletion contrast`: `original target hit - deleted phantom`입니다. 양수일수록 삭제 전후 출력 차이가 크지만, original hit 유지와 함께 봐야 합니다.
-- `removal success`: original에서 target cue를 읽은 사례만 분모로 하여, deleted 출력에서는 그 cue가 사라진 비율입니다. `P(not phantom | original hit)`이므로 전체 pair 기준의 `1 - phantom`과 다릅니다.
-- `replacement hit`: native-value edit 후 edited 출력에서 old와 new를 구분하는 **new-value content token**이 나타난 pair의 비율입니다.
-- `old-value persistence`: value edit 후에도 edited 출력에 old-value-specific token이 남은 pair의 비율입니다. 낮을수록 좋습니다.
-- `clean switch`: edited 출력에서 new value는 나타나고 old value는 나타나지 않은 pair의 비율입니다. 이 슬라이드의 validation lexical 표에서는 전체 평가 가능 value-edit pair가 분모이며, locked structured-reader 표의 original-old-hit 조건부 clean-switch 분모와 구분합니다.
-
-```text
-deletion contrast = P(old cue in original output) - P(old cue in deleted output)
-removal success   = P(old cue absent after deletion | old cue read originally)
-clean switch      = P(new value present AND old value absent after value edit)
-```
-
-### 문제 2와 다음 변경
-
-- Seed17은 current recall `.3389→.5632`, original target hit `.3517→.6345`로 더 많은 cue를 말했습니다.
-- 그러나 deleted phantom도 `.2138→.4253`으로 약 2배 증가했고 conditional removal은 `.4052→.3659`로 오히려 낮아졌습니다. 즉 선택적으로 읽었다기보다 전반적으로 더 많이 말한 효과가 섞였습니다.
-- Seed29의 deletion contrast는 `.1103→.1057`로 개선되지 않아 seed 간 재현성도 없었습니다.
-- Value edit도 new-value hit `.0732`, old persistence `.4024`, clean switch `.0488`이라 값 교체를 학습했다고 보기 어려웠습니다.
-- 원인은 sequence CE에서 unchanged target token이 대부분이고, 삭제 cue 하나를 원본보다 낮추는 **명시적 비교 제약**이 없다는 점입니다.
-- 그래서 다음 단계에서는 문장 전체 생성 CE 대신 `matched activation에서 해당 claim NLL이 crossed activation보다 낮아야 한다`는 pairwise objective로 바꿨습니다.
+- 데이터 증가는 DDXPlus lexical recall을 높였지만 physician observation 정렬은 거의 늘리지 못했습니다.
+- CE는 출력 형식과 질환 전형 문장을 쉽게 학습하지만, 입력이 바뀌었을 때 무엇을 빼거나 고쳐야 하는지는 가르치지 않습니다.
+- **다음 변경:** loss는 유지하고 같은 환자의 `original / cue-deleted / value-edited` activation-target arm을 직접 학습시켰습니다.
 
 ---
 
-## Slide 23. 시도 3→4: 문장 pair ranking에서 한 개 changed cue ranking으로
+## Slide 23. 시도 2: Counterfactual sequence SFT
 
-### 시도 3. Sentence matched/crossed objective
+### 무엇을 어떻게 바꿨는가?
+
+| arm | activation을 만드는 입력 | CE target |
+|---|---|---|
+| original | fever, cough, temperature 39 C | `fever; cough; temperature 39 C` |
+| cue-deleted | 입력에서 cough 제거 후 activation 재추출 | `fever; temperature 39 C` |
+| value-edited | temperature 39→37 C 후 재추출 | `fever; cough; temperature 37 C` |
+
+모든 arm은 여전히 `CE(y_arm | h_arm)`입니다. 즉 deleted output의 cough 확률을 original보다
+직접 낮추는 pairwise 제약은 없습니다. Validation은 435 bases / 952 readouts입니다.
+
+### Paired grounding 결과
+
+| method | current recall | original hit | phantom | contrast | removal | clean switch |
+|---|---:|---:|---:|---:|---:|---:|
+| original-only s17 | .3389 | .3517 | .2138 | .1379 | .4052 | .0244 |
+| counterfactual s17 | **.5632** | **.6345** | **.4253** | **.2092** | .3659 | **.0488** |
+| original-only s29 | .3612 | .3770 | .2667 | .1103 | .3232 | .0122 |
+| counterfactual s29 | .3475 | .3770 | .2713 | .1057 | **.4268** | .0000 |
+
+### Value-edit 상세, eligible 82
+
+| metric | 의미 | counterfactual s17 |
+|---|---|---:|
+| replacement hit | 39→37 편집 뒤 새 값 37을 말함 | .0732 |
+| old-value persistence | 편집 뒤에도 이전 값 39를 말함 | .4024 |
+| clean switch | 새 값은 말하고 이전 값은 제거함 | .0488 |
+
+`contrast = original hit - phantom`, `removal = P(cue absent after deletion | original hit)`입니다.
+
+### 문제와 다음 변경
+
+- Seed17은 더 많이 읽었지만 phantom도 `.2138→.4253`으로 약 2배 증가했고 removal은 악화됐습니다.
+- Seed29 contrast는 `.1103→.1057`로 재현되지 않았습니다.
+- **진단:** unchanged token이 대부분인 sequence CE는 “많이 말하기”와 “선택적으로 반응하기”를 구분하지 못합니다.
+- **다음 변경:** matched activation에서 해당 문장의 NLL이 crossed activation보다 낮도록 pairwise ranking을 추가했습니다.
+
+---
+
+## Slide 24. 시도 3: Sentence matched/crossed contrastive learning
+
+### 무엇을 어떻게 바꿨는가?
+
+같은 disease category 안에서 환자 A의 activation과 target 문장을 짝지었습니다.
+
+- `matched`: `NLL(y_A | h_A)`
+- `crossed`: `NLL(y_A | h_B)`, B는 같은 category의 다른 환자
+- 양의 gap은 자기 activation이 다른 환자 activation보다 자기 문장을 더 잘 설명한다는 뜻입니다.
 
 ```text
 L = L_SFT + lambda * softplus(-(NLL_cross - NLL_matched) / T)
 ```
 
-| objective | symmetric gap | category-cluster 95% CI | matched win |
+### Direct validation, 45 paired rows / 13 category clusters
+
+| objective | symmetric cross-minus-matched | cluster 95% CI | matched win |
 |---|---:|---:|---:|
-| lambda=.1 | +0.0013 | [-0.0006, +0.0033] | 0.5556 |
-| lambda=1 | +0.0022 | [-0.0010, +0.0055] | 0.5778 |
-| SFT=1, lambda=5 | +0.0051 | [+0.0011, +0.0099] | 0.5333 |
-| SFT=0, lambda=1 | +0.0030 | [+0.0003, +0.0057] | 0.6444 |
+| lambda=.1 | +.0013 | [-.0006,+.0033] | .5556 |
+| lambda=1 | +.0022 | [-.0010,+.0055] | .5778 |
+| SFT=1, lambda=5 | **+.0051** | [+.0011,+.0099] | .5333 |
+| SFT=0, lambda=1 | +.0030 | [+.0003,+.0057] | **.6444** |
 
-### 문제 3
+### 문제와 다음 변경
 
-- 일부 CI는 0을 배제했지만 효과는 `+.0013~+.0051`에 불과했습니다.
-- 문장마다 난이도와 길이가 달라 activation 대응 신호가 sentence NLL에 묻힐 수 있었습니다.
+- 일부 CI는 0을 배제했지만 절대 효과는 `+.0013~+.0051`로 매우 작았습니다.
+- 문장 전체 NLL에는 길이, 문체, target 자체의 난이도가 섞여 환자별 finding 신호를 희석합니다.
+- **다음 변경:** 전체 문장 대신 deletion으로 실제 바뀐 **한 개 cue claim**만 original/deleted activation에서 비교했습니다.
 
-### 그래서 바꾼 것: 한 개 changed claim만 original/deleted activation에서 비교
+---
 
-Changed-cue 1x2 ranking objective, 3,104 pairs:
+## Slide 25. 시도 4: D9a-supported changed-cue 1x2 ranking
+
+### 무엇을 어떻게 바꿨는가?
+
+- OOF probe support cut `presence=.90, deletion delta=0, donor margin=0`으로 **3,104 pairs**를 고정했습니다.
+- `changed claim`: 입력에서 삭제한 바로 그 finding 문장
+- `retained claim`: original과 deleted 양쪽에 공통으로 남은 finding 문장
 
 ```text
 g_changed = NLL(y_changed | h_deleted) - NLL(y_changed | h_original)
 L = CE(y_changed | h_original) + softplus(-g_changed / T)
-lambda = 1.0, T = 1.0, max_steps = 20, seeds = 17/29/43
+lambda = 1, T = 1, max_steps = 20, seeds = 17/29/43
 specificity = changed_gap - retained_gap
 ```
 
-| seed | changed delta | cluster 95% CI | retained delta | specificity | specificity 95% CI |
+### Validation 3,032 pairs
+
+| seed | changed delta | cluster 95% CI | retained delta | specificity | specificity CI |
 |---:|---:|---:|---:|---:|---:|
-| 17 | +0.0005 | [-0.0006, +0.0016] | +0.0010 | -0.0005 | [-0.0020, +0.0010] |
-| 29 | +0.0028 | [+0.0017, +0.0039] | -0.0000 | +0.0029 | [+0.0015, +0.0045] |
-| 43 | +0.0030 | [+0.0015, +0.0048] | -0.0007 | +0.0037 | [+0.0017, +0.0059] |
+| 17 | +.0005 | [-.0006,+.0016] | +.0010 | -.0005 | [-.0020,+.0010] |
+| 29 | +.0028 | [+.0017,+.0039] | -.0000 | +.0029 | [+.0015,+.0045] |
+| 43 | +.0030 | [+.0015,+.0048] | -.0007 | +.0037 | [+.0017,+.0059] |
 
-- 3 seed 모두 changed delta는 양수였지만 사전 고정한 최소 효과 `0.05`보다 10배 이상 작았습니다.
-- Seed17의 cluster CI와 specificity CI가 0을 포함해 promotion gate를 통과하지 못했습니다.
-- 이 결과만으로 objective 실패와 20-step budget 부족을 구분할 수 없어, 다음 실험에서는 다른 조건을 고정하고 step만 늘렸습니다.
+각 `delta`는 같은 seed의 ranking arm에서 original-only control을 뺀 paired 차이입니다.
+
+### 문제와 다음 변경
+
+- 세 seed의 changed delta 방향은 양수였지만 사전 고정 최소 효과 `.05`의 1/17 이하였습니다.
+- Seed17은 changed와 specificity CI 모두 0을 포함했습니다.
+- 20-step smoke만으로는 objective가 약한지, 단순 under-training인지 구분할 수 없습니다.
+- **다음 변경:** 데이터·loss·seed·lambda/T를 모두 고정하고 step만 `20→1,552`로 늘렸습니다.
 
 ---
 
-## Slide 24. 시도 5: budget만 20→1,552 steps로 늘렸더니 shortcut이 성장
+## Slide 26. 시도 5: D10 budget calibration, 20→1,552 steps
 
-> 직전 실험의 작은 효과가 단순한 under-training인지 확인하기 위해 데이터 3,104 pairs,
-> loss, `lambda=1`, `T=1`, seeds를 고정하고 학습 step만 변경했습니다.
+### 무엇을 어떻게 바꿨는가?
 
-### Across-seed means
+직전 실험에서 **학습량만** 바꿨습니다. 3,104 pairs, objective, `lambda=T=1`, seeds는 동일하며
+checkpoint `{20,194,388,776,1164,1552}`를 report-only로 평가했습니다.
 
-| step | changed-gap delta | retained-gap delta | specificity delta |
+### Across-seed trajectory
+
+| step | changed-gap delta | retained-gap delta | specificity |
 |---:|---:|---:|---:|
-| 20 | +0.0019 | +0.0002 | +0.0018 |
-| 194 | +0.0329 | -0.0032 | +0.0361 |
-| 388 | +0.2690 | +0.3044 | -0.0354 |
-| 776 | +0.0965 | +0.0428 | +0.0536 |
-| 1,164 | +0.3527 | +0.4055 | -0.0527 |
-| 1,552 | **+0.5558** | **+0.5604** | **-0.0046** |
+| 20 | +.0019 | +.0002 | +.0018 |
+| 194 | +.0329 | -.0032 | +.0361 |
+| 388 | +.2690 | +.3044 | -.0354 |
+| 776 | +.0965 | +.0428 | +.0536 |
+| 1,164 | +.3527 | +.4055 | -.0527 |
+| 1,552 | **+.5558** | **+.5604** | **-.0046** |
 
-### 최종 seed별 changed gap
+각 checkpoint의 값은 같은 budget으로 학습한 original-only control 대비 ranking arm의 paired delta입니다.
+최종 changed delta는 seed17/29/43에서 `-.0177 / +.5618 / +1.1233`이었습니다.
 
-- seed17: **-0.0177**
-- seed29: **+0.5618**
-- seed43: **+1.1233**
+### 무엇이 문제였는가?
 
-### 무엇이 잘못됐는가?
-
-- 삭제한 cue뿐 아니라 retained cue NLL도 거의 같은 크기로 증가했습니다.
-- 모델은 `어떤 cue가 지워졌는가`가 아니라 `삭제된 activation인가`를 감지했습니다.
-- specificity gate가 없었다면 잘못된 성공 판정을 내릴 수 있었습니다.
-- 따라서 budget 부족은 해소됐지만, objective가 허용한 가장 쉬운 해가 global deletion detector라는 것이 확인됐습니다.
-- 다음 실험은 step을 더 늘리지 않고 retained cue를 원본/삭제본 모두에서 유지하도록 loss를 바꿨습니다.
+- 학습량을 늘리자 changed gap은 커졌지만 retained gap도 거의 똑같이 커졌습니다.
+- 모델은 “삭제된 cue 하나”가 아니라 **삭제본 activation 전체의 모든 문장을 어렵게 만드는 deletion detector**를 학습했습니다.
+- Seed17은 최종 부호도 반대라 재현성 gate를 통과하지 못했습니다.
+- **다음 변경:** deleted activation에서도 retained claim은 계속 쉬워야 한다는 CE anchor를 loss에 직접 넣었습니다.
 
 ---
 
-## Slide 25. 시도 6: retained anchor로 shortcut을 막자 changed signal도 사라짐
+## Slide 27. 시도 6: D20 specificity-anchored ranking
 
-### 직전 실패에 대한 변경
+### 무엇을 어떻게 바꿨는가?
 
-삭제본 전체를 억제하면 retained cue CE에서 손해를 보도록 다음 항을 추가했습니다.
+Global deletion detector가 retained claim까지 억제하면 직접 손해를 보도록 두 CE 항을 추가했습니다.
 
 ```text
-L = CE(y_changed | h_original)
-  + softplus(-g_changed)
-  + CE(y_retained | h_original)
-  + CE(y_retained | h_deleted)
-
-all weights = 1.0, max_steps = 1,552, seeds = 17/29/43
+L = CE(y_changed | h_original) + softplus(-g_changed)
+  + CE(y_retained | h_original) + CE(y_retained | h_deleted)
+all weights = 1, max_steps = 1,552, seeds = 17/29/43
 ```
 
-| seed | changed gap | retained gap | specificity | changed original NLL | retained original NLL |
+### Frozen final checkpoint
+
+| seed | changed gap | retained gap | specificity | changed orig NLL | retained orig NLL |
 |---:|---:|---:|---:|---:|---:|
-| 17 | -0.0143 | +0.0135 | **-0.0278** | -0.0756 | -0.3342 |
-| 29 | -0.0040 | +0.0215 | **-0.0255** | +0.0576 | -0.1834 |
-| 43 | -0.0266 | -0.0049 | **-0.0217** | +0.0622 | -0.2263 |
+| 17 | -.0143 | +.0135 | **-.0278** | -.0756 | -.3342 |
+| 29 | -.0040 | +.0215 | **-.0255** | +.0576 | -.1834 |
+| 43 | -.0266 | -.0049 | **-.0217** | +.0622 | -.2263 |
 
-### 결과와 다음 변경
+표는 D20 anchored arm에서 같은 1,552-step control을 뺀 값입니다. Gap delta는 양수가 좋고,
+original NLL delta는 양수일수록 생성 성능 저하입니다.
 
-1. Retained anchor가 global deletion detector shortcut을 억제했습니다.
-2. 그러나 changed-cue signal도 3 seed 모두 음수로 사라졌습니다.
-3. retained original NLL은 개선되어 optimization 자체가 멈춘 것은 아닙니다.
-4. teacher-forced gate 실패로 generation, extension, sweep을 실행하지 않았습니다.
+### 문제와 다음 변경
 
-> 기존 ranking loss의 큰 효과는 선택적 임상 정보 판독이 아니라 shortcut이었습니다.
-
-Loss 수준에서 shortcut을 막아도 사례별 changed cue가 학습되지 않았으므로, 다음에는
-ranking 계수를 다시 조정하지 않고 target builder와 latent interface 자체를 바꿨습니다.
-
----
-
-## Slide 26. 시도 7: target과 latent 구조를 바꿔도 재현되는 개선은 없었음
-
-### 직전 실패에 대한 변경
-
-- Free-paragraph target 대신 out-of-fold probe가 고른 hard finding set을 teacher로 사용했습니다.
-- 3,840차원 activation을 256차원 latent로 강제해 decoder가 공유된 clinical state를 사용하게 했습니다.
-
-| method | exact change | observed result | verdict |
-|---|---|---|---|
-| OOF finding teacher | 반대 fold probe가 선택한 K=5 hard finding set으로 distillation | precision 0.8881, required >=0.90 | FAIL |
-| 256-d soft bottleneck | HS32 3,840→256→3,840 latent와 training-only finding/value auxiliary head | paired effect -0.001137 / -0.001476 / +0.001433 | FAIL |
-| frozen-z evaluation | decoder를 고정한 채 learned latent의 finding/value/counterfactual state 평가 | finding F1 delta -0.0009 / -0.0007 / -0.0016 | FAIL |
-
-- OOF teacher는 deletion activation에서 absent label을 대량 추가해 stable target builder가 되지 못했습니다.
-- Bottleneck auxiliary objective는 3 seed 방향 일치와 최소 효과 `0.005`를 충족하지 못했습니다.
-- 자유문장 target과 pairwise ranking만의 문제가 아니라 latent organization을 바꿔도 개선이 재현되지 않았습니다.
-- 그래서 다음에는 surrogate finding loss를 더 만들지 않고 원 NLA의 핵심 측정기인 AR가 의료 분포에서 유효한지 먼저 확인했습니다.
+- Retained gap이 budget run의 `+.5604`에서 `|gap|<=.0215`로 줄어 shortcut은 차단됐습니다.
+- 그러나 changed gap과 specificity가 3 seed 모두 음수였습니다.
+- Retained original NLL은 크게 개선되어 optimization 실패는 아닙니다. 선택적 changed-cue 신호만 학습되지 않았습니다.
+- Teacher-forced gate에서 멈추고 generation, checkpoint 선택, 추가 sweep은 하지 않았습니다.
+- **다음 변경:** ranking 계수가 아니라 target 자체가 불안정한지 OOF hard-target teacher로 검사했습니다.
 
 ---
 
-## Slide 27. 시도 8: 공개 AR는 높은 cosine에도 의료 activation을 복원하지 못함
+## Slide 28. 시도 7: OOF hard-finding teacher
 
-> Released `kitft/nla-gemma3-12b-L32-ar`, validation-only, arm당 n=20
+### 무엇을 어떻게 바꿨는가?
 
-### Raw cosine 진단
+- Free paragraph 대신 probe가 선택한 finding ID를 canonical claim으로 렌더링했습니다.
+- Leakage를 막기 위해 fold 0 probe는 fold 1에서, fold 1 probe는 fold 0에서만 학습했습니다.
+- 삭제 전후에 안정적인 K=5 set을 student target으로 만들려 했습니다.
 
-| positive control | own cosine | shuffled cosine | gap |
-|---|---:|---:|---:|
-| DDXPlus structured reader | 0.9765 | 0.9765 | 약 0 |
-| DiReCT Source CoT | 0.9835 | 0.9834 | 약 0 |
-| DiReCT Vanilla, report-only | 0.9962 | 0.9961 | +0.0001 |
+### Initial K=2 calibration audit
 
-### 평균 방향을 제거한 geometry audit
+| reader/arm | mean selected | cue precision | cue recall | cue F1 |
+|---|---:|---:|---:|---:|
+| OOF teacher, original | 6.0745 | .7538 | .9999 | .8595 |
+| OOF teacher, deleted | **8.3590** | **.4276** | .9985 | .5988 |
+| full-data probe, original | 4.7865 | .9567 | 1.0000 | .9779 |
+| full-data probe, deleted | 5.6432 | .6331 | .9979 | .7747 |
 
-| positive control | centered gap [cluster CI] | FVE vs train mean | retrieval result |
-|---|---:|---:|---|
-| DDXPlus structured reader | -.0047 [-.0375,+.0261] | -119.2169 | top-1 0/20; chance보다 낮음 |
-| DiReCT Source CoT | +.0304 [+.0012,+.0635] | -109.3544 | MRR만 chance보다 높음 |
+- Deletion 뒤 새로 추가된 label은 case당 평균 **3.5091**개였습니다.
+- 그중 deleted input에 없는 label은 **16,333/16,335 = .9999**였습니다.
+- 이 실패를 완화하려고 허용된 단 한 번의 K=5 target을 평가했지만 precision은 `.8881`,
+  사전 기준은 `>=.90`이었습니다.
 
-### 문제 8과 다음 변경
+### 문제와 다음 변경
 
-- DDXPlus 양성 대조는 centered/retrieval도 실패했고 모든 arm의 FVE가 큰 음수였습니다.
-- DiReCT 일부 rank 신호만으로는 train-mean predictor보다 나쁜 reconstruction을 구제할 수 없습니다.
-- 따라서 공개 AR를 Medical-NLA reward로 사용하지 않고, AR 없는 native-layer Patchscope로 AV 변환 병목을 분리했습니다.
-- 이는 임상 정보 부재가 아니라 공개 AR의 medical distribution mismatch 결과입니다.
+- 삭제 activation이 OOF probe 학습분포 밖으로 이동하면서 없는 finding을 대량 추가했습니다.
+- 불안정한 teacher를 student target으로 쓰면 phantom을 정답으로 굳힐 위험이 있어 target building을 중단했습니다.
+- **다음 변경:** discrete teacher set 대신 3,840-d activation을 256-d continuous clinical bottleneck으로 조직했습니다.
 
 ---
 
-## Slide 28. 시도 9: Patchscope는 일반-domain control은 읽었지만 clinical content는 못 읽음
+## Slide 29. 시도 8: 256-d soft bottleneck과 frozen-z 평가
 
-### 왜 시도했는가?
+### 무엇을 어떻게 바꿨는가?
 
-공개 AV/AR의 domain 변환을 우회하기 위해 같은 Gemma의 source hidden state를 target
-prompt의 **같은 layer**에 직접 patch했습니다. 가중치 학습은 없습니다.
+```text
+HS32 h (3,840) -> learned z (256) -> projection (3,840) -> frozen AV decoder
+                         + training-only finding/value auxiliary heads
+```
+
+Decoder가 원 activation의 임의 방향을 이용하지 못하고 압축된 공통 clinical state를 사용하게 했습니다.
+
+### Frozen-z validation: auxiliary minus control
+
+| seed | finding F1 delta | shuffled-gap delta | value-acc delta | deletion-drop delta | new-after-delete control→aux |
+|---:|---:|---:|---:|---:|---:|
+| 17 | -.0009 | -.0050 | -.0137 | -.0167 | 1.054→.514 |
+| 29 | -.0007 | -.0046 | -.0096 | -.0141 | .849→.527 |
+| 43 | -.0016 | -.0058 | -.0160 | -.0151 | .897→.511 |
+
+Training-time paired auxiliary effect도 seed17/29/43에서
+`-.001137 / -.001476 / +.001433`으로, 요구한 `+.005`와 3-seed 양의 부호를 충족하지 못했습니다.
+
+### 문제와 다음 변경
+
+- Bottleneck은 deletion 뒤 새 label 수는 줄였지만 finding F1, case-specific gap, value accuracy와 deletion response를 모두 악화시켰습니다.
+- 즉 압축은 noise뿐 아니라 probe로 읽히던 의료 정보도 함께 버렸습니다.
+- **다음 변경:** 새 surrogate loss 대신 원 NLA의 text→activation 측정기인 공개 AR가 의료 분포에서 유효한지 먼저 검사했습니다.
+
+---
+
+## Slide 30. 시도 9: 공개 AR reconstruction과 geometry audit
+
+### 무엇을 어떻게 바꿨는가?
+
+출력 text를 공개 `kitft/nla-gemma3-12b-L32-ar`에 넣어 activation을 복원하고,
+복원 vector가 자기 환자 activation에 더 가까운지 same-diagnosis shuffled activation과 비교했습니다.
+양성 대조는 사례별 finding이 확실한 DDXPlus structured reader와 DiReCT Source CoT입니다.
+
+### Raw cosine와 centered geometry
+
+| positive control | own/shuffled cosine | centered gap [cluster CI] | FVE vs train mean | retrieval |
+|---|---|---:|---:|---|
+| DDXPlus structured reader | .9765/.9765 | -.0047 [-.0375,+.0261] | **-119.2169** | top-1 0/20 |
+| DiReCT Source CoT | .9835/.9834 | +.0304 [+.0012,+.0635] | **-109.3544** | top-1 .40, chance CI 포함 |
+| DiReCT Vanilla, report-only | .9962/.9961 | +.0696 [+.0289,+.1111] | **-19.7012** | style/length confound 가능 |
+
+`FVE > 0`이어야 train-mean predictor보다 나은 복원입니다. 모든 arm의 FVE는 음수였습니다.
+
+### 문제와 다음 변경
+
+- 높은 raw cosine은 공통 평균 방향 때문에 생겼고, DDXPlus 양성 대조조차 자기 환자를 찾지 못했습니다.
+- 이는 text나 activation에 정보가 없다는 뜻이 아니라 **공개 AR가 medical distribution의 측정기로 부적합**하다는 뜻입니다.
+- **다음 변경:** 공개 AV/AR 변환을 모두 우회하고 같은 Gemma layer의 hidden state를 직접 patch했습니다.
+
+---
+
+## Slide 31. 시도 10: Same-layer identity Patchscope
+
+### 무엇을 어떻게 바꿨는가?
+
+Source prompt에서 얻은 한 token hidden vector를 target prompt의 지정 token residual에 같은 layer에서
+직접 덮어썼습니다. 가중치 학습과 AV/AR 변환은 없습니다. 먼저 general-domain control로 cell을 고정했습니다.
 
 ### General-domain control
 
 | prompt family | HS16→16 | HS24→24 | HS32→32 |
 |---|---:|---:|---:|
-| entity description keyword hit | 5/5 | 0/5 | 2/5 |
-| relation-specific keyword hit | 3/5 | 3/5 | 0/5 |
+| entity-description hit | **5/5** | 0/5 | 2/5 |
+| relation-specific hit | 3/5 | 3/5 | 0/5 |
 
-- No-patch hit는 전부 0/5였으므로 short general-domain state에 대해서는 interface가 작동했습니다.
+No-patch hit는 전 cell에서 0/5여서 short entity/relation 정보에 대해서는 patch mechanism이 작동했습니다.
 
-### DDXPlus clinical application, bounded n=5 smoke
+### DDXPlus clinical smoke, n=5
 
-| selected cell | real own finding | shuffled donor finding | result |
+| selected cell | own finding | shuffled donor finding | continuation failure |
 |---|---:|---:|---|
-| entity HS16→16 | 0/5 | 0/5 | prompt 예시 문장을 설명 |
-| relation HS16→16 | 0/5 | 0/5 | 일반 clinical-writing 지침 |
-| relation HS24→24 | 0/5 | 0/5 | 일반 case-presentation 지침 |
+| entity HS16→16 | 0/5 | 0/5 | prompt 예시를 설명 |
+| relation HS16→16 | 0/5 | 0/5 | generic clinical-writing 지침 |
+| relation HS24→24 | 0/5 | 0/5 | generic case-presentation 지침 |
 
-### 문제 9과 다음 변경
+### 문제와 다음 변경
 
-- Vector는 continuation과 KL을 크게 바꿨지만 own patient content와 대응하지 않았습니다.
-- Decoder가 target prompt의 텍스트 우회로를 사용하면 activation을 무시할 수 있었습니다.
-- 그래서 추가 prompt/layer sweep을 중단하고, **activation-derived prefix만 입력으로 허용하는 learned medical prefix mapper**를 다음 후보로 둡니다.
-- RQ3 causal intervention은 grounded readout과 유효한 AR가 없어 여전히 열지 않습니다.
+- Patch는 모든 continuation을 바꾸고 KL도 크게 만들었지만 own 환자 finding과 대응하지 않았습니다.
+- Decoder가 target prompt의 의미를 따라가는 text bypass가 activation content보다 강했습니다.
+- **다음 변경:** 임상 예시와 환자 text를 제거하고 activation-derived vectors만 prefix로 주는 learned medical prefix mapper를 설계합니다.
+
+---
+
+## Slide 32. 다음 후보: text bypass 없는 learned medical prefix mapper
+
+### 직전 10개 시도에서 남은 요구조건
+
+| 확인된 실패 | 구조적 대응 |
+|---|---|
+| Free-text SFT의 disease template | patient text와 clinical examples를 decoder 입력에서 제거 |
+| Pair ranking의 deletion detector | changed와 retained specificity를 동시 gate |
+| OOF teacher의 deletion OOD | train-supported canonical claims만 사용 |
+| 256-d bottleneck의 정보 손실 | K-token prefix capacity를 validation 전에 고정하고 ablation 최소화 |
+| 공개 AR distribution mismatch | 첫 단계는 AR reward 없이 supervised target만 사용 |
+| Patchscope prompt bypass | activation-derived prefix + fixed minimal prompt만 허용 |
+
+```text
+P0 medical activation h (3,840-d)
+      -> learned projector
+      -> K prefix vectors
+      -> frozen Gemma decoder
+      -> canonical finding/value claims
+```
+
+### 사전 고정할 성공 관문
+
+1. Own > same-diagnosis shuffled, 3 seed cluster CI > 0
+2. Deletion에서 changed claim 감소와 retained claim 비열등 동시 충족
+3. Value edit replacement 증가와 old persistence 감소
+4. Claim coverage를 줄여 점수를 회피하지 않음
+5. DDXPlus validation 통과 뒤에만 DiReCT validation과 locked 행 개방
+
+> 이 실험이 통과할 때만 Slide 34의 `Medical-NLA, final` 행을 채웁니다.
 
 ---
 
@@ -1076,7 +1152,7 @@ prompt의 **같은 layer**에 직접 patch했습니다. 가중치 학습은 없�
 
 ---
 
-## Slide 29. 현재 RQ별 답
+## Slide 33. 현재 RQ별 답
 
 ### Gate 0. Activation에 임상 정보가 존재하는가?
 
@@ -1115,7 +1191,7 @@ prompt의 **같은 layer**에 직접 patch했습니다. 가중치 학습은 없�
 
 ---
 
-## Slide 30. 발표 시점 논문 표 원장: validation은 채우고 locked는 구분
+## Slide 34. 발표 시점 논문 표 원장: validation은 채우고 locked는 구분
 
 ### Main Table 1 (Gate 0). P0 decodability
 
@@ -1172,50 +1248,7 @@ prompt의 **같은 layer**에 직접 patch했습니다. 가중치 학습은 없�
 
 ---
 
-## Slide 31. 현재 다음 후보: learned medical prefix mapper
-
-### 왜 이 구조인가?
-
-| 이전 실패 | 다음 구조가 제거하는 경로 |
-|---|---|
-| Free-paragraph SFT의 disease template | decoder에 patient text를 주지 않음 |
-| D16 bottleneck을 decoder가 무시 | activation-derived prefix만 decoder 입력으로 허용 |
-| D10 deletion detector | changed cue와 retained cue specificity를 동시에 gate |
-| Public AR distribution mismatch | AR reward 없이 supervised target으로 먼저 학습 |
-| Identity Patchscope의 prompt bypass | 임상 예시/질문이 없는 fixed minimal prompt 사용 |
-
-### 제안 architecture
-
-```text
-P0 medical activation h (3,840-d)
-            |
-            v
-small learned projector
-            |
-            v
-K activation-derived prefix vectors
-            |
-            v
-frozen Gemma decoder -> canonical finding/value claims
-```
-
-- 이것은 공개 AR를 이용한 원 NLA RL이 아니라 supervised activation-language decoder 계열입니다.
-- Source layer, `K`, projector 크기, target contract와 training budget은 실행 전에 동결합니다.
-- 첫 smoke는 DDXPlus official train 4,655와 validation만 사용하고 locked test를 읽지 않습니다.
-
-### 성공 관문
-
-1. Own activation이 same-diagnosis shuffled activation보다 높음, 3 seed cluster CI > 0
-2. Cue deletion에서 changed claim은 감소하고 retained claim은 비열등
-3. Value edit에서 replacement 증가와 old persistence 감소
-4. 출력 coverage를 떨어뜨려 점수를 회피하지 않음
-5. DDXPlus 통과 뒤 DiReCT validation에서 Source CoT floor에 접근 또는 사전 고정 개선폭 충족
-
-> 성공하면 Slide 30의 `Medical-NLA, final` 행을 채우고, 실패하면 새 prompt/layer sweep 없이 supervised prefix 계열의 음성 결과로 기록합니다.
-
----
-
-## Slide 32. 교수님께 확인받을 결정
+## Slide 35. 교수님께 확인받을 결정
 
 ### 결정 1. 논문의 중심 프레이밍
 
@@ -1241,7 +1274,7 @@ frozen Gemma decoder -> canonical finding/value claims
 
 ---
 
-## Slide 33. 결론
+## Slide 36. 결론
 
 1. **정보는 있습니다.** DDXPlus locked probe에서 finding F1 0.9562, value accuracy 0.7659입니다.
 2. **환자별 정보입니다.** 같은 진단 내 shuffle gap이 +0.1624와 +0.1868입니다.
