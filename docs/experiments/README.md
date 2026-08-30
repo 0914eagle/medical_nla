@@ -48,6 +48,12 @@ Medical-NLA 학습 방법의 비교, 현재 실패 원인, 다음 objective와 �
 [`medical_nla_tuning_strategy_2026-08-29.md`](medical_nla_tuning_strategy_2026-08-29.md)를
 따른다.
 
+실제로 실행한 실패 실험의 데이터, activation, prompt, objective, LoRA/optimizer,
+seed/step, validation gate와 결과 수치는
+[`medical_nla_failed_experiments_2026-08-31.md`](medical_nla_failed_experiments_2026-08-31.md)에
+한 번에 재현 가능하도록 정리한다. 모델 실패와 target/teacher 실패, 측정기 실패,
+구현 오류로 무효화한 실행을 서로 구분한다.
+
 이 전략의 검토 결과 — 보완점 6개(HS32 Gate A ceiling, seed 3개 규칙,
 value gate 강등, Gate C bar, paired margin 구현, cue support mask)와
 1a 감사 결과, smoke 전 실행 순서는
