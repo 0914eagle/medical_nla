@@ -1206,6 +1206,25 @@ lambda = 1, T = 1, max_steps = 20, seeds = 17/29/43
 specificity = changed_gap - retained_gap
 ```
 
+### 20-step D10 pilot을 어떻게 돌렸는가?
+
+| item | setting |
+|---|---|
+| train / validation | DDXPlus official-train 3,104 pairs / validation 3,032 pairs |
+| support filter | original presence `>=.90` AND deletion delta `>=0` AND same-diagnosis donor margin `>=0` |
+| validation filter audit | positive coverage `3,032/3,034=.9993`; null false support `112/2,964=.0378` |
+| target | pair당 삭제된 changed claim 1개; value edit과 abstention target은 제외 |
+| control | 같은 initialization/data/order에서 original-only CE, ranking weight 0 |
+| proposed | original CE + changed-claim ranking, `lambda=1`, `T=1`, margin 0 |
+| optimization | seeds 17/29/43, 20 steps, LR `2e-4`, grad accumulation 4, LoRA dropout 0 |
+| retained control | 공통 cue 중 `SHA256(base_id || cue_text)`가 가장 작은 1개를 사전 고정 |
+
+이 pilot에서 원하는 결과는 단순히 changed gap이 양수가 되는 것이 아니었습니다. 같은 seed의
+original-only control보다 changed gap이 **최소 `+.05`** 커지고, 세 seed 모두 부호가 양수이며,
+disease-cluster CI가 0보다 높아야 했습니다. 동시에 retained gap을 빼서 계산한 specificity도
+세 seed에서 양수이고 CI가 0보다 높아야 했습니다. 이 teacher-forced gate를 통과한 경우에만
+generation에서 original hit 유지와 phantom 비증가를 확인할 계획이었습니다.
+
 ### Validation 3,032 pairs
 
 | seed | changed delta | cluster 95% CI | retained delta | specificity | specificity CI |
@@ -1218,8 +1237,11 @@ specificity = changed_gap - retained_gap
 
 ### 문제와 다음 변경
 
-- 세 seed의 changed delta 방향은 양수였지만 사전 고정 최소 효과 `.05`의 1/17 이하였습니다.
-- Seed17은 changed와 specificity CI 모두 0을 포함했습니다.
+- 세 seed changed delta는 양수였지만 `.0005/.0028/.0030`으로 사전 고정 최소 효과 `.05`의
+  `1/100~3/50`에 불과했습니다.
+- Seed29/43은 작은 양의 CI를 보였지만 seed17은 changed와 specificity CI 모두 0을 포함했습니다.
+- 따라서 “세 seed, 최소 효과, changed CI, specificity CI”의 AND gate가 실패했고 generation은
+  실행하지 않았습니다. 이는 생성 metric이 0이라는 뜻이 아니라 **promotion 전 미측정**입니다.
 - 20-step smoke만으로는 objective가 약한지, 단순 under-training인지 구분할 수 없습니다.
 - **다음 변경:** 데이터·loss·seed·lambda/T를 모두 고정하고 step만 `20→1,552`로 늘렸습니다.
 
@@ -1231,6 +1253,21 @@ specificity = changed_gap - retained_gap
 
 직전 실험에서 **학습량만** 바꿨습니다. 3,104 pairs, objective, `lambda=T=1`, seeds는 동일하며
 checkpoint `{20,194,388,776,1164,1552}`를 report-only로 평가했습니다.
+
+### Under-training 반론을 어떻게 분리했는가?
+
+| item | 고정/변경 내용 |
+|---|---|
+| 유일한 변경 | `max_steps: 20 → 1,552` |
+| 그대로 유지 | 3,104 train pairs, 3,032 validation pairs, loss, lambda/T/margin, LR, seeds, pair order |
+| runs | original-only control 3개 + ranking 3개 = 총 6개 |
+| epoch 환산 | 776 steps = 1 epoch, 1,552 = 2 epochs |
+| checkpoint | 20/194/388/776/1164는 trajectory 보고만; 1,552만 최종 판정 |
+| hardware | RunPod A100-SXM4-80GB 단일 GPU/run |
+
+원하는 dose-response는 step이 늘수록 **changed gap만 증가**하고 retained gap은 control과 비슷하게
+유지되어 specificity가 양수가 되는 것이었습니다. 중간 checkpoint를 본 뒤 가장 좋은 step을
+고르면 사후 선택이 되므로, 실행 전부터 최종 1,552-step만 promotion 판정에 사용했습니다.
 
 ### Across-seed trajectory
 
@@ -1246,11 +1283,23 @@ checkpoint `{20,194,388,776,1164,1552}`를 report-only로 평가했습니다.
 각 checkpoint의 값은 같은 budget으로 학습한 original-only control 대비 ranking arm의 paired delta입니다.
 최종 changed delta는 seed17/29/43에서 `-.0177 / +.5618 / +1.1233`이었습니다.
 
+### Frozen 1,552-step의 seed별 결과
+
+| seed | changed delta | retained delta | specificity |
+|---:|---:|---:|---:|
+| 17 | -.0177 | +.0264 | -.0442 |
+| 29 | +.5618 | +.5273 | +.0345 |
+| 43 | +1.1233 | +1.1273 | -.0040 |
+
 ### 무엇이 문제였는가?
 
 - 학습량을 늘리자 changed gap은 커졌지만 retained gap도 거의 똑같이 커졌습니다.
 - 모델은 “삭제된 cue 하나”가 아니라 **삭제본 activation 전체의 모든 문장을 어렵게 만드는 deletion detector**를 학습했습니다.
-- Seed17은 최종 부호도 반대라 재현성 gate를 통과하지 못했습니다.
+- Seed17은 changed 부호가 반대였고, seed29/43도 specificity가 사전 gate를 안정적으로 통과하지
+  못했습니다. Across-seed changed `+.5558`만 보면 성공처럼 보이지만 retained도 `+.5604`여서
+  원하는 선택적 반응은 `-.0046`이었습니다.
+- 중간에는 일부 좋은 checkpoint가 있었지만 report-only로 사전 고정했으므로 사후 선택하지 않았고,
+  최종 gate 실패 뒤 학습 연장도 하지 않았습니다.
 - **다음 변경:** deleted activation에서도 retained claim은 계속 쉬워야 한다는 CE anchor를 loss에 직접 넣었습니다.
 
 ---
@@ -1267,6 +1316,21 @@ L = CE(y_changed | h_original) + softplus(-g_changed)
 all weights = 1, max_steps = 1,552, seeds = 17/29/43
 ```
 
+### Shortcut을 loss에서 어떻게 차단했는가?
+
+| item | setting |
+|---|---|
+| train/validation | D10과 동일한 DDXPlus 3,104 / 3,032 pairs |
+| retained cue | original/deleted 공통 cue 중 pair에 사전 저장된 결정론적 1개 |
+| changed/ranking/retained weights | 모두 1; `T=1`, margin 0, LR `2e-4` |
+| budget | seeds 17/29/43, 1,552 steps; 194/388/776/1164는 report-only |
+| control | frozen D10 1,552-step same-seed original-only checkpoint |
+| hardware | RunPod A100 80GB |
+
+성공하려면 기존 changed gate에 더해 retained gap delta가 seed별 `<=+.01`, changed/retained original
+NLL이 same-seed control의 `1.10x` 이내여야 했습니다. Teacher-forced gate를 모두 통과한 뒤에만
+generation 평균 claim 수가 control의 `.90x` 이상인지 확인하도록 순서를 고정했습니다.
+
 ### Frozen final checkpoint
 
 | seed | changed gap | retained gap | specificity | changed orig NLL | retained orig NLL |
@@ -1281,9 +1345,13 @@ original NLL delta는 양수일수록 생성 성능 저하입니다.
 ### 문제와 다음 변경
 
 - Retained gap이 budget run의 `+.5604`에서 `|gap|<=.0215`로 줄어 shortcut은 차단됐습니다.
-- 그러나 changed gap과 specificity가 3 seed 모두 음수였습니다.
+- 그러나 changed gap은 `-.0143/-.0040/-.0266`, specificity는
+  `-.0278/-.0255/-.0217`로 3 seed 모두 원하는 방향과 반대였습니다.
 - Retained original NLL은 크게 개선되어 optimization 실패는 아닙니다. 선택적 changed-cue 신호만 학습되지 않았습니다.
-- Teacher-forced gate에서 멈추고 generation, checkpoint 선택, 추가 sweep은 하지 않았습니다.
+- 즉 anchor 항은 설계대로 global deletion shortcut을 억제했지만, shortcut을 제거하자 D10에서
+  커졌던 changed 신호도 사라졌습니다. 이는 앞 budget run의 큰 margin이 cue-specific learning이
+  아니었다는 독립 확인입니다.
+- Teacher-forced AND gate에서 멈추고 generation, checkpoint 선택, 추가 sweep은 하지 않았습니다.
 - **다음 변경:** ranking 계수가 아니라 target 자체가 불안정한지 OOF hard-target teacher로 검사했습니다.
 
 ---
@@ -1293,8 +1361,24 @@ original NLL delta는 양수일수록 생성 성능 저하입니다.
 ### 무엇을 어떻게 바꿨는가?
 
 - Free paragraph 대신 probe가 선택한 finding ID를 canonical claim으로 렌더링했습니다.
-- Leakage를 막기 위해 fold 0 probe는 fold 1에서, fold 1 probe는 fold 0에서만 학습했습니다.
-- 삭제 전후에 안정적인 K=5 set을 student target으로 만들려 했습니다.
+- Leakage를 막기 위해 각 사례는 자신이 들어가지 않은 fold들로 학습한 probe에서만 점수를 받았습니다.
+- 여기서 `K=2/K=5`는 **선택 finding 개수가 아니라 cross-fitting fold 수**입니다. Finding 선택은
+  validation에서 이미 고정한 threshold `.5`를 사용하므로 사례별 claim 수는 달라집니다.
+
+### Student를 학습하기 전에 teacher부터 감사한 이유
+
+| item | setting |
+|---|---|
+| population | DDXPlus official train 4,655 bases |
+| arms | original + cue-deleted = 9,310 rows |
+| labels / layer | 91 findings, CoT-P0/HS32 |
+| OOF construction | 최초 2-fold audit, 허용된 보완 1회는 5-fold; held-out row만 예측 |
+| threshold/order | frozen `.5`; canonical evidence-ID order; threshold 재선택 금지 |
+| student boundary | teacher gate 통과 전에는 target JSONL도 student training도 만들지 않음 |
+
+Teacher 성공 조건은 original precision `>=.90`, recall `>=.98`, full-data probe 대비 original/deleted
+mean claim 수 차이 `<=10%`, original-set Jaccard `>=.90`, deleted phantom 차이 `<=.05`, 각 fold
+original precision `>=.85`의 AND 규칙이었습니다.
 
 ### Initial K=2 calibration audit
 
@@ -1307,13 +1391,23 @@ original NLL delta는 양수일수록 생성 성능 저하입니다.
 
 - Deletion 뒤 새로 추가된 label은 case당 평균 **3.5091**개였습니다.
 - 그중 deleted input에 없는 label은 **16,333/16,335 = .9999**였습니다.
-- 이 실패를 완화하려고 허용된 단 한 번의 K=5 target을 평가했지만 precision은 `.8881`,
-  사전 기준은 `>=.90`이었습니다.
+
+### 허용된 5-fold 보완 결과
+
+| reader/arm | mean claims | precision | recall | F1 |
+|---|---:|---:|---:|---:|
+| 5-fold OOF original | 5.1557 | .8881 | .9999 | .9407 |
+| full frozen original | 4.7865 | .9567 | 1.0000 | .9779 |
+| 5-fold OOF deleted | 6.6644 | .5363 | .9983 | .6977 |
+| full frozen deleted | 5.6432 | .6331 | .9979 | .7747 |
 
 ### 문제와 다음 변경
 
 - 삭제 activation이 OOF probe 학습분포 밖으로 이동하면서 없는 finding을 대량 추가했습니다.
-- 불안정한 teacher를 student target으로 쓰면 phantom을 정답으로 굳힐 위험이 있어 target building을 중단했습니다.
+- 5-fold original precision `.8881`은 gate `.90`에 `.0119` 부족했고, deleted mean claims는 full
+  probe보다 `18.10%` 많아 허용치 `10%`를 넘었습니다.
+- 불안정한 teacher를 student target으로 쓰면 phantom을 정답으로 굳힐 위험이 있어 **student는
+  한 step도 학습하지 않았습니다.** 따라서 이것은 decoder 학습 실패가 아니라 target-builder gate 실패입니다.
 - **다음 변경:** discrete teacher set 대신 3,840-d activation을 256-d continuous clinical bottleneck으로 조직했습니다.
 
 ---
@@ -1329,6 +1423,22 @@ HS32 h (3,840) -> learned z (256) -> projection (3,840) -> frozen AV decoder
 
 Decoder가 원 activation의 임의 방향을 이용하지 못하고 압축된 공통 clinical state를 사용하게 했습니다.
 
+### 20-step control/auxiliary pilot을 어떻게 돌렸는가?
+
+| item | setting |
+|---|---|
+| PCA fit | DDXPlus original 4,655 + DiReCT 248, source weight `.5/.5` |
+| reconstruction gate | DDXPlus 4,525와 DiReCT 50 validation에서 cosine `>=.95` |
+| per optimizer step | DiReCT language-SFT 8 rows + DDXPlus D9a 8 pairs |
+| auxiliary supervision | OOF finding soft BCE + selected changed-cue paired margin; inference 때 head 제거 |
+| control | 같은 bottleneck, row order, CE, budget에서 auxiliary coefficient만 0 |
+| gradient scale | seed17의 `dL/dz` parity로 lambda `85`를 한 번 고정해 세 seed 공유 |
+| budget | seeds 17/29/43, 20 steps, source당 160 unique rows, LR `2e-4` |
+
+먼저 control 세 seed의 gap range로 effect floor를 `max(2*range,.005)=.005`로 동결했습니다.
+Auxiliary가 모든 seed에서 control보다 최소 `+.005` 높고 category-cluster CI가 0보다 크며 부호가
+일치해야 generation으로 넘어가는 설계였습니다.
+
 ### Frozen-z validation: auxiliary minus control
 
 | seed | finding F1 delta | shuffled-gap delta | value-acc delta | deletion-drop delta | new-after-delete control→aux |
@@ -1342,8 +1452,13 @@ Training-time paired auxiliary effect도 seed17/29/43에서
 
 ### 문제와 다음 변경
 
-- Bottleneck은 deletion 뒤 새 label 수는 줄였지만 finding F1, case-specific gap, value accuracy와 deletion response를 모두 악화시켰습니다.
-- 즉 압축은 noise뿐 아니라 probe로 읽히던 의료 정보도 함께 버렸습니다.
+- PCA reconstruction gate 자체는 DDXPlus/DiReCT validation cosine `.999997/.999983`으로
+  통과했습니다. 즉 256차원 선형 압축 구현이 단순히 망가진 것은 아닙니다.
+- 그러나 auxiliary-control effect는 두 seed에서 음수, 한 seed에서 작은 양수였고 모든 CI가 0을
+  포함해 floor `.005`를 한 번도 넘지 못했습니다.
+- Bottleneck은 deletion 뒤 새 label 수는 줄였지만 finding F1, case-specific gap, value accuracy와
+  deletion response를 세 seed 모두 악화시켰습니다. Noise만 버린 것이 아니라 필요한 정보/반응성도
+  같이 약해진 결과라 generation으로 승격하지 않았습니다.
 - **다음 변경:** 새 surrogate loss 대신 원 NLA의 text→activation 측정기인 공개 AR가 의료 분포에서 유효한지 먼저 검사했습니다.
 
 ---
@@ -1355,6 +1470,22 @@ Training-time paired auxiliary effect도 seed17/29/43에서
 출력 text를 공개 `kitft/nla-gemma3-12b-L32-ar`에 넣어 activation을 복원하고,
 복원 vector가 자기 환자 activation에 더 가까운지 same-diagnosis shuffled activation과 비교했습니다.
 양성 대조는 사례별 finding이 확실한 DDXPlus structured reader와 DiReCT Source CoT입니다.
+
+### 학습 전에 released AR를 측정기로 검증한 절차
+
+| item | setting |
+|---|---|
+| training | 없음; released `kitft/nla-gemma3-12b-L32-ar` forward만 수행 |
+| population | validation-only, 8 text arms x 20 cases; locked test 미사용 |
+| own control | 같은 reconstructed vector를 own activation과 same-diagnosis 다른 환자 activation에 비교 |
+| positive controls | DDXPlus structured reader, DiReCT Source CoT |
+| A2 | train mean direction을 제거한 centered matched-over-shuffled cosine gap |
+| A3 FVE | train empirical-mean predictor보다 reconstruction error를 얼마나 줄였는가; `>0`이 필요 |
+| A5 | same-stratum 후보 activation 중 own-case retrieval top-1/MRR/rank와 chance 비교 |
+
+Raw cosine만 높으면 activation의 공통 평균 방향을 복원해도 성공처럼 보일 수 있습니다. 따라서 AV
+reward로 인정하려면 두 positive-control arm 모두 A2와 A5를 통과하고 A3 FVE도 양수여야 했습니다.
+이 gate 전에는 AR cosine으로 AV를 학습하거나 checkpoint를 고르지 않도록 고정했습니다.
 
 ### Raw cosine와 centered geometry
 
@@ -1369,7 +1500,13 @@ Training-time paired auxiliary effect도 seed17/29/43에서
 ### 문제와 다음 변경
 
 - 높은 raw cosine은 공통 평균 방향 때문에 생겼고, DDXPlus 양성 대조조차 자기 환자를 찾지 못했습니다.
-- 이는 text나 activation에 정보가 없다는 뜻이 아니라 **공개 AR가 medical distribution의 측정기로 부적합**하다는 뜻입니다.
+- DDXPlus reader는 A2 CI가 0을 포함하고 A5 top-1 `0/20`, 평균 후보 `95.85`, median rank
+  `50`이었습니다. DiReCT Source CoT는 일부 centered/retrieval 신호가 있었지만 FVE가
+  `-109.3544`여서 train-mean predictor보다 훨씬 나빴습니다.
+- 모든 arm의 FVE가 `-19~-143`이므로 reward gate는 기준 해석과 무관하게 실패했습니다.
+- 이는 text나 activation에 정보가 없다는 뜻이 아니라 **공개 general-domain AR가 medical
+  distribution의 reconstruction 측정기로 부적합**하다는 뜻입니다. 따라서 AV/AR 계열 전체를
+  기각한 것이 아니라 domain-adapted Medical-AR가 선행되어야 한다는 결론입니다.
 - **다음 변경:** 공개 AV/AR 변환을 모두 우회하고 같은 Gemma layer의 hidden state를 직접 patch했습니다.
 
 ---
@@ -1381,6 +1518,20 @@ Training-time paired auxiliary effect도 seed17/29/43에서
 Source prompt에서 얻은 한 token hidden vector를 target prompt의 지정 token residual에 같은 layer에서
 직접 덮어썼습니다. 가중치 학습과 AV/AR 변환은 없습니다. 먼저 general-domain control로 cell을 고정했습니다.
 
+### 5-case bounded smoke를 어떻게 돌렸는가?
+
+| stage | procedure / gate |
+|---|---|
+| general control | entity-description와 relation-specific prompt 각각 5개, HS16→16/24→24/32→32 |
+| cell gate | keyword hit `>=3/5`, no-patch 대비 gain `>0`, continuation changed `>=4/5` |
+| blinded selection | DDXPlus tensor를 열기 전에 general control만으로 primary cell 선택 |
+| clinical conditions | 같은 5개 DDXPlus validation case의 real, same-diagnosis shuffled, train mean |
+| clinical expansion gate | real이 own finding을 말하고 shuffled/train mean과 분리될 때만 50건 semantic audit |
+| training | 없음; same-model/same-layer identity replacement |
+
+이 smoke의 질문은 “patch가 출력을 바꾸는가”가 아니라 “바뀐 출력이 **주입한 환자의 finding과
+대응하는가**”였습니다. 따라서 큰 KL이나 서로 다른 문장 수만으로는 성공 처리하지 않았습니다.
+
 ### General-domain control
 
 | prompt family | HS16→16 | HS24→24 | HS32→32 |
@@ -1389,6 +1540,9 @@ Source prompt에서 얻은 한 token hidden vector를 target prompt의 지정 to
 | relation-specific hit | 3/5 | 3/5 | 0/5 |
 
 No-patch hit는 전 cell에서 0/5여서 short entity/relation 정보에 대해서는 patch mechanism이 작동했습니다.
+Frozen tie-break는 entity-description HS16→16을 primary로 골랐습니다. Primary clinical 결과를
+본 뒤 relation cell 하나만 유리하게 고르지 않도록, general control에서 이미 독립적으로 통과한
+relation HS16→16과 HS24→24를 **둘 다** report-only 후속으로 실행했습니다.
 
 ### DDXPlus clinical smoke, n=5
 
@@ -1401,7 +1555,14 @@ No-patch hit는 전 cell에서 0/5여서 short entity/relation 정보에 대해�
 ### 문제와 다음 변경
 
 - Patch는 모든 continuation을 바꾸고 KL도 크게 만들었지만 own 환자 finding과 대응하지 않았습니다.
-- Decoder가 target prompt의 의미를 따라가는 text bypass가 activation content보다 강했습니다.
+- Primary entity HS16은 prompt 안 예시 문장을 설명했고 real/shuffled/train-mean KL도
+  `16.1386/16.1562/16.1683`으로 분리되지 않았습니다. Relation HS16/24도 real 5/5에서 own
+  finding을 말하지 않았고 donor finding 쪽으로 이동하지 않았습니다.
+- 즉 intervention은 generation branch를 바꾸었지만 clinical content correspondence는 `0/5`였습니다.
+  사전 expansion gate 실패로 50건 확대와 semantic mapper 채점은 실행하지 않았습니다.
+- Decoder가 target prompt의 의미를 따라가는 text bypass와 긴 clinical source/짧은 target의
+  distribution shift가 남았습니다. n=5 bounded smoke이므로 통계적 무효 주장이 아니라 이 고정
+  interface의 범주적 실패로만 해석합니다.
 - **다음 변경:** 임상 예시와 환자 text를 제거하고 activation-derived vectors만 prefix로 주는 learned medical prefix mapper를 설계합니다.
 
 ---
