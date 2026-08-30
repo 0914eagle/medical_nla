@@ -93,6 +93,18 @@ if [[ "${MODE}" == "repair" ]]; then
       --report "${OUT}/retries/merge_${attempt}.json"
     current="${merged}"
   done
+  if [[ ! -s "${OUT}/judgements_validated.jsonl" ]]; then
+    python scripts/audit_sft_family_raw_outputs.py audit-ddxplus-judgements \
+      --private-bundle "${OUT}/private_bundle.jsonl" \
+      --requests "${OUT}/requests.jsonl" \
+      --judgements "${current}" \
+      --retry-requests "${OUT}/retries/retry_requests_final.jsonl" \
+      --report "${OUT}/retries/audit_final.json"
+    final_invalid="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["invalid"])' "${OUT}/retries/audit_final.json")"
+    if [[ "${final_invalid}" -eq 0 ]]; then
+      cp "${current}" "${OUT}/judgements_validated.jsonl"
+    fi
+  fi
   test -s "${OUT}/judgements_validated.jsonl" || {
     echo "[error] invalid DDXPlus judge responses remain after three repairs" >&2
     exit 1
