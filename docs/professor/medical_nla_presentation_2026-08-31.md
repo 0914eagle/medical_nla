@@ -1103,6 +1103,28 @@ L = L_SFT + lambda * softplus(-(NLL_cross - NLL_matched) / T)
 있는 **DiReCT validation row만** 골라 같은 `disease_category` 안에서 donor를 만든 alignment gate입니다.
 DDXPlus 쪽은 이후 changed-cue deletion 실험에서 exact same-diagnosis donor로 별도 평가했습니다.
 
+### 왜 앞 슬라이드와 metric이 다른가?
+
+Slide 22~23은 모델이 실제로 생성한 text에서 finding을 찾아 `recall/phantom/removal/clean switch`를
+계산한 **generation-based lexical evaluation**입니다. 반면 이 실험은 새로 추가한 ranking objective가
+최소한 자기 activation과 자기 target을 연결하는지 먼저 확인하는 **teacher-forced development gate**입니다.
+
+환자 A/B 한 pair에서 네 NLL을 계산합니다.
+
+```text
+matched = [NLL(y_A | h_A) + NLL(y_B | h_B)] / 2
+crossed = [NLL(y_A | h_B) + NLL(y_B | h_A)] / 2
+gap     = crossed - matched
+```
+
+- `gap > 0`: 자기 문장이 자기 activation에서 더 쉬우므로 원하는 방향
+- `cluster 95% CI`: disease category 단위 bootstrap에서 gap이 0보다 안정적으로 큰지 검사
+- `matched win`: 개별 patient pair 중 `gap > 0`인 비율
+
+따라서 아래 숫자는 Slide 22~23의 recall과 직접 비교하는 성능 수치가 아닙니다. 이 gate를 충분한
+효과 크기로 통과한 checkpoint만 동일한 generation metric으로 넘어가야 했지만, 관측 gap이
+`+.0013~+.0051`에 그쳐 여기서 promotion하지 않았습니다.
+
 | objective | symmetric cross-minus-matched | cluster 95% CI | matched win |
 |---|---:|---:|---:|
 | lambda=.1 | +.0013 | [-.0006,+.0033] | .5556 |
