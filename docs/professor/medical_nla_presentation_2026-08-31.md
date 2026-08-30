@@ -1640,6 +1640,34 @@ h_hat를 own / same-diagnosis donor / train mean activation과 비교
 AR 점수를 사용해도 되는지 계측기부터 검증하는 것입니다. Own cosine 하나만 높으면 모든 환자에 공통인
 평균 방향을 복원해도 성공처럼 보이므로 centered gap, retrieval, FVE를 함께 요구했습니다.
 
+### `train mean activation`은 무엇인가?
+
+각 source의 **공식 train original activation을 환자 축으로 산술평균한 고정 vector**입니다.
+
+```text
+DDXPlus: mu_DDX = mean(h_i), i = official-train original 4,655 cases
+DiReCT:  mu_DIR = mean(h_i), i = train original 248 cases
+```
+
+- 둘 다 CoT-P0/HS32 activation만 사용하며 validation과 locked test는 평균 계산에 넣지 않았습니다.
+- DDXPlus text arm은 `mu_DDX`, DiReCT text arm은 `mu_DIR`과 비교해 source별 baseline을 유지했습니다.
+- 이 baseline은 입력 text나 환자 ID를 전혀 보지 않고 항상 `mu`만 내는 **상수 예측기**입니다.
+- hidden state를 `h_i = mu + delta_i`로 보면 `mu`는 많은 환자가 공유하는 큰 공통 방향이고,
+  `delta_i`가 환자별 차이입니다. AR가 `mu`만 잘 복원해도 raw cosine은 `.97-.99`까지 높아질 수
+  있으므로, raw cosine만으로 사례 정보를 복원했다고 판정할 수 없습니다.
+
+### Positive control은 왜 두 개인가?
+
+| control | 알고 있는 양성 성질 | 이 control이 실패할 때의 의미 |
+|---|---|---|
+| DDXPlus structured reader | frozen probe가 선택한 사례별 canonical finding을 렌더링; locked finding F1 `.9587`, own-shuffled gap `+.1624` | finding이 명시적인 짧은 structured text조차 AR가 환자 activation과 연결하지 못함 |
+| DiReCT Source CoT | source model이 실제 note에서 생성한 환자별 자연어 reasoning | 긴 자연어 임상 설명에서도 AR가 own case를 구별하는지 확인 |
+
+Structured reader는 free-generating NLA가 아니라 **사례 정보가 들어 있다고 이미 확인된 계측용
+양성 대조**입니다. Source CoT는 자연어 문체까지 포함한 보완 대조입니다. 서로 형식이 다른 두 양성
+대조를 함께 둔 이유는 한쪽의 길이ㆍ문체만으로 gate가 통과하는 일을 막기 위해서입니다. DiReCT
+Vanilla는 사례 특이성이 보장되지 않았으므로 양성 대조가 아니라 report-only arm입니다.
+
 ### 학습 전에 released AR를 측정기로 검증한 절차
 
 | item | setting |
@@ -1648,30 +1676,62 @@ AR 점수를 사용해도 되는지 계측기부터 검증하는 것입니다. O
 | population | validation-only, 8 text arms x 20 cases; locked test 미사용 |
 | own control | 같은 reconstructed vector를 own activation과 same-diagnosis 다른 환자 activation에 비교 |
 | positive controls | DDXPlus structured reader, DiReCT Source CoT |
-| A2 | train mean direction을 제거한 centered matched-over-shuffled cosine gap |
-| A3 FVE | train empirical-mean predictor보다 reconstruction error를 얼마나 줄였는가; `>0`이 필요 |
-| A5 | same-stratum 후보 activation 중 own-case retrieval top-1/MRR/rank와 chance 비교 |
+| A2 | train mean **방향 성분을 투영 제거**한 뒤 own cosine minus shuffled cosine |
+| A3 FVE | direction-normalized reconstruction error가 train-mean 상수 예측기보다 얼마나 작은지; `>0`이 필요 |
+| A5 | same-stratum 후보 activation 중 own-case retrieval top-1/MRR/rank를 각 case의 chance와 비교 |
 
 Raw cosine만 높으면 activation의 공통 평균 방향을 복원해도 성공처럼 보일 수 있습니다. 따라서 AV
 reward로 인정하려면 두 positive-control arm 모두 A2와 A5를 통과하고 A3 FVE도 양수여야 했습니다.
 이 gate 전에는 AR cosine으로 AV를 학습하거나 checkpoint를 고르지 않도록 고정했습니다.
 
+각 지표의 실제 계산은 다음과 같습니다.
+
+```text
+u = mu / ||mu||
+v_perp = v - (v dot u)u
+
+A2 = cos(h_hat_perp, h_own_perp) - cos(h_hat_perp, h_shuffled_perp)
+
+model_error = sum ||unit(h_own) - unit(h_hat)||^2
+mean_error  = sum ||unit(h_own) - unit(mu)||^2
+A3 FVE = 1 - model_error / mean_error
+```
+
+따라서 A2는 단순히 `v-mu`를 한 값이 아니라 **평균 vector가 가리키는 한 방향만 제거**한
+matched-over-shuffled 차이입니다. FVE `0`은 train-mean 상수 예측기와 동률, 양수는 AR가 더 좋음,
+음수는 AR가 더 나쁨을 뜻합니다. 예를 들어 FVE `-119.2169`는 AR error가 mean baseline error의
+`120.2169`배라는 뜻이지, cosine이 119만큼 작다는 뜻이 아닙니다.
+
+A5에서는 같은 diagnosis stratum 안의 `K`개 activation을 후보로 두고 reconstructed vector와 가장
+가까운 activation이 own case인지 순위를 매겼습니다. case별 random top-1 chance는 `1/K`입니다.
+`top-1 - chance`와 `MRR - chance`를 diagnosis-cluster bootstrap해 95% CI를 만들었고, 둘 중 하나의
+CI 하한이 0보다 클 때만 A5를 통과시켰습니다. 여기서 **chance CI가 0을 포함한다**는 것은 관측값이
+우연한 후보 선택보다 안정적으로 낫다고 말할 수 없다는 뜻입니다.
+
 ### Raw cosine와 centered geometry
 
-| positive control | own/shuffled cosine | centered gap [cluster CI] | FVE vs train mean | retrieval |
+| arm | own/shuffled cosine | A2 centered gap [cluster CI] | A3 direction-normalized FVE | A5 retrieval |
 |---|---|---:|---:|---|
-| DDXPlus structured reader | .9765/.9765 | -.0047 [-.0375,+.0261] | **-119.2169** | top-1 0/20 |
-| DiReCT Source CoT | .9835/.9834 | +.0304 [+.0012,+.0635] | **-109.3544** | top-1 .40, chance CI 포함 |
-| DiReCT Vanilla, report-only | .9962/.9961 | +.0696 [+.0289,+.1111] | **-19.7012** | style/length confound 가능 |
+| DDXPlus structured reader | .9765/.9765 | -.0047 [-.0375,+.0261] | **-119.2169** | mean K=95.85; top-1 0/20; top1-chance CI < 0 |
+| DiReCT Source CoT | .9835/.9834 | +.0304 [+.0012,+.0635] | **-109.3544** | mean K=3.95; top1-chance CI includes 0; MRR-chance CI > 0 |
+| DiReCT Vanilla, report-only | .9962/.9961 | +.0696 [+.0289,+.1111] | **-19.7012** | mean K=3.75; chance-adjusted retrieval > 0; style/length confound 가능 |
 
-`FVE > 0`이어야 train-mean predictor보다 나은 복원입니다. 모든 arm의 FVE는 음수였습니다.
+`FVE > 0`이어야 train-mean predictor보다 나은 복원입니다. 모든 arm의 FVE는 음수였습니다. DiReCT
+Source CoT는 A2와 A5를 통과했지만 A3를 실패했고, DDXPlus reader는 A2ㆍA3ㆍA5를 모두 실패했습니다.
+사전 gate는 **두 positive control 모두 A2와 A5 통과 + 두 arm 모두 FVE > 0**이었으므로 최종 실패입니다.
 
 ### 문제와 다음 변경
 
 - 높은 raw cosine은 공통 평균 방향 때문에 생겼고, DDXPlus 양성 대조조차 자기 환자를 찾지 못했습니다.
 - DDXPlus reader는 A2 CI가 0을 포함하고 A5 top-1 `0/20`, 평균 후보 `95.85`, median rank
   `50`이었습니다. DiReCT Source CoT는 일부 centered/retrieval 신호가 있었지만 FVE가
-  `-109.3544`여서 train-mean predictor보다 훨씬 나빴습니다.
+  `-109.3544`, 즉 normalized error가 train-mean baseline의 `110.3544`배여서 훨씬 나빴습니다.
+- DiReCT Source CoT의 top-1은 `.40`이지만 평균 후보 수가 `3.95`이고 top1-minus-chance cluster CI가
+  `[-.0194,+.2941]`로 0을 포함했습니다. A5 통과는 MRR-minus-chance CI
+  `[+.0044,+.1826]`가 0보다 높았기 때문입니다. 따라서 “top-1 .40”만 떼어 강한 복원으로 읽으면 안 됩니다.
+- Vanilla가 raw/centered/retrieval에서 가장 높았던 것은 임상 사례 복원의 증거가 아닙니다. 이 arm은
+  양성 대조가 아니며, 출력 길이ㆍ문체 같은 case-correlated nuisance를 AR가 이용했을 가능성을 배제하지
+  못합니다. 게다가 FVE도 `-19.7012`로 train-mean baseline보다 실패했습니다.
 - 모든 arm의 FVE가 `-19~-143`이므로 reward gate는 기준 해석과 무관하게 실패했습니다.
 - 이는 text나 activation에 정보가 없다는 뜻이 아니라 **공개 general-domain AR가 medical
   distribution의 reconstruction 측정기로 부적합**하다는 뜻입니다. 따라서 AV/AR 계열 전체를
