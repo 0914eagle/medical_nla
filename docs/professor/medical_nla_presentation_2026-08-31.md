@@ -992,6 +992,32 @@ clean switch         = P(v_after = v_new | v_before = v_old)        [n=398]
 `cue recall`은 gold finding 중 회수한 비율, `cue precision`은 생성 finding 중 gold로 지지되는
 비율, `DiReCT lexical recall`은 physician observation 표현과의 직접 겹침입니다.
 
+### Deletion/value-edit 지표를 읽는 법
+
+| 지표 | 정확한 사건과 분모 | 바람직한 방향 |
+|---|---|---:|
+| deletion phantom | `P(삭제한 cue를 deleted output에서도 말함)`; 전체 cue-deletion 435쌍 | 낮을수록 좋음 |
+| removal | `P(deleted output에서 cue가 사라짐 | original output에서 cue를 읽음)` | 높을수록 좋음 |
+| clean switch | `P(edited output이 new value는 말하고 old value는 말하지 않음)`; value-edit 82쌍 | 높을수록 좋음 |
+
+예를 들어 full-data seed17은 원본에서 삭제 대상 cue를 `153/435=.3517` 읽었고,
+삭제본에서도 `93/435=.2138` 말해 phantom을 만들었습니다. 원본에서 읽은 153건만 분모로
+잡으면 그중 `62/153=.4052`에서 cue가 사라졌으므로 removal은 `.4052`입니다. Value edit에서는
+82건 중 단 `2/82=.0244`만 새 값으로 바뀌면서 이전 값이 사라져 clean switch가 되었습니다.
+
+```text
+original output: fever; cough
+deleted output:  fever; cough   -> cough phantom, removal 실패
+deleted output:  fever          -> cough removal 성공
+
+original value: temperature 39
+edited output:  temperature 39 and 37  -> replacement는 잡힐 수 있지만 clean switch 아님
+edited output:  temperature 37         -> clean switch
+```
+
+`phantom=0`만으로는 성공이 아닙니다. 원본에서도 cue를 전혀 읽지 않은 모델은 자동으로
+phantom이 0이 되므로, 반드시 original hit와 조건부 removal을 함께 봐야 합니다.
+
 DiReCT 의미 기반 평가에서도 Source CoT `Obscomp=.2130`에 비해 full SFT seed17/29는
 `.0301/.0296`이었습니다.
 
@@ -1034,6 +1060,9 @@ DiReCT 의미 기반 평가에서도 Source CoT `Obscomp=.2130`에 비해 full S
 | clean switch | 새 값은 말하고 이전 값은 제거함 | .0488 |
 
 `contrast = original hit - phantom`, `removal = P(cue absent after deletion | original hit)`입니다.
+이 표의 `clean switch`는 82개 value-edit 전체를 분모로 하며, `new hit AND old absent`인 경우만
+성공입니다. 따라서 새 값과 이전 값을 동시에 말하면 replacement hit에는 포함될 수 있어도
+clean switch에는 포함되지 않습니다.
 
 ### 문제와 다음 변경
 
