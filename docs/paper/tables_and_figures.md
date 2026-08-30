@@ -149,9 +149,11 @@ Structured monitor의 mean emitted claims는 4.9353, native-value emission cover
 양면 결론: 정적 finding은 강하게 읽히지만(패널 A), 삭제된 state가 표현에서 완전히
 사라지지 않고(phantom .3593) native value update는 약하다(clean switch .0804).
 
-- Free-generating 행(Vanilla, Medical-NLA `SFT only`/`final`)은 validation
-  generation grounding gate를 통과한 경우에만 추가한다. 통과 전에는 locked-test
-  `TBD` 행을 만들지 않는다 — 현재 D10 budget calibration이 진행 중이다.
+- Free-generating 행: Vanilla는 sealed generation + mapper receipt 후 채점해
+  추가한다(branch-independent baseline). Medical-NLA `SFT only`/`final` 행은
+  validation generation grounding gate 통과가 조건이었으나 **D10 budget
+  calibration(1,552 steps)이 frozen gate FAIL로 종료**되어 현재 materialize
+  근거가 없다 — 행을 만들지 않는다.
 - Hard shuffle은 같은 진단·비슷한 finding 수의 다른 사례 activation과 text 짝을
   바꾼다. Round-trip FVE(AR)는 별도 Panel C로, AR identity gate 통과 시에만 연다.
   공개 AR가 extraction index 32용이므로 round-trip과 patching은 HS32에서만
@@ -170,11 +172,15 @@ Structured monitor의 mean emitted claims는 4.9353, native-value emission cover
 | D14 K=5 OOF teacher | original cue precision | ≥ .90 + 6 calibration gates | .8881, fail |
 | D16 soft bottleneck | proposed−control DiReCT alignment delta | each ≥ .005, CI > 0 | −.001137/−.001476/+.001433, fail |
 | D16 frozen-z | auxiliary−control finding F1 | positive across seeds | −.0009/−.0007/−.0016, fail |
-| D10 budget calibration (1,552 steps) | final-step D5 gate | 동일 D5, 연장 없음 | 진행 중 |
+| D10 budget calibration (1,552 steps) | final-step D5 gate | 동일 D5, 연장 없음 | changed-gap −.0177/+.5618/+1.1233, specificity −.0442/+.0345/−.0040, fail |
 
 D16 frozen-z의 보조 delta: own-shuffled gap −.0050/−.0046/−.0058, value accuracy
 −.0137/−.0096/−.0160, deletion drop −.0167/−.0141/−.0151. D10 budget run은 기존
 결과를 본 뒤 사람이 승인한 post-hoc exploratory calibration임을 명시한다.
+Budget run의 해석: across-seed mean changed-gap은 `.0019→.5558`로 상승했으나
+retained-gap이 `.0002→.5604`로 동반 상승하고 specificity는 `−.0046`으로
+평탄했다 — margin 성장은 changed cue의 선택적 반영이 아니라 deleted-activation
+detector 퇴화 해였다(RunPod A100-SXM4-80GB, 하드웨어·버전은 수치 원장 §8.4).
 
 ## Methods 기록. D9a cue support protocol
 

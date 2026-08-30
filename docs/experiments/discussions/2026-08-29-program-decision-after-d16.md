@@ -175,3 +175,63 @@ RunPod 실행 시 `run_ddxplus_d10_budget_4gpu_125.sh`는 125 전용 가드와 4
 queue를 가정하므로, pod의 단일 A100/H100용 변형 wrapper가 필요하다(동일
 trainer·인자, GPU 배치만 다름). 전체 6 runs는 같은 pod 하드웨어에서
 실행한다는 조건은 유지된다.
+
+## Discussion 3 — D10 budget calibration 최종 판정 (Claude, 2026-08-30)
+
+**[판정] Frozen gate FAIL 확정, 연장 없음.** Step 1,552에서 changed-gap
+delta는 seed별 `-.0177 / +.5618 / +1.1233`으로 부호 불일치(seed 17은 CI가
+음수쪽으로 0 배제), specificity delta는 `-.0442 / +.0345 / -.0040`으로 전부
+gate 미달이다. Runner의 사전 등록 gate 출력 그대로 FAIL이며 자동 연장은
+승인되지 않았다.
+
+**[해석] 이 실패는 시리즈 전체에서 가장 정보량이 많다 — budget 질문이
+확정적으로 닫혔다.**
+
+1. **Raw margin은 budget에 반응했다.** Across-seed mean changed-gap이
+   `.0019 → .5558`로 상승했으므로 "20-step budget이 margin을 못 키웠다"는
+   면책은 이제 성립한다... 그러나:
+2. **자란 것은 퇴화 해다.** Retained-gap mean이 `.0002 → .5604`로 changed-
+   gap과 **정확히 같이** 자랐고 specificity mean은 `-.0046`으로 평탄하다.
+   모델은 changed cue를 선택적으로 잊은 것이 아니라 **deleted-activation
+   detector**를 학습했다 — R10이 예견하고 specificity gate를 추가했던 바로
+   그 퇴화 해다. Gate가 없었다면 seeds 29/43은 floor의 10~20배로 통과했을
+   것이다.
+3. **구조적 결론**: `g = NLL(y|h_del) - NLL(y|h_orig)`는 h_del을 전역으로
+   억제하는 어떤 기제로도 최대화되며, budget을 늘리면 그 가장 쉬운 기제
+   (detector)가 자란다. 따라서 이것은 사전 약속 분기 (c)("궤적 상승 =
+   budget 병목")가 아니라 실질적으로 **(b)의 강화판**이다: 상승한 것은
+   confound이고, 연장은 confound만 더 키운다. **연장을 권고하지 않는다.**
+4. **Seed 불안정은 full budget에서도 지속** (-.02 vs +.56 vs +1.12) —
+   프로그램 전체의 진단(objective가 행동을 규정하지 못함)과 정합.
+5. **측정 감도 질문도 닫혔다**: 이 지표는 이 budget에서 크게 움직일 수
+   있음이 증명됐다. 움직이지 않은 것은 specificity — 즉 문제는 계측이
+   아니라 objective다.
+
+**[제안] 이 trajectory 자체를 appendix figure로.** Changed-gap과
+retained-gap이 함께 오르고 specificity가 평탄한 dose-response 곡선은
+"퇴화 해의 성장"을 시각적으로 증명하는, specificity 통제의 필요성에 대한
+교과서적 그림이다.
+
+**[결정 원장 제안 — 사람 승인 대기]**
+
+- D19: D10 budget calibration (1,552 steps, RunPod A100-SXM4-80GB) frozen
+  gate FAIL. Changed-gap은 budget에 반응했으나(mean `.0019→.5558`)
+  retained-gap이 동반 상승(mean `.0002→.5604`), specificity 평탄
+  (`-.0046`) — deletion-detector 퇴화 해 확정. 연장 금지. Budget 면책
+  소멸: 생성형 1x2 ranking 계열 종료.
+
+**[열린 사람 결정] 프로그램 출구.** 사전 약속에 따라 남은 선택지는 둘이다.
+
+- **(A) 정직한 결론 조항 발동 (Claude 권고, 이전보다 강화됨)**: 생성형
+  objective 7종이 사전 등록 gate에서 전부 실패했고, 마지막 실패는 budget
+  면책까지 소거했다. Structured monitor 양성 결과 + 음성 결과 7건 + 표현
+  ceiling + 이 dose-response가 논문의 뼈대다.
+- **(B) Offline preference (H) 마지막 베팅**: 기제는 여전히 다르다
+  (gradient가 아니라 샘플 선택). 단, reward에 specificity-형 통제가 반드시
+  들어가야 한다는 것을 이번 결과가 증명했다 — changed-gap류 단독 reward는
+  detector를 뽑는다. Vanilla 채점용으로 구축 중인 semantic mapper가 H의
+  후보 채점기로 재사용될 수 있다는 점은 (B)의 비용을 낮춘다.
+
+이 결정은 에이전트가 닫을 수 없다. 어느 쪽이든 **D10 decision record와
+recipe hash 동결이 지금 가능**해졌으므로 DiReCT locked batch(Table 1A→1B→2)
+는 즉시 열린다.
