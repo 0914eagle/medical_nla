@@ -17,8 +17,8 @@ Seen PDD 72행과 held-out PDD 106행은 같은 열 구조의 두 패널로 보�
 | Source CoT | batch 단계 | | | |
 
 이 패널은 새 generation 없이 기존 496 출력의 **frozen split 재집계(CPU)**로
-채운다. 다만 locked label을 집계하므로 분석 접근 기록을 남기고, D10 최종 분기
-판정·recipe hash 동결 후 Table 1B locked 열, Table 2 baseline과 **한 번에 일괄
+채운다. 다만 locked label을 집계하므로 분석 접근 기록을 남기고, D19/D21 최종 판정과
+baseline-only recipe 동결 후 Table 1B locked 열, Table 2 baseline과 **한 번에 일괄
 실행**한다.
 
 ### Panel B1. DiReCT CoT-P0 diagnosis decodability audit
@@ -103,11 +103,12 @@ Seen PDD 72행과 held-out PDD 106행은 아래 열 구조의 두 패널로 보�
 - Source CoT는 기존 496 출력의 평가만 필요하다. Vanilla NLA는 기존 출력과 겹치지
   않는 사례만 생성하되, **기존 출력의 생성 설정(prompt/decoding)이 동결 recipe와
   일치할 때만 재사용**하고 다르면 178건 전부 재생성한다.
-- 두 baseline 행은 D10 최종 분기 판정과 recipe hash 동결 후 Table 1A/1B와 함께
+- 두 baseline 행은 D19/D21 최종 판정과 recipe hash 동결 후 Table 1A/1B와 함께
   **한 번에 일괄 계산**한다(locked-test 규율). `TBD` 대신 빈 칸으로 두는 이유:
   이 행들은 반드시 채워질 예정 셀이다.
-- Medical-NLA 행(`SFT only`, `final`)은 D10 성공 **그리고** final recipe에 DiReCT
-  adaptation 포함이 결정된 경우에만 추가한다. 가상 행(`reconstruction`,
+- 이번 frozen recipe에는 validation-promoted checkpoint가 없으므로 Medical-NLA 행을
+  생성하거나 채점하지 않는다. 별도 사전 등록 방법이 향후 promotion gate를 통과하는
+  경우에만 별도의 locked 접근과 행 추가를 결정한다. 가상 행(`reconstruction`,
   `full objective`)은 만들지 않는다.
 
 - `Accdiag`: 생성한 세부 진단과 의사 주석 진단의 의미 일치

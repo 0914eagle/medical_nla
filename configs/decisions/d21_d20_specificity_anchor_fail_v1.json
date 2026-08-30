@@ -1,0 +1,58 @@
+{
+  "approved_at": "2026-08-31",
+  "approved_by": "heejae",
+  "decision_id": "D21",
+  "decision_status": "frozen",
+  "human_approved": true,
+  "locked_test_read": false,
+  "method": "D20 specificity-anchored changed-cue ranking",
+  "population": "DDXPlus validation only",
+  "result": "FAIL",
+  "schema_version": 1,
+  "training": {
+    "final_step": 1552,
+    "seeds": [17, 29, 43]
+  },
+  "final_metrics": {
+    "17": {
+      "changed_gap_delta": -0.0143,
+      "retained_gap_delta": 0.0135,
+      "specificity_delta": -0.0278,
+      "changed_original_nll_delta": -0.0756,
+      "retained_original_nll_delta": -0.3342
+    },
+    "29": {
+      "changed_gap_delta": -0.0040,
+      "retained_gap_delta": 0.0215,
+      "specificity_delta": -0.0255,
+      "changed_original_nll_delta": 0.0576,
+      "retained_original_nll_delta": -0.1834
+    },
+    "43": {
+      "changed_gap_delta": -0.0266,
+      "retained_gap_delta": -0.0049,
+      "specificity_delta": -0.0217,
+      "changed_original_nll_delta": 0.0622,
+      "retained_original_nll_delta": -0.2263
+    }
+  },
+  "frozen_gate": {
+    "changed_delta_at_least_0p05_each_seed": false,
+    "changed_gap_cluster_ci_above_zero_each_seed": false,
+    "changed_original_nll_noninferior_each_seed": false,
+    "retained_gap_noninferior_each_seed": false,
+    "retained_original_nll_noninferior_each_seed": true,
+    "specificity_cluster_ci_above_zero_each_seed": false,
+    "specificity_positive_each_seed": false,
+    "teacher_forced_gate_passed": false
+  },
+  "interpretation": "The retained-claim anchor blocked the deletion-detector shortcut, but the changed-cue signal disappeared and reversed in all three final checkpoints.",
+  "scope": "Closes the evaluated surrogate family: SFT, paired ranking, retained-anchor ranking, and soft bottleneck. It does not permanently prohibit a separately preregistered method family.",
+  "generation_gate_authorized": false,
+  "prohibited_follow_up": [
+    "generation from the failed D20 checkpoints",
+    "automatic extension",
+    "post-hoc checkpoint selection",
+    "alpha, lambda, margin, or step sweep"
+  ]
+}

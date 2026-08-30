@@ -151,28 +151,21 @@ DiReCT는 DDXPlus 10,028행에 포함되지 않는다. 기존
 3. HS32 Vanilla 178행을 생성한다.
 4. Source CoT와 Vanilla를 동일 claim extractor와 official evaluator로 평가해 Table 2를 만든다.
 
-실행 전 필요한 값은 D10 final decision JSON, **D20 final decision JSON**, final recipe JSON,
-probe-control JSON, split protocol, Vanilla actor prompt의 실제 SHA-256이다. 이 값이 아직 없는데
-임시 JSON이나 임의 hash를 만들면 안 된다. D10/D20 결과가 성공인지 실패인지는 baseline 네
-행의 필요성에는 영향을 주지 않지만, locked 72/106을 본 뒤 recipe를 바꾸지 못하도록 두
-decision과 recipe hash를 먼저 고정한다. Probe control은 locked 접근 전에 고정한
-`configs/direct_locked_probe_control_v1.json`을 기본값으로 사용한다.
+2026-08-31에 D19/D21과 baseline-only final recipe를 승인·동결했다. 기계 판독 파일은
+`configs/decisions/` 아래에 있으며 runner는 단순 SHA뿐 아니라 FAIL 판정, 모집단,
+허용 method, Medical-NLA generation 금지를 의미 수준에서 검증한다. Probe control은 locked
+접근 전에 고정한 `configs/direct_locked_probe_control_v1.json`을 사용한다.
 
 ```bash
-DATA_ROOT=/data1/heejae \
-D10_DECISION=/path/to/final_d10_decision.json \
-D20_DECISION=/path/to/final_d20_decision.json \
-FINAL_RECIPE=/path/to/final_recipe.json \
-EXPECTED_D10_DECISION_SHA256=<sha256> \
-EXPECTED_D20_DECISION_SHA256=<sha256> \
-EXPECTED_FINAL_RECIPE_SHA256=<sha256> \
-EXPECTED_PROBE_CONTROL_SHA256="$(sha256sum configs/direct_locked_probe_control_v1.json | awk '{print $1}')" \
-EXPECTED_ACTOR_PROMPT_SHA256=<sha256> \
-EXPECTED_SPLIT_PROTOCOL_SHA256=<sha256> \
-GPU_PAIR=0,1 JUDGE_GPU=2 EXTRACTOR_BACKEND=codex \
-nohup bash scripts/run_direct_locked_baseline_batch.sh \
+DATA_ROOT=/data1/heejae GPU_PAIR=0,1 JUDGE_GPU=2 EXTRACTOR_BACKEND=codex \
+nohup bash scripts/run_direct_locked_baseline_125.sh \
   > /data1/heejae/medical_nla/logs/direct_locked_baselines_v1.log 2>&1 &
 ```
+
+서버 125 entrypoint가 artifact 존재를 확인하고 actor prompt와 split protocol SHA를 먼저
+출력한 뒤 기존 batch를 호출한다. 완료 시 개별 결과와 함께
+`$DATA_ROOT/restricted/direct/paper/direct_locked_baselines_v1/paper_tables_summary.md`
+및 JSON을 생성한다.
 
 ## 판정
 

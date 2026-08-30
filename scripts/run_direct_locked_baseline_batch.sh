@@ -4,14 +4,14 @@ set -euo pipefail
 # Single authorized DiReCT locked-label batch for Tables 1A, 1B, and 2.
 
 DATA_ROOT="${DATA_ROOT:?Set DATA_ROOT to /data/heejae or /data1/heejae}"
-D10_DECISION="${D10_DECISION:?Set final D10 decision record}"
-D20_DECISION="${D20_DECISION:?Set final D20 decision record}"
-FINAL_RECIPE="${FINAL_RECIPE:?Set final recipe JSON}"
+D10_DECISION="${D10_DECISION:-configs/decisions/d19_d10_budget1552_fail_v1.json}"
+D20_DECISION="${D20_DECISION:-configs/decisions/d21_d20_specificity_anchor_fail_v1.json}"
+FINAL_RECIPE="${FINAL_RECIPE:-configs/decisions/direct_locked_baseline_only_v1.json}"
 PROBE_CONTROL_PROTOCOL="${PROBE_CONTROL_PROTOCOL:-configs/direct_locked_probe_control_v1.json}"
-EXPECTED_D10_DECISION_SHA256="${EXPECTED_D10_DECISION_SHA256:?Set D10 record SHA256}"
-EXPECTED_D20_DECISION_SHA256="${EXPECTED_D20_DECISION_SHA256:?Set D20 record SHA256}"
-EXPECTED_FINAL_RECIPE_SHA256="${EXPECTED_FINAL_RECIPE_SHA256:?Set recipe SHA256}"
-EXPECTED_PROBE_CONTROL_SHA256="${EXPECTED_PROBE_CONTROL_SHA256:?Set probe-control SHA256}"
+EXPECTED_D10_DECISION_SHA256="${EXPECTED_D10_DECISION_SHA256:-e459d5275a80b9493b2792f0fb3f181d717a2f6bba0f9b4c3573572e90438e48}"
+EXPECTED_D20_DECISION_SHA256="${EXPECTED_D20_DECISION_SHA256:-1928046f8deeff2dccdd23d904019332979e22f1269dffcb278dafce49e88901}"
+EXPECTED_FINAL_RECIPE_SHA256="${EXPECTED_FINAL_RECIPE_SHA256:-35bb8519df014e38d3cea89dcd6fc10969c67cd20e39aeb00e9f45fff19e45c5}"
+EXPECTED_PROBE_CONTROL_SHA256="${EXPECTED_PROBE_CONTROL_SHA256:-391ea95fdf775d06ba45c1a6a5096fd23496afa65c10faf460f5800ef4a0115a}"
 EXPECTED_ACTOR_PROMPT_SHA256="${EXPECTED_ACTOR_PROMPT_SHA256:?Set vanilla prompt SHA256}"
 EXPECTED_SPLIT_PROTOCOL_SHA256="${EXPECTED_SPLIT_PROTOCOL_SHA256:?Set split protocol SHA256}"
 GPU_PAIR="${GPU_PAIR:-0,1}"
@@ -57,6 +57,10 @@ hash_matches "${D20_DECISION}" "${EXPECTED_D20_DECISION_SHA256}" "D20 decision"
 hash_matches "${FINAL_RECIPE}" "${EXPECTED_FINAL_RECIPE_SHA256}" "final recipe"
 hash_matches "${PROBE_CONTROL_PROTOCOL}" "${EXPECTED_PROBE_CONTROL_SHA256}" "probe control"
 hash_matches "${SPLITS}/protocol.json" "${EXPECTED_SPLIT_PROTOCOL_SHA256}" "split protocol"
+python scripts/validate_direct_locked_baseline_recipe.py \
+  --d19 "${D10_DECISION}" \
+  --d21 "${D20_DECISION}" \
+  --recipe "${FINAL_RECIPE}"
 
 DIRECT_ANSWERS=(
   "${E1}/direct_e1_trainval_direct_v1/source_direct_answers.jsonl"
@@ -191,6 +195,11 @@ for split in test_seen test_pdd_heldout; do
       --summary-md "${POOL}/reports/${method}.md"
   done
 done
+
+python scripts/summarize_direct_locked_paper_tables.py \
+  --root "${OUT}" \
+  --output-json "${OUT}/paper_tables_summary.json" \
+  --summary-md "${OUT}/paper_tables_summary.md"
 
 nvidia-smi -q > "${OUT}/provenance/nvidia_smi_q.txt"
 python -m pip freeze > "${OUT}/provenance/pip_freeze.txt"

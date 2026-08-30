@@ -239,16 +239,19 @@ offline preference로 **자동 이동 없음**. 프로그램은 정직한 결론
 "편법 제거 후 신호 부재"를 보인 **여덟 번째이자 가장 강한 음성 결과**이며,
 budget run 해석(성장 = 전부 편법)의 독립 확인을 겸한다.
 
-### Ledger 행 제안 (사람 승인 대기)
+### Ledger 확정 (2026-08-31 사람 승인)
 
 - **D19**: D10 budget calibration(1,552 steps) FAIL — detector 퇴화 해 확정,
   1×2 unanchored 계열 종결.
 - **D21**: D20 specificity-anchored objective FAIL — detector 차단 성공,
-  changed-gap 신호 부재, 생성형 시도 종료(선택지 A), Medical-NLA 행은
-  사전 규칙에 따라 논문 주표에서 제외.
+  changed-gap 신호 부재, 평가한 surrogate 계열(SFT/ranking/anchor/bottleneck)
+  종결. 별도 사전 등록 방법 계열은 영구 금지하지 않는다.
 
-두 행이 승인되면 decision record와 recipe hash를 동결하고 DiReCT locked
-batch를 연다.
+기계 판독 원본은
+`configs/decisions/d19_d10_budget1552_fail_v1.json`과
+`configs/decisions/d21_d20_specificity_anchor_fail_v1.json`이다. 이번 DiReCT
+locked batch는 `configs/decisions/direct_locked_baseline_only_v1.json`에 따라
+baseline만 열며 validation-promoted Medical-NLA가 없으므로 해당 생성 행은 열지 않는다.
 
 ## 예상 반론 사전 기재 — "데이터 다양성 부족이 원인이다"
 

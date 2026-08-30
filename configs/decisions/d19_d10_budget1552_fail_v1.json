@@ -1,0 +1,58 @@
+{
+  "approved_at": "2026-08-31",
+  "approved_by": "heejae",
+  "decision_id": "D19",
+  "decision_status": "frozen",
+  "human_approved": true,
+  "locked_test_read": false,
+  "method": "D10 unanchored changed-cue 1x2 ranking",
+  "population": "DDXPlus validation only",
+  "result": "FAIL",
+  "schema_version": 1,
+  "training": {
+    "final_step": 1552,
+    "seeds": [17, 29, 43]
+  },
+  "final_metrics": {
+    "17": {
+      "changed_gap_delta": -0.0177,
+      "changed_gap_cluster_ci95": [-0.0304, -0.0058],
+      "retained_gap_delta": 0.0264,
+      "specificity_delta": -0.0442,
+      "specificity_cluster_ci95": [-0.0560, -0.0327]
+    },
+    "29": {
+      "changed_gap_delta": 0.5618,
+      "changed_gap_cluster_ci95": [0.3020, 0.8429],
+      "retained_gap_delta": 0.5273,
+      "specificity_delta": 0.0345,
+      "specificity_cluster_ci95": [-0.0235, 0.0983]
+    },
+    "43": {
+      "changed_gap_delta": 1.1233,
+      "changed_gap_cluster_ci95": [0.7992, 1.4622],
+      "retained_gap_delta": 1.1273,
+      "specificity_delta": -0.0040,
+      "specificity_cluster_ci95": [-0.0977, 0.0955]
+    }
+  },
+  "across_seed_means": {
+    "changed_gap_delta": 0.5558,
+    "retained_gap_delta": 0.5604,
+    "specificity_delta": -0.0046
+  },
+  "frozen_gate": {
+    "changed_delta_at_least_0p05_each_seed": false,
+    "changed_gap_cluster_ci_above_zero_each_seed": false,
+    "specificity_cluster_ci_above_zero_each_seed": false,
+    "specificity_positive_each_seed": false,
+    "three_seed_changed_sign": false
+  },
+  "interpretation": "The budget-responsive changed gap was accompanied by the same retained-claim degradation, identifying a deletion-detector shortcut rather than cue-specific reading.",
+  "authorized_follow_up": "none within the unanchored 1x2 ranking family",
+  "prohibited_follow_up": [
+    "automatic extension beyond step 1552",
+    "post-hoc checkpoint selection",
+    "lambda, temperature, or step sweep"
+  ]
+}

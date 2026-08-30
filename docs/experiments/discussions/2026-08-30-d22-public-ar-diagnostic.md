@@ -485,14 +485,14 @@ tail -f \
 닫는다. 우리 8건 실패는 어느 경로의 검증된 작동점에서도 실행된 것이 아니었다는
 것이 D19–D22 서사의 정확한 위치다.
 
-### 결정 구조 (사람 승인 대기 정리)
+### 결정 구조 (2026-08-31 반영)
 
-1. **D19 승인**: D10 budget calibration FAIL, unanchored 계열 종결.
-2. **D21 축소 승인**: D20 FAIL + surrogate 계열(SFT/ranking/anchor/bottleneck)
+1. **D19 승인 완료**: D10 budget calibration FAIL, unanchored 계열 종결.
+2. **D21 축소 승인 완료**: D20 FAIL + surrogate 계열(SFT/ranking/anchor/bottleneck)
    종결만. 생성형 전체 종료·주표 행 영구 제외는 승인하지 않음 — 기존 조건부
    규칙(gate 통과 시에만 행 추가) 유지.
-3. **D22 개방**: 이 문서의 진단은 실행 완료(공개 AR 불인정). 다음 단계는
-   구현 완료된 geometry audit와 Patchscope runner를 위 명령으로 병렬 실행 → 결과에
-   따라 Medical-AR 4,655 smoke 사전 등록.
+3. **D22 진단 완료**: 공개 AR은 AV reward로 불인정했고 geometry audit은 양성 대조가
+   서로 갈려 inconclusive였다. identity Patchscope도 clinical correspondence에 실패했다.
+   별도 supervised prefix mapper는 새 사전 등록 방법으로만 진행한다.
 4. Baseline 논문 트랙(DiReCT locked batch)은 D22와 독립적으로 진행 가능 —
    일정 결정(선제출 vs D22 대기)은 별도 사람 결정.

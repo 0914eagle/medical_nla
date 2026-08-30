@@ -1,0 +1,47 @@
+{
+  "approved_at": "2026-08-31",
+  "approved_by": "heejae",
+  "decision_dependencies": [
+    {
+      "decision_id": "D19",
+      "path": "configs/decisions/d19_d10_budget1552_fail_v1.json",
+      "sha256": "e459d5275a80b9493b2792f0fb3f181d717a2f6bba0f9b4c3573572e90438e48"
+    },
+    {
+      "decision_id": "D21",
+      "path": "configs/decisions/d21_d20_specificity_anchor_fail_v1.json",
+      "sha256": "1928046f8deeff2dccdd23d904019332979e22f1269dffcb278dafce49e88901"
+    }
+  ],
+  "human_approved": true,
+  "locked_access": {
+    "table_1a": {
+      "arms": ["direct", "cot"],
+      "operation": "reindex existing source outputs",
+      "populations": {"test_seen": 72, "test_pdd_heldout": 106}
+    },
+    "table_1b": {
+      "layer": 24,
+      "operation": "apply validation-frozen category and PDD linear probes",
+      "populations": {"test_seen": 72},
+      "targets": ["canonical_pdd", "disease_category"]
+    },
+    "table_2": {
+      "generation": {
+        "batch_size": 4,
+        "do_sample": false,
+        "layer": 32,
+        "max_new_tokens": 512,
+        "method": "vanilla"
+      },
+      "methods": ["cot", "vanilla"],
+      "populations": {"test_seen": 72, "test_pdd_heldout": 106}
+    }
+  },
+  "medical_nla_locked_generation_authorized": false,
+  "medical_nla_locked_row_status": "excluded: no validation-promoted checkpoint",
+  "recipe_id": "direct_locked_baseline_only_v1",
+  "schema_version": 1,
+  "scope": "Single DiReCT locked baseline batch for paper Tables 1A, 1B, and 2",
+  "separate_future_method_rule": "A later method may access locked evaluation only under a separate preregistered promotion decision; this recipe does not authorize that access."
+}

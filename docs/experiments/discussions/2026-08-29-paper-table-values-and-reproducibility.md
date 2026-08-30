@@ -519,8 +519,8 @@ Final Table 2는 test_seen 72와 PDD-heldout 106을 별도 panel로 둔다.
 |---|---|---|---|
 | Source CoT | all metrics Not computed | all metrics Not computed | 기존 output 평가 필요 |
 | Vanilla NLA | all metrics Not computed | all metrics Not computed | 178 readouts 생성 필요 |
-| Medical-NLA SFT-only | recipe 동결 후 계산 | recipe 동결 후 계산 | final recipe 미정 |
-| Medical-NLA final | promotion 성공 시 계산 | promotion 성공 시 계산 | 현재 행 materialize 불가 |
+| Medical-NLA SFT-only | 제외 | 제외 | validation promotion fail; locked generation 미승인 |
+| Medical-NLA final | 제외 | 제외 | 현재 promoted checkpoint 없음 |
 
 ### 5.3 Method-blind quote extraction
 
