@@ -36,6 +36,9 @@ from src.modeling import load_causal_lm, load_tokenizer
 from src.reconstruction_scoring import load_activation
 
 
+FAMILIES = ("entity_description", "relation_specific")
+
+
 def mean(values: list[float]) -> float:
     return statistics.fmean(values) if values else float("nan")
 
@@ -52,6 +55,47 @@ def parse_mapping(value: str) -> tuple[str, str]:
         raise argparse.ArgumentTypeError("path map must be OLD=NEW")
     old, new = value.split("=", 1)
     return old, new
+
+
+def parse_clinical_cell(value: str) -> tuple[str, int]:
+    if ":" not in value:
+        raise argparse.ArgumentTypeError("clinical cell must be FAMILY:LAYER")
+    family, layer_text = value.rsplit(":", 1)
+    try:
+        layer = int(layer_text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("clinical cell layer must be an integer") from exc
+    if family not in FAMILIES or layer not in TARGET_LAYERS:
+        raise argparse.ArgumentTypeError(
+            f"clinical cell must use family {FAMILIES} and layer {TARGET_LAYERS}"
+        )
+    return family, layer
+
+
+def control_cell_eligible(row: dict[str, Any]) -> bool:
+    return (
+        int(row["keyword_hits"]) >= 3
+        and float(row["keyword_gain"]) > 0
+        and int(row["outputs_differing_from_no_patch"]) >= 4
+    )
+
+
+def requested_control_cell(
+    summaries: list[dict[str, Any]], requested: tuple[str, int]
+) -> dict[str, Any]:
+    family, layer = requested
+    matches = [
+        row
+        for row in summaries
+        if str(row["family"]) == family
+        and int(row["source_layer"]) == layer
+        and int(row["target_layer"]) == layer
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"Expected one requested control cell, got {len(matches)}")
+    if not control_cell_eligible(matches[0]):
+        raise ValueError(f"Requested clinical cell did not pass frozen gate: {requested}")
+    return matches[0]
 
 
 def exact_layer_map(
@@ -122,7 +166,7 @@ def run(args: argparse.Namespace) -> None:
                 "source_layer": layer,
                 "target_layer": layer,
             }
-            for family in ("entity_description", "relation_specific")
+            for family in FAMILIES
             for layer in TARGET_LAYERS
         ],
         "selection_gate": {
@@ -138,6 +182,16 @@ def run(args: argparse.Namespace) -> None:
             "relation_specific_over_entity_description",
         ],
         "clinical_prompts": CLINICAL_PROMPTS,
+        "requested_posthoc_clinical_cell": (
+            {
+                "family": args.clinical_cell[0],
+                "source_layer": args.clinical_cell[1],
+                "target_layer": args.clinical_cell[1],
+            }
+            if args.clinical_cell
+            else None
+        ),
+        "posthoc_cell_is_report_only": args.clinical_cell is not None,
         "clinical_base_ids": base_ids,
         "fixed_donor_source": str(args.v1_generation_manifest),
         "validation_layer_manifests": {
@@ -166,7 +220,7 @@ def run(args: argparse.Namespace) -> None:
     layer_path, layers = resolve_layer_stack(model)
 
     control_rows = []
-    for family in ("entity_description", "relation_specific"):
+    for family in FAMILIES:
         control_rows.extend(
             run_control_family(
                 model,
@@ -178,7 +232,12 @@ def run(args: argparse.Namespace) -> None:
             )
         )
     control_summaries = summarize_control_rows(control_rows)
-    selected = choose_control_cell(control_summaries)
+    primary_selected = choose_control_cell(control_summaries)
+    selected = (
+        requested_control_cell(control_summaries, args.clinical_cell)
+        if args.clinical_cell
+        else primary_selected
+    )
     selection_path = args.out_dir / "selection.json"
     selection = {
         "schema_version": 1,
@@ -186,7 +245,14 @@ def run(args: argparse.Namespace) -> None:
         "protocol_sha256": sha256_file(protocol_path),
         "selection_used_only_general_domain_controls": True,
         "control_summaries": control_summaries,
+        "primary_selected_cell": primary_selected,
         "selected_cell": selected,
+        "clinical_selection_mode": (
+            "posthoc_explicit_eligible_control_cell"
+            if args.clinical_cell
+            else "frozen_primary_tie_break"
+        ),
+        "posthoc_cell_is_report_only": args.clinical_cell is not None,
         "control_gate_passed": selected is not None,
         "clinical_activation_content_used_for_selection": False,
     }
@@ -195,7 +261,8 @@ def run(args: argparse.Namespace) -> None:
         encoding="utf-8",
     )
     write_jsonl(args.out_dir / "control_rows.jsonl", control_rows)
-    print(f"[selection] {selected}", flush=True)
+    print(f"[primary selection] {primary_selected}", flush=True)
+    print(f"[clinical cell] {selected}", flush=True)
 
     clinical_rows: list[dict[str, Any]] = []
     clinical_no_patch = ""
@@ -316,7 +383,9 @@ def run(args: argparse.Namespace) -> None:
         "model_revision": str(getattr(model.config, "_commit_hash", "") or ""),
         "layer_module_path": layer_path,
         "control_summaries": control_summaries,
+        "primary_selected_cell": primary_selected,
         "selected_cell": selected,
+        "posthoc_cell_is_report_only": args.clinical_cell is not None,
         "clinical_semantic_audit_authorized": selected is not None,
         "clinical_no_patch_response": clinical_no_patch,
         "clinical_rows": clinical_rows,
@@ -348,7 +417,9 @@ def run(args: argparse.Namespace) -> None:
         "the corresponding DDXPlus activation tensors are loaded.",
         "",
         f"- control gate passed: **{selected is not None}**",
+        f"- primary selected cell: **{primary_selected is not None}**",
         f"- selected cell: **{selected_label}**",
+        f"- post-hoc report-only cell: **{args.clinical_cell is not None}**",
         f"- clinical semantic audit authorized: **{selected is not None}**",
         f"- locked test read: **no**",
         "",
@@ -359,11 +430,7 @@ def run(args: argparse.Namespace) -> None:
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in control_summaries:
-        eligible = (
-            row["keyword_hits"] >= 3
-            and row["keyword_gain"] > 0
-            and row["outputs_differing_from_no_patch"] >= 4
-        )
+        eligible = control_cell_eligible(row)
         lines.append(
             f"| {row['family']} | {row['source_layer']} | {row['target_layer']} | "
             f"{row['keyword_hits']}/{row['n']} | {row['no_patch_keyword_hits']}/{row['n']} | "
@@ -412,6 +479,7 @@ def main() -> None:
     parser.add_argument("--v1-protocol", required=True, type=Path)
     parser.add_argument("--v1-generation-manifest", required=True, type=Path)
     parser.add_argument("--path-map", action="append", default=[], type=parse_mapping)
+    parser.add_argument("--clinical-cell", type=parse_clinical_cell)
     parser.add_argument("--cases", type=int, default=5)
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--summary-md", required=True, type=Path)

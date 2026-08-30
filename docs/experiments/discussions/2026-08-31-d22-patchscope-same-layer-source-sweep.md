@@ -78,3 +78,59 @@ tail -f \
 ```text
 /data1/heejae/medical_nla/results/ddxplus_d22_patchscope_same_layer5_v1/
 ```
+
+## 1차 결과
+
+일반-domain control은 통과했다.
+
+| family | HS16→16 | HS24→24 | HS32→32 |
+|---|---:|---:|---:|
+| entity-description | 5/5 | 0/5 | 2/5 |
+| relation-specific | 3/5 | 3/5 | 0/5 |
+
+모든 no-patch hit는 `0/5`, 모든 exact continuation divergence는 `5/5`였다. Frozen
+tie-break가 고른 primary cell은 entity-description HS16→16이다.
+
+그러나 primary clinical output은 환자별 finding을 읽지 않았다. Real 5건은 두 종류의
+continuation만 만들었고, shuffled와 train mean은 각각 한 종류였다. `real == shuffled`는
+`3/5`, `real == train_mean`은 `2/5`였다. 세 조건의 mean first-token KL도 각각
+`16.1386/16.1562/16.1683`으로 거의 같았다. 모든 continuation은 환자 activation 대신
+target prompt에 직접 적힌 `Patient A: fever and productive cough`를 설명했다.
+
+따라서 이 결과는 HS16 Patchscope control 성공과 clinical entity prompt 실패를 함께
+뜻한다. Activation에 임상 정보가 없다는 판정으로 사용하지 않는다.
+
+## Relation-specific 후속 진단
+
+임상 결과를 보고 layer 하나를 고르지 않도록, 1차 control에서 이미 독립적으로 gate를
+통과한 relation-specific HS16→16과 HS24→24를 모두 report-only로 실행한다. 두 실행은
+동일한 frozen 5사례, donor와 train mean을 사용한다. 이 후속 결과는 primary cell을
+교체하거나 promotion에 사용하지 않는다.
+
+Server 125에서 GPU 두 쌍으로 병렬 실행한다.
+
+```bash
+cd /home/eagle0914/medical_nla
+git pull origin main
+source /data1/heejae/uv/medical_nla/bin/activate
+
+nohup env \
+  DATA_ROOT=/data1/heejae \
+  GPUS=0,1 \
+  CASES=5 \
+  CLINICAL_CELL=relation_specific:16 \
+  bash scripts/run_ddxplus_d22_patchscope_same_layer_125.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_d22_patchscope_relation_hs16_5_v1.log 2>&1 &
+
+nohup env \
+  DATA_ROOT=/data1/heejae \
+  GPUS=2,3 \
+  CASES=5 \
+  CLINICAL_CELL=relation_specific:24 \
+  bash scripts/run_ddxplus_d22_patchscope_same_layer_125.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_d22_patchscope_relation_hs24_5_v1.log 2>&1 &
+```
+
+둘 다 real이 환자별 finding을 말하고 shuffled/train mean과 분리될 때만 50건 semantic
+audit으로 확대한다. 둘 다 generic하거나 조건 간 분리가 없으면 학습 없는 identity
+Patchscope의 clinical verbalization 경로를 종료한다.
