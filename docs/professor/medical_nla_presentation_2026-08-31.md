@@ -816,7 +816,20 @@ typical disease template.
 - Full-data SFT는 DDXPlus cue recall을 높였지만 DiReCT observation alignment는 여전히 매우 낮았습니다.
 - 출력 형식과 의료 문체를 배우는 것과 환자 activation을 읽는 것은 같지 않았습니다.
 
-### 그래서 바꾼 것: original/deleted/value-edited target을 모두 CE로 학습
+### 그래서 바꾼 것: loss는 그대로 두고 학습 `(activation, target text)` 쌍을 세 arm으로 확장
+
+기존 original-only SFT는 원본 activation과 원본 finding text만 보았습니다. Counterfactual
+SFT는 같은 환자의 입력을 실제로 수정해 activation을 다시 추출하고, 수정 뒤 **현재 남아
+있어야 할 finding만** target으로 만들었습니다.
+
+| arm | decoder에 주는 activation | CE target 예시 |
+|---|---|---|
+| original | fever, cough, temperature 39 C가 있는 입력의 activation | `fever; cough; temperature 39 C` |
+| cue-deleted | cough를 입력에서 제거한 뒤 다시 추출한 activation | `fever; temperature 39 C` |
+| value-edited | temperature 39→37 C로 바꾼 뒤 다시 추출한 activation | `fever; cough; temperature 37 C` |
+
+세 arm 모두 token-level sequence cross-entropy `CE(y_arm | h_arm)`를 사용했습니다. 즉
+`삭제본에서 cough 확률을 원본보다 직접 낮추라`는 pairwise loss는 아직 없었습니다.
 
 Counterfactual sequence SFT, validation 435 bases / 952 readouts:
 
@@ -827,12 +840,13 @@ Counterfactual sequence SFT, validation 435 bases / 952 readouts:
 | original-only seed29 | 0.3612 | 0.3770 | 0.2667 | 0.1103 | 0.3232 | 0.0122 |
 | counterfactual seed29 | 0.3475 | 0.3770 | 0.2713 | 0.1057 | **0.4268** | 0.0000 |
 
-### Value-edit 상세
+### Value edit은 무엇을 확인했는가? validation eligible 82 cases
 
-- Counterfactual seed17 replacement hit: **0.0732**
-- Counterfactual seed17 old-value persistence: **0.4024**
-- Counterfactual seed17 clean switch: **0.0488**
-- 평가 가능한 value-edit bases: **82**
+| metric | 질문 | counterfactual seed17 |
+|---|---|---:|
+| replacement hit | 39→37로 바꿨을 때 새 값 `37`을 말했는가? | .0732 |
+| old-value persistence | 바꾼 뒤에도 이전 값 `39`를 계속 말했는가? | .4024 |
+| clean switch | 새 값은 말하고 이전 값은 완전히 제거했는가? | .0488 |
 
 ### 표에서 사용한 metric과 분모
 
@@ -858,11 +872,12 @@ clean switch      = P(new value present AND old value absent after value edit)
 
 ### 문제 2와 다음 변경
 
-- Full-data SFT는 DDXPlus finding recall과 deletion response를 개선했습니다.
-- Counterfactual seed17은 deletion contrast가 0.1379에서 0.2092로 증가했지만 phantom도 0.2138에서 0.4253으로 약 2배 증가했습니다.
-- Seed29에서는 contrast 개선이 재현되지 않았습니다.
-- 따라서 sequence CE에 학습 가능한 신호는 있지만 changed finding을 선택적으로 말하게 하는 objective로는 불충분합니다.
-- 다음 단계에서는 문장 전체를 잘 생성하는 CE 대신 `matched activation에서 해당 claim이 더 쉬운가`를 직접 최적화했습니다.
+- Seed17은 current recall `.3389→.5632`, original target hit `.3517→.6345`로 더 많은 cue를 말했습니다.
+- 그러나 deleted phantom도 `.2138→.4253`으로 약 2배 증가했고 conditional removal은 `.4052→.3659`로 오히려 낮아졌습니다. 즉 선택적으로 읽었다기보다 전반적으로 더 많이 말한 효과가 섞였습니다.
+- Seed29의 deletion contrast는 `.1103→.1057`로 개선되지 않아 seed 간 재현성도 없었습니다.
+- Value edit도 new-value hit `.0732`, old persistence `.4024`, clean switch `.0488`이라 값 교체를 학습했다고 보기 어려웠습니다.
+- 원인은 sequence CE에서 unchanged target token이 대부분이고, 삭제 cue 하나를 원본보다 낮추는 **명시적 비교 제약**이 없다는 점입니다.
+- 그래서 다음 단계에서는 문장 전체 생성 CE 대신 `matched activation에서 해당 claim NLL이 crossed activation보다 낮아야 한다`는 pairwise objective로 바꿨습니다.
 
 ---
 
