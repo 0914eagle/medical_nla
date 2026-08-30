@@ -14,7 +14,11 @@ from scripts.train_ddxplus_d10_1x2 import (
     one_by_two_objective,
     paired_variants,
     prepare_metrics_for_resume,
+    retained_variants,
+    specificity_anchored_objective,
 )
+from scripts.audit_ddxplus_d20_control_spread import recommendation
+from scripts.summarize_ddxplus_d20_arms import build_report as build_d20_report
 from scripts.summarize_ddxplus_d10_budget_trajectory import (
     FROZEN_STEPS,
     build_report,
@@ -27,6 +31,7 @@ def pair(identifier: str) -> dict:
         "id": identifier,
         "base_id": identifier,
         "target_text": "<explanation>\n- cue\n</explanation>",
+        "retained_target_text": "<explanation>\n- retained\n</explanation>",
         "original_activation_path": f"/{identifier}_original.pt",
         "deleted_activation_path": f"/{identifier}_deleted.pt",
     }
@@ -50,6 +55,38 @@ def test_pair_variants_change_only_activation_state() -> None:
     assert original["target_text"] == deleted["target_text"]
     assert original["activation_path"] == "/x_original.pt"
     assert deleted["activation_path"] == "/x_deleted.pt"
+
+
+def test_retained_variants_replace_target_but_preserve_activation_pair() -> None:
+    original, deleted = retained_variants(pair("x"))
+    assert original["target_text"] == "<explanation>\n- retained\n</explanation>"
+    assert deleted["target_text"] == original["target_text"]
+    assert original["activation_path"] == "/x_original.pt"
+    assert deleted["activation_path"] == "/x_deleted.pt"
+
+
+def test_specificity_anchor_rejects_high_high_retained_nll_shortcut() -> None:
+    low, _ = specificity_anchored_objective(
+        torch.tensor([1.0]),
+        torch.tensor([2.0]),
+        torch.tensor([1.0]),
+        torch.tensor([1.0]),
+        anchor_weight=1.0,
+        ranking_weight=1.0,
+        temperature=1.0,
+        margin=0.0,
+    )
+    high, _ = specificity_anchored_objective(
+        torch.tensor([1.0]),
+        torch.tensor([2.0]),
+        torch.tensor([5.0]),
+        torch.tensor([5.0]),
+        anchor_weight=1.0,
+        ranking_weight=1.0,
+        temperature=1.0,
+        margin=0.0,
+    )
+    assert high.item() > low.item()
 
 
 def test_pair_order_is_deterministic_per_seed_and_epoch() -> None:
@@ -130,6 +167,103 @@ def test_specificity_summary_subtracts_retained_gap() -> None:
     assert report["metrics"]["changed_gap"]["mean"] == pytest.approx(0.75)
     assert report["metrics"]["retained_gap"]["mean"] == pytest.approx(0.0)
     assert report["metrics"]["specificity"]["mean"] == pytest.approx(0.75)
+
+
+def write_specificity_scores(
+    path: Path,
+    *,
+    changed_original: float,
+    changed_deleted: float,
+    retained_original: float,
+    retained_deleted: float,
+) -> None:
+    write_jsonl(
+        path,
+        [
+            {
+                "base_id": "case",
+                "diagnosis_id": "dx",
+                "condition": condition,
+                "content_nll": value,
+            }
+            for condition, value in (
+                ("changed_original", changed_original),
+                ("changed_deleted", changed_deleted),
+                ("retained_original", retained_original),
+                ("retained_deleted", retained_deleted),
+            )
+        ],
+    )
+
+
+def test_d20_control_audit_uses_twice_seed_range_with_floors(tmp_path: Path) -> None:
+    paths = {}
+    for seed, retained_gap, changed_nll, retained_nll in (
+        (17, 0.00, 1.00, 2.00),
+        (29, 0.02, 1.01, 2.02),
+        (43, 0.04, 1.10, 2.03),
+    ):
+        path = tmp_path / f"seed{seed}.jsonl"
+        write_specificity_scores(
+            path,
+            changed_original=changed_nll,
+            changed_deleted=changed_nll + 0.1,
+            retained_original=retained_nll,
+            retained_deleted=retained_nll + retained_gap,
+        )
+        paths[seed] = path
+    report = recommendation(paths)
+    assert report["recommended_gates"]["retained_gap_delta_max"] == pytest.approx(
+        0.08
+    )
+    assert report["recommended_gates"][
+        "changed_original_nll_delta_max"
+    ] == pytest.approx(0.2)
+    assert report["recommended_gates"][
+        "retained_original_nll_delta_max"
+    ] == pytest.approx(0.06)
+    assert report["recommended_gates"]["mean_claim_relative_drop_max"] is None
+
+
+def test_d20_gate_requires_all_seed_specificity_and_noninferiority(
+    tmp_path: Path,
+) -> None:
+    paths = {}
+    for seed in (17, 29, 43):
+        control = tmp_path / f"control{seed}.jsonl"
+        anchored = tmp_path / f"anchored{seed}.jsonl"
+        write_specificity_scores(
+            control,
+            changed_original=1.0,
+            changed_deleted=1.0,
+            retained_original=1.0,
+            retained_deleted=1.0,
+        )
+        write_specificity_scores(
+            anchored,
+            changed_original=1.01,
+            changed_deleted=1.11,
+            retained_original=1.01,
+            retained_deleted=1.01,
+        )
+        paths[seed] = {"control": control, "anchored": anchored}
+    protocol = {
+        "human_approved": True,
+        "control_score_sha256": {
+            str(seed): sha256_file(paths[seed]["control"]) for seed in (17, 29, 43)
+        },
+        "gates": {
+            "retained_gap_delta_max": 0.01,
+            "changed_original_nll_delta_max": 0.05,
+            "retained_original_nll_delta_max": 0.05,
+            "mean_claim_relative_drop_max": 0.10,
+        },
+    }
+    report = build_d20_report(paths, protocol=protocol, report_only=False)
+    assert report["gate"]["changed_delta_min_0p05_each_seed"]
+    assert report["gate"]["specificity_positive_each_seed"]
+    assert report["gate"]["retained_gap_noninferior_each_seed"]
+    assert report["gate"]["teacher_forced_gate_passed"]
 
 
 def test_validation_builder_uses_positive_rows_and_frozen_cut(tmp_path: Path) -> None:

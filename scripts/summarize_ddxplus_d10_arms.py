@@ -61,6 +61,12 @@ def metrics_by_id(path: Path) -> dict[str, dict[str, Any]]:
             "specificity": changed_gap - retained_gap,
             "changed_original_nll": conditions["changed_original"][identifier]["content_nll"],
             "changed_deleted_nll": conditions["changed_deleted"][identifier]["content_nll"],
+            "retained_original_nll": conditions["retained_original"][identifier][
+                "content_nll"
+            ],
+            "retained_deleted_nll": conditions["retained_deleted"][identifier][
+                "content_nll"
+            ],
         }
     return result
 

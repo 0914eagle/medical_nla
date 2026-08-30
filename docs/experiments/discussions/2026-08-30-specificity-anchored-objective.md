@@ -41,6 +41,12 @@ L =
 - Hyperparameter 동결: **alpha=1, lambda=1, T=1, margin은 기존 D10과 동일.**
   Sweep 금지.
 
+구현상 `margin=0`이다. Changed original의 첫 항은 기존 D10과 동일한 전체
+supervised-token CE를 유지한다. 새 retained 두 항은 XML scaffold를 세 번
+중복 학습하는 것을 피하기 위해 **claim content token CE**로 구현한다. Ranking도
+기존처럼 content-token NLL을 쓴다. 이는 실행 전에 동결하며 scaffold CE를 넣는
+별도 arm은 만들지 않는다.
+
 ## 데이터·비용
 
 - **신규 데이터 구축 불필요**: D9a approved pairs는 R11에서 이미 retained
@@ -91,6 +97,62 @@ L =
 수치(예: spread 상한 또는 고정 절대값)를 실행 전에 이 문서에 기입하고
 동결한다. 실행 후 조정은 무효.
 
+### 수치 산출 규칙과 실행 잠금
+
+Codex 구현은 허용 폭 추천에 D16과 같은 규칙을 사용한다.
+
+```text
+allowance = max(2 x three-seed D10-control range, absolute floor)
+```
+
+| gate | absolute floor |
+|---|---:|
+| retained-gap delta upper bound | `.01` |
+| changed-original content-NLL delta upper bound | `.05` |
+| retained-original content-NLL delta upper bound | `.05` |
+| mean-claim relative drop upper bound | `.10` |
+
+마지막 값은 D10 control 세 seed를 동일한 validation pilot에서 greedy 생성한 뒤
+`mean claims`의 seed range를 평균으로 나눈 relative range에 적용한다. Pilot은
+기존 D16에서 동결한 validation 40-shard 중 shard `0/1/2/3`의 합집합이며,
+`max_new_tokens=128`, `batch_size=4`, adapter에 기록된 actor prompt를 사용한다.
+Locked test는 읽지 않는다.
+
+이 표의 floor는 **최종 effective allowance가 아니다.** RunPod control artifact가
+저장소에 없으므로 다음 read-only queue가 실제 세 seed 값, range, 추천 allowance,
+입력 SHA256을 만든다. 그 출력 숫자를 이 문서와
+`configs/experiments/ddxplus_d20_gate_protocol.json`에 사람 승인과 함께 커밋하기
+전에는 trainer wrapper가 hard-fail한다.
+
+```bash
+cd /home/eagle0914/medical_nla
+git pull origin main
+
+nohup env \
+  REPO_DIR=/home/eagle0914/medical_nla \
+  GPU_A=0 GPU_B=1 \
+  bash scripts/run_ddxplus_d20_control_calibration_runpod.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_d20_control_calibration_v1.log 2>&1 &
+```
+
+한 GPU pod에서는 `GPU_A=0 GPU_B=0`으로 실행한다. 완료 후 확인할 파일은
+`/data1/heejae/restricted/direct/e4/ddxplus_d20_control_calibration_v1/summary.md`다.
+이 단계는 control 생성과 숫자 추천만 하며 D20 학습을 시작하지 않는다.
+
+승인 protocol이 main에 들어간 뒤 D20 본 실행은 다음 한 명령이다.
+
+```bash
+nohup env \
+  REPO_DIR=/home/eagle0914/medical_nla \
+  GPU_A=0 GPU_B=1 \
+  bash scripts/run_ddxplus_d20_specificity_anchor_runpod.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_d20_specificity_anchor1552_v1.log 2>&1 &
+```
+
+Wrapper는 anchored seed 17/29를 병렬 실행한 뒤 seed 43을 실행한다. 기존 D10
+control checkpoint와 score를 재사용하며 새 control/ranking arm은 학습하지 않는다.
+Checkpoint `194/388/776/1164`는 report-only이고 `1552`만 판정 가능하다.
+
 ## 종료 규칙 (사전 등록)
 
 1. 이 실험은 **한 번**이다. 실패 시 alpha/lambda/margin/step sweep 금지.
@@ -105,8 +167,8 @@ L =
 
 ## 판정
 
-현재 상태: **사람 방향 승인(제안 채택) / 수치 동결 대기 / Codex 구현 검토
-대기.** 비열등 허용 폭 수치가 기입·동결되고 Codex가 trainer 수정을 검토하면
+현재 상태: **사람 방향 승인(제안 채택) / trainer·RunPod wrapper 구현 완료 /
+control-spread 수치 동결 대기.** 비열등 허용 폭 수치가 기입·동결되면
 실행을 연다. 실행 위치는 D10과 동일 조건 유지를 위해 RunPod A100 80GB를
 우선한다(기존 checkpoint 재사용 호환).
 

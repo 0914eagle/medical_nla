@@ -1,8 +1,9 @@
-"""Train the approved D10 one-claim-by-two-activations objective.
+"""Train the approved D10/D20 changed-cue objectives.
 
 The original-only arm and paired-ranking arm use the same rows and order. The
 only difference is the frozen ranking weight: zero for control, one for D10.
-No target is assigned to the deleted activation.
+For D20 only, the retained claim is additionally anchored on both the original
+and deleted activations. No deleted-state abstention target is ever invented.
 """
 
 from __future__ import annotations
@@ -51,17 +52,60 @@ def paired_variants(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]
     return original, deleted
 
 
+def retained_variants(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    original, deleted = paired_variants(row)
+    retained_target = row.get("retained_target_text")
+    if not retained_target:
+        raise ValueError(f"D20 row lacks retained_target_text: {row.get('id')}")
+    original["target_text"] = retained_target
+    original["d20_target"] = "retained"
+    deleted["target_text"] = retained_target
+    deleted["d20_target"] = "retained"
+    return original, deleted
+
+
 def one_by_two_objective(
     original_content_nll: torch.Tensor,
     deleted_content_nll: torch.Tensor,
     *,
     temperature: float,
+    margin: float = 0.0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     if original_content_nll.shape != deleted_content_nll.shape:
         raise ValueError("Original/deleted NLL shapes differ")
     gap = deleted_content_nll - original_content_nll
-    loss = (temperature * F.softplus(-gap / temperature)).mean()
+    loss = (temperature * F.softplus((margin - gap) / temperature)).mean()
     return loss, gap
+
+
+def specificity_anchored_objective(
+    changed_original_content_nll: torch.Tensor,
+    changed_deleted_content_nll: torch.Tensor,
+    retained_original_content_nll: torch.Tensor,
+    retained_deleted_content_nll: torch.Tensor,
+    *,
+    anchor_weight: float,
+    ranking_weight: float,
+    temperature: float,
+    margin: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return the D20 content objective and changed deleted-minus-original gap."""
+    ranking_loss, changed_gap = one_by_two_objective(
+        changed_original_content_nll,
+        changed_deleted_content_nll,
+        temperature=temperature,
+        margin=margin,
+    )
+    loss = (
+        changed_original_content_nll.mean()
+        + anchor_weight
+        * (
+            retained_original_content_nll.mean()
+            + retained_deleted_content_nll.mean()
+        )
+        + ranking_weight * ranking_loss
+    )
+    return loss, changed_gap
 
 
 def backward_pair(
@@ -73,9 +117,11 @@ def backward_pair(
     sidecar: Any,
     actor_prompt_template: str,
     ranking_weight: float,
+    retained_anchor_weight: float,
     temperature: float,
+    margin: float,
     grad_accum_steps: int,
-) -> tuple[float, float, float]:
+) -> dict[str, float]:
     original, deleted = paired_variants(row)
     with torch.no_grad():
         original_sum, original_counts, original_content = losses_for_rows(
@@ -95,10 +141,13 @@ def backward_pair(
             actor_prompt_template=actor_prompt_template,
         )
         ranking_loss, gap = one_by_two_objective(
-            original_content, deleted_content, temperature=temperature
+            original_content,
+            deleted_content,
+            temperature=temperature,
+            margin=margin,
         )
         sft_loss = original_sum[0] / original_counts[0]
-        strength = torch.sigmoid(-gap[0] / temperature)
+        strength = torch.sigmoid((margin - gap[0]) / temperature)
 
     original_sum_grad, original_counts_grad, original_content_grad = losses_for_rows(
         rows=[original],
@@ -125,7 +174,55 @@ def backward_pair(
         scalar_deleted = -ranking_weight * strength * deleted_content_grad[0]
         (scalar_deleted / grad_accum_steps).backward()
 
-    return float(sft_loss.item()), float(ranking_loss.item()), float(gap.item())
+    retained_original_nll = float("nan")
+    retained_deleted_nll = float("nan")
+    if retained_anchor_weight:
+        retained_original, retained_deleted = retained_variants(row)
+        (
+            _retained_original_sum,
+            _retained_original_counts,
+            retained_original_content,
+        ) = losses_for_rows(
+            rows=[retained_original],
+            model=model,
+            tokenizer=tokenizer,
+            embed_layer=embed_layer,
+            sidecar=sidecar,
+            actor_prompt_template=actor_prompt_template,
+        )
+        (
+            retained_anchor_weight
+            * retained_original_content[0]
+            / grad_accum_steps
+        ).backward()
+        retained_original_nll = float(retained_original_content[0].detach().item())
+
+        (
+            _retained_deleted_sum,
+            _retained_deleted_counts,
+            retained_deleted_content,
+        ) = losses_for_rows(
+            rows=[retained_deleted],
+            model=model,
+            tokenizer=tokenizer,
+            embed_layer=embed_layer,
+            sidecar=sidecar,
+            actor_prompt_template=actor_prompt_template,
+        )
+        (
+            retained_anchor_weight
+            * retained_deleted_content[0]
+            / grad_accum_steps
+        ).backward()
+        retained_deleted_nll = float(retained_deleted_content[0].detach().item())
+
+    return {
+        "sft_loss": float(sft_loss.item()),
+        "ranking_loss": float(ranking_loss.item()),
+        "changed_gap": float(gap.item()),
+        "retained_original_content_nll": retained_original_nll,
+        "retained_deleted_content_nll": retained_deleted_nll,
+    }
 
 
 def epoch_rows(rows: list[dict[str, Any]], *, seed: int, epoch: int) -> list[dict[str, Any]]:
@@ -164,7 +261,7 @@ def training_contract(
     *, args: argparse.Namespace, train_sha256: str, n_rows: int, checkpoints: list[int]
 ) -> dict[str, Any]:
     actor_prompt_path = Path(args.actor_prompt_template_file)
-    return {
+    contract = {
         "train_sha256": train_sha256,
         "config_sha256": sha256_file(Path(args.config)),
         "actor_prompt_sha256": (
@@ -184,6 +281,16 @@ def training_contract(
         "target_modules": list(args.target_modules),
         "checkpoint_steps": checkpoints,
     }
+    # Preserve byte-for-byte D10 resume contracts at the legacy defaults.
+    if args.retained_anchor_weight or args.margin:
+        contract.update(
+            {
+                "objective_schema": "d20_specificity_anchor_v1",
+                "retained_anchor_weight": args.retained_anchor_weight,
+                "margin": args.margin,
+            }
+        )
+    return contract
 
 
 def restore_rng_state(state: dict[str, Any]) -> None:
@@ -287,7 +394,11 @@ def main() -> None:
     parser.add_argument("--resume-from-checkpoint", type=Path)
     parser.add_argument("--grad-accum-steps", type=int, default=4)
     parser.add_argument("--ranking-weight", type=float, choices=(0.0, 1.0), required=True)
+    parser.add_argument(
+        "--retained-anchor-weight", type=float, choices=(0.0, 1.0), default=0.0
+    )
     parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--margin", type=float, default=0.0)
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--weight-decay", type=float, default=0.0)
     parser.add_argument("--seed", type=int, choices=(17, 29, 43), required=True)
@@ -311,6 +422,10 @@ def main() -> None:
         raise ValueError("Step counts must be positive")
     if args.temperature != 1.0:
         raise ValueError("D10 freezes temperature=1.0")
+    if args.margin != 0.0:
+        raise ValueError("D10/D20 freeze the ranking margin at 0.0")
+    if args.retained_anchor_weight and args.ranking_weight != 1.0:
+        raise ValueError("D20 retained anchoring requires ranking_weight=1.0")
     checkpoint_steps = normalize_checkpoint_steps(
         args.checkpoint_steps or [args.max_steps], max_steps=args.max_steps
     )
@@ -327,6 +442,8 @@ def main() -> None:
         raise ValueError("D10 rows have missing or duplicate base_id")
     for row in rows:
         original, deleted = paired_variants(row)
+        if args.retained_anchor_weight:
+            retained_variants(row)
         for variant in (original, deleted):
             if not Path(str(variant["activation_path"])).is_file():
                 raise FileNotFoundError(variant["activation_path"])
@@ -453,12 +570,12 @@ def main() -> None:
             f"[resume] step={optimizer_step} epoch={epoch} row={next_row_index}",
             flush=True,
         )
-    recent: list[tuple[float, float, float]] = []
+    recent: list[dict[str, float]] = []
     while optimizer_step < args.max_steps:
         ordered_rows = epoch_rows(rows, seed=args.seed, epoch=epoch)
         for row in ordered_rows[next_row_index:]:
             active_epoch = epoch
-            sft_loss, ranking_loss, gap = backward_pair(
+            row_metrics = backward_pair(
                 row=row,
                 model=model,
                 tokenizer=tokenizer,
@@ -466,10 +583,12 @@ def main() -> None:
                 sidecar=sidecar,
                 actor_prompt_template=actor_prompt_template,
                 ranking_weight=args.ranking_weight,
+                retained_anchor_weight=args.retained_anchor_weight,
                 temperature=args.temperature,
+                margin=args.margin,
                 grad_accum_steps=args.grad_accum_steps,
             )
-            recent.append((sft_loss, ranking_loss, gap))
+            recent.append(row_metrics)
             micro_step += 1
             epoch, next_row_index = advance_cursor(
                 epoch=epoch, row_index=next_row_index, n_rows=len(ordered_rows)
@@ -484,21 +603,42 @@ def main() -> None:
             metrics = {
                 "step": optimizer_step,
                 "epoch": active_epoch,
-                "sft_loss": mean(value[0] for value in window),
-                "ranking_loss": mean(value[1] for value in window),
+                "sft_loss": mean(value["sft_loss"] for value in window),
+                "ranking_loss": mean(value["ranking_loss"] for value in window),
                 "deleted_minus_original_content_nll": mean(
-                    value[2] for value in window
+                    value["changed_gap"] for value in window
                 ),
                 "ranking_weight": args.ranking_weight,
+                "retained_anchor_weight": args.retained_anchor_weight,
                 "temperature": args.temperature,
+                "margin": args.margin,
             }
+            if args.retained_anchor_weight:
+                metrics.update(
+                    {
+                        "retained_original_content_nll": mean(
+                            value["retained_original_content_nll"] for value in window
+                        ),
+                        "retained_deleted_content_nll": mean(
+                            value["retained_deleted_content_nll"] for value in window
+                        ),
+                    }
+                )
             with metrics_path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(metrics, sort_keys=True) + "\n")
             print(
                 f"[train] step={optimizer_step}/{args.max_steps} "
                 f"sft={metrics['sft_loss']:.4f} "
                 f"rank={metrics['ranking_loss']:.4f} "
-                f"gap={metrics['deleted_minus_original_content_nll']:+.4f}",
+                f"gap={metrics['deleted_minus_original_content_nll']:+.4f}"
+                + (
+                    " ret_orig="
+                    f"{metrics['retained_original_content_nll']:.4f}"
+                    " ret_del="
+                    f"{metrics['retained_deleted_content_nll']:.4f}"
+                    if args.retained_anchor_weight
+                    else ""
+                ),
                 flush=True,
             )
             if optimizer_step >= args.max_steps:
@@ -542,9 +682,13 @@ def main() -> None:
     )
     metadata = {
         "objective": (
-            "original_only_sft"
-            if args.ranking_weight == 0.0
-            else "d10_one_claim_two_activation_ranking"
+            "d20_specificity_anchored_two_target_two_activation"
+            if args.retained_anchor_weight
+            else (
+                "original_only_sft"
+                if args.ranking_weight == 0.0
+                else "d10_one_claim_two_activation_ranking"
+            )
         ),
         "initialization": initialization,
         "train_jsonl": str(args.train_jsonl),
@@ -556,7 +700,9 @@ def main() -> None:
         "training_contract": contract,
         "locked_hyperparameters": {
             "ranking_weight": args.ranking_weight,
+            "retained_anchor_weight": args.retained_anchor_weight,
             "temperature": args.temperature,
+            "margin": args.margin,
         },
         "args": {
             key: str(value) if isinstance(value, Path) else value
