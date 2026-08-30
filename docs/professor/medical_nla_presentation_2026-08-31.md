@@ -132,6 +132,20 @@
 - Direct-P0는 instruction-sensitivity control로만 사용
 - P1/P2의 높은 성능을 P0 내부 표현 증거로 과대해석하지 않음
 
+### 왜 이후 실험은 P0만 primary로 사용했는가?
+
+| 위치 | activation이 이미 읽은 text | main Medical-NLA 입력으로 쓸 때의 문제 |
+|---|---|---|
+| P0 | clinical input + instruction만 읽음 | 답·reasoning 문자열 누출이 없어 설명해야 할 pre-response state와 일치 |
+| P1 | 실제 생성 reasoning + `The answer is` marker까지 읽음 | reasoning 안에 source answer alias가 자주 이미 등장 |
+| P2 | 생성된 diagnosis 문자열까지 읽음 | 정답 문자열 자체가 노출된 answer-exposed state |
+
+- 연구 질문은 **모델이 답을 쓰기 전의 환자 상태를 자연어로 읽을 수 있는가**이므로 P0가 주 위치입니다.
+- P1/P2를 주표에 넣으면 decoder가 activation의 임상 추론이 아니라 이미 노출된 문자열을 복사해도 높은 점수를 얻습니다.
+- P1/P2는 실제로 실행했으며 Slide 15에서 leakage/positive control로 보고합니다. “정의만 하고 버린 위치”가 아닙니다.
+- DDXPlus deletion/value-edit도 답 생성 전 상태의 선택적 변화를 묻기 때문에 CoT-P0로 고정했습니다.
+- **현재 frozen position protocol에는 P3가 없습니다.** 과거 archive의 `P3` 표기는 별도 legacy experiment label이며 activation position이 아닙니다.
+
 ---
 
 ## Slide 5. 내부 측정 도구와 평가 층을 분리
@@ -654,10 +668,16 @@ typical disease template.
 | Default | 0.5192 | 0.5962 | 0/5 |
 | Task-aligned | 0.5577 | 0.5000 | 0/5 |
 
+- Validation에서 P1/P2도 `52 cases x 2 prompts x 2 positions = 208` readouts를 생성했습니다.
+- 별도 171-case exploratory audit에서도 P1/P2 L32를 각각 171행 생성했고 parse는 모두 성공했습니다.
+- 그 audit의 source-answer mention은 P1 `.4912`, P2 `.3918`이었지만, reasoning에 answer alias가
+  없던 P1 subset에서는 `1/15=.0667`뿐이었습니다.
+
 ### 해석
 
 - 공개 Vanilla NLA는 P0의 진단 정보를 읽지 못했습니다.
-- P1/P2의 절대 mention은 reasoning/answer 문자열 노출과 일치하고, leakage-free P1은 0/5이므로 P0 reader 성공이 아닙니다.
+- P1/P2의 절대 mention은 reasoning/answer 문자열 노출과 일치하고, leakage-free P1은 validation `0/5`, exploratory `1/15`이므로 P0 reader 성공이 아닙니다.
+- 따라서 P1/P2는 “AV가 이미 노출된 답 문자열을 어느 정도 읽을 수 있는가”를 확인하는 positive control이며 Main Table 1–3의 독립 method row가 아닙니다.
 - HS16/24 입력은 HS32용 decoder와 layer mismatch가 있으므로 sensitivity일 뿐 primary 성능이 아닙니다.
 
 ---
