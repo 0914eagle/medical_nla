@@ -15,7 +15,7 @@
 |---|---|---|
 | resolved (FAIL) | [D22 Patchscope same-layer source sweep](2026-08-31-d22-patchscope-same-layer-source-sweep.md) | general control PASS, clinical own/donor correspondence 0/5 at HS16/HS24; identity Patchscope 종료, learned prefix mapper 후보 |
 | resolved (FAIL) | [D22 Patchscope feature-interface calibration](2026-08-31-d22-patchscope-feature-interface.md) | entity 2/5 전 layer, relation 1/5·1/5·0/5; clinical 미실행, same-layer source sweep으로 분리 |
-| active | [D22 public-AR medical-distribution diagnostic](2026-08-30-d22-public-ar-diagnostic.md) | 공개 AR 불인정; final-marker Patchscope는 token decoding PASS/entity description FAIL, 후속 interface calibration으로 분리 |
+| resolved (FAIL) | [D22 public-AR medical-distribution diagnostic](2026-08-30-d22-public-ar-diagnostic.md) | geometry decision inconclusive; limited diagnostic=False, AV reward=False; supervised prefix 경로의 선행 기록 완료 |
 | resolved (FAIL) | [D10 budget calibration and program decision](2026-08-29-program-decision-after-d16.md) | budget gate FAIL 확정; 출구는 D20 결과 후 재론 |
 | resolved (FAIL) | [Specificity-anchored 2x2 objective (D20)](2026-08-30-specificity-anchored-objective.md) | teacher-forced gate FAIL; detector 차단 성공·changed-gap 신호 부재; D19/D21 ledger 행 사람 승인 대기 |
 | active | [Paper table completion](2026-08-29-paper-table-completion.md) | Vanilla protocol freeze, D10 decision, then locked baseline batch |

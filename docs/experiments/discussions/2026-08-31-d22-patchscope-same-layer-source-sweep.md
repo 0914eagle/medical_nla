@@ -172,11 +172,13 @@ continuation branch를 바꾸기는 하지만 own activation과 own clinical con
 ## 기록 한계 (Claude 검토, 2026-08-31)
 
 1. **Control–clinical 위치·문맥 비대칭.** General control은 짧은 entity 텍스트
-   activation을 짧은 target prompt에 patch해 source/target의 RoPE 위치가
-   유사하다. Clinical은 긴 CoT prompt 끝(P0 last token) activation을 짧은
-   prompt에 patch하므로 위치·문맥 격차가 훨씬 크다. 따라서 control 통과는
-   **짧은 문맥 source에 대해서만** interface를 검증한 것이며, 위치 불일치가
-   clinical 실패의 기여 요인일 수 있다. 종료 결정은 이와 무관하게 유효하지만
+   activation을 짧은 target prompt에 patch한다. Clinical은 긴 CoT prompt 끝의
+   P0 activation을 짧은 prompt에 patch하므로 source representation의 문맥 길이와
+   분포가 크게 다르다. RoPE는 각 attention layer의 query/key에 적용되므로 residual
+   vector가 단순히 source 위치 좌표를 보존한다고 단정하지 않는다. 다만 target의
+   짧은 위치에서 긴 source 문맥으로 형성된 state를 처리하는 distribution shift는
+   clinical 실패의 기여 요인일 수 있다. 따라서 control 통과는 **짧은 문맥
+   source에 대해서만** interface를 검증한 것이다. 종료 결정은 이와 무관하게 유효하지만
    (같은 비대칭 하에서도 identity 경로의 추가 후보가 없음), 논문 한계 절에
    이 요인을 명시한다.
 2. **n=5는 bounded smoke다.** 확대 여부를 정하는 관문으로서 범주적 실패
@@ -205,8 +207,9 @@ frozen decoder prefix, 텍스트 bypass 제거)는 D22가 애초 택한 경로 �
 3. 판정은 D20 교훈대로 loss가 아니라 gate에서: matched-vs-same-diagnosis-
    shuffled dependence와 deletion specificity를 **seed 3개·cluster CI**로
    요구하고, 수치 허용 폭은 실행 전 동결한다.
-4. Geometry audit A1–A5 결과(공개 AR 폐기 vs 제한적 사용)가 이 분기의 선행
-   관문이다 — A1–A5 결과 기록 전에는 prefix mapper 사전 등록을 열지 않는다.
+4. Geometry audit A1–A5 결과가 이 분기의 선행 관문이다. 결과는
+   [`2026-08-30-d22-public-ar-diagnostic.md`](2026-08-30-d22-public-ar-diagnostic.md)에
+   기록됐고 limited diagnostic/AV reward가 모두 불인정돼 이 선행조건은 완료됐다.
 
 ## 다음 학습 기반 후보
 

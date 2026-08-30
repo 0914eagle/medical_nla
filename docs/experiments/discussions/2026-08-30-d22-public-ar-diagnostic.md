@@ -114,6 +114,29 @@ restricted 경로에 저장한 뒤 집계는 CPU에서 한다. A1/A4는 기존 a
   (text → CoT-P0/HS32) 학습을 전제로 확정.
 - 실행 후 기준 조정은 무효.
 
+### Geometry audit 결과 (2026-08-31)
+
+Validation-only 20개/arm으로 실행했으며 locked test는 읽지 않았다. 실행기가 기록한
+최종 decision은 `inconclusive_positive_controls`, limited diagnostic accepted는 `False`,
+AV reward accepted는 `False`였다.
+
+| dataset/arm | n | A1 same-diff | A2 centered gap [cluster CI] | A3 FVE | A4 same-diff donor | A5 top-1 | A5 MRR | median rank |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| DDXPlus structured reader | 20 | +.0002 | -.0047 [-.0375, +.0261] | -119.2169 | +.0001 | .0000 | .0316 | 50.0 |
+| DiReCT direct-only seed17 | 20 | +.0001 | -.0020 [-.0325, +.0209] | -141.9903 | +.0000 | .2500 | .5392 | 2.0 |
+| DiReCT direct-only seed29 | 20 | +.0001 | -.0172 [-.0466, +.0064] | -121.6396 | +.0000 | .3000 | .5725 | 2.0 |
+| DiReCT direct-only seed43 | 20 | +.0000 | +.0020 [-.0196, +.0201] | -143.0819 | -.0001 | .3500 | .5933 | 2.0 |
+| DiReCT full-data seed17 | 20 | +.0001 | -.0179 [-.0474, +.0119] | -136.6468 | -.0000 | .1500 | .4525 | 2.5 |
+| DiReCT full-data seed29 | 20 | +.0000 | +.0069 [-.0112, +.0266] | -138.3309 | -.0000 | .3000 | .5700 | 2.0 |
+| DiReCT source CoT | 20 | +.0001 | +.0304 [+.0012, +.0635] | -109.3544 | +.0001 | .4000 | .6267 | 2.0 |
+| DiReCT vanilla | 20 | +.0000 | +.0696 [+.0289, +.1111] | -19.7012 | +.0000 | .4500 | .6583 | 2.0 |
+
+양성 대조가 일치하지 않았다. DDXPlus structured reader는 A2/A3/A5를 모두 통과하지
+못했고, DiReCT source CoT는 A2와 A5만 통과했지만 A3 FVE가 `-109.3544`였다. 따라서
+공개 AR를 의료 분포의 일반적인 reconstruction 측정기나 AV reward로 사용하지 않는다.
+이 결과는 AR를 사용하지 않는 supervised prefix mapper를 막지는 않으며, 해당 경로의
+선행 geometry 기록 조건은 이 음성/불일치 결과로 완료된 것으로 본다.
+
 ### Medical-AR 학습 위치 제약 (사전 결정 필요)
 
 "DDXPlus 4,655 + DiReCT 248" 학습안은 그대로 실행하면 **DiReCT RunPod 반출 금지
