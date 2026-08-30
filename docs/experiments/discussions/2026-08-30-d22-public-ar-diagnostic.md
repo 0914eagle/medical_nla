@@ -229,7 +229,8 @@ target prompt와 model prior만으로 질환 전형을 만들 수 있으므로 �
 - **모집단**: DDXPlus official validation에서 original, cue-deleted, native-value-edited
   activation과 train-supported value label이 모두 존재하고 same-diagnosis donor를 만들 수
   있는 사례만 eligible로 둔다. 진단별 round-robin 뒤
-  `SHA256("d22_patchscope_v1" || base_id)` 오름차순으로 50개를 선택한다. 사례 ID와
+  `SHA256(UTF8("d22_patchscope_v1" || NUL || base_id))` 오름차순으로 50개를
+  선택한다. 사례 ID와
   제외 사유별 수는 generation 전에 receipt로 동결한다.
 - **activation arms**: 같은 50개 사례의 original, cue-deleted, value-edited HS32
   CoT-P0를 사용한다.
@@ -312,6 +313,64 @@ Medical-AR smoke의 개방 여부를 자동으로 결정하지 않는다.
 순서 1–3은 validation-only 소규모 실행이라 사람 승인 후 즉시 가능하다. 4 이후는
 각 단계의 gate 통과 + 해당 단계 사전 등록이 선행 조건이다.
 
+### 승인 후 실행 명령 (server 125)
+
+Geometry audit와 Patchscope는 서로의 산출물을 사용하지 않으므로 4x4090 server 125에서
+병렬 실행한다. Geometry는 공개 AR를 GPU 0 한 장에 올리고, Patchscope source backbone은
+GPU 2,3 두 장에 분산한다. DiReCT 원문과 reconstruction vector는 geometry runner의
+restricted output 밖으로 나가지 않는다.
+
+```bash
+cd /home/eagle0914/medical_nla
+git pull origin main
+source /data1/heejae/uv/medical_nla/bin/activate
+mkdir -p /data1/heejae/medical_nla/logs
+
+# Lane A: 160 reconstruction vectors + CPU A1-A5
+nohup env \
+  DATA_ROOT=/data1/heejae \
+  GPU=0 \
+  LIMIT_PER_ARM=20 \
+  bash scripts/run_medical_nla_d22_geometry_125.sh \
+  > /data1/heejae/medical_nla/logs/medical_nla_d22_geometry20_v1.log 2>&1 &
+
+# Lane B: 50 cases, 400 unique Patchscope generations, 600 frozen-mapper cells
+nohup env \
+  DATA_ROOT=/data1/heejae \
+  GPUS=2,3 \
+  CASES=50 \
+  BATCH_SIZE=4 \
+  PRIMARY_MODEL=gpt-5.6-sol \
+  MODE=all \
+  bash scripts/run_ddxplus_d22_patchscope_125.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_d22_patchscope50_v1.log 2>&1 &
+```
+
+진행 확인:
+
+```bash
+tail -f \
+  /data1/heejae/medical_nla/logs/medical_nla_d22_geometry20_v1.log \
+  /data1/heejae/medical_nla/logs/ddxplus_d22_patchscope50_v1.log
+```
+
+완료 확인:
+
+```bash
+cat /data1/heejae/restricted/direct/e4/medical_nla_d22_public_ar_geometry20_v1/geometry_audit/summary.md
+cat /data1/heejae/medical_nla/results/ddxplus_d22_patchscope50_v1/semantic_mapping/summary.md
+
+wc -l \
+  /data1/heejae/medical_nla/results/ddxplus_d22_patchscope50_v1/unique_generations.jsonl \
+  /data1/heejae/medical_nla/results/ddxplus_d22_patchscope50_v1/logical_readouts.jsonl
+# expected: 400 and 600
+```
+
+Patchscope `MODE=all`은 generation 뒤 frozen mapper request를 만들고 `gpt-5.6-sol`로
+method-blind mapping을 실행한다. Frozen parser가 거부한 batch만 최대 세 번 다시 판정한
+뒤 exact request population과 mapper receipt hash를 검증한다. 결과를 본 뒤 prompt,
+ontology, alias 또는 gate를 바꾸는 재실행은 허용하지 않는다.
+
 검증된 경로는 둘이다: ① AR-reward RL (원 NLA), ② 대규모 diverse supervised
 (LatentQA/AO). D22가 ①을 택한 이유는 공개 checkpoint 호환과 원 방법 재현성이며,
 ②의 존재와 미실행 사유를 사전 기재해 "왜 AO 방식은 안 했나" 심사 질문을 미리
@@ -325,6 +384,7 @@ Medical-AR smoke의 개방 여부를 자동으로 결정하지 않는다.
    종결만. 생성형 전체 종료·주표 행 영구 제외는 승인하지 않음 — 기존 조건부
    규칙(gate 통과 시에만 행 추가) 유지.
 3. **D22 개방**: 이 문서의 진단은 실행 완료(공개 AR 불인정). 다음 단계는
-   geometry audit(위 동결 기준) → 결과에 따라 Medical-AR 학습 사전 등록.
+   구현 완료된 geometry audit와 Patchscope runner를 위 명령으로 병렬 실행 → 결과에
+   따라 Medical-AR 4,655 smoke 사전 등록.
 4. Baseline 논문 트랙(DiReCT locked batch)은 D22와 독립적으로 진행 가능 —
    일정 결정(선제출 vs D22 대기)은 별도 사람 결정.

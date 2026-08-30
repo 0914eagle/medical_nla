@@ -45,6 +45,20 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def vector_path(root: Path, row_id: str) -> Path:
+    digest = hashlib.sha256(row_id.encode("utf-8")).hexdigest()
+    return root / digest[:2] / f"{digest}.pt"
+
+
+def persist_vector(root: Path, row_id: str, vector: torch.Tensor) -> Path:
+    path = vector_path(root, row_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".pt.tmp")
+    torch.save(vector.detach().float().cpu().flatten(), temporary)
+    temporary.replace(path)
+    return path
+
+
 def parse_path_map(value: str) -> tuple[str, str]:
     if "=" not in value:
         raise argparse.ArgumentTypeError("Expected OLD=NEW")
@@ -277,6 +291,13 @@ def score(args: argparse.Namespace) -> None:
     scored = []
     for index, row in enumerate(rows, start=1):
         vector = reconstruct(critic, str(row["text"]))
+        reconstruction_path = None
+        reconstruction_sha256 = None
+        if args.vector_dir is not None:
+            reconstruction_path = persist_vector(
+                args.vector_dir, str(row["id"]), vector
+            )
+            reconstruction_sha256 = sha256_file(reconstruction_path)
         own = load_activation(row["activation_path"])
         donor = load_activation(row["donor_activation_path"])
         own_cos = cosine(vector, own)
@@ -288,6 +309,11 @@ def score(args: argparse.Namespace) -> None:
                 "reconstruction_cosine_shuffled": donor_cos,
                 "matched_over_shuffled_gap": own_cos - donor_cos,
                 "word_count": len(clean(row["text"]).split()),
+                "reconstruction_path": (
+                    str(reconstruction_path) if reconstruction_path is not None else None
+                ),
+                "reconstruction_sha256": reconstruction_sha256,
+                "reconstruction_width": int(vector.numel()),
             }
         )
         if index % 25 == 0 or index == len(rows):
@@ -406,6 +432,11 @@ def main() -> None:
     run.add_argument("--dtype", default="bfloat16")
     run.add_argument("--cache-dir", default="/data1/heejae/hf_cache")
     run.add_argument("--nla-inference-path")
+    run.add_argument(
+        "--vector-dir",
+        type=Path,
+        help="Restricted directory for float32 reconstructed vectors.",
+    )
 
     report = subparsers.add_parser("summarize")
     report.add_argument("--scored", required=True, type=Path)

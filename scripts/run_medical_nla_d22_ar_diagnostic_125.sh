@@ -66,7 +66,8 @@ if [[ "${MODE}" == "score" || "${MODE}" == "all" ]]; then
     --device cuda:0 \
     --dtype bfloat16 \
     --cache-dir "${HF_HOME}" \
-    --nla-inference-path "${NLA_INFERENCE}"
+    --nla-inference-path "${NLA_INFERENCE}" \
+    --vector-dir "${OUT}/private_reconstruction_vectors"
 fi
 
 if [[ "${MODE}" == "summarize" || "${MODE}" == "all" ]]; then

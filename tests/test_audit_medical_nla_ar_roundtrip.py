@@ -6,13 +6,34 @@ from pathlib import Path
 
 import torch
 
-from scripts.audit_medical_nla_ar_roundtrip import cosine, prepare, summarize
+from scripts.audit_medical_nla_ar_roundtrip import (
+    cosine,
+    persist_vector,
+    prepare,
+    summarize,
+    vector_path,
+)
 from src.jsonl import read_jsonl, write_jsonl
 
 
 def test_cosine_matches_direction() -> None:
     assert cosine(torch.tensor([1.0, 0.0]), torch.tensor([2.0, 0.0])) == 1.0
     assert cosine(torch.tensor([1.0, 0.0]), torch.tensor([0.0, 3.0])) == 0.0
+
+
+def test_reconstruction_vector_path_is_stable_and_persists_float32(
+    tmp_path: Path,
+) -> None:
+    expected = vector_path(tmp_path, "direct::case::source_cot")
+    actual = persist_vector(
+        tmp_path,
+        "direct::case::source_cot",
+        torch.tensor([1.0, 2.0], dtype=torch.bfloat16),
+    )
+    assert actual == expected
+    saved = torch.load(actual, map_location="cpu", weights_only=True)
+    assert saved.dtype == torch.float32
+    assert saved.tolist() == [1.0, 2.0]
 
 
 def test_summary_requires_both_positive_controls(tmp_path: Path) -> None:
