@@ -1,0 +1,68 @@
+{
+  "alias_table": {
+    "path": "/data1/heejae/medical_nla/results/ddxplus_semantic_mapper_validation_v2/frozen/alias_table.json",
+    "sha256": "29fa7ee62075fa666b61066e449baaa1e2fa12149682326205428a275737c7bb"
+  },
+  "all_gates_passed": true,
+  "auditor_model_id": "gpt-5.4",
+  "gates": {
+    "G1": {
+      "finding_micro_f1": 1.0,
+      "finding_threshold": 0.98,
+      "native_value_accuracy": 1.0,
+      "native_value_n": 10957,
+      "passed": true,
+      "value_threshold": 0.98
+    },
+    "G2": {
+      "eligible": 2609,
+      "false_map_rate": 0.0,
+      "false_maps": 0,
+      "passed": true,
+      "threshold": 0.05,
+      "wilson_95_upper": 0.0014702226986355181
+    },
+    "G3": {
+      "cache_replay_byte_identical": true,
+      "cache_rows": 170,
+      "cache_sha256": "d20c56f147a577d83f84cbf68eba7021d332c888c92df080fc00d179d754873c",
+      "cold_duplicate_agreement": 1.0,
+      "cold_duplicate_n": 20,
+      "passed": true
+    },
+    "G4": {
+      "auditor_model_id": "gpt-5.4",
+      "auditor_value_reference_accuracy": 1.0,
+      "evidence_disagreement_rate": 0.02,
+      "evidence_disagreements": 2,
+      "n": 100,
+      "passed": true,
+      "primary_model_id": "gpt-5.6-sol",
+      "primary_value_reference_accuracy": 1.0,
+      "value_disagreement_rate": 0.0,
+      "value_disagreements": 0,
+      "value_n": 30
+    }
+  },
+  "inputs": {
+    "auditor_judgements_sha256": "ba19d7ee88f523a8511147626a6f30718b83562af6f47f9a68a6a0987ac35652",
+    "primary_report_sha256": "bcfa095841fb43668ecfc886a39ad165cca0db088496d59677b031e28032234e",
+    "primary_sample_sha256": "ccdd71b21337ef3c30701227ff999639aba2bf0101f0007a8cdc04d6509beba5"
+  },
+  "locked_test_read": false,
+  "mapper_prompt": {
+    "path": "/data1/heejae/medical_nla/results/ddxplus_semantic_mapper_validation_v2/frozen/mapper_prompt.txt",
+    "sha256": "02ac5b793116f3612bc26df3d7f5d1ac22deb3f013aabdffe8fe71dee13e407c"
+  },
+  "ontology": {
+    "path": "/data1/heejae/medical_nla/results/ddxplus_semantic_mapper_validation_v2/frozen/ontology.json",
+    "sha256": "1ce294b2042db91dfa93a6905806ec437d4b7481477519ff9a22dcb41eff0f7a"
+  },
+  "primary_model_id": "gpt-5.6-sol",
+  "protocol_sha256": "12e4500fa45f90d11c0146ad12e972afd9b5bd80128f49b388b11dea360b506b",
+  "schema_version": 1,
+  "scorer": {
+    "path": "scripts/score_ddxplus_semantic_readouts.py",
+    "sha256": "825600eabde0a7c145879b2b4a5d54d3fbbe513c821b28de244487658a2ac8a0"
+  }
+}
