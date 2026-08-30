@@ -566,6 +566,17 @@ typical disease template.
 | canonical PDD | 0.0962 | **0.4423** | 0.7692 | 0.5762 | 0.3868 | 2.0489 |
 | disease category | 0.0577 | **0.5962** | 0.9038 | 0.7284 | 0.5000 | 1.3961 |
 
+두 행은 같은 CoT-P0/HS24 activation에 multiclass linear probe를 적용하되, `canonical PDD`는 세부 진단명을, `disease category`는 더 상위의 질환군을 target으로 사용한 결과입니다.
+
+- `majority`: activation을 전혀 보지 않고 validation에서 가장 빈번한 class만 항상 예측했을 때의 accuracy입니다. PDD `0.0962`, category `0.0577`은 probe 성능을 비교할 최소 class-frequency baseline입니다.
+- `Top-1`: 가장 높은 확률을 받은 하나의 class가 gold와 같은 비율입니다. HS24에서 PDD는 `23/52=0.4423`, category는 `31/52=0.5962`입니다.
+- `Top-5`: gold class가 probe의 상위 5개 후보 안에 포함된 비율입니다. 정확히 1등을 맞히지 못했더라도 activation이 gold를 높은 순위로 좁혔는지 측정합니다.
+- `MRR`(mean reciprocal rank): 각 사례에서 gold class 순위 `r`의 역수 `1/r`을 평균합니다. 1등은 `1.0`, 2등은 `0.5`, 5등은 `0.2`의 점수를 받아 전체 후보 순위를 Top-5보다 연속적으로 평가합니다.
+- `macro recall`: class별 recall을 먼저 계산한 뒤 class에 동일 가중치를 주어 평균합니다. 빈도가 높은 진단만 잘 맞혀 전체 accuracy가 높아지는 문제를 통제합니다.
+- `val NLL`: gold class에 부여한 확률의 negative log-likelihood 평균이며 낮을수록 좋습니다. 정답 순위뿐 아니라 정답에 얼마나 높은 확률을 배정했는지를 측정하고, validation에서 layer와 regularization을 선택하는 loss로 사용했습니다.
+
+따라서 Top-1은 직접 판독 정확도, Top-5/MRR은 gold 진단의 후보 순위, macro recall은 희귀 class를 포함한 균형 성능, NLL은 확률적 confidence를 각각 보완합니다. 모든 지표가 majority를 크게 넘는다는 것은 P0 activation에 진단 관련 선형 정보가 존재한다는 증거이지만, 이 probe 결과만으로 open-text NLA가 그 정보를 자연어로 복원한다고 결론 내리지는 않습니다.
+
 ### DDXPlus finding/value probe, locked test
 
 | target | own | same-diagnosis shuffled | gap | bootstrap 95% CI |
