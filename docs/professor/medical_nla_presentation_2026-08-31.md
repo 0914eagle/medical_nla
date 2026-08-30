@@ -1916,15 +1916,67 @@ P0 medical activation h (3,840-d)
 
 ---
 
-## Slide 36. 결론
+## Slide 36. 결론: 정보는 있지만 선택적 자연어 readout으로 연결되지 않았다
 
-1. **정보는 있습니다.** DDXPlus locked probe에서 finding F1 0.9562, value accuracy 0.7659입니다.
-2. **환자별 정보입니다.** 같은 진단 내 shuffle gap이 +0.1624와 +0.1868입니다.
-3. **정적 readout은 가능합니다.** Structured reader finding F1은 0.9587입니다.
-4. **자유 자연어 readout은 실패했습니다.** Vanilla NLA는 locked 10,028행에서 ontology claim을 하나도 내지 못했습니다.
-5. **단순 SFT/ranking은 충분하지 않습니다.** Template collapse와 deletion detector shortcut이 확인됐습니다.
-6. **공개 AR도 그대로는 사용할 수 없습니다.** DDXPlus positive control의 centered/retrieval gate가 실패했고 모든 arm의 FVE가 음수였습니다.
-7. Geometry audit와 identity Patchscope까지 종료됐고, 다음 route는 **text bypass가 없는 learned medical prefix mapper**입니다.
+### 1. Activation에 의료 정보가 없어서 실패한 것은 아닙니다
+
+| evidence | locked result | 의미 |
+|---|---:|---|
+| DiReCT category / PDD probe | `.6528 / .5139` | P0에서 진단 관련 정보가 선형 판독됨 |
+| DiReCT own-shuffled gap | `+.5139 / +.4444` | 같은 population의 shuffled activation보다 own이 우세 |
+| DDXPlus finding / value probe | `.9562 / .7659` | 현재 finding과 native value가 판독됨 |
+| DDXPlus own-shuffled gap | `+.1624 / +.1868` | 같은 diagnosis 안에서도 환자별 차이가 존재 |
+
+따라서 이후 실패를 `activation에 clinical information이 없다`고 설명할 수 없습니다.
+
+### 2. 그러나 현재 open generator는 그 정보를 신뢰할 수 있게 말하지 못했습니다
+
+- DiReCT locked Source CoT의 Obscomp는 seen `.2300`, PDD-heldout `.2169`였지만 Vanilla NLA는
+  extraction `0/72`, `1/106`이고 두 pool의 모든 alignment metric이 0이었습니다.
+- DDXPlus Vanilla NLA는 sealed locked 10,028행에서 frozen ontology claim을 `0`개 방출했습니다.
+- Full-data SFT는 출력 형식과 의료 문장을 학습했지만 DiReCT validation Obscomp가
+  `.0301/.0296`으로 Source CoT `.2130`에 크게 미달했고, 사례 간 template collapse가 남았습니다.
+- Structured reader는 finding F1 `.9587`로 정적 rendering이 가능함을 보였지만, frozen probe의
+  선택을 canonical text로 옮기는 closed monitor이지 free-generating Medical-NLA는 아닙니다.
+
+### 3. 실패 원인은 단순 데이터·학습량 부족만이 아니었습니다
+
+| 단계 | 확인된 결과 | 기각된 단순 설명 |
+|---|---|---|
+| Counterfactual CE | seed17 recall과 phantom이 함께 증가; seed29 미재현 | arm 노출만으로 선택적 반응이 생김 |
+| Sentence ranking | best gap `+.0051`, SFT baseline 비개선 | 문장 수준 pairwise loss면 사례 특이성이 생김 |
+| D10 1,552 steps | changed `+.5558`, retained `+.5604`, specificity `-.0046` | 20-step under-training만이 원인 |
+| D20 retained anchor | retained shortcut 차단 후 changed `-.0143/-.0040/-.0266` | 큰 D10 margin이 cue-specific signal |
+| OOF teacher | deletion 뒤 없는 label 평균 `3.5091`개 추가 | probe target을 바로 student 정답으로 사용 가능 |
+| 256-d bottleneck | auxiliary가 3 seed finding/value/gap을 모두 악화 | 이 one-shot 압축이면 임상정보가 조직됨 |
+
+D10의 큰 gap은 deleted activation에서 모든 claim을 어렵게 만드는 shortcut이었고, D20이 이를
+차단하자 changed-cue 신호도 사라졌습니다. 즉 단순 CE/ranking weight나 step 연장으로 해결되지 않았습니다.
+
+### 4. 공개 AR와 직접 patch도 현재 interface의 해결책은 아니었습니다
+
+- Released AR는 DDXPlus structured-reader positive control에서 centered gap `-.0047`, own retrieval
+  `0/20`, FVE `-119.2169`였습니다. DiReCT Source CoT에는 일부 ranking 신호가 있었지만 FVE는
+  `-109.3544`였고 모든 text arm의 FVE가 0보다 작았습니다.
+- Same-layer Patchscope는 general-domain control에서 작동했지만 세 clinical cell 모두 own finding
+  `0/5`였습니다. 출력 변화/KL 증가는 clinical correspondence가 아니었습니다.
+
+따라서 공개 AR cosine을 Medical-NLA reward로 사용하거나 patch 출력 변화만으로 grounding을
+주장하지 않습니다.
+
+### 5. 현재 결론의 경계와 다음 경로
+
+**말할 수 있는 것:** 범용 Vanilla NLA와 지금까지 검증한 SFT/ranking/bottleneck objective는
+medical P0 activation을 사례별·반사실적으로 충실한 자유 자연어 설명으로 변환하지 못했습니다.
+
+**말할 수 없는 것:** Medical-NLA가 원리적으로 불가능하다거나, activation/text에 임상 정보가
+없다고 결론내릴 수는 없습니다. DDXPlus closed probe와 structured reader가 그 반례입니다.
+
+**다음 사전 등록 후보:** 환자 text와 clinical example을 decoder prompt에서 제거하고,
+`h[3840] -> K activation-derived prefix vectors -> frozen decoder -> canonical finding/value claims`로
+직접 연결하는 learned medical prefix mapper입니다. DDXPlus validation에서 own-shuffle,
+changed/retained specificity, value edit, claim coverage를 모두 통과할 때만
+`Medical-NLA, final` locked 행과 RQ3를 엽니다.
 
 ---
 
