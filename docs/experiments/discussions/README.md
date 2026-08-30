@@ -13,7 +13,8 @@
 
 | 상태 | 주제 | 다음 판정 |
 |---|---|---|
-| ready to run | [D10 budget calibration and program decision](2026-08-29-program-decision-after-d16.md) | step 1,552 frozen D5 gate |
+| resolved (FAIL) | [D10 budget calibration and program decision](2026-08-29-program-decision-after-d16.md) | budget gate FAIL 확정; 출구는 D20 결과 후 재론 |
+| draft | [Specificity-anchored 2x2 objective (D20)](2026-08-30-specificity-anchored-objective.md) | 비열등 허용 폭 수치 동결 + Codex 구현 검토 |
 | active | [Paper table completion](2026-08-29-paper-table-completion.md) | Vanilla protocol freeze, D10 decision, then locked baseline batch |
 | active | [DDXPlus open-text semantic mapper protocol](2026-08-30-ddxplus-semantic-mapper-protocol.md) | sealed generation과 validation-only G1-G4를 병렬 실행한 뒤 scoring receipt 동결 |
 | ready to run | [Locked baseline execution runbook](2026-08-30-locked-baseline-execution.md) | DDXPlus HS32 -> sealed 10,028 generation; D10 뒤 DiReCT 178 batch |
