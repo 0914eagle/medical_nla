@@ -97,14 +97,13 @@
 | Medical-NLA SFT pilot 중심 | full-data SFT, counterfactual SFT, ranking, bottleneck, anchored objective까지 평가 |
 | intervention 설계만 존재 | deletion/value edit locked 결과 확보 |
 | AR reconstruction 가설 | 공개 AR 양성 대조 실패 확인 |
-| 결과표 다수 `TBD` | DDXPlus 및 development gate 수치 대부분 확정 |
+| 결과표 다수 `TBD` | DDXPlus와 DiReCT locked baseline 및 development gate 수치 확정 |
 
-### 아직 남은 핵심 미완료
+### 현재 남은 핵심 미완료
 
-- DiReCT locked Table 1A: test-seen 72, PDD-heldout 106 source behavior 재집계
-- DiReCT locked Table 1B: frozen HS24 diagnosis probe 적용
-- DiReCT locked Table 2: Source CoT와 Vanilla NLA baseline
-- 생성형 Medical-NLA locked 행: validation gate를 통과한 모델이 없어 아직 열지 않음
+- DiReCT locked Table 1A/1B와 Table 2 baseline은 **완료**했습니다.
+- 생성형 Medical-NLA locked 행만 validation gate를 통과한 모델이 없어 열지 않았습니다.
+- 따라서 현재 빈 셀은 계산 누락이 아니라 `no validation-promoted checkpoint`를 뜻합니다.
 
 ---
 
@@ -577,8 +576,8 @@ typical disease template.
 
 | dataset/target | decoder와 layer | validation | locked evaluation | control |
 |---|---|---:|---:|---|
-| DiReCT disease category | 25-way linear, HS24 | **.5962** | pending, seen 72 | majority .0577 |
-| DiReCT canonical PDD | 49-way linear, HS24 | **.4423** | pending, seen 72 | majority .0962 |
+| DiReCT disease category | 25-way linear, HS24 | **.5962** | **.6528**, seen 72 | shuffled .1389; gap +.5139 |
+| DiReCT canonical PDD | 49-way linear, HS24 | **.4423** | **.5139**, seen 72 | shuffled .0694; gap +.4444 |
 | DDXPlus finding presence | 91-label linear, HS24 | .9607 | **.9562** | shuffled .7938; gap +.1624 [.1576,.1672] |
 | DDXPlus native value | 6 tasks/32 values, HS24 | .7700 | **.7659** | shuffled .5791; gap +.1868 [.1650,.2091] |
 
@@ -591,6 +590,8 @@ typical disease template.
 ### Gate 0 판정
 
 - DiReCT P0에서 diagnosis/category 정보가 majority보다 높게 선형 판독됩니다.
+- DiReCT locked seen 72에서도 category `.6528`, PDD `.5139`이며 shuffled control과의
+  gap은 각각 `+.5139`, `+.4444`입니다.
 - DDXPlus finding/value는 locked test에서도 높고, own activation이 same-diagnosis donor보다 유의하게 높습니다.
 - 따라서 생성형 NLA 실패를 `activation에 의료 정보가 없음`으로 설명할 수 없습니다.
 - 이 표는 closed-space feasibility audit이며 open-text Medical-NLA 성공을 의미하지 않습니다.
@@ -684,8 +685,7 @@ typical disease template.
 
 ## Slide 16. RQ1 = Main Table 2: physician explanation과 정렬되는가?
 
-> 교수님 발표에서는 현재 사용 가능한 validation 50 결과를 채웁니다. 논문 최종본은
-> 같은 열로 test-seen 72와 PDD-heldout 106을 별도 panel에 보고합니다.
+### 개발 단계: DiReCT validation 50
 
 | method | input | extraction | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
@@ -695,12 +695,57 @@ typical disease template.
 | Medical-AV, SFT only seed29 | HS32 AV | 50/50 | 0 | .0553 | .0388 | .0296 | .0000 | .0000 |
 | **Medical-NLA, final** | layer/recipe 사전 동결 | pending | pending | pending | pending | pending | pending | pending |
 
+### 이 표의 `Medical-AV, SFT only`는 정확히 어느 모델인가?
+
+이 두 행은 Direct-only SFT나 `248+248` common pilot이 아니라, 시도 1의
+**full-data canonical-target SFT** seed17/29 checkpoint입니다. `SFT only`는 데이터셋이 하나라는
+뜻이 아니라, 학습 objective가 token-level clinical CE뿐이고 counterfactual/ranking/AR loss가
+없다는 뜻입니다.
+
+| item | frozen training recipe |
+|---|---|
+| initialization/input | released `kitft/nla-gemma3-12b-L32-av`, CoT-P0/HS32 last-token activation |
+| unique train rows | DDXPlus official train **4,655 original** + DiReCT train **248** = 4,903 |
+| DDXPlus target | diagnosis를 뺀 현재 finding `<observed>` bullets, source annotation order |
+| DiReCT target | note에 직접 지지되는 physician observations를 같은 `<observed>` schema로 변환 |
+| counterfactual arms | 없음; DDXPlus original만 사용 |
+| source balancing | sampling alpha `.5`; epoch당 DDXPlus는 1회, DiReCT는 총 약 1,074회로 각 행 약 4.3회 노출 |
+| optimization | seeds 17/29, 1 epoch, batch 4 x grad accumulation 2, LR `2e-4` |
+| checkpoint selection | DDXPlus/DiReCT validation content loss의 source-macro mean |
+| RQ1 population | 위 checkpoint를 DiReCT validation 50건에서 생성·semantic 평가 |
+
+따라서 표의 `.0301/.0296`은 DDXPlus validation 점수가 아니라, 두 mixed full-data model이
+**DiReCT physician observation 50건에 얼마나 정렬됐는지**를 측정한 Obscomp입니다.
+
 ### RQ1 판정
 
 - DDXPlus train 4,655건을 추가한 SFT도 Source CoT의 Obscomp `.2130`에 크게 미달했습니다.
 - SFT는 extraction 가능한 의료 형식을 만들었지만 observation/rationale alignment를 복원하지 못했습니다.
 - Vanilla의 `10/50`은 빈 출력이 아니라 평가 가능한 observation claim을 추출한 case coverage입니다.
 - `Medical-NLA, final`은 성공 방법을 위한 조건부 행이며, validation gate 뒤에만 locked 72/106을 엽니다.
+
+### 최종 baseline: locked test-seen 72
+
+| method | extraction | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | 72/72; 803 obs. | .0000 | .2764 | .4440 | **.2300** | .0505 | .0171 |
+| Vanilla NLA | 0/72; 0 obs. | .0000 | .0000 | .0000 | .0000 | .0000 | .0000 |
+| Medical-AV, SFT only | — | — | — | — | — | — | — |
+| **Medical-NLA, final** | — | — | — | — | — | — | — |
+
+### 최종 OOD baseline: locked PDD-heldout 106
+
+| method | extraction | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | 106/106; 1,211 obs. | .0000 | .2973 | .3547 | **.2169** | .0749 | .0157 |
+| Vanilla NLA | 1/106; 1 obs. | .0000 | .0000 | .0000 | .0000 | .0000 | .0000 |
+| Medical-AV, SFT only | — | — | — | — | — | — | — |
+| **Medical-NLA, final** | — | — | — | — | — | — | — |
+
+- `—`는 0점이 아니라 validation promotion 실패로 locked generation을 실행하지 않은 셀입니다.
+- 여기의 `Accdiag`는 **추출된 explanation chain의 final diagnosis**와 physician PDD의
+  일치입니다. Source model 자체의 strict diagnostic accuracy는 Table 1A의
+  seen `.2500`, heldout `.1321`이므로 `Accdiag=.0000`을 모델 정답률 0으로 읽지 않습니다.
 
 ---
 
@@ -1616,11 +1661,13 @@ P0 medical activation h (3,840-d)
 
 ### RQ1. Medical-NLA가 임상 설명을 더 잘 복원하는가?
 
-**현재 validation에서는 아니오. Locked 결론은 아직 미완료입니다.**
+**현재 validation에서는 아니오. Locked baseline도 같은 결론입니다.**
 
 - Source CoT Obscomp: 0.2130
 - Vanilla NLA Obscomp: 0.0000
 - Full-data SFT seed17/29 Obscomp: 0.0301 / 0.0296
+- Locked Source CoT Obscomp: seen 0.2300 / PDD-heldout 0.2169
+- Locked Vanilla NLA Obscomp: seen/heldout 모두 0.0000
 - SFT 출력은 parse 가능한 임상 문장을 만들었지만 physician observation보다 질환 전형 template에 가까웠음
 
 ### RQ2. 생성된 설명이 해당 사례 activation에 근거하는가?
@@ -1643,33 +1690,35 @@ P0 medical activation h (3,840-d)
 
 ---
 
-## Slide 34. 발표 시점 논문 표 원장: validation은 채우고 locked는 구분
+## Slide 34. 발표 시점 논문 표 원장: development와 locked 결과를 구분
 
 ### Main Table 1 (Gate 0). P0 decodability
 
 | dataset/target | layer와 선택 규칙 | validation | locked evaluation | control |
 |---|---|---:|---:|---|
-| DiReCT category | HS24, validation-selected | 0.5962 | pending, seen 72 | majority 0.0577 |
-| DiReCT PDD | HS24, validation-selected | 0.4423 | pending, seen 72 | majority 0.0962 |
+| DiReCT category | HS24, validation-selected | 0.5962 | **0.6528**, seen 72 | shuffled .1389, gap +.5139 |
+| DiReCT PDD | HS24, validation-selected | 0.4423 | **0.5139**, seen 72 | shuffled .0694, gap +.4444 |
 | DDXPlus finding | HS24, validation-selected | 0.9607 | **0.9562** | shuffled 0.7938, gap +0.1624 |
 | DDXPlus native value | HS24, validation-selected | 0.7700 | **0.7659** | shuffled 0.5791, gap +0.1868 |
 
 - HS24 closed probe와 HS32 generative AV는 같은 layer ablation이 아닙니다. Probe는 validation 선택, AV는 공개 architecture의 native interface입니다.
-- 기존 Table 1A backbone behavior는 핵심 NLA 결과와 중복돼 appendix로 이동하는 안을 사용합니다.
+- Table 1A backbone behavior는 source model의 진단 통제이므로 appendix에 두고,
+  P0 decodability인 Main Table 1과 구분합니다.
 
-### Main Table 2 (RQ1). DiReCT explanation alignment, validation 50
+### Main Table 2 (RQ1). DiReCT explanation alignment, locked
 
-| method | input | extraction | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| Source CoT | source text | 50/50 | 0 | .2835 | .3726 | **.2130** | **.0650** | .0153 |
-| Vanilla NLA | HS32 AV | 10/50 (pilot) | 0 | .0000 | .0000 | .0000 | .0000 | .0000 |
-| Medical-AV, SFT only seed17 | HS32 AV | 50/50 | 0 | .0544 | .0502 | .0301 | .0000 | .0000 |
-| Medical-AV, SFT only seed29 | HS32 AV | 50/50 | 0 | .0553 | .0388 | .0296 | .0000 | .0000 |
-| **Medical-NLA, final** | layer/recipe 사전 동결 | pending | pending | pending | pending | pending | pending | pending |
+| pool/method | extraction | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| seen / Source CoT | 72/72 | .0000 | .2764 | .4440 | **.2300** | .0505 | .0171 |
+| seen / Vanilla NLA | 0/72 | .0000 | .0000 | .0000 | .0000 | .0000 | .0000 |
+| heldout / Source CoT | 106/106 | .0000 | .2973 | .3547 | **.2169** | .0749 | .0157 |
+| heldout / Vanilla NLA | 1/106 | .0000 | .0000 | .0000 | .0000 | .0000 | .0000 |
+| both / Medical-AV, SFT only | — | — | — | — | — | — | — |
+| both / **Medical-NLA, final** | — | — | — | — | — | — | — |
 
-- 위 숫자는 교수님 발표를 위한 **validation 결과**입니다. 논문 주표의 seen 72 / PDD-heldout 106 locked 셀은 baseline batch 뒤 별도 패널로 교체합니다.
-- Vanilla 행은 같은 50-case validation pilot의 frozen output이며, `10/50`은 빈 출력 수가 아니라 평가 가능한 observation extraction coverage입니다.
-- `Medical-NLA, final`은 성공 방법의 조건부 행입니다. 실제로 구별되는 checkpoint가 생기기 전에는 reconstruction/full objective라는 가상 행으로 나누지 않습니다.
+- Validation 50의 SFT 결과 `.0301/.0296`은 Slide 16의 development panel에 보존합니다.
+- `Accdiag=.0000`은 extracted explanation diagnosis 지표이며 source strict PDD는 Table 1A에서 별도 보고합니다.
+- Medical 행의 `—`는 promotion checkpoint가 없어 locked evaluation을 실행하지 않았다는 뜻입니다.
 
 ### Main Table 3A (RQ2). DDXPlus static grounding, locked test
 
@@ -1715,13 +1764,13 @@ P0 medical activation h (3,840-d)
 ### 결정 2. Table 1A의 위치
 
 - P0 decodability를 Main Table 1로 유지
-- Direct/CoT backbone 진단 정확도는 Table 2의 Accdiag와 일부 중복되므로 appendix로 이동 제안
+- Direct/CoT backbone 진단 정확도는 Table 2의 `Accdiag`와 다른 계약이므로 appendix에
+  confirmatory control로 유지하고 Table 2에서 source 정답률을 설명할 때 교차 참조
 
-### 결정 3. DiReCT locked batch 개봉
+### 결정 3. DiReCT locked batch
 
-- Main Table 1 HS24 probe
-- Table 2 Source CoT/Vanilla NLA
-- 동일 decision record/hash 아래 한 번에 수행
+- Main Table 1 HS24 probe와 Table 2 Source CoT/Vanilla NLA를 동일 recipe로 **완료**
+- 이후 locked 셀 추가는 validation-promoted Medical-NLA가 생길 때만 별도 접근으로 수행
 
 ### 결정 4. 다음 생성형 실험
 
@@ -1750,6 +1799,20 @@ P0 medical activation h (3,840-d)
 ## Appendix A0. Direct-vs-CoT 171-case pilot와 McNemar
 
 > 이 결과는 protocol freeze 전에 분석한 exploratory population입니다. 최종 72/106 confirmatory Table 1A를 대신하지 않습니다.
+
+### Confirmatory Table 1A (locked)
+
+| condition | pool | n | strict PDD | category | diagnosis token F1 |
+|---|---|---:|---:|---:|---:|
+| Direct | test-seen | 72 | .3056 | .4028 | .2882 |
+| Source CoT | test-seen | 72 | .2500 | .4028 | .2513 |
+| Direct | PDD-heldout | 106 | .0849 | .3868 | .1133 |
+| Source CoT | PDD-heldout | 106 | .1321 | .4434 | .1982 |
+
+- 이 표는 source model의 diagnostic behavior입니다.
+- Table 2 `Accdiag`는 explanation extractor가 찾은 final diagnosis를 채점하므로 같은 지표가 아닙니다.
+
+### Earlier exploratory 171-case audit
 
 | condition | n | parse | strict PDD | category | token F1 |
 |---|---:|---:|---:|---:|---:|
@@ -1870,15 +1933,15 @@ P0 medical activation h (3,840-d)
 
 ---
 
-## Appendix A6. 남은 locked 실행과 완료 조건
+## Appendix A6. Locked 실행 완료 기록
 
 | order | job | output |
 |---:|---|---|
-| 1 | decision record 및 recipe hash 동결 | 접근 규율 증빙 |
-| 2 | DiReCT test-seen 72 source 재집계 | Table 1A seen |
-| 3 | DiReCT PDD-heldout 106 source 재집계 | Table 1A OOD |
-| 4 | frozen HS24 probe 적용 | Table 1B DiReCT locked |
-| 5 | Source CoT/Vanilla NLA semantic evaluation | Table 2 baseline |
+| 1 | decision record 및 recipe hash 동결 | 완료; 접근 규율 증빙 |
+| 2 | DiReCT test-seen 72 source 재집계 | 완료; Table 1A seen |
+| 3 | DiReCT PDD-heldout 106 source 재집계 | 완료; Table 1A OOD |
+| 4 | frozen HS24 probe 적용 | 완료; category .6528, PDD .5139 |
+| 5 | Source CoT/Vanilla NLA semantic evaluation | 완료; Table 2 locked baseline |
 
 ### 현재 실행하지 않는 것
 

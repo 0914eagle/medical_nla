@@ -11,22 +11,24 @@
 
 Seen PDD 72행과 held-out PDD 106행은 같은 열 구조의 두 패널로 보고한다.
 
-| Generation | Parse coverage | Strict PDD | Disease category | Official semantic diagnosis |
+| Generation | Evaluated rows | Strict PDD | Disease category | Official semantic diagnosis |
 |---|---:|---:|---:|---:|
-| Direct, answer-prefilled | batch 단계 | | | |
-| Source CoT | batch 단계 | | | |
+| Direct, answer-prefilled (test-seen) | 72 | .3056 | .4028 | .2882 token F1 |
+| Source CoT (test-seen) | 72 | .2500 | .4028 | .2513 token F1 |
+| Direct, answer-prefilled (PDD-heldout) | 106 | .0849 | .3868 | .1133 token F1 |
+| Source CoT (PDD-heldout) | 106 | .1321 | .4434 | .1982 token F1 |
 
-이 패널은 새 generation 없이 기존 496 출력의 **frozen split 재집계(CPU)**로
-채운다. 다만 locked label을 집계하므로 분석 접근 기록을 남기고, D19/D21 최종 판정과
-baseline-only recipe 동결 후 Table 1B locked 열, Table 2 baseline과 **한 번에 일괄
-실행**한다.
+이 패널은 새 generation 없이 기존 496 출력에서 confirmatory 72/106 case ID를
+**frozen split 재집계(CPU)**해 확정했다. `Strict PDD`와 `Disease category`는 source
+model의 진단 행동이며, 마지막 열은 생성 진단 문자열과 gold 진단의 token F1이다.
+Table 2의 `Accdiag`와는 분모와 판정 계약이 다르므로 서로 대체하지 않는다.
 
 ### Panel B1. DiReCT CoT-P0 diagnosis decodability audit
 
 | Target | Decoder | Output space | Validation | Test seen | Test PDD-OOD | Required control |
 |---|---|---|---:|---:|---:|---|
-| Gold disease category | Linear probe | 25-way | .5962 | TBD | N/A | label shuffle |
-| Gold canonical PDD | Linear probe | 49-way train labels | .4423 | TBD | N/A | label shuffle |
+| Gold disease category | Linear probe | 25-way | .5962 | **.6528** | N/A | shuffle .1389; gap +.5139 |
+| Gold canonical PDD | Linear probe | 49-way train labels | .4423 | **.5139** | N/A | shuffle .0694; gap +.4444 |
 
 Source-decision probe 행은 본문에서 제외한다 — 논문의 필수 결론에 필요하지
 않고 source-answer ontology 동결 결정이 남아 있기 때문이다(실행 계획 문서의
@@ -94,24 +96,35 @@ Llama-3-8B 판정으로 확정하며, 표 머리말에 `LLM-as-a-judge`임을 �
 ## Table 2. Clinical explanation alignment on DiReCT
 
 Seen PDD 72행과 held-out PDD 106행은 아래 열 구조의 두 패널로 보고한다.
+수치 원본은 frozen locked batch의
+`$DATA_ROOT/restricted/direct/paper/direct_locked_baselines_v1/paper_tables_summary.{json,md}`다.
+
+### Panel A. Test-seen PDD (n=72)
 
 | Method | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Source CoT | batch 단계 | | | | | | |
-| Vanilla NLA | batch 단계 | | | | | | |
+| Source CoT | 72/72 (803 observations) | .0000 | .2764 | .4440 | .2300 | .0505 | .0171 |
+| Vanilla NLA | 0/72 (0 observations) | .0000 | .0000 | .0000 | .0000 | .0000 | .0000 |
 
-- Source CoT는 기존 496 출력의 평가만 필요하다. Vanilla NLA는 기존 출력과 겹치지
-  않는 사례만 생성하되, **기존 출력의 생성 설정(prompt/decoding)이 동결 recipe와
-  일치할 때만 재사용**하고 다르면 178건 전부 재생성한다.
-- 두 baseline 행은 D19/D21 최종 판정과 recipe hash 동결 후 Table 1A/1B와 함께
-  **한 번에 일괄 계산**한다(locked-test 규율). `TBD` 대신 빈 칸으로 두는 이유:
-  이 행들은 반드시 채워질 예정 셀이다.
+### Panel B. Test PDD-heldout (n=106)
+
+| Method | Extraction coverage | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | 106/106 (1,211 observations) | .0000 | .2973 | .3547 | .2169 | .0749 | .0157 |
+| Vanilla NLA | 1/106 (1 observation) | .0000 | .0000 | .0000 | .0000 | .0000 | .0000 |
+
+- Source CoT는 기존 source output을 동일 extractor와 official evaluator로 다시 평가했다.
+  Vanilla NLA는 동결한 prompt/decoding recipe로 178행을 생성한 뒤 같은 계측기를 적용했다.
+- 두 baseline은 D19/D21와 baseline-only recipe를 먼저 동결한 뒤 Table 1A/1B와 같은
+  locked batch에서 계산했다. Missing extraction도 분모에서 제거하지 않았다.
 - 이번 frozen recipe에는 validation-promoted checkpoint가 없으므로 Medical-NLA 행을
   생성하거나 채점하지 않는다. 별도 사전 등록 방법이 향후 promotion gate를 통과하는
   경우에만 별도의 locked 접근과 행 추가를 결정한다. 가상 행(`reconstruction`,
   `full objective`)은 만들지 않는다.
 
-- `Accdiag`: 생성한 세부 진단과 의사 주석 진단의 의미 일치
+- `Accdiag`: **추출된 explanation chain 안의 final diagnosis**와 physician final PDD의
+  의미 일치. Source model 자체의 정답률은 Table 1A의 `Strict PDD`이며, 따라서
+  Source CoT의 Table 2 `Accdiag=.0000`을 source 진단 정확도 0으로 해석하지 않는다.
 - `Obspre`: 생성 관찰 중 의사 observation과 일치하는 정도
 - `Obsrec`: 의사 observation 중 생성 설명이 회수한 정도
 - `Obscomp`: 필요한 observation 구성요소의 coverage
