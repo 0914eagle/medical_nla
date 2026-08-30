@@ -114,6 +114,13 @@ restricted 경로에 저장한 뒤 집계는 CPU에서 한다. A1/A4는 기존 a
   (text → CoT-P0/HS32) 학습을 전제로 확정.
 - 실행 후 기준 조정은 무효.
 
+**사후 판정 문구 정리:** 제한적 진단 도구 기준의 "양성 대조 arm에서"는 단수/전칭이
+명확하지 않았다. 실행기는 두 양성 대조가 각각 A2 또는 A5를 통과해야 한다는 AND 규칙으로
+구현했고, 결과 확인 뒤 이를 보수적 해석으로 확정했다. 이는 사전 문구의 모호성을 사후에
+엄격한 방향으로 해소한 것이므로 preregistered gate와 동일하다고 주장하지 않는다. 다만
+AV reward 기준은 처음부터 두 arm의 A2+A5+A3를 요구했고 모든 arm의 A3 FVE가 음수였으므로,
+이 사후 해석은 공개 AR를 reconstruction reward로 기각하는 최종 결론을 바꾸지 않는다.
+
 ### Geometry audit 결과 (2026-08-31)
 
 Validation-only 20개/arm으로 실행했으며 locked test는 읽지 않았다. 실행기가 기록한
@@ -131,11 +138,25 @@ AV reward accepted는 `False`였다.
 | DiReCT source CoT | 20 | +.0001 | +.0304 [+.0012, +.0635] | -109.3544 | +.0001 | .4000 | .6267 | 2.0 |
 | DiReCT vanilla | 20 | +.0000 | +.0696 [+.0289, +.1111] | -19.7012 | +.0000 | .4500 | .6583 | 2.0 |
 
+**보고 누락 정정:** 위 최초 표는 사전 등록한 A5 candidate count를 Markdown에 렌더링하지
+않았다. Row-level count, arm별 `mean_candidate_count`, top-1-minus-chance와 MRR-minus-chance
+CI는 기존 `results.json`에 보존돼 있어 계산 누락은 아니지만 보고 누락은 맞다. Renderer는
+mean candidate count와 top-1-minus-chance cluster CI를 출력하도록 수정했다. 이 두 열을
+aggregate artifact에서 backfill하기 전에는 위 표를 paper-ready 표로 사용하지 않는다.
+
 양성 대조가 일치하지 않았다. DDXPlus structured reader는 A2/A3/A5를 모두 통과하지
 못했고, DiReCT source CoT는 A2와 A5만 통과했지만 A3 FVE가 `-109.3544`였다. 따라서
 공개 AR를 의료 분포의 일반적인 reconstruction 측정기나 AV reward로 사용하지 않는다.
 이 결과는 AR를 사용하지 않는 supervised prefix mapper를 막지는 않으며, 해당 경로의
 선행 geometry 기록 조건은 이 음성/불일치 결과로 완료된 것으로 본다.
+
+DiReCT Vanilla가 A2 `+.0696`, top-1 `.4500`, FVE `-19.7012`로 다른 open-text arm보다
+겉보기에는 가장 높았다는 점도 별도 이상치로 남긴다. 이 출력은 기존 semantic 평가에서
+환자 finding을 복원하지 못했으므로 이를 임상 정보 복원으로 해석하지 않는다. 작은
+diagnosis stratum에서의 chance 수준, 출력 길이·문체와 activation geometry의 nuisance
+상관, 또는 공개 AR의 text-distribution 선호가 가능한 설명이지만 어느 것도 이 audit으로
+식별되지 않았다. 따라서 Vanilla 행은 report-only anomaly이며 positive control이나
+Medical-NLA 성공 근거로 사용하지 않는다.
 
 ### Medical-AR 학습 위치 제약 (사전 결정 필요)
 
