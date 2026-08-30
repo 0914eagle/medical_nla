@@ -40,7 +40,7 @@ def main() -> None:
     prompt_path.write_text(args.prompt.read_text(encoding="utf-8"), encoding="utf-8")
     protocol = {
         "schema_version": 1,
-        "name": "ddxplus_open_text_semantic_mapper_v1",
+        "name": "ddxplus_open_text_semantic_mapper_v2",
         "method_blind": True,
         "claim_to_multiple_evidence": True,
         "assertion_and_value_validation_separate": True,
@@ -62,6 +62,13 @@ def main() -> None:
         "stage0": "observed bullets; otherwise deterministic sentence split v1",
         "stage1": "boundary-safe unambiguous train/release aliases; assertive claims only",
         "stage2": "blind quote-constrained batched AI mapping",
+        "g4_value_enriched_audit": {
+            "source": "validation structured-reader native-value claims only",
+            "deduplication": "exact claim text; ambiguous target mappings excluded",
+            "selection": "stable seed-17 hash order; maximum 30",
+            "stage1_bypassed": True,
+            "target_metadata_in_prompt": False,
+        },
         "gates": {
             "G1_finding_micro_f1_min": 0.98,
             "G1_native_value_accuracy_min": 0.98,
@@ -70,6 +77,7 @@ def main() -> None:
             "G4_evidence_disagreement_max": 0.05,
             "G4_value_disagreement_max": 0.05,
             "G4_value_denominator_min": 20,
+            "G4_value_reference_accuracy_min": 0.98,
         },
         "validation_only_until_receipt": True,
         "locked_test_read": False,

@@ -85,6 +85,22 @@ def test_lexical_mapper_suppresses_nested_generic_alias() -> None:
     assert [item["evidence_id"] for item in mappings] == ["SPECIFIC"]
 
 
+def test_value_mapper_prefers_full_phrase_over_nested_value_alias() -> None:
+    aliases = {
+        "finding_aliases": {
+            "E_RASH": ["the rash is swollen (rated 4)", "the rash is swollen"]
+        },
+        "value_aliases": {
+            "E_RASH": {
+                "1": ["the rash is swollen"],
+                "4": ["the rash is swollen (rated 4)"],
+            }
+        },
+    }
+    mappings = lexical_mappings("the rash is swollen (rated 4)", aliases)
+    assert mappings[0]["value_id"] == "4"
+
+
 def test_semantic_response_requires_exact_quote_and_known_enums() -> None:
     _aliases, ontology = build_alias_and_ontology(
         structured_protocol(), evidence_meta()

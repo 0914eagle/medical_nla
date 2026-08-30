@@ -9,13 +9,18 @@ AUDITOR_MODEL="${AUDITOR_MODEL:-}"
 CODEX_CMD="${CODEX_CMD:-codex}"
 BATCH_SIZE="${BATCH_SIZE:-8}"
 MODE="${MODE:-prepare}"
-OUT="${OUT:-${DATA_ROOT}/medical_nla/results/ddxplus_semantic_mapper_validation_v1}"
+VALUE_AUDIT_CONFIRMATION="${VALUE_AUDIT_CONFIRMATION:-}"
+OUT="${OUT:-${DATA_ROOT}/medical_nla/results/ddxplus_semantic_mapper_validation_v2}"
 
 [[ "${MODE}" == "prepare" || "${MODE}" == "run" ]] || {
   echo "[error] MODE must be prepare or run" >&2; exit 2;
 }
 
 if [[ "${MODE}" == "run" ]]; then
+  [[ "${VALUE_AUDIT_CONFIRMATION}" == "I_APPROVE_VALIDATION_VALUE_ENRICHED_G4" ]] || {
+    echo "[error] MODE=run requires the approved v2 value-audit confirmation" >&2
+    exit 2
+  }
   [[ -n "${PRIMARY_MODEL}" && -n "${AUDITOR_MODEL}" ]] || {
     echo "[error] MODE=run requires PRIMARY_MODEL and AUDITOR_MODEL" >&2; exit 2;
   }

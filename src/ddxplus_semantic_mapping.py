@@ -214,14 +214,31 @@ def lexical_mappings(claim: str, alias_table: dict[str, Any]) -> list[dict[str, 
         _alias, supporting_quote = max(
             matches, key=lambda item: len(normalize(item[0]))
         )
-        matched_values = []
+        matched_values: dict[str, tuple[int, int]] = {}
         for candidate, value_aliases in alias_table["value_aliases"].get(evidence, {}).items():
-            if any(boundary_contains(claim, alias) for alias in value_aliases):
-                matched_values.append(candidate)
+            matches = [
+                alias for alias in value_aliases if boundary_contains(claim, alias)
+            ]
+            if matches:
+                best = max(matches, key=lambda alias: len(normalize(alias)))
+                matched_values[candidate] = (
+                    int(normalize(best) == normalize(claim)),
+                    len(normalize(best)),
+                )
+        selected_value = None
+        if matched_values:
+            best_score = max(matched_values.values())
+            winners = [
+                candidate
+                for candidate, score in matched_values.items()
+                if score == best_score
+            ]
+            if len(winners) == 1:
+                selected_value = winners[0]
         mappings.append(
             {
                 "evidence_id": evidence,
-                "value_id": matched_values[0] if len(matched_values) == 1 else None,
+                "value_id": selected_value,
                 "supporting_quote": supporting_quote,
                 "mapping_stage": "lexical",
             }

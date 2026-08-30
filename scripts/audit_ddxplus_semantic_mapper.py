@@ -12,6 +12,8 @@ from typing import Any
 from scripts.score_ddxplus_semantic_readouts import read_protocol, semantic_decisions
 from src.ddxplus_semantic_mapping import (
     canonical_json,
+    claim_sha,
+    claims_from_text,
     make_batch_prompt,
     materialize_items,
     prepare_items,
@@ -60,10 +62,12 @@ def requests_for_residual(
     requests = []
     for start in range(0, len(ordered), batch_size):
         batch = ordered[start : start + batch_size]
+        prompt = make_batch_prompt(batch, ontology, template)
+        request_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:12]
         requests.append(
             {
-                "id": f"semantic_batch_{start // batch_size:06d}",
-                "prompt": make_batch_prompt(batch, ontology, template),
+                "id": f"semantic_batch_{start // batch_size:06d}_{request_hash}",
+                "prompt": prompt,
                 "claim_ids": [item["claim_id"] for item in batch],
             }
         )
@@ -132,7 +136,48 @@ def prepare(args: argparse.Namespace) -> None:
                 "text": str(row.get("nla_output") or row.get("observed") or ""),
             }
         )
+
+    value_candidates: dict[str, dict[str, str]] = {}
+    ambiguous_value_claims = set()
+    for row in reader_rows:
+        for item in row.get("selected_claims") or []:
+            if item.get("value_id") is None:
+                continue
+            text = str(item.get("text") or "").strip()
+            claims = claims_from_text(text)
+            if len(claims) != 1:
+                continue
+            identifier = claim_sha(claims[0])
+            candidate = {
+                "text": claims[0],
+                "expected_evidence_id": str(item["evidence_id"]),
+                "expected_value_id": str(item["value_id"]),
+            }
+            previous = value_candidates.get(identifier)
+            if previous is not None and previous != candidate:
+                ambiguous_value_claims.add(identifier)
+            else:
+                value_candidates[identifier] = candidate
+    for identifier in ambiguous_value_claims:
+        value_candidates.pop(identifier, None)
+    for identifier, item in sorted(value_candidates.items()):
+        source_items.append(
+            {
+                "id": f"g4value::{identifier}",
+                "audit_group": "G4_VALUE_POOL",
+                "source_id": identifier,
+                **item,
+            }
+        )
     prepared, residual = prepare_items(source_items, alias_table)
+    for row in prepared:
+        if row["audit_group"] != "G4_VALUE_POOL":
+            continue
+        if len(row["claims"]) != 1:
+            raise ValueError("G4 value-audit item must contain exactly one claim")
+        claim = row["claims"][0]
+        claim["lexical_mappings"] = []
+        residual[claim["claim_id"]] = claim["text"]
     requests = requests_for_residual(
         residual,
         ontology=ontology,
@@ -148,7 +193,21 @@ def prepare(args: argparse.Namespace) -> None:
         "g2_eligible": g2_total,
         "g2_no_absent_target": g2_no_target,
         "open_rows": len(open_rows),
+        "g4_value_unique_claims": len(value_candidates),
+        "g4_value_ambiguous_excluded": len(ambiguous_value_claims),
         "unique_residual_claims": len(residual),
+        "unique_residual_by_group": {
+            group: len(
+                {
+                    claim["claim_id"]
+                    for row in prepared
+                    if row["audit_group"] == group
+                    for claim in row["claims"]
+                    if not claim["lexical_mappings"]
+                }
+            )
+            for group in sorted({row["audit_group"] for row in prepared})
+        },
         "primary_requests": len(requests),
         "estimated_input_characters": sum(len(row["prompt"]) for row in requests),
         "protocol_sha256": sha256_file(args.protocol),
@@ -219,26 +278,51 @@ def apply_primary(args: argparse.Namespace) -> None:
     g4_decisions = [
         row for row in decision_audit if row["claim_id"] in g4_claim_ids
     ]
-    value_decisions = [
+    open_value_decisions = [
         row
         for row in g4_decisions
         if any(mapping.get("value_id") for mapping in row["mappings"])
     ]
-    value_ids = {row["claim_id"] for row in value_decisions}
+    value_ids = {row["claim_id"] for row in open_value_decisions}
     mapped_decisions = [
         row
         for row in g4_decisions
         if row["mappings"] and row["claim_id"] not in value_ids
     ]
     null_decisions = [row for row in g4_decisions if not row["mappings"]]
-    for bucket in (value_decisions, mapped_decisions, null_decisions):
+    for bucket in (open_value_decisions, mapped_decisions, null_decisions):
         bucket.sort(key=lambda row: stable_key(row["claim_id"]))
-    sample = value_decisions[:30]
-    for bucket in (mapped_decisions, null_decisions, value_decisions[30:]):
-        sample.extend(bucket[: max(0, 100 - len(sample))])
-    if len(sample) < 100:
-        raise ValueError(f"G4 requires 100 unique Stage-2 decisions; found {len(sample)}")
-    sample = sample[:100]
+    evidence_sample = open_value_decisions[:30]
+    for bucket in (mapped_decisions, null_decisions, open_value_decisions[30:]):
+        evidence_sample.extend(bucket[: max(0, 100 - len(evidence_sample))])
+    if len(evidence_sample) < 100:
+        raise ValueError(
+            "G4 requires 100 unique open-text Stage-2 decisions; "
+            f"found {len(evidence_sample)}"
+        )
+    evidence_sample = [
+        {**row, "audit_stratum": "open_evidence"}
+        for row in evidence_sample[:100]
+    ]
+
+    decision_by_claim = {row["claim_id"]: row for row in decision_audit}
+    value_sample = []
+    for row in prepared:
+        if row["audit_group"] != "G4_VALUE_POOL":
+            continue
+        claim_id = row["claims"][0]["claim_id"]
+        decision = decision_by_claim[claim_id]
+        value_sample.append(
+            {
+                **decision,
+                "audit_stratum": "value_enriched",
+                "expected_evidence_id": row["expected_evidence_id"],
+                "expected_value_id": row["expected_value_id"],
+            }
+        )
+    value_sample.sort(key=lambda row: stable_key(row["claim_id"]))
+    value_sample = value_sample[:30]
+    sample = evidence_sample + value_sample
     residual = {row["claim_id"]: row["claim"] for row in sample}
     auditor_requests = requests_for_residual(
         residual,
@@ -284,11 +368,12 @@ def apply_primary(args: argparse.Namespace) -> None:
             "passed": replay_a.encode() == replay_b.encode(),
         },
         "G4_sample": {
-            "n": len(sample),
-            "value_primary_n": sum(
+            "open_evidence_n": len(evidence_sample),
+            "open_primary_value_n": sum(
                 any(mapping.get("value_id") for mapping in row["mappings"])
-                for row in sample
+                for row in evidence_sample
             ),
+            "value_enriched_n": len(value_sample),
         },
         "protocol_sha256": sha256_file(args.protocol),
         "locked_test_read": False,
@@ -378,33 +463,56 @@ def finalize(args: argparse.Namespace) -> None:
         raise ValueError("G4 requires distinct non-empty primary and auditor model IDs")
     if any("gemma" in model.casefold() for model in (primary_model, auditor_model)):
         raise ValueError("Gemma-family models cannot run G4")
+    evidence_sample = [
+        row for row in sample if row["audit_stratum"] == "open_evidence"
+    ]
+    value_sample = [
+        row for row in sample if row["audit_stratum"] == "value_enriched"
+    ]
     evidence_disagreement = 0
-    value_disagreement = value_n = 0
-    for row in sample:
+    for row in evidence_sample:
         claim_id = row["claim_id"]
         primary_map = {item["evidence_id"]: item.get("value_id") for item in row["mappings"]}
         auditor_map = {item["evidence_id"]: item.get("value_id") for item in auditor[claim_id]}
         evidence_disagreement += set(primary_map) != set(auditor_map)
-        for evidence, value_id in primary_map.items():
-            if value_id is None:
-                continue
-            value_n += 1
-            value_disagreement += auditor_map.get(evidence) != value_id
-    evidence_rate = evidence_disagreement / len(sample)
+    value_disagreement = primary_value_correct = auditor_value_correct = 0
+    for row in value_sample:
+        claim_id = row["claim_id"]
+        evidence = row["expected_evidence_id"]
+        expected = row["expected_value_id"]
+        primary_map = {
+            item["evidence_id"]: item.get("value_id") for item in row["mappings"]
+        }
+        auditor_map = {
+            item["evidence_id"]: item.get("value_id") for item in auditor[claim_id]
+        }
+        primary_value = primary_map.get(evidence)
+        auditor_value = auditor_map.get(evidence)
+        value_disagreement += primary_value != auditor_value
+        primary_value_correct += primary_value == expected
+        auditor_value_correct += auditor_value == expected
+    evidence_rate = evidence_disagreement / len(evidence_sample)
+    value_n = len(value_sample)
     value_rate = value_disagreement / value_n if value_n else None
+    primary_value_accuracy = primary_value_correct / value_n if value_n else None
+    auditor_value_accuracy = auditor_value_correct / value_n if value_n else None
     gates = protocol["gates"]
     g4_pass = (
-        len(sample) == 100
+        len(evidence_sample) == 100
         and evidence_rate <= gates["G4_evidence_disagreement_max"]
         and value_n >= gates["G4_value_denominator_min"]
         and value_rate is not None
         and value_rate <= gates["G4_value_disagreement_max"]
+        and primary_value_accuracy is not None
+        and primary_value_accuracy >= gates["G4_value_reference_accuracy_min"]
+        and auditor_value_accuracy is not None
+        and auditor_value_accuracy >= gates["G4_value_reference_accuracy_min"]
     )
     final_gates = {
         name: primary_report[name] for name in ("G1", "G2", "G3")
     }
     final_gates["G4"] = {
-        "n": len(sample),
+        "n": len(evidence_sample),
         "primary_model_id": primary_model,
         "auditor_model_id": auditor_model,
         "evidence_disagreements": evidence_disagreement,
@@ -412,6 +520,8 @@ def finalize(args: argparse.Namespace) -> None:
         "value_n": value_n,
         "value_disagreements": value_disagreement,
         "value_disagreement_rate": value_rate,
+        "primary_value_reference_accuracy": primary_value_accuracy,
+        "auditor_value_reference_accuracy": auditor_value_accuracy,
         "passed": g4_pass,
     }
     protocol_hash = sha256_file(args.protocol)
@@ -446,6 +556,9 @@ def finalize(args: argparse.Namespace) -> None:
     g4_value_text = "N/A" if g4_value is None else f"{g4_value:.4f}"
     g4_value_threshold = gates["G4_value_disagreement_max"]
     g4_value_denominator = gates["G4_value_denominator_min"]
+    g4_reference_threshold = gates["G4_value_reference_accuracy_min"]
+    g1_finding_pass = g1["finding_micro_f1"] >= g1["finding_threshold"]
+    g1_value_pass = g1["native_value_accuracy"] >= g1["value_threshold"]
     summary = [
         "# DDXPlus Semantic Mapper Validation Gates",
         "",
@@ -458,10 +571,10 @@ def finalize(args: argparse.Namespace) -> None:
         "|---|---|---:|---:|---:|",
         "| G1 | reader finding micro F1 | "
         f"{g1['finding_micro_f1']:.4f} | >= {g1['finding_threshold']:.2f} | "
-        f"{g1['passed']} |",
+        f"{g1_finding_pass} |",
         "| G1 | reader native-value accuracy | "
         f"{g1['native_value_accuracy']:.4f} | >= {g1['value_threshold']:.2f} | "
-        f"{g1['passed']} |",
+        f"{g1_value_pass} |",
         "| G2 | absent-target false map | "
         f"{g2['false_map_rate']:.4f} | <= {g2['threshold']:.2f} | "
         f"{g2['passed']} |",
@@ -475,6 +588,12 @@ def finalize(args: argparse.Namespace) -> None:
         "| G4 | conditional value disagreement | "
         f"{g4_value_text} | <= {g4_value_threshold:.2f}; "
         f"n >= {g4_value_denominator} | {g4['passed']} |",
+        "| G4 | primary value-reference accuracy | "
+        f"{g4['primary_value_reference_accuracy']:.4f} | "
+        f">= {g4_reference_threshold:.2f} | {g4['passed']} |",
+        "| G4 | auditor value-reference accuracy | "
+        f"{g4['auditor_value_reference_accuracy']:.4f} | "
+        f">= {g4_reference_threshold:.2f} | {g4['passed']} |",
         "",
     ]
     (args.output.parent / "summary.md").write_text(

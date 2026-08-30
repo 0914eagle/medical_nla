@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -72,11 +73,13 @@ def prepare(args: argparse.Namespace) -> None:
     batch_size = int(protocol["batch_size"])
     for start in range(0, len(ordered), batch_size):
         batch = ordered[start : start + batch_size]
-        request_id = f"semantic_batch_{start // batch_size:06d}"
+        prompt = make_batch_prompt(batch, ontology, template)
+        request_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:12]
+        request_id = f"semantic_batch_{start // batch_size:06d}_{request_hash}"
         requests.append(
             {
                 "id": request_id,
-                "prompt": make_batch_prompt(batch, ontology, template),
+                "prompt": prompt,
                 "claim_ids": [item["claim_id"] for item in batch],
             }
         )

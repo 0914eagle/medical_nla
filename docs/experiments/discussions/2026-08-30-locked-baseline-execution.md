@@ -97,17 +97,19 @@ Mapper validation은 A1 generation과 병렬로 server 125에서 실행할 수 �
 DATA_ROOT=/data1/heejae \
 MODE=prepare \
 nohup bash scripts/run_ddxplus_semantic_mapper_validation_125.sh \
-  > /data1/heejae/medical_nla/logs/ddxplus_semantic_mapper_validation_v1.log 2>&1 &
+  > /data1/heejae/medical_nla/logs/ddxplus_semantic_mapper_validation_v2.log 2>&1 &
 ```
 
 `audit/dry_run_report.json`의 잔여 claim/request 규모를 확인한 뒤 `MODE=run`과
 실제 서로 다른 비-Gemma `PRIMARY_MODEL`/`AUDITOR_MODEL`을 지정하면
-primary/cold/auditor mapping과 receipt 생성까지 실행한다.
+primary/cold/auditor mapping과 receipt 생성까지 실행한다. V2 value-enriched
+validation 계약의 사람 승인 후에는
+`VALUE_AUDIT_CONFIRMATION=I_APPROVE_VALIDATION_VALUE_ENRICHED_G4`도 함께 지정한다.
 
 완료 후 `summary.md`와 receipt를 확인한다.
 
 ```bash
-MAP=/data1/heejae/medical_nla/results/ddxplus_semantic_mapper_validation_v1
+MAP=/data1/heejae/medical_nla/results/ddxplus_semantic_mapper_validation_v2
 cat "$MAP/summary.md"
 python scripts/validate_semantic_mapper_freeze_receipt.py \
   --receipt "$MAP/semantic_mapper_freeze_receipt.json" \
@@ -118,7 +120,7 @@ python scripts/validate_semantic_mapper_freeze_receipt.py \
 
 ```bash
 GEN=/data1/heejae/medical_nla/results/ddxplus_vanilla_locked_generation_v1
-MAP=/data1/heejae/medical_nla/results/ddxplus_semantic_mapper_validation_v1
+MAP=/data1/heejae/medical_nla/results/ddxplus_semantic_mapper_validation_v2
 PROTOCOL="$MAP/frozen/semantic_protocol.json"
 SCORER=scripts/score_ddxplus_semantic_readouts.py
 

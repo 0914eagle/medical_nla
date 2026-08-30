@@ -357,7 +357,7 @@ Validation queue는 locked generation과 독립적이며 server 125에서 병렬
 DATA_ROOT=/data1/heejae \
 MODE=prepare \
 nohup bash scripts/run_ddxplus_semantic_mapper_validation_125.sh \
-  > /data1/heejae/medical_nla/logs/ddxplus_semantic_mapper_validation_v1.log 2>&1 &
+  > /data1/heejae/medical_nla/logs/ddxplus_semantic_mapper_validation_v2.log 2>&1 &
 ```
 
 먼저 `audit/dry_run_report.json`에서 잔여 unique claim, request 수와 입력 문자 수를
@@ -415,3 +415,43 @@ human-validated로 부르지 않으며, 두 model ID·분모·불일치율을 li
 revision pin (GPU load 1회, 수 분), (2) **10,028행 generation 시작** —
 4090 4장(~20.6h) 또는 D10 종료 후 유휴 pod(두 번째 DDXPlus bundle 필요,
 단축 예상). Generation이 도는 동안 mapper 구현과 G1-G4가 병렬 진행된다.
+
+## Validation v1 실패와 v2 보강 (2026-08-30)
+
+첫 validation은 locked 출력을 읽지 않은 상태에서 다음 결과로 차단됐다.
+
+- G1 finding micro F1 `1.0000`, native-value accuracy
+  `9,604/10,957 = .8765`
+- G2 false map `0/2,609 = .0000` (Wilson 95% upper `.00147`)
+- G3 cache replay `true`, cold agreement `19/20 = .9500`
+- G4 open-text evidence disagreement `2/100 = .0200`
+- G4 open-text native-value decision `0`, 따라서 value gate 판정 불가
+
+G1 value 오류 `1,353건`은 전부 `E_132` value 2--7에 집중됐다. 예를 들어
+`the rash is swollen (rated 4)`는 value 4의 전체 phrase와 value 1의 중첩 phrase
+`the rash is swollen`을 동시에 포함했고, v1의 다중 후보 보수 규칙이 value를
+`null`로 만들었다. 이는 mapper의 일반 의미 오류가 아니라 결정론적 alias
+우선순위 버그다. v2는 **전체 claim 일치 우선, 그다음 가장 긴 normalized alias,
+최고 점수 동률일 때만 null**로 사전 고정한다.
+
+Open validation Vanilla 50행은 Stage-2 native value를 한 건도 명시하지 않아 기존
+G4 value 분모를 만들 수 없었다. 사람 결정의 기존 조항(value 분모 20 미만이면
+별도 validation 표본 계약)에 따라 v2는 validation structured-reader가 렌더링한
+고유 native-value phrase를 사용한다. 이 표본은 locked 출력과 무관하며 다음처럼
+고정한다.
+
+1. `value_id != null`인 validation reader claim을 exact claim text로 dedupe한다.
+2. 같은 text가 서로 다른 evidence/value에 연결되면 제외한다.
+3. Stable seed-17 hash 순서에서 최대 30개를 선택한다.
+4. Stage 1을 의도적으로 우회하고 primary/auditor가 동일한 frozen ontology로
+   독립 재매핑한다. Target evidence/value는 prompt에 제공하지 않는다.
+5. Value disagreement `<= .05`, 분모 `>=20`에 더해 primary와 auditor 각각의
+   frozen reference-value accuracy `>= .98`을 요구한다.
+
+Open-text evidence G4의 100건과 `.05` 기준은 바꾸지 않는다. 이 보강은 실패한
+기준을 완화하지 않고, v1에서 존재하지 않았던 value 분모를 validation에서 만든다.
+새 protocol/output은 `semantic_mapper_validation_v2`로 분리하고 v1 judgement를
+재사용하지 않는다. Request ID에도 frozen prompt hash를 포함한다.
+`MODE=run`은 사람이 이 별도 표본 계약을 승인한 뒤
+`VALUE_AUDIT_CONFIRMATION=I_APPROVE_VALIDATION_VALUE_ENRICHED_G4`를 제공해야만
+열린다. 승인 전에는 `MODE=prepare`로 분모와 request 규모만 확인한다.
