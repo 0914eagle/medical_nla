@@ -138,7 +138,6 @@
 
 | 도구 | 실제 입력 | 출력 공간 | 측정하는 것 | 측정하지 못하는 것 |
 |---|---|---|---|---|
-| Early forced-answer behavioral baseline | source CoT prompt + `The answer is` + supplied candidates | 고정 diagnosis ontology의 sequence likelihood rank | reasoning 전에 바로 답하게 했을 때 backbone의 closed 후보 선호 | 저장된 P0 벡터의 직접 판독, 열린 finding 생성 |
 | Linear/multi-label probe | P0 activation | 고정 diagnosis/finding/value ontology | 선형 decodability와 same-diagnosis 사례 특이성 | 새 claim·관계·자유 문장 생성 |
 | Structured reader | frozen probe가 선택한 label/value | train-only canonical phrases | selected closed state의 결정론적 렌더링 | probe 없이 activation에서 claim을 발견하는 open NLA |
 | Vanilla/Medical NLA | P0 activation | 자유 자연어 | activation-conditioned open-text readout | 임상 정렬·activation grounding의 자동 보장 |
@@ -146,7 +145,6 @@
 
 ### Closed와 open score를 같은 accuracy로 비교하지 않는 이유
 
-- Forced-answer는 ontology를 미리 제공한 **행동 기준선**이며 직접적인 activation probe가 아닙니다.
 - Probe와 structured reader는 정답 공간이 닫혀 있습니다.
 - Open-ended NLA는 claim 선택과 문장 생성을 동시에 해결해야 합니다.
 - AR cosine은 own activation을 shuffled/mean보다 구분하는 양성 대조를 통과해야만 해석합니다.
