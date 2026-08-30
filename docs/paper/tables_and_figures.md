@@ -136,6 +136,7 @@ baseline과 deterministic rendering control이며, `Method class` 열로 역할�
 |---|---|---:|---:|---:|---:|
 | closed decoder | Frozen probe | .9562 | .7938 | +.1624 [.1576, .1672] | .7659 |
 | structured monitor | Probe-guided reader | .9587 | .7938 | +.1624 | .7654 |
+| open generator | Vanilla NLA | .0000 | .0000 | +.0000 | .0000 |
 
 Structured monitor의 mean emitted claims는 4.9353, native-value emission coverage는
 .9995이며, prompt text는 prediction 구성에 사용하지 않았다.
@@ -145,12 +146,24 @@ Structured monitor의 mean emitted claims는 4.9353, native-value emission cover
 | Method class | Method | Deletion phantom | Removal success | Untouched retention | Replacement hit | Old persistence | Clean switch |
 |---|---|---:|---:|---:|---:|---:|---:|
 | structured monitor | Probe-guided reader | .3593 | .6407 | .9987 | .1466 | .5955 | .0804 |
+| open generator | Vanilla NLA | .0000 | N/A | N/A | .0000 | .0000 | N/A (n=0) |
 
 양면 결론: 정적 finding은 강하게 읽히지만(패널 A), 삭제된 state가 표현에서 완전히
 사라지지 않고(phantom .3593) native value update는 약하다(clean switch .0804).
 
-- Free-generating 행: Vanilla는 sealed generation + mapper receipt 후 채점해
-  추가한다(branch-independent baseline). Medical-NLA `SFT only`/`final` 행은
+Vanilla NLA는 sealed locked readout 10,028행 전부에서 frozen 91-evidence
+ontology claim을 하나도 방출하지 않았다. Lexical mapping `0`, method-blind
+`gpt-5.6-sol` raw/accepted semantic mapping `0/0`, mapped row `0/10,028`이었고
+finding/value 지표는 모두 0이었다. Deletion phantom `.0000`은 성공이 아니다:
+original hit도 `.0000`이므로 removal success와 untouched retention은 조건부
+분모가 없어 `N/A`다. Value edit도 replacement `.0000`, old persistence
+`.0000`, clean-switch 분모 `0`으로 `N/A`다. Generic evaluator가 쓴 runtime
+`summary.md` 제목은 structured-reader renderer를 재사용하지만 canonical method
+class는 이 표의 `open generator`다.
+
+- Free-generating 행: Vanilla는 sealed generation + mapper V2 receipt 뒤 위
+  locked all-zero 결과로 확정했다(branch-independent baseline). Medical-NLA
+  `SFT only`/`final` 행은
   validation generation grounding gate 통과가 조건이었으나 **D10 budget
   calibration(1,552 steps)이 frozen gate FAIL로 종료**되어 현재 materialize
   근거가 없다 — 행을 만들지 않는다.

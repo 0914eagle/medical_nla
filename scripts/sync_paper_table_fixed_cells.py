@@ -46,6 +46,13 @@ FIXED_ROWS = {
         "| structured monitor | Probe-guided reader | .3593 | .6407 | .9987 | "
         ".1466 | .5955 | .0804 |"
     ),
+    "| open generator | Vanilla NLA | .0000 | .0000 |": (
+        "| open generator | Vanilla NLA | .0000 | .0000 | +.0000 | .0000 |"
+    ),
+    "| open generator | Vanilla NLA | .0000 | N/A |": (
+        "| open generator | Vanilla NLA | .0000 | N/A | N/A | .0000 | .0000 | "
+        "N/A (n=0) |"
+    ),
     "| Full-data SFT | DiReCT Obscomp |": (
         "| Full-data SFT | DiReCT Obscomp | > .2130 | .0301/.0296, fail |"
     ),
