@@ -32,13 +32,30 @@ DIRECT_READOUTS="${DIRECT_READOUTS:-${E4}/validation_readouts_v1}"
 DIRECT_SEMANTIC="${DIRECT_SEMANTIC:-${E4}/validation_full_v1}"
 FULL_READOUTS="${FULL_READOUTS:-${E4}/common_medical_nla_full_sft_v1_validation_v1}"
 FULL_SEMANTIC="${FULL_SEMANTIC:-${E4}/common_medical_nla_full_sft_v1_direct_semantic_val_v1}"
+VANILLA_READOUT="${VANILLA_READOUT:-${DIRECT_READOUTS}/vanilla.jsonl}"
+VANILLA_SEMANTIC="${VANILLA_SEMANTIC:-${DIRECT_SEMANTIC}}"
+VANILLA_SOURCE_FILTER="${VANILLA_SOURCE_FILTER:--}"
 JUDGE="${DATA_ROOT}/models/Meta-Llama-3-8B-Instruct/original"
+
+# Server 125 originally generated the shared Vanilla arm in the 100-row common
+# pilot. Its 50 Direct rows use the same frozen DiReCT validation activations.
+# Keep the readout and semantic root paired rather than copying only one file.
+if [[ ! -s "${VANILLA_READOUT}" ]]; then
+  fallback_readout="${E4}/common_medical_nla_pilot_v1_validation_v1/vanilla.jsonl"
+  fallback_semantic="${E4}/common_medical_nla_pilot_v1_direct_semantic_val_v1"
+  if [[ -s "${fallback_readout}" && -s "${fallback_semantic}/private_extraction_audit.jsonl" ]]; then
+    VANILLA_READOUT="${fallback_readout}"
+    VANILLA_SEMANTIC="${fallback_semantic}"
+    VANILLA_SOURCE_FILTER=direct
+    echo "[fallback] Vanilla Direct rows from ${VANILLA_READOUT}"
+  fi
+fi
 
 required=(
   "${E3}/direct_e3_sft_v1/sft_val.jsonl"
   "${E1}/direct_e1_trainval_v1/source_cot_answers.jsonl"
   "${E1}/direct_e1_test_v1/source_cot_answers.jsonl"
-  "${DIRECT_READOUTS}/vanilla.jsonl"
+  "${VANILLA_READOUT}"
   "${DIRECT_READOUTS}/medical_nla_seed17.jsonl"
   "${DIRECT_READOUTS}/medical_nla_seed29.jsonl"
   "${DIRECT_READOUTS}/medical_nla_seed43.jsonl"
@@ -58,7 +75,7 @@ prepare() {
       "${E1}/direct_e1_trainval_v1/source_cot_answers.jsonl" \
       "${E1}/direct_e1_test_v1/source_cot_answers.jsonl" \
     --method "source_cot|-|${FULL_SEMANTIC}|cot|-" \
-    --method "vanilla|${DIRECT_READOUTS}/vanilla.jsonl|${DIRECT_SEMANTIC}|vanilla|-" \
+    --method "vanilla|${VANILLA_READOUT}|${VANILLA_SEMANTIC}|vanilla|${VANILLA_SOURCE_FILTER}" \
     --method "direct_only_seed17|${DIRECT_READOUTS}/medical_nla_seed17.jsonl|${DIRECT_SEMANTIC}|medical_nla_seed17|-" \
     --method "direct_only_seed29|${DIRECT_READOUTS}/medical_nla_seed29.jsonl|${DIRECT_SEMANTIC}|medical_nla_seed29|-" \
     --method "direct_only_seed43|${DIRECT_READOUTS}/medical_nla_seed43.jsonl|${DIRECT_SEMANTIC}|medical_nla_seed43|-" \
