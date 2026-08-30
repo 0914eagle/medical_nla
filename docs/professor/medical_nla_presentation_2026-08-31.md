@@ -412,28 +412,46 @@ typical disease template.
 
 ---
 
-## Slide 12. Source model: Direct vs CoT exploratory 결과
+## Slide 12. Results map: 질문별로 무엇을 먼저 보는가?
 
-> 전체 eligible 171건에 대한 exploratory 결과이며, locked 72/106 최종 표가 아닙니다.
+| 단계 | 질문 | 첫 번째 메인 결과 | 뒤따르는 보조 결과 |
+|---|---|---|---|
+| Gate 0 | activation에 임상정보가 실제로 존재하는가? | DiReCT diagnosis probe + DDXPlus finding/value probe | layer sensitivity, same-diagnosis shuffle, Vanilla P0 audit |
+| RQ1 | 생성 설명이 physician observation과 정렬되는가? | DiReCT semantic alignment | output duplication/template collapse |
+| RQ2 | 설명이 해당 activation과 intervention에 grounded되는가? | DDXPlus structured/open readout comparison | deletion/value edit, mapper validation, zero-score audit |
+| Medical-NLA development | 어떤 supervision과 loss를 시도했고 어디서 실패했는가? | sequence SFT, ranking, specificity anchor | budget trajectory, bottleneck, public AR diagnostic |
+| RQ3 | 검증된 설명 편집이 내부 상태와 행동을 바꾸는가? | 아직 열지 않음 | RQ2 promotion gate 통과 모델 필요 |
 
-| condition | n | parse | strict PDD | category | token F1 |
-|---|---:|---:|---:|---:|---:|
-| Direct | 171 | 1.0000 | 0.2105 | 0.5029 | 0.1593 |
-| CoT | 171 | 1.0000 | 0.1930 | 0.5088 | 0.1850 |
-
-- strict PDD McNemar: **p = 0.6291**
-- category McNemar: **p = 1.0000**
-- CoT reasoning에 answer alias가 등장한 비율: **156/171 = 0.9123**
-
-### 해석
-
-- CoT가 strict diagnosis accuracy를 개선하지 않았습니다.
-- token overlap은 조금 높지만 category accuracy 차이는 없습니다.
-- P1/P2는 문자열 leakage control이며 primary evidence는 P0입니다.
+> Direct-vs-CoT 171-case pilot과 McNemar 검정은 최종 RQ 표가 아니라 source behavior 보조 통제이므로 Appendix로 이동합니다.
 
 ---
 
-## Slide 13. DiReCT P0: 진단 정보는 읽히는가?
+## Slide 13. Gate 0 main: activation에 임상정보가 있는가?
+
+### DiReCT diagnosis probe, validation n=52, frozen candidate HS24
+
+| target | majority | Top-1 | Top-5 | MRR | macro recall | val NLL |
+|---|---:|---:|---:|---:|---:|---:|
+| canonical PDD | 0.0962 | **0.4423** | 0.7692 | 0.5762 | 0.3868 | 2.0489 |
+| disease category | 0.0577 | **0.5962** | 0.9038 | 0.7284 | 0.5000 | 1.3961 |
+
+### DDXPlus finding/value probe, locked test
+
+| target | own | same-diagnosis shuffled | gap | bootstrap 95% CI |
+|---|---:|---:|---:|---:|
+| finding micro F1 | **0.9562** | 0.7938 | **+0.1624** | [0.1576, 0.1672] |
+| conditional native-value accuracy | **0.7659** | 0.5791 | **+0.1868** | [0.1650, 0.2091] |
+
+### Gate 0 판정
+
+- DiReCT P0에서 diagnosis/category 정보가 majority baseline보다 높게 선형 판독됩니다.
+- DDXPlus에서는 finding 존재와 native value가 높은 정확도로 판독됩니다.
+- 같은 diagnosis의 다른 환자 activation으로 바꾸면 성능이 하락하므로 diagnosis template만 읽은 결과가 아닙니다.
+- DiReCT 72/106 protocol-locked final probe 셀은 아직 pending이며 validation 수치와 구분합니다.
+
+---
+
+## Slide 14. Gate 0 support: 어느 layer를 선택했는가?
 
 ### Linear probe, validation n=52
 
@@ -463,9 +481,21 @@ typical disease template.
 - HS24가 validation에서 category와 PDD 모두 최선이었습니다.
 - Raw PDD는 35/52에서 하나의 희귀 후보를 top-1으로 골라 candidate surface-form prior가 강했습니다.
 
+### DDXPlus validation layer sensitivity
+
+| target/metric | HS16 | HS24 | HS32 |
+|---|---:|---:|---:|
+| finding micro F1, n=4,525 | **0.9636** | 0.9607 | 0.9607 |
+| finding own-shuffled gap | +0.1651 | **+0.1653** | +0.1546 |
+| value accuracy, n=2,183 | 0.7641 | **0.7700** | 0.6990 |
+| value own-shuffled gap | +0.1842 | **+0.1942** | +0.1205 |
+
+- HS16의 finding F1이 0.0029 높았지만 HS24가 finding gap, value accuracy, value gap의 공동 기준에서 우세했습니다.
+- HS24를 validation에서 동결한 뒤 DDXPlus locked test에서 다시 선택하지 않았습니다.
+
 ---
 
-## Slide 14. DiReCT Vanilla NLA: P0를 자연어로 읽는가?
+## Slide 15. Gate 0 support: Vanilla NLA는 P0 정보를 말로 읽는가?
 
 ### P0 blinded semantic audit, validation n=52
 
@@ -497,148 +527,7 @@ typical disease template.
 
 ---
 
-## Slide 15. DDXPlus closed probe: locked test
-
-### Finding presence
-
-| metric | own | same-diagnosis shuffled | gap | 95% CI |
-|---|---:|---:|---:|---:|
-| micro F1 | **0.9562** | 0.7938 | **+0.1624** | [0.1576, 0.1672] |
-
-### Native value
-
-| metric | own | same-diagnosis shuffled | gap | 95% CI |
-|---|---:|---:|---:|---:|
-| conditional accuracy | **0.7659** | 0.5791 | **+0.1868** | [0.1650, 0.2091] |
-
-### Validation finding layer sensitivity, n=4,525
-
-| HS | labels | coverage | micro F1 | macro F1 | micro AUROC | shuffled F1 | own-shuffled |
-|---:|---:|---:|---:|---:|---:|---:|---:|
-| 16 | 91 | 0.9997 | 0.9636 | 0.9097 | 1.0000 | 0.7985 | +0.1651 |
-| **24** | 91 | 0.9997 | **0.9607** | 0.9049 | 1.0000 | 0.7954 | **+0.1653** |
-| 32 | 91 | 0.9997 | 0.9607 | **0.9134** | 0.9999 | 0.8062 | +0.1546 |
-
-### Validation native-value layer sensitivity, n=2,183
-
-| HS | tasks/classes | accuracy | macro recall | MRR | shuffled accuracy | own-shuffled |
-|---:|---:|---:|---:|---:|---:|---:|
-| 16 | 6/32 | 0.7641 | 0.6957 | 0.8582 | 0.5799 | +0.1842 |
-| **24** | 6/32 | **0.7700** | **0.7152** | **0.8636** | 0.5758 | **+0.1942** |
-| 32 | 6/32 | 0.6990 | 0.6197 | 0.8144 | 0.5786 | +0.1205 |
-
-### 해석
-
-- activation에는 환자별 finding과 값 정보가 강하게 존재합니다.
-- 같은 진단 내 shuffle gap이 양수이므로 diagnosis template만 읽은 결과가 아닙니다.
-- HS16의 raw finding F1이 0.0029 높지만, finding/value own-minus-shuffled joint 규칙으로 HS24를 frozen layer로 선택했습니다.
-- Locked test에서 layer, threshold, ontology 또는 checkpoint를 다시 선택하지 않았습니다.
-
----
-
-## Slide 16. DDXPlus structured reader: locked test
-
-> Frozen probe가 선택한 state를 train-only lexicon으로 렌더링한 closed monitor입니다. Open-ended NLA가 아닙니다.
-
-### Static readout
-
-| metric | validation | locked test |
-|---|---:|---:|
-| original cases | 4,525 | 4,543 |
-| mean emitted claims | 4.9485 | 4.9353 |
-| finding micro F1 | 0.9607 | **0.9587** |
-| same-diagnosis shuffled F1 | 0.7954 | 0.7938 |
-| own-shuffled gap | +0.1630 | **+0.1624** |
-| native-value accuracy | 0.7700 | **0.7654** |
-| value emission coverage | 1.0000 | 0.9995 |
-
-### Counterfactual response
-
-| metric | validation | locked test | locked denominator |
-|---|---:|---:|---:|
-| deletion original hit | 1.0000 | 1.0000 | 4,540 |
-| deletion phantom | 0.3626 | 0.3593 | 4,540 |
-| removal success | 0.6374 | 0.6407 | original-hit conditional |
-| untouched retention | 0.9985 | 0.9987 | 16,105 |
-| replacement hit | 0.1407 | 0.1466 | 539 |
-| old-value persistence | 0.5722 | 0.5955 | 539 |
-| clean switch | 0.1038 | 0.0804 | 398 |
-
-### 해석
-
-- static finding state는 매우 잘 읽힙니다.
-- deletion 반응은 부분적이고 value-edit 전환은 약합니다.
-- 높은 static F1과 낮은 clean switch가 동시에 존재합니다.
-
----
-
-## Slide 17. DDXPlus semantic mapper validation
-
-| gate | metric | result | criterion |
-|---|---|---:|---:|
-| G1 | reader finding round-trip F1 | 1.0000 | >= 0.98 |
-| G1 | reader native-value accuracy | 1.0000 | >= 0.98 |
-| G2 | absent-target false map | 0/2,609 = 0.0000 | <= 0.05 |
-| G3 | cache replay byte-identical | True | True |
-| G3 | cold duplicate agreement | 1.0000 | report |
-| G4 | evidence disagreement | 2/100 = 0.0200 | <= 0.05 |
-| G4 | conditional value disagreement | 0/30 = 0.0000 | <= 0.05 |
-
-- primary mapper: `gpt-5.6-sol`
-- independent auditor: `gpt-5.4`
-- validation에서 동결한 뒤 locked generation에 적용
-
-### 주의
-
-- G4는 두 AI judge의 concordance입니다.
-- 사람 임상 타당도 검증으로 표현하지 않습니다.
-
----
-
-## Slide 18. DDXPlus Vanilla NLA: locked 10,028행
-
-### 생성 모집단
-
-- original: **4,543**
-- cue-deleted: **4,543**
-- value-edited: **942**
-- total readouts: **10,028**
-
-### Frozen generation protocol
-
-| item | setting |
-|---|---|
-| model | `kitft/nla-gemma3-12b-L32-av` |
-| activation | DDXPlus locked CoT-P0/HS32 |
-| decoding | greedy, max new tokens 512, batch 4 |
-| execution | 5,013/5,015 two shards, exact 10,028-row merge |
-| pre-scoring control | actor prompt/model/config/manifest hash 기록 후 generation seal 검증 |
-| evaluation order | mapper V2 G1-G4 receipt를 먼저 커밋한 뒤 sealed outputs 1회 채점 |
-
-### Frozen mapper 결과
-
-| item | count |
-|---|---:|
-| lexical mappings | 0 |
-| raw AI mappings | 0 |
-| accepted AI mappings | 0 |
-| rows with emitted ontology claim | 0/10,028 |
-
-### Post-hoc diagnosis-stratified 20-case audit
-
-| audit item | result |
-|---|---:|
-| generic clinical prose only | 20/20 |
-| possible frozen-mapper miss | 0/20 |
-| expected-cue paraphrase match | 0/20 |
-| malformed/empty | 0/20 |
-| median readout length | 683.5 characters |
-
-> Vanilla NLA는 비어 있거나 깨진 출력이 아니라, activation과 환자에 특이적이지 않은 일반적 임상 문장을 생성했습니다.
-
----
-
-## Slide 19. Medical-NLA SFT: DiReCT alignment
+## Slide 16. RQ1 main: 설명이 physician observation과 정렬되는가?
 
 ### Common mixed pilot population
 
@@ -666,7 +555,114 @@ typical disease template.
 
 ---
 
-## Slide 20. Medical-NLA SFT: DDXPlus grounding
+## Slide 17. RQ1 support: 낮은 alignment가 scorer 문제인가?
+
+> 전체 50-case deterministic exact-text census입니다. 불안정했던 AI checklist 결과는 최종 판정에서 제외했습니다.
+
+| method | Obscomp | exact duplicate rows | unique outputs |
+|---|---:|---:|---:|
+| Direct-only seed17 | 0.0343 | 43/50 | 7 |
+| Direct-only seed29 | 0.0047 | 47/50 | 3 |
+| Direct-only seed43 | 0.0032 | 49/50 | 1 |
+| Full-data seed17 | 0.0301 | 36/50 | 14 |
+| Full-data seed29 | 0.0296 | 48/50 | 2 |
+| Source CoT | **0.2130** | 0/50 | 50 |
+
+- 낮은 Obscomp는 lexical/semantic scorer의 보수성만으로 설명되지 않습니다.
+- SFT 출력 자체가 서로 다른 환자에서 동일하거나 소수의 의료 template로 붕괴했습니다.
+- 따라서 RQ1은 현재 validation에서 실패이며 locked Medical-NLA 행을 열지 않았습니다.
+
+---
+
+## Slide 18. RQ2 main: closed monitor와 open-ended NLA 비교
+
+| method class | method | finding F1 | own-shuffled gap | native-value accuracy | ontology claims |
+|---|---|---:|---:|---:|---:|
+| closed decoder | frozen linear probe | 0.9562 | +0.1624 | 0.7659 | label prediction |
+| closed renderer | structured reader | **0.9587** | +0.1624 | **0.7654** | mean 4.9353/case |
+| open generator | Vanilla NLA | 0.0000 | 0.0000 | 0.0000 | **0/10,028 rows** |
+
+### Structured reader의 정확한 의미
+
+1. Frozen HS24 probe가 91개 finding과 지원되는 native value의 label/probability를 선택합니다.
+2. 각 label을 official-train-only modal phrase lexicon으로 결정론적 bullet로 렌더링합니다.
+3. prompt text, diagnosis, gold cue를 사용하지 않고 자유 생성도 하지 않습니다.
+
+> 따라서 structured reader는 “probe가 고른 state를 말로 표시할 수 있다”는 closed-monitor 양성 대조이지, activation에서 자유 문장을 생성하는 NLA의 성공이 아닙니다.
+
+---
+
+## Slide 19. RQ2 support: counterfactual response
+
+### Structured reader, locked test
+
+| intervention metric | value | denominator |
+|---|---:|---:|
+| deletion original hit | 1.0000 | 4,540 |
+| deletion phantom | 0.3593 | 4,540 |
+| removal success given original hit | 0.6407 | conditional |
+| untouched finding retention | 0.9987 | 16,105 |
+| value-edit replacement hit | 0.1466 | 539 |
+| old-value persistence | 0.5955 | 539 |
+| clean value switch | 0.0804 | 398 |
+
+- Static finding state는 매우 잘 읽히지만 cue deletion 반응은 부분적입니다.
+- Value edit에서는 새 값을 읽는 비율이 낮고 이전 값이 지속됩니다.
+- 높은 static F1과 낮은 clean switch가 동시에 존재하므로 information presence와 state update를 분리해야 합니다.
+
+---
+
+## Slide 20. RQ2 support: open-ended Vanilla가 0인 이유
+
+### Frozen semantic mapper validation
+
+| gate | metric | result | criterion |
+|---|---|---:|---:|
+| G1 | reader finding/value round-trip | 1.0000 / 1.0000 | >= 0.98 |
+| G2 | absent-target false map | 0/2,609 | <= 0.05 |
+| G3 | cache replay byte-identical | True | True |
+| G4 | evidence/value disagreement | 0.0200 / 0.0000 | <= 0.05 |
+
+### Locked 10,028-row Vanilla result
+
+| item | result |
+|---|---:|
+| original / deleted / edited rows | 4,543 / 4,543 / 942 |
+| lexical mappings | 0 |
+| AI semantic mappings | 0 |
+| rows with emitted ontology claim | **0/10,028** |
+
+### Post-hoc 20-case audit
+
+| audit item | result |
+|---|---:|
+| generic clinical prose only | 20/20 |
+| possible frozen-mapper miss | 0/20 |
+| expected-cue paraphrase match | 0/20 |
+| malformed/empty | 0/20 |
+
+> 출력은 비어 있지 않았지만 환자의 frozen ontology finding과 연결되지 않는 일반적 임상 문장이었습니다.
+
+---
+
+## Slide 21. Medical-NLA development map: 무엇을 바꿨는가?
+
+| method | supervision/loss change | 학습이 답해야 한 질문 | primary metric |
+|---|---|---|---|
+| Original/full-data sequence SFT | `CE(y_current | h_current)` | 데이터 양과 임상 target만으로 충분한가? | Obscomp, cue recall |
+| Counterfactual sequence SFT | original/deleted/edited 각 arm의 현재 cue set CE | intervention 예시를 직접 주면 selective response가 생기는가? | contrast, phantom, clean switch |
+| Sentence matched/crossed contrastive | matched sentence NLL을 crossed NLL보다 낮춤 | activation-target pair를 구분하는가? | symmetric NLL gap |
+| Changed-cue 1x2 ranking | 한 changed claim의 original-vs-deleted NLL ranking | 긴 target 난이도를 제거하면 삭제 cue만 배우는가? | changed gap, retained gap, specificity |
+| Budget calibration | loss/data 고정, 20→1,552 steps | 작은 budget이 병목이었는가? | dose-response trajectory |
+| Specificity-anchored ranking | changed ranking + retained claim CE | global deletion shortcut을 loss로 차단할 수 있는가? | seed별 specificity + NLL noninferiority |
+| Soft bottleneck/OOF teacher | 3840→256 latent + auxiliary support | shared latent나 probe teacher가 state를 조직화하는가? | probe/generation delta |
+| Public AR diagnostic | text→activation reconstruction | released AR가 medical activation을 구분하는가? | own-minus-shuffled cosine |
+
+> 이후 슬라이드는 내부 코드명보다 실제로 무엇을 학습하고 무엇으로 판정했는지를 기준으로 배열합니다.
+
+---
+
+## Slide 22. Sequence SFT: 데이터 증가와 counterfactual target
 
 ### Original-only common/full-data SFT, validation
 
@@ -701,48 +697,13 @@ typical disease template.
 
 ---
 
-## Slide 21. SFT 원문 census: template collapse
+## Slide 23. Pairwise objectives: sentence contrastive와 changed-cue ranking
 
-> AI checklist가 불안정해 최종 판정에는 사용하지 않고, 전체 50-case deterministic exact-text census를 사용했습니다.
+### Sentence matched/crossed objective
 
-| method | Obscomp | exact duplicate rows | unique outputs |
-|---|---:|---:|---:|
-| Direct-only seed17 | 0.0343 | 43/50 | 7 |
-| Direct-only seed29 | 0.0047 | 47/50 | 3 |
-| Direct-only seed43 | 0.0032 | 49/50 | 1 |
-| Full-data seed17 | 0.0301 | 36/50 | 14 |
-| Full-data seed29 | 0.0296 | 48/50 | 2 |
-| Source CoT | **0.2130** | 0/50 | 50 |
-
-### 폐기한 AI audit의 품질 문제
-
-- initial requests: 200
-- 3회 repair 후 valid: **56**, invalid: **144**
-- invalid: true without quote 91, population mismatch 21, non-verbatim quote 30, JSON parse 2
-
-### 결론
-
-- 낮은 Obscomp는 lexical scorer의 보수성만으로 설명되지 않습니다.
-- SFT output 자체가 여러 사례에서 동일한 의료 template로 붕괴했습니다.
-
----
-
-## Slide 22. 생성형 개발 gate 전체 결과
-
-| experiment | primary observed result | frozen criterion | verdict |
-|---|---|---|---|
-| Full-data SFT | Obscomp 0.0301 / 0.0296 | > Source CoT 0.2130 | FAIL |
-| Counterfactual sequence SFT | contrast 0.2092 only in seed17; phantom 0.4253 | seed 재현 + phantom 감소 | FAIL |
-| Sentence contrastive | gap 0.0013 / 0.0022 | baseline 0.0051 초과, CI > 0 | FAIL |
-| D10 ranking, 20 steps | changed +0.0005 / +0.0028 / +0.0030 | each >= 0.05, CI/specificity | FAIL |
-| D14 K=5 OOF teacher | precision 0.8881 | >= 0.90 plus calibration gates | FAIL |
-| D16 soft bottleneck | -0.001137 / -0.001476 / +0.001433 | each >= 0.005, CI > 0 | FAIL |
-| D16 frozen-z | finding F1 -0.0009 / -0.0007 / -0.0016 | non-negative improvement | FAIL |
-| D10 budget 1,552 | changed +0.5558, retained +0.5604, specificity -0.0046 | selective changed-cue gain | FAIL |
-| D20 anchored 1,552 | specificity -0.0278 / -0.0255 / -0.0217 | positive each seed, CI > 0 | FAIL |
-| D22 public AR | positive-control gap approximately 0 | matched > shuffled | FAIL as instrument |
-
-### Sentence-level contrastive 세부
+```text
+L = L_SFT + lambda * softplus(-(NLL_cross - NLL_matched) / T)
+```
 
 | objective | symmetric gap | category-cluster 95% CI | matched win |
 |---|---:|---:|---:|
@@ -751,7 +712,14 @@ typical disease template.
 | SFT=1, lambda=5 | +0.0051 | [+0.0011, +0.0099] | 0.5333 |
 | SFT=0, lambda=1 | +0.0030 | [+0.0003, +0.0057] | 0.6444 |
 
-### D10 20-step paired arm 세부
+### Changed-cue 1x2 ranking objective, 3,104 pairs
+
+```text
+g_changed = NLL(y_changed | h_deleted) - NLL(y_changed | h_original)
+L = CE(y_changed | h_original) + softplus(-g_changed / T)
+lambda = 1.0, T = 1.0, max_steps = 20, seeds = 17/29/43
+specificity = changed_gap - retained_gap
+```
 
 | seed | changed delta | cluster 95% CI | retained delta | specificity | specificity 95% CI |
 |---:|---:|---:|---:|---:|---:|
@@ -759,15 +727,14 @@ typical disease template.
 | 29 | +0.0028 | [+0.0017, +0.0039] | -0.0000 | +0.0029 | [+0.0015, +0.0045] |
 | 43 | +0.0030 | [+0.0015, +0.0048] | -0.0007 | +0.0037 | [+0.0017, +0.0059] |
 
-### 공통 교훈
-
-- 작은 training budget만의 문제가 아니었습니다.
-- 큰 margin은 global deletion detector shortcut으로도 만들 수 있습니다.
-- specificity를 loss에 넣으면 shortcut은 줄지만 목표 신호도 사라졌습니다.
+- 3 seed 모두 changed delta는 양수였지만 사전 고정한 최소 효과 `0.05`보다 10배 이상 작았습니다.
+- Seed17의 cluster CI와 specificity CI가 0을 포함해 promotion gate를 통과하지 못했습니다.
 
 ---
 
-## Slide 23. D10 budget trajectory
+## Slide 24. Budget calibration: 같은 ranking을 20→1,552 steps
+
+> 데이터 3,104 pairs, loss, `lambda=1`, `T=1`, seeds를 고정하고 학습 step만 변경했습니다.
 
 ### Across-seed means
 
@@ -794,7 +761,16 @@ typical disease template.
 
 ---
 
-## Slide 24. D20: specificity를 loss에 넣은 결과
+## Slide 25. Specificity-anchored ranking: retained cue를 loss에 추가
+
+```text
+L = CE(y_changed | h_original)
+  + softplus(-g_changed)
+  + CE(y_retained | h_original)
+  + CE(y_retained | h_deleted)
+
+all weights = 1.0, max_steps = 1,552, seeds = 17/29/43
+```
 
 | seed | changed gap | retained gap | specificity | changed original NLL | retained original NLL |
 |---:|---:|---:|---:|---:|---:|
@@ -813,7 +789,21 @@ typical disease template.
 
 ---
 
-## Slide 25. D22: 공개 AR reconstruction 진단
+## Slide 26. 다른 target/architecture 계열의 결과
+
+| method | exact change | observed result | verdict |
+|---|---|---|---|
+| OOF finding teacher | 반대 fold probe가 선택한 K=5 hard finding set으로 distillation | precision 0.8881, required >=0.90 | FAIL |
+| 256-d soft bottleneck | HS32 3,840→256→3,840 latent와 training-only finding/value auxiliary head | paired effect -0.001137 / -0.001476 / +0.001433 | FAIL |
+| frozen-z evaluation | decoder를 고정한 채 learned latent의 finding/value/counterfactual state 평가 | finding F1 delta -0.0009 / -0.0007 / -0.0016 | FAIL |
+
+- OOF teacher는 deletion activation에서 absent label을 대량 추가해 stable target builder가 되지 못했습니다.
+- Bottleneck auxiliary objective는 3 seed 방향 일치와 최소 효과 `0.005`를 충족하지 못했습니다.
+- 자유문장 target과 pairwise ranking만의 문제가 아니라 latent organization을 바꿔도 개선이 재현되지 않았습니다.
+
+---
+
+## Slide 27. Public AR reconstruction diagnostic
 
 > Released `kitft/nla-gemma3-12b-L32-ar`, validation-only, arm당 n=20
 
@@ -837,11 +827,31 @@ typical disease template.
 
 ---
 
+## Slide 28. RQ3 상태: 왜 아직 causal intervention을 열지 않았는가?
+
+### RQ3에 필요한 선행 조건
+
+1. RQ1: 생성 설명이 clinical reference와 정렬됨
+2. RQ2: matched activation 및 counterfactual change에 선택적으로 반응함
+3. AR: 설명을 복원했을 때 own activation을 shuffled activation보다 구분함
+
+### 현재 상태
+
+| gate | result |
+|---|---|
+| RQ1 alignment | Full-data SFT Obscomp 0.0301 / 0.0296, Source CoT 0.2130에 미달 |
+| RQ2 specificity | changed-cue ranking 및 anchored objective 모두 3-seed gate 실패 |
+| public AR positive control | matched-minus-shuffled cosine 약 0 |
+
+> 이 상태에서 설명을 편집해 source model 행동 변화를 측정하면 grounded intervention인지 language prior 조작인지 구분할 수 없습니다. 따라서 Table 4/Figure 4는 `not run`으로 남깁니다.
+
+---
+
 # Part IV. Conclusion
 
 ---
 
-## Slide 26. 현재 RQ별 답
+## Slide 29. 현재 RQ별 답
 
 ### Gate 0. Activation에 임상 정보가 존재하는가?
 
@@ -879,7 +889,7 @@ typical disease template.
 
 ---
 
-## Slide 27. 논문 표 완성 현황
+## Slide 30. 논문 표 완성 현황
 
 ### Table 1A. Backbone behavior
 
@@ -929,7 +939,7 @@ typical disease template.
 
 ---
 
-## Slide 28. 지금 검토 중인 다음 방법
+## Slide 31. 지금 검토 중인 다음 방법
 
 ### 왜 free-paragraph SFT를 더 반복하지 않는가?
 
@@ -1006,7 +1016,7 @@ constrained text renderer
 
 ---
 
-## Slide 29. 교수님께 확인받을 결정
+## Slide 32. 교수님께 확인받을 결정
 
 ### 결정 1. 논문의 중심 프레이밍
 
@@ -1032,7 +1042,7 @@ constrained text renderer
 
 ---
 
-## Slide 30. 결론
+## Slide 33. 결론
 
 1. **정보는 있습니다.** DDXPlus locked probe에서 finding F1 0.9562, value accuracy 0.7659입니다.
 2. **환자별 정보입니다.** 같은 진단 내 shuffle gap이 +0.1624와 +0.1868입니다.
@@ -1045,6 +1055,37 @@ constrained text renderer
 ---
 
 # Appendix
+
+---
+
+## Appendix A0. Direct-vs-CoT 171-case pilot와 McNemar
+
+> 이 결과는 protocol freeze 전에 분석한 exploratory population입니다. 최종 72/106 confirmatory Table 1A를 대신하지 않습니다.
+
+| condition | n | parse | strict PDD | category | token F1 |
+|---|---:|---:|---:|---:|---:|
+| Direct | 171 | 1.0000 | 0.2105 | 0.5029 | 0.1593 |
+| CoT | 171 | 1.0000 | 0.1930 | 0.5088 | 0.1850 |
+
+### Strict PDD paired outcomes
+
+| Direct | CoT | n | McNemar 사용 여부 |
+|---|---|---:|---|
+| correct | correct | 26 | 사용하지 않음 |
+| correct | wrong | 10 | Direct-only discordance |
+| wrong | correct | 7 | CoT-only discordance |
+| wrong | wrong | 128 | 사용하지 않음 |
+
+- strict PDD exact McNemar: **p = 0.6291**
+- category exact McNemar: **p = 1.0000**
+- CoT reasoning에 answer alias가 등장한 비율: **156/171 = 0.9123**
+
+### 왜 남기는가?
+
+1. CoT가 Direct보다 진단 정확도가 높아서 이후 activation/readout 결과가 좋아졌다는 대안 설명을 점검합니다.
+2. 같은 171 사례에 두 condition을 적용했으므로 독립 두 표본 검정이 아니라 paired McNemar 검정을 사용합니다.
+3. `p=0.6291`은 두 방법이 동일하다는 증명이 아니라, 10 대 7 discordance로 차이를 주장할 근거가 부족하다는 뜻입니다.
+4. 최종 논문의 중심 결과는 아니므로 본문이 아니라 보조 통제로만 보고합니다.
 
 ---
 
