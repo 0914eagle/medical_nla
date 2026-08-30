@@ -5,9 +5,11 @@ set -euo pipefail
 
 DATA_ROOT="${DATA_ROOT:?Set DATA_ROOT to /data/heejae or /data1/heejae}"
 D10_DECISION="${D10_DECISION:?Set final D10 decision record}"
+D20_DECISION="${D20_DECISION:?Set final D20 decision record}"
 FINAL_RECIPE="${FINAL_RECIPE:?Set final recipe JSON}"
-PROBE_CONTROL_PROTOCOL="${PROBE_CONTROL_PROTOCOL:?Set approved probe control JSON}"
+PROBE_CONTROL_PROTOCOL="${PROBE_CONTROL_PROTOCOL:-configs/direct_locked_probe_control_v1.json}"
 EXPECTED_D10_DECISION_SHA256="${EXPECTED_D10_DECISION_SHA256:?Set D10 record SHA256}"
+EXPECTED_D20_DECISION_SHA256="${EXPECTED_D20_DECISION_SHA256:?Set D20 record SHA256}"
 EXPECTED_FINAL_RECIPE_SHA256="${EXPECTED_FINAL_RECIPE_SHA256:?Set recipe SHA256}"
 EXPECTED_PROBE_CONTROL_SHA256="${EXPECTED_PROBE_CONTROL_SHA256:?Set probe-control SHA256}"
 EXPECTED_ACTOR_PROMPT_SHA256="${EXPECTED_ACTOR_PROMPT_SHA256:?Set vanilla prompt SHA256}"
@@ -33,7 +35,8 @@ JUDGE="${DATA_ROOT}/models/Meta-Llama-3-8B-Instruct/original"
 MANIFEST_ALL="${DIRECT}/manifests/direct_canonical_v3_private.jsonl"
 
 for path in \
-  "${D10_DECISION}" "${FINAL_RECIPE}" "${PROBE_CONTROL_PROTOCOL}" \
+  "${D10_DECISION}" "${D20_DECISION}" "${FINAL_RECIPE}" \
+  "${PROBE_CONTROL_PROTOCOL}" \
   "${SPLITS}/protocol.json" "${SPLITS}/test_seen.jsonl" \
   "${SPLITS}/test_pdd_heldout.jsonl" "${MANIFEST_ALL}"; do
   test -s "${path}" || { echo "[error] missing ${path}" >&2; exit 2; }
@@ -50,6 +53,7 @@ hash_matches() {
   }
 }
 hash_matches "${D10_DECISION}" "${EXPECTED_D10_DECISION_SHA256}" "D10 decision"
+hash_matches "${D20_DECISION}" "${EXPECTED_D20_DECISION_SHA256}" "D20 decision"
 hash_matches "${FINAL_RECIPE}" "${EXPECTED_FINAL_RECIPE_SHA256}" "final recipe"
 hash_matches "${PROBE_CONTROL_PROTOCOL}" "${EXPECTED_PROBE_CONTROL_SHA256}" "probe control"
 hash_matches "${SPLITS}/protocol.json" "${EXPECTED_SPLIT_PROTOCOL_SHA256}" "split protocol"

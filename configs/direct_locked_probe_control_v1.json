@@ -1,0 +1,9 @@
+{
+  "bootstrap_replicates": 10000,
+  "bootstrap_seed": 17,
+  "control_init_seed": 17,
+  "locked_test_read": false,
+  "schema_version": 1,
+  "shuffle_seed": 17,
+  "shuffle_unit": "patient_group"
+}

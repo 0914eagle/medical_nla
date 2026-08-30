@@ -151,19 +151,22 @@ DiReCT는 DDXPlus 10,028행에 포함되지 않는다. 기존
 3. HS32 Vanilla 178행을 생성한다.
 4. Source CoT와 Vanilla를 동일 claim extractor와 official evaluator로 평가해 Table 2를 만든다.
 
-실행 전 필요한 값은 D10 final decision JSON, final recipe JSON, probe-control JSON, split protocol,
-Vanilla actor prompt의 실제 SHA-256이다. 이 값이 아직 없는데 임시 JSON이나 임의 hash를 만들면
-안 된다. D10 결과가 성공인지 실패인지는 baseline 네 행의 필요성에는 영향을 주지 않지만,
-locked 72/106을 본 뒤 recipe를 바꾸지 못하도록 decision/recipe hash를 먼저 고정한다.
+실행 전 필요한 값은 D10 final decision JSON, **D20 final decision JSON**, final recipe JSON,
+probe-control JSON, split protocol, Vanilla actor prompt의 실제 SHA-256이다. 이 값이 아직 없는데
+임시 JSON이나 임의 hash를 만들면 안 된다. D10/D20 결과가 성공인지 실패인지는 baseline 네
+행의 필요성에는 영향을 주지 않지만, locked 72/106을 본 뒤 recipe를 바꾸지 못하도록 두
+decision과 recipe hash를 먼저 고정한다. Probe control은 locked 접근 전에 고정한
+`configs/direct_locked_probe_control_v1.json`을 기본값으로 사용한다.
 
 ```bash
 DATA_ROOT=/data1/heejae \
 D10_DECISION=/path/to/final_d10_decision.json \
+D20_DECISION=/path/to/final_d20_decision.json \
 FINAL_RECIPE=/path/to/final_recipe.json \
-PROBE_CONTROL_PROTOCOL=/path/to/direct_probe_control.json \
 EXPECTED_D10_DECISION_SHA256=<sha256> \
+EXPECTED_D20_DECISION_SHA256=<sha256> \
 EXPECTED_FINAL_RECIPE_SHA256=<sha256> \
-EXPECTED_PROBE_CONTROL_SHA256=<sha256> \
+EXPECTED_PROBE_CONTROL_SHA256="$(sha256sum configs/direct_locked_probe_control_v1.json | awk '{print $1}')" \
 EXPECTED_ACTOR_PROMPT_SHA256=<sha256> \
 EXPECTED_SPLIT_PROTOCOL_SHA256=<sha256> \
 GPU_PAIR=0,1 JUDGE_GPU=2 EXTRACTOR_BACKEND=codex \
