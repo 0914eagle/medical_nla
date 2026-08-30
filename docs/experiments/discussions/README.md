@@ -13,6 +13,7 @@
 
 | 상태 | 주제 | 다음 판정 |
 |---|---|---|
+| ready to run | [D22 public-AR medical-distribution diagnostic](2026-08-30-d22-public-ar-diagnostic.md) | structured reader와 Source CoT 양성 대조의 matched-over-shuffled CI 판정 |
 | resolved (FAIL) | [D10 budget calibration and program decision](2026-08-29-program-decision-after-d16.md) | budget gate FAIL 확정; 출구는 D20 결과 후 재론 |
 | resolved (FAIL) | [Specificity-anchored 2x2 objective (D20)](2026-08-30-specificity-anchored-objective.md) | teacher-forced gate FAIL; detector 차단 성공·changed-gap 신호 부재; D19/D21 ledger 행 사람 승인 대기 |
 | active | [Paper table completion](2026-08-29-paper-table-completion.md) | Vanilla protocol freeze, D10 decision, then locked baseline batch |
