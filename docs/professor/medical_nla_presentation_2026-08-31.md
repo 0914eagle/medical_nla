@@ -1137,13 +1137,21 @@ clean switch에는 포함되지 않습니다.
 - Seed17은 더 많이 읽었지만 phantom도 `.2138→.4253`으로 약 2배 증가했고 removal은 악화됐습니다.
 - Seed29 contrast는 `.1103→.1057`로 재현되지 않았습니다.
 - **진단:** unchanged token이 대부분인 sequence CE는 “많이 말하기”와 “선택적으로 반응하기”를 구분하지 못합니다.
-- **다음 변경:** matched activation에서 해당 문장의 NLL이 crossed activation보다 낮도록 pairwise ranking을 추가했습니다.
+- 이 결과만으로는 원인이 (A) decoder가 activation 자체를 거의 무시한 것인지, (B) activation은
+  사용하지만 deleted cue를 직접 비교하는 objective가 없는 것인지 구분되지 않았습니다.
+- **다음 변경:** deletion을 바로 다시 최적화하기 전에, 같은 임상 stratum의 다른 환자를 negative
+  donor로 두어 자기 문장이 자기 activation에서 더 쉬운지 검사했습니다. 즉 시도 3은 cue removal의
+  직접 해법이 아니라 **case-specific activation dependence를 확인하는 diagnostic bridge**입니다.
 
 ---
 
 ## Slide 24. 시도 3: Sentence matched/crossed contrastive learning
 
 ### 무엇을 어떻게 바꿨는가?
+
+이 실험의 질문은 `삭제 cue를 잘 없애는가?`가 아니라 `같은 질환의 서로 다른 환자 activation을
+구별해 자기 문장에 사용하는가?`입니다. 시도 2의 실패 원인이 activation 무시인지 cue-local objective
+부재인지 분리하기 위한 중간 진단이며, 이 단계에는 original/deleted activation 비교가 없습니다.
 
 같은 임상 stratum 안에서 환자 A의 activation과 target 문장을 짝지었습니다. 여기서 stratum은
 두 데이터셋에서 동일한 필드가 아니라, 사전에 사용 가능한 가장 구체적인 그룹 키입니다.
@@ -1156,6 +1164,11 @@ clean switch에는 포함되지 않습니다.
 따라서 DDXPlus도 묶을 수 있었지만 `disease_category`로 묶은 것이 아니라 dataset이 제공하는
 gold `diagnosis_id`로 묶었습니다. 각 source 안에서만 pair를 만들고, DDXPlus 환자와 DiReCT
 환자를 서로 cross하지 않았습니다.
+
+같은 stratum으로 제한하면 두 환자가 공유하는 disease template는 matched와 crossed 양쪽에서
+비슷하게 작동합니다. 따라서 양의 gap을 만들려면 모델이 질환 이름만이 아니라 환자별 activation
+차이를 이용해야 합니다. 반대로 generic disease template만 말하면 두 NLL이 비슷해 gap이 0에
+가까워집니다.
 
 - `matched`: `NLL(y_A | h_A)`
 - `crossed`: `NLL(y_A | h_B)`, B는 같은 source와 같은 stratum의 다른 환자
@@ -1251,7 +1264,9 @@ gap     = crossed - matched
   소급 적용하지 않습니다. 중단 근거는 primary CI 실패와 warm-start baseline 비개선입니다.
 - 따라서 validation text generation과 locked evaluation으로 승격하지 않고 이 branch를 종료했습니다.
 - 문장 전체 NLL에는 길이, 문체, target 자체의 난이도가 섞여 환자별 finding 신호를 희석합니다.
-- **다음 변경:** 전체 문장 대신 deletion으로 실제 바뀐 **한 개 cue claim**만 original/deleted activation에서 비교했습니다.
+- **다음 변경:** 시도 3이 case-level dependence를 강화하지 못했으므로, 다른 환자의 전체 문장 비교를
+  버리고 같은 환자에서 deletion으로 실제 바뀐 **한 개 cue claim**만 original/deleted activation
+  사이에서 직접 비교했습니다. Cue deletion을 직접 겨냥한 첫 pairwise objective는 시도 4입니다.
 
 ---
 
