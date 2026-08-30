@@ -13,8 +13,8 @@ if [[ "${DATA_ROOT}" != "/data1/heejae" ]]; then
   echo "[error] this wrapper is frozen for server 125 (/data1/heejae)" >&2
   exit 2
 fi
-if [[ "${MODE}" != "prepare" && "${MODE}" != "run" && "${MODE}" != "finalize" && "${MODE}" != "all" ]]; then
-  echo "[error] MODE must be prepare, run, finalize, or all" >&2
+if [[ "${MODE}" != "prepare" && "${MODE}" != "run" && "${MODE}" != "repair" && "${MODE}" != "finalize" && "${MODE}" != "all" ]]; then
+  echo "[error] MODE must be prepare, run, repair, finalize, or all" >&2
   exit 2
 fi
 
@@ -57,12 +57,58 @@ if [[ "${MODE}" == "run" || "${MODE}" == "all" ]]; then
     --timeout 300
 fi
 
-if [[ "${MODE}" == "finalize" || "${MODE}" == "all" ]]; then
+if [[ "${MODE}" == "repair" ]]; then
   test -s "${OUT}/judgements.jsonl" || { echo "[error] run judge first" >&2; exit 2; }
+  mkdir -p "${OUT}/retries"
+  current="${OUT}/judgements.jsonl"
+  for attempt in 1 2 3; do
+    retry_requests="${OUT}/retries/retry_requests_${attempt}.jsonl"
+    audit_report="${OUT}/retries/audit_${attempt}.json"
+    python scripts/audit_sft_family_raw_outputs.py audit-ddxplus-judgements \
+      --private-bundle "${OUT}/private_bundle.jsonl" \
+      --requests "${OUT}/requests.jsonl" \
+      --judgements "${current}" \
+      --retry-requests "${retry_requests}" \
+      --report "${audit_report}"
+    invalid="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["invalid"])' "${audit_report}")"
+    if [[ "${invalid}" -eq 0 ]]; then
+      cp "${current}" "${OUT}/judgements_validated.jsonl"
+      break
+    fi
+    echo "[repair] attempt=${attempt} invalid=${invalid}"
+    retry_judgements="${OUT}/retries/retry_judgements_${attempt}.jsonl"
+    python scripts/run_judge.py \
+      --requests "${retry_requests}" \
+      --out "${retry_judgements}" \
+      --backend codex \
+      --model "${JUDGE_MODEL}" \
+      --timeout 300
+    merged="${OUT}/retries/judgements_merged_${attempt}.jsonl"
+    python scripts/merge_semantic_judgement_shards.py \
+      --requests "${OUT}/requests.jsonl" \
+      --judgement "${current}" \
+      --replacement-judgement "${retry_judgements}" \
+      --output "${merged}" \
+      --expected-model "${JUDGE_MODEL}" \
+      --report "${OUT}/retries/merge_${attempt}.json"
+    current="${merged}"
+  done
+  test -s "${OUT}/judgements_validated.jsonl" || {
+    echo "[error] invalid DDXPlus judge responses remain after three repairs" >&2
+    exit 1
+  }
+fi
+
+if [[ "${MODE}" == "finalize" || "${MODE}" == "all" ]]; then
+  judgement_path="${OUT}/judgements_validated.jsonl"
+  if [[ ! -s "${judgement_path}" ]]; then
+    judgement_path="${OUT}/judgements.jsonl"
+  fi
+  test -s "${judgement_path}" || { echo "[error] run judge first" >&2; exit 2; }
   echo "[stage 3/3] validate quotes and emit aggregate-only summary"
   python scripts/audit_sft_family_raw_outputs.py finalize-ddxplus \
     --private-bundle "${OUT}/private_bundle.jsonl" \
-    --judgements "${OUT}/judgements.jsonl" \
+    --judgements "${judgement_path}" \
     --out-dir "${OUT}"
 fi
 

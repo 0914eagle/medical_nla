@@ -861,6 +861,78 @@ def finalize_ddxplus(args: argparse.Namespace) -> None:
     print((args.out_dir / "summary.md").read_text(encoding="utf-8"))
 
 
+def audit_ddxplus_judgements(args: argparse.Namespace) -> dict[str, Any]:
+    private = {str(row["id"]): row for row in read_jsonl(args.private_bundle)}
+    requests = {str(row["id"]): row for row in read_jsonl(args.requests)}
+    judgements = {str(row["id"]): row for row in read_jsonl(args.judgements)}
+    if set(private) != set(requests):
+        raise ValueError("DDXPlus request population does not match private bundle")
+    invalid = []
+    retry = []
+    for request_id in sorted(private):
+        source = private[request_id]
+        judgement = judgements.get(request_id)
+        error = None
+        try:
+            if judgement is None:
+                raise ValueError("missing judgement")
+            cohort = str(source["cohort"])
+            fields = DELETION_FIELDS if cohort == "deletion" else VALUE_FIELDS
+            parsed = extract_json_object(judgement.get("response"))
+            items = {str(item.get("opaque_id")): item for item in parsed.get("items") or []}
+            expected = {str(item["opaque_id"]): item for item in source["methods"]}
+            if set(items) != set(expected):
+                raise ValueError("opaque method population mismatch")
+            for opaque_id, method in expected.items():
+                item = items[opaque_id]
+                quote_map = item.get("supporting_quotes") or {}
+                texts = list(method["outputs"].values())
+                for field in fields:
+                    value = bool(item.get(field))
+                    quotes = [str(quote) for quote in quote_map.get(field) or []]
+                    if value and not quotes:
+                        raise ValueError(f"true {field} lacks a quote for {opaque_id}")
+                    validate_quotes(texts, quotes, f"{request_id}/{opaque_id}/{field}")
+        except Exception as exc:  # noqa: BLE001 - enumerate every invalid response
+            error = f"{type(exc).__name__}: {exc}"
+        if error is None:
+            continue
+        invalid.append({"id": request_id, "error": error})
+        previous = "" if judgement is None else str(judgement.get("response") or "")
+        retry_prompt = str(requests[request_id]["prompt"]) + f"""
+
+<retry_correction>
+The previous response was invalid: {error}
+Previous response:
+{previous}
+
+Return a corrected JSON object. Copy every supporting quote character-for-character
+as one exact contiguous substring of the corresponding output, including spaces and
+punctuation. Every true field needs a quote under that same field. If no exact quote
+exists, set the field to false. Preserve every required opaque_id exactly.
+</retry_correction>"""
+        retry.append({"id": request_id, "prompt": retry_prompt})
+    write_jsonl(args.retry_requests, retry)
+    report = {
+        "schema_version": 1,
+        "requests": len(requests),
+        "judgements": len(judgements),
+        "valid": len(requests) - len(invalid),
+        "invalid": len(invalid),
+        "invalid_requests": invalid,
+        "retry_requests": str(args.retry_requests),
+    }
+    args.report.parent.mkdir(parents=True, exist_ok=True)
+    args.report.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    print(
+        f"[audit-ddxplus-judgements] valid={report['valid']} "
+        f"invalid={report['invalid']} retry={args.retry_requests}"
+    )
+    return report
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -892,6 +964,13 @@ def main() -> None:
     audit_direct.add_argument("--retry-requests", required=True, type=Path)
     audit_direct.add_argument("--report", required=True, type=Path)
 
+    audit_ddx = sub.add_parser("audit-ddxplus-judgements")
+    audit_ddx.add_argument("--private-bundle", required=True, type=Path)
+    audit_ddx.add_argument("--requests", required=True, type=Path)
+    audit_ddx.add_argument("--judgements", required=True, type=Path)
+    audit_ddx.add_argument("--retry-requests", required=True, type=Path)
+    audit_ddx.add_argument("--report", required=True, type=Path)
+
     final_ddx = sub.add_parser("finalize-ddxplus")
     final_ddx.add_argument("--private-bundle", required=True, type=Path)
     final_ddx.add_argument("--judgements", required=True, type=Path)
@@ -906,6 +985,8 @@ def main() -> None:
         finalize_direct(args)
     elif args.command == "audit-direct-judgements":
         audit_direct_judgements(args)
+    elif args.command == "audit-ddxplus-judgements":
+        audit_ddxplus_judgements(args)
     else:
         finalize_ddxplus(args)
 
