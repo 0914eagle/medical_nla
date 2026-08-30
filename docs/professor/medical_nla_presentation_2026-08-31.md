@@ -1244,10 +1244,15 @@ gap     = crossed - matched
 
 | objective | symmetric cross-minus-matched | cluster 95% CI | matched win |
 |---|---:|---:|---:|
+| Full-data SFT seed29, warm-start baseline | **+.0051** | **[+.0011,+.0091]** | **.7333** |
 | lambda=.1 | +.0013 | [-.0006,+.0033] | .5556 |
 | lambda=1 | +.0022 | [-.0010,+.0055] | .5778 |
 | SFT=1, lambda=5 | **+.0051** | [+.0011,+.0099] | .5333 |
 | SFT=0, lambda=1 | +.0030 | [+.0003,+.0057] | **.6444** |
+
+첫 행은 contrastive update를 적용하기 전 시도 1의 full-data SFT seed29 checkpoint를 같은
+DiReCT validation 45 pairs로 평가한 값입니다. 따라서 아래 네 행은 절대 gap이 양수인지뿐 아니라
+이 SFT baseline의 `+.0051/.7333`을 실제로 개선했는지와 함께 읽어야 합니다.
 
 ### 문제와 다음 변경
 
