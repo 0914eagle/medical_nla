@@ -506,8 +506,9 @@ def evaluate(args: argparse.Namespace) -> None:
         "",
         "| dataset/arm | n | A1 same-diff | A2 centered gap [cluster CI] | "
         "A3 FVE | A4 same-diff donor | A5 top1 | A5 MRR | A5 median rank | "
-        "A5 mean candidates | A5 top1-minus-chance [cluster CI] |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+        "A5 mean candidates | A5 top1-minus-chance [cluster CI] | "
+        "A5 MRR-minus-chance [cluster CI] |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|",
     ]
     for key, item in arms.items():
         a2_ci = item["a2"]["diagnosis_cluster_bootstrap_95_ci"]
@@ -520,7 +521,10 @@ def evaluate(args: argparse.Namespace) -> None:
             f"{item['a5']['mean_candidate_count']:.1f} | "
             f"{item['a5']['top1_minus_chance']['mean']:+.4f} "
             f"[{item['a5']['top1_minus_chance']['diagnosis_cluster_bootstrap_95_ci'][0]:+.4f}, "
-            f"{item['a5']['top1_minus_chance']['diagnosis_cluster_bootstrap_95_ci'][1]:+.4f}] |"
+            f"{item['a5']['top1_minus_chance']['diagnosis_cluster_bootstrap_95_ci'][1]:+.4f}] | "
+            f"{item['a5']['mrr_minus_chance']['mean']:+.4f} "
+            f"[{item['a5']['mrr_minus_chance']['diagnosis_cluster_bootstrap_95_ci'][0]:+.4f}, "
+            f"{item['a5']['mrr_minus_chance']['diagnosis_cluster_bootstrap_95_ci'][1]:+.4f}] |"
         )
     lines.extend(["", "## Positive-Control Gates", ""])
     for key, item in controls.items():

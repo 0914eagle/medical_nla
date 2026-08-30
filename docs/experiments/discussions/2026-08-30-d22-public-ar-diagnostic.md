@@ -141,22 +141,37 @@ AV reward accepted는 `False`였다.
 **보고 누락 정정:** 위 최초 표는 사전 등록한 A5 candidate count를 Markdown에 렌더링하지
 않았다. Row-level count, arm별 `mean_candidate_count`, top-1-minus-chance와 MRR-minus-chance
 CI는 기존 `results.json`에 보존돼 있어 계산 누락은 아니지만 보고 누락은 맞다. Renderer는
-mean candidate count와 top-1-minus-chance cluster CI를 출력하도록 수정했다. 이 두 열을
-aggregate artifact에서 backfill하기 전에는 위 표를 paper-ready 표로 사용하지 않는다.
+mean candidate count와 두 chance-adjusted cluster CI를 출력하도록 수정했다. 기존 aggregate
+artifact에서 backfill한 값은 다음과 같다.
+
+| dataset/arm | mean candidates | top-1 minus chance [cluster CI] | MRR minus chance [cluster CI] |
+|---|---:|---:|---:|
+| DDXPlus structured reader | 95.85 | -.0113 [-.0141, -.0100] | -.0250 [-.0382, -.0085] |
+| DiReCT direct-only seed17 | 3.95 | -.0275 [-.2011, +.0980] | -.0028 [-.1137, +.0842] |
+| DiReCT direct-only seed29 | 4.00 | +.0308 [-.1292, +.1716] | +.0375 [-.0643, +.1296] |
+| DiReCT direct-only seed43 | 4.00 | +.0692 [-.0698, +.2108] | +.0508 [-.0613, +.1573] |
+| DiReCT full-data seed17 | 4.05 | -.1225 [-.2247, +.0343] | -.0830 [-.1598, +.0185] |
+| DiReCT full-data seed29 | 3.75 | +.0075 [-.1000, +.1007] | +.0113 [-.0624, +.0754] |
+| DiReCT source CoT | 3.95 | +.1250 [-.0194, +.2941] | +.0858 [+.0044, +.1826] |
+| DiReCT vanilla | 3.75 | +.1533 [+.0088, +.3262] | +.0972 [+.0333, +.1833] |
 
 양성 대조가 일치하지 않았다. DDXPlus structured reader는 A2/A3/A5를 모두 통과하지
-못했고, DiReCT source CoT는 A2와 A5만 통과했지만 A3 FVE가 `-109.3544`였다. 따라서
+못했고, DiReCT source CoT는 A2와 A5만 통과했지만 A5는 top-1이 아니라
+MRR-minus-chance CI 하한 `+.0044`로 통과했고 A3 FVE는 `-109.3544`였다. 따라서
 공개 AR를 의료 분포의 일반적인 reconstruction 측정기나 AV reward로 사용하지 않는다.
 이 결과는 AR를 사용하지 않는 supervised prefix mapper를 막지는 않으며, 해당 경로의
 선행 geometry 기록 조건은 이 음성/불일치 결과로 완료된 것으로 본다.
 
 DiReCT Vanilla가 A2 `+.0696`, top-1 `.4500`, FVE `-19.7012`로 다른 open-text arm보다
-겉보기에는 가장 높았다는 점도 별도 이상치로 남긴다. 이 출력은 기존 semantic 평가에서
-환자 finding을 복원하지 못했으므로 이를 임상 정보 복원으로 해석하지 않는다. 작은
-diagnosis stratum에서의 chance 수준, 출력 길이·문체와 activation geometry의 nuisance
-상관, 또는 공개 AR의 text-distribution 선호가 가능한 설명이지만 어느 것도 이 audit으로
-식별되지 않았다. 따라서 Vanilla 행은 report-only anomaly이며 positive control이나
-Medical-NLA 성공 근거로 사용하지 않는다.
+높았다는 점도 별도 이상치로 남긴다. 평균 후보 수는 `3.75`였지만 top-1-minus-chance
+`+.1533`의 cluster CI `[+.0088,+.3262]`와 MRR-minus-chance `+.0972`의 CI
+`[+.0333,+.1833]`가 모두 0을 배제하므로 단순히 작은 후보군의 chance 성능으로 설명할
+수는 없다. 다만 이 출력은 기존 semantic 평가에서 환자 finding을 복원하지 못했고 FVE도
+큰 음수이므로, 이 결과가 보이는 것은 임상 claim 복원이 아니라 case-discriminative한 어떤
+텍스트 신호가 공개 AR geometry와 정렬됐다는 것뿐이다. 출력 길이·문체 같은 nuisance
+상관, activation-dependent이지만 ontology 밖인 내용, 공개 AR의 text-distribution 선호가
+가능한 설명이나 이 audit은 원인을 식별하지 않는다. 따라서 Vanilla 행은 report-only
+anomaly이며 positive control이나 Medical-NLA 성공 근거로 사용하지 않는다.
 
 ### Medical-AR 학습 위치 제약 (사전 결정 필요)
 
