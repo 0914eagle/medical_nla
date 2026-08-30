@@ -16,7 +16,7 @@
 | resolved (FAIL) | [D10 budget calibration and program decision](2026-08-29-program-decision-after-d16.md) | budget gate FAIL 확정; 출구는 D20 결과 후 재론 |
 | ready to run | [Specificity-anchored 2x2 objective (D20)](2026-08-30-specificity-anchored-objective.md) | same-seed gate·SHA 승인 완료; RunPod 1,552-step 3-seed 실행 |
 | active | [Paper table completion](2026-08-29-paper-table-completion.md) | Vanilla protocol freeze, D10 decision, then locked baseline batch |
-| active | [DDXPlus open-text semantic mapper protocol](2026-08-30-ddxplus-semantic-mapper-protocol.md) | sealed generation과 validation-only G1-G4를 병렬 실행한 뒤 scoring receipt 동결 |
+| ready to run | [DDXPlus open-text semantic mapper protocol](2026-08-30-ddxplus-semantic-mapper-protocol.md) | 구현 완료; sealed generation과 validation-only G1-G4를 병렬 실행한 뒤 scoring receipt 동결 |
 | ready to run | [Locked baseline execution runbook](2026-08-30-locked-baseline-execution.md) | DDXPlus HS32 -> sealed 10,028 generation; D10 뒤 DiReCT 178 batch |
 | proposal | [Paper tables under a successful Medical-NLA](2026-08-29-paper-tables-success-scenario.md) | conditional table structure approval |
 | active | [Paper table values and reproducibility](2026-08-29-paper-table-values-and-reproducibility.md) | canonical values, denominators, recipes, provenance audit |

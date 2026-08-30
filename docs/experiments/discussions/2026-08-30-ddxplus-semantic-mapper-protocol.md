@@ -1,6 +1,6 @@
 # DDXPlus open-text semantic mapper/scorer protocol
 
-현재 통제 상태: **구현 승인 / validation gate 대기 / sealed locked generation 허용 / semantic scoring 금지**. 2026-08-30
+현재 통제 상태: **구현 완료 / validation G1-G4 실행 가능 / sealed locked generation 허용 / receipt 전 semantic scoring 금지**. 2026-08-30
 사람 결정으로 G4의 사람 감사를 제거하고 아래의 독립 AI concordance gate로 대체했다.
 
 ## 질문
@@ -39,29 +39,32 @@ generation을 시작하지 않는다(Lane A 순서).
 
 - **Frozen alias table**에 대한 정규화 문자열 매칭: (a) official train에서
   만든 evidence별 modal exact phrase(structured reader lexicon 재사용),
-  (b) DDXPlus 배포 메타데이터의 evidence question/name 문자열, (c) 사전
-  고정한 표기 변형(대소문자, 관사, 단·복수).
-- Hit이면 해당 evidence ID로 확정하고 Stage 2에 보내지 않는다.
+  (b) DDXPlus 배포 메타데이터의 단순 evidence question에서 결정론적으로
+  추출한 phrase. Ambiguous normalized alias는 제외하며 수동 동의어는 쓰지 않는다.
+- Boundary-safe hit을 모두 해당 evidence ID로 확정한다. Lexical mapping이 없는
+  claim만 Stage 2에 보낸다.
 - Multi-value evidence(6종)는 value 문자열 매칭 표를 같은 방식으로 둔다.
 
 ### Stage 2 — LLM semantic mapper (잔여 claim만)
 
-- 입력: claim 텍스트 하나 + 91 evidence 후보 목록(이름/설명) + `none` 옵션.
-- 출력 계약(DiReCT extractor와 동형): JSON only —
-  `{"evidence_id": <id 또는 null>, "value": <native value 또는 null>,
-  "supporting_quote": <claim 원문 내 연속 인용>}`.
+- 입력: opaque claim ID가 붙은 고정 크기 claim batch + 91 evidence 후보 목록.
+- 출력 계약: JSON only이며 claim마다 0개 이상의
+  `(evidence_id, value_id 또는 null, supporting_quote)` mapping 배열을 반환한다.
+  한 claim이 여러 evidence를 명시하면 모두 보존한다.
 - 후처리 validator가 quote의 원문 존재를 검증하고, 실패 시 null 처리.
 - Backend는 DiReCT extractor와 동일 계열(Codex CLI). 실제 model ID는 runtime
   judgement metadata에서 읽어 provenance에 기록한다(추정 금지 — 수치 원장
   §5.3 규칙).
-- Temperature 0, claim별 판정은 `SHA256(claim_text)` key로 캐시해 재실행
-  결정론을 보장한다.
+- Backend가 허용하는 deterministic 설정을 사용하고, claim별 판정은 claim,
+  ontology/alias/prompt hash, 실제 model ID를 묶은 protocol-bound SHA-256 key로
+  캐시한다. Cache replay의 결정론과 cold LLM agreement는 구분해 보고한다.
 
 ### 집계 규칙
 
-- Claim → evidence ID는 다대일 허용, 사례 수준에서는 set으로 dedupe.
-- Stage 1 확정이 Stage 2에 우선하며, 한 claim은 최대 한 evidence ID에만
-  매핑된다.
+- Claim → evidence ID는 다중 매핑을 허용하고, 사례 수준에서는 evidence set으로
+  dedupe한다.
+- Stage 1 확정이 Stage 2에 우선하며, claim당 evidence 수를 1개로 제한하지
+  않는다.
 - 이렇게 만든 per-case predicted evidence set/value를 **structured reader와
   같은 metric 코드**에 넣는다 — metric 정의를 재구현하지 않는다.
 
@@ -332,6 +335,37 @@ D18로 좁혀졌다. Prompt/model/decoding/HS32 population을 동결한 generati
 구현 entry point는 `run_ddxplus_vanilla_hs32_locked_activations_4gpu.sh`,
 `run_ddxplus_vanilla_locked_generation_4gpu.sh`,
 `score_ddxplus_vanilla_locked_from_seal.sh` 세 개다.
+
+## 구현 및 validation 실행 (2026-08-30)
+
+합의한 계약은 다음 파일에 구현한다.
+
+- `src/ddxplus_semantic_mapping.py`: Stage 0/1, protocol-bound cache key,
+  quote/ontology/value validator, batched response parser
+- `scripts/freeze_ddxplus_semantic_mapper.py`: train/release-derived alias,
+  91-ID ontology, prompt와 gate protocol 동결
+- `scripts/audit_ddxplus_semantic_mapper.py`: validation-only G1-G4와 receipt
+- `scripts/score_ddxplus_semantic_readouts.py`: 같은 mapper를 `selected_claims`
+  schema로 변환하고 structured-reader의 `evaluate_readouts`를 직접 재사용
+- `scripts/run_ddxplus_semantic_mapper_validation_125.sh`: primary/auditor queue
+
+Validation queue는 locked generation과 독립적이며 server 125에서 병렬 실행한다.
+두 model ID는 실제 Codex 설치에서 사용 가능한 서로 다른 비-Gemma 모델로 실행 전에
+명시해야 한다.
+
+```bash
+DATA_ROOT=/data1/heejae \
+MODE=prepare \
+nohup bash scripts/run_ddxplus_semantic_mapper_validation_125.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_semantic_mapper_validation_v1.log 2>&1 &
+```
+
+먼저 `audit/dry_run_report.json`에서 잔여 unique claim, request 수와 입력 문자 수를
+확인한다. 문제가 없으면 `MODE=run`과 실제 서로 다른 비-Gemma
+`PRIMARY_MODEL`/`AUDITOR_MODEL`을 지정해 G1-G4를 실행한다. 이
+queue는 validation structured-reader 전 행, same-diagnosis hard pairs와 기존
+validation Vanilla 50행만 읽는다. `semantic_mapper_freeze_receipt.json`의 네 gate가
+모두 pass하기 전에는 sealed locked 출력의 mapping/집계를 실행하지 않는다.
 
 ## 순서 수정 (사람 제안, 2026-08-30): 봉인 생성 병렬화
 

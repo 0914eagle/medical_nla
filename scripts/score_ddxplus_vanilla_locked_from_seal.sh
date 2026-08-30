@@ -12,6 +12,9 @@ SEMANTIC_SCORER="${SEMANTIC_SCORER:?Set the frozen semantic scorer script}"
 EXPECTED_SEMANTIC_PROTOCOL_SHA256="${EXPECTED_SEMANTIC_PROTOCOL_SHA256:?Set protocol SHA256}"
 EXPECTED_SEMANTIC_SCORER_SHA256="${EXPECTED_SEMANTIC_SCORER_SHA256:?Set scorer SHA256}"
 OUT="${OUT:?Set a new locked semantic scoring output directory}"
+PRIMARY_MODEL="${PRIMARY_MODEL:?Set the primary mapper model frozen in the receipt}"
+CODEX_CMD="${CODEX_CMD:-codex}"
+HARD_PAIRS="${HARD_PAIRS:?Set the frozen locked-test hard-shuffle pairs}"
 
 cd /home/eagle0914/medical_nla
 source "${DATA_ROOT}/uv/medical_nla/bin/activate"
@@ -20,7 +23,7 @@ source scripts/env.sh "${DATA_ROOT}"
 export PYTHONPATH=/home/eagle0914/medical_nla
 
 for path in "${GENERATION_SEAL}" "${MAPPER_RECEIPT}" \
-  "${SEMANTIC_PROTOCOL}" "${SEMANTIC_SCORER}"; do
+  "${SEMANTIC_PROTOCOL}" "${SEMANTIC_SCORER}" "${HARD_PAIRS}"; do
   test -s "${path}" || { echo "[error] missing ${path}" >&2; exit 2; }
 done
 actual_protocol_hash="$(sha256sum "${SEMANTIC_PROTOCOL}" | awk '{print $1}')"
@@ -57,16 +60,42 @@ PY
 )"
 
 mkdir -p "${OUT}"
-python "${SEMANTIC_SCORER}" \
+python "${SEMANTIC_SCORER}" prepare \
   --readouts "${readout}" \
+  --protocol "${SEMANTIC_PROTOCOL}" \
+  --population locked_test \
+  --out-dir "${OUT}"
+if [[ -s "${OUT}/semantic_requests.jsonl" ]]; then
+  python scripts/run_judge.py \
+    --requests "${OUT}/semantic_requests.jsonl" \
+    --out "${OUT}/semantic_judgements.jsonl" \
+    --backend codex --model "${PRIMARY_MODEL}" --codex-cmd "${CODEX_CMD}" \
+    --timeout 300
+else
+  : > "${OUT}/semantic_judgements.jsonl"
+fi
+readout_hash="$(python - "${GENERATION_SEAL}" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["readout"]["sha256"])
+PY
+)"
+python "${SEMANTIC_SCORER}" finalize \
+  --prepared-items "${OUT}/prepared_items.jsonl" \
+  --requests "${OUT}/semantic_requests.jsonl" \
+  --judgements "${OUT}/semantic_judgements.jsonl" \
   --manifest "${manifest}" \
   --protocol "${SEMANTIC_PROTOCOL}" \
   --mapper-receipt "${MAPPER_RECEIPT}" \
+  --hard-pairs "${HARD_PAIRS}" \
+  --readouts-sha256 "${readout_hash}" \
+  --population locked_test \
   --out-dir "${OUT}"
 test -s "${OUT}/results.json" || {
   echo "[error] scorer did not write ${OUT}/results.json" >&2
   exit 2
 }
 sha256sum "${GENERATION_SEAL}" "${MAPPER_RECEIPT}" "${SEMANTIC_PROTOCOL}" \
-  "${SEMANTIC_SCORER}" "${OUT}/results.json" > "${OUT}/scoring_receipt.sha256"
+  "${SEMANTIC_SCORER}" "${OUT}/semantic_judgements.jsonl" \
+  "${OUT}/semantic_decisions.jsonl" "${OUT}/results.json" \
+  > "${OUT}/scoring_receipt.sha256"
 echo "[done] locked semantic scores: ${OUT}"

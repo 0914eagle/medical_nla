@@ -91,23 +91,53 @@ cat "$OUT/population_validation.json"
 
 Mapper 구현이 만든 validation-only receipt와 frozen scorer가 준비된 뒤에만 실행한다.
 
+Mapper validation은 A1 generation과 병렬로 server 125에서 실행할 수 있다.
+
+```bash
+DATA_ROOT=/data1/heejae \
+MODE=prepare \
+nohup bash scripts/run_ddxplus_semantic_mapper_validation_125.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_semantic_mapper_validation_v1.log 2>&1 &
+```
+
+`audit/dry_run_report.json`의 잔여 claim/request 규모를 확인한 뒤 `MODE=run`과
+실제 서로 다른 비-Gemma `PRIMARY_MODEL`/`AUDITOR_MODEL`을 지정하면
+primary/cold/auditor mapping과 receipt 생성까지 실행한다.
+
+완료 후 `summary.md`와 receipt를 확인한다.
+
+```bash
+MAP=/data1/heejae/medical_nla/results/ddxplus_semantic_mapper_validation_v1
+cat "$MAP/summary.md"
+python scripts/validate_semantic_mapper_freeze_receipt.py \
+  --receipt "$MAP/semantic_mapper_freeze_receipt.json" \
+  --expected-protocol-sha256 "$(sha256sum "$MAP/frozen/semantic_protocol.json" | awk '{print $1}')"
+```
+
+네 gate가 모두 pass한 경우에만 아래 locked scoring을 실행한다.
+
 ```bash
 GEN=/data1/heejae/medical_nla/results/ddxplus_vanilla_locked_generation_v1
+MAP=/data1/heejae/medical_nla/results/ddxplus_semantic_mapper_validation_v1
+PROTOCOL="$MAP/frozen/semantic_protocol.json"
+SCORER=scripts/score_ddxplus_semantic_readouts.py
 
 DATA_ROOT=/data1/heejae \
 GENERATION_SEAL="$GEN/generation_seal.json" \
-MAPPER_RECEIPT=/path/to/semantic_mapper_freeze_receipt.json \
-SEMANTIC_PROTOCOL=/path/to/semantic_mapper_protocol.json \
-SEMANTIC_SCORER=/path/to/frozen_semantic_scorer.py \
-EXPECTED_SEMANTIC_PROTOCOL_SHA256=<sha256> \
-EXPECTED_SEMANTIC_SCORER_SHA256=<sha256> \
+MAPPER_RECEIPT="$MAP/semantic_mapper_freeze_receipt.json" \
+SEMANTIC_PROTOCOL="$PROTOCOL" \
+SEMANTIC_SCORER="$SCORER" \
+EXPECTED_SEMANTIC_PROTOCOL_SHA256="$(sha256sum "$PROTOCOL" | awk '{print $1}')" \
+EXPECTED_SEMANTIC_SCORER_SHA256="$(sha256sum "$SCORER" | awk '{print $1}')" \
+PRIMARY_MODEL=<same-primary-model-as-receipt> \
+HARD_PAIRS=/data1/heejae/medical_nla/data/ddxplus_e5_canonical_v1/hard_shuffle_pairs_test.jsonl \
 OUT=/data1/heejae/medical_nla/results/ddxplus_vanilla_locked_semantic_v1 \
 nohup bash scripts/score_ddxplus_vanilla_locked_from_seal.sh \
   > /data1/heejae/medical_nla/logs/ddxplus_vanilla_locked_semantic_v1.log 2>&1 &
 ```
 
-Placeholder path/hash를 추측해 채우지 않는다. G1-G4 receipt가 아직 없으면 A2는 실행할 수 없는
-것이 정상이다.
+Model ID는 receipt의 실제 primary model과 같아야 한다. G1-G4 receipt가 아직 없거나
+gate가 실패하면 A2가 실행되지 않는 것이 정상이다.
 
 ## Lane B - DiReCT D10 종료 후 한 번 실행
 
