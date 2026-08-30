@@ -14,7 +14,7 @@
 | 상태 | 주제 | 다음 판정 |
 |---|---|---|
 | resolved (FAIL) | [D10 budget calibration and program decision](2026-08-29-program-decision-after-d16.md) | budget gate FAIL 확정; 출구는 D20 결과 후 재론 |
-| ready to run | [Specificity-anchored 2x2 objective (D20)](2026-08-30-specificity-anchored-objective.md) | same-seed gate·SHA 승인 완료; RunPod 1,552-step 3-seed 실행 |
+| resolved (FAIL) | [Specificity-anchored 2x2 objective (D20)](2026-08-30-specificity-anchored-objective.md) | teacher-forced gate FAIL; detector 차단 성공·changed-gap 신호 부재; D19/D21 ledger 행 사람 승인 대기 |
 | active | [Paper table completion](2026-08-29-paper-table-completion.md) | Vanilla protocol freeze, D10 decision, then locked baseline batch |
 | resolved (PASS) | [DDXPlus open-text semantic mapper protocol](2026-08-30-ddxplus-semantic-mapper-protocol.md) | V2 G1-G4 전부 통과; aggregate receipt commit 뒤 sealed 10,028행 1회 채점 |
 | ready to run | [Locked baseline execution runbook](2026-08-30-locked-baseline-execution.md) | DDXPlus HS32 -> sealed 10,028 generation; D10 뒤 DiReCT 178 batch |

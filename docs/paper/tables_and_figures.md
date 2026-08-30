@@ -186,6 +186,7 @@ class는 이 표의 `open generator`다.
 | D16 soft bottleneck | proposed−control DiReCT alignment delta | each ≥ .005, CI > 0 | −.001137/−.001476/+.001433, fail |
 | D16 frozen-z | auxiliary−control finding F1 | positive across seeds | −.0009/−.0007/−.0016, fail |
 | D10 budget calibration (1,552 steps) | final-step D5 gate | 동일 D5, 연장 없음 | changed-gap −.0177/+.5618/+1.1233, specificity −.0442/+.0345/−.0040, fail |
+| D20 specificity-anchored 2×2 (1,552 steps) | same-seed paired delta, seeds 17/29/43 | changed ≥ .05 + specificity CI > 0 + 동결 비열등 4종 | changed −.0143/−.0040/−.0266, specificity −.0278/−.0255/−.0217, retained-gap +.0135/+.0215/−.0049, fail |
 
 D16 frozen-z의 보조 delta: own-shuffled gap −.0050/−.0046/−.0058, value accuracy
 −.0137/−.0096/−.0160, deletion drop −.0167/−.0141/−.0151. D10 budget run은 기존
@@ -194,6 +195,10 @@ Budget run의 해석: across-seed mean changed-gap은 `.0019→.5558`로 상승�
 retained-gap이 `.0002→.5604`로 동반 상승하고 specificity는 `−.0046`으로
 평탄했다 — margin 성장은 changed cue의 선택적 반영이 아니라 deleted-activation
 detector 퇴화 해였다(RunPod A100-SXM4-80GB, 하드웨어·버전은 수치 원장 §8.4).
+D20 해석: retained CE anchor가 detector를 차단했고(retained-gap delta 전 구간
+|값| ≤ .0225, budget run의 +.5604와 대비) 그 상태에서 changed-gap 신호가 어느
+dose에서도 나타나지 않았다 — budget run의 성장이 전부 편법이었다는 독립 확인.
+Retained original NLL은 −.13~−.33으로 개선돼 최적화 자체는 정상이었다.
 
 ## Methods 기록. D9a cue support protocol
 

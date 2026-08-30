@@ -180,10 +180,75 @@ Checkpoint `194/388/776/1164`는 report-only이고 `1552`만 판정 가능하다
 
 ## 판정
 
-현재 상태: **사람 방향 승인 / trainer·RunPod wrapper 구현 완료 /
-control calibration 및 수치 동결 완료 / 실행 가능.** 실행 위치는 D10과
+현재 상태: **실행 완료 — 최종 판정 FAIL (아래 결과 절).** 실행 위치는 D10과
 동일 조건 유지를 위해 RunPod A100 80GB를
-우선한다(기존 checkpoint 재사용 호환).
+사용했다(기존 checkpoint 재사용 호환).
+
+## 결과와 판정 (2026-08-30, RunPod A100 80GB 실행 완료)
+
+3 seed × 1,552 steps 완주. 판정 지점 step 1,552의 same-seed paired delta
+(anchored − frozen D10 control, validation 3,032쌍):
+
+| seed | changed gap | retained gap | specificity | changed orig NLL | retained orig NLL |
+|---:|---:|---:|---:|---:|---:|
+| 17 | −.0143 | +.0135 | −.0278 | −.0756 | −.3342 |
+| 29 | −.0040 | +.0215 | −.0255 | +.0576 | −.1834 |
+| 43 | −.0266 | −.0049 | −.0217 | +.0622 | −.2263 |
+
+동결 gate 판정: changed-gap ≥ +.05 **fail**(3 seed 모두 음수), changed
+cluster CI **fail**, specificity 부호 일치 **fail**(3 seed 모두 음수),
+specificity CI **fail**, retained-gap 비열등(≤ +.01) **fail**(seed 17/29가
++.0135/+.0215로 초과), changed-original NLL 비열등 **fail**(seed 43이
+same-seed 절대 상한 초과), retained-original NLL 비열등 **pass**.
+**Teacher-forced 최종 판정: FAIL.** Wrapper는 사전 등록대로
+`[stop] FAIL: no generation, extension, checkpoint selection, or sweep`으로
+종료했고 generation gate는 열지 않았다.
+
+### 해석 세 가지
+
+1. **Anchor의 detector 차단은 작동했다.** Retained-gap delta는 전 구간
+   |값| ≤ .0225로 유지됐다 — budget run의 동일 step retained-gap delta
+   +.5604와 대비된다. h_del 전 문장 억제 해는 이번 손실 아래에서 자라지
+   않았다. 설계된 차단 기제가 목적대로 동작했다는 뜻이다.
+2. **편법을 막자 남는 학습 가능 신호가 없었다.** Changed-gap delta는 어느
+   dose에서도 +.05 근처에 가지 않았다(step 194–776 ±.009 이내, step 1164
+   일시적 +.0225/+.0360도 seed 17이 −.0197로 부호 불일치·CI 0 포함, step
+   1,552에서 3 seed 모두 음수로 역전). 이는 budget run의 changed-gap 성장
+   (+.5558)이 **전부 detector 편법이었다**는 것의 독립적 확인이다: 편법
+   경로를 잠그자 성장 자체가 사라졌다.
+3. **모델이 학습을 안 한 것이 아니라 anchor만 학습했다.** Retained original
+   NLL은 −.13~−.33으로 크게 개선됐다(retained CE 항의 직접 효과). 최적화는
+   정상 동작했고, 사례별 changed-cue 선택이라는 목표 신호만 잡히지 않았다.
+
+### 사전 반론 기재 — "step 1164에서 멈췄어야 한다"
+
+Step 1164의 양수 transient는 (a) seed 17이 음수로 부호 불일치, (b) cluster
+CI가 0을 포함, (c) 388 step 뒤 3 seed 모두 음수로 역전이라는 세 가지
+이유로 신호가 아니다. Checkpoint 선택 금지는 실행 전 동결됐고, 이 역전
+자체가 그 규칙의 근거를 사후 입증한다.
+
+### 종료 규칙 적용
+
+사전 등록 종료 규칙에 따라: alpha/lambda/margin/step **sweep 없음**,
+offline preference로 **자동 이동 없음**. 프로그램은 정직한 결론 조항
+(프로그램 결정 문서 선택지 A)으로 간다. 별도 생성형 시도는 사람의 새
+결정 없이 추가하지 않는다.
+
+논문 기록 가치: 평가 gate 우회(detector)를 loss 수준에서 차단한 상태에서도
+생성형 판독의 사례별 선택 신호가 나타나지 않았다 — 기존 7건 실패에 더해
+"편법 제거 후 신호 부재"를 보인 **여덟 번째이자 가장 강한 음성 결과**이며,
+budget run 해석(성장 = 전부 편법)의 독립 확인을 겸한다.
+
+### Ledger 행 제안 (사람 승인 대기)
+
+- **D19**: D10 budget calibration(1,552 steps) FAIL — detector 퇴화 해 확정,
+  1×2 unanchored 계열 종결.
+- **D21**: D20 specificity-anchored objective FAIL — detector 차단 성공,
+  changed-gap 신호 부재, 생성형 시도 종료(선택지 A), Medical-NLA 행은
+  사전 규칙에 따라 논문 주표에서 제외.
+
+두 행이 승인되면 decision record와 recipe hash를 동결하고 DiReCT locked
+batch를 연다.
 
 ## 예상 반론 사전 기재 — "데이터 다양성 부족이 원인이다"
 
