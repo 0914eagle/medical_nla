@@ -45,29 +45,31 @@
 
 ---
 
-## Slide 2. 연구 질문
+## Slide 2. 가설과 연구 질문
 
-### RQ1. Activation에 임상 정보가 존재하는가?
+### 고정 가설
 
-- 진단 category/PDD를 읽을 수 있는가?
-- 환자별 finding presence와 native value를 읽을 수 있는가?
-- 같은 진단 내 다른 환자 activation과 구분되는가?
+| 가설 | 내용 |
+|---|---|
+| H1 | CoT의 임상적 그럴듯함과 내부 상태 충실성은 같은 것이 아니다. |
+| H2 | 의료 적응은 vanilla NLA보다 임상 설명을 개선할 수 있지만 SFT만으로는 충분하지 않다. |
+| H3 | 개선된 설명은 독립적인 activation grounding 검증을 통과해야 한다. |
 
-### RQ2. 그 정보를 자연어로 읽을 수 있는가?
+### 고정 연구 질문
 
-- Vanilla NLA가 환자별 finding을 말하는가?
-- Medical SFT가 physician observation 또는 입력 cue에 정렬되는가?
-- activation을 바꾸면 설명도 선택적으로 바뀌는가?
+| RQ | 질문 | 핵심 산출물 |
+|---|---|---|
+| RQ1: Clinical alignment | Medical-NLA가 CoT와 vanilla NLA보다 의사 주석의 임상 관찰과 관찰-진단 연결을 잘 복원하는가? | DiReCT Table 2 |
+| RQ2: Activation grounding | 그 설명이 언어 prior가 아니라 해당 사례 activation과 finding 변화에 실제로 근거하는가? | DDXPlus Table 3, Figure 3 |
+| RQ3: Causal intervention | 검증된 판독을 편집하고 AR로 복원했을 때 내부 상태와 행동이 선택적으로 변하는가? | Table 4, Figure 4 |
 
-### RQ3. 설명은 activation에 충실한가?
+### RQ 이전의 Gate 0
 
-- cue deletion 시 해당 claim만 사라지는가?
-- untouched claim은 유지되는가?
-- value edit 시 새 값으로 바뀌고 이전 값은 사라지는가?
+> Probe로 activation에 진단·finding·value 정보가 decode 가능한지 확인하는 것은 세 RQ의 선행 조건입니다. 이는 Table 1의 representation audit이지 RQ1 자체가 아닙니다.
 
-### 성공 조건
+### 단계적 성공 조건
 
-> 유창한 의료 문장을 만드는 것만으로는 성공이 아닙니다. 사례 특이성, counterfactual specificity, seed 안정성을 동시에 만족해야 합니다.
+> RQ1만 통과하면 임상 설명 생성기, RQ2까지 통과해야 activation-grounded 내부 판독기, RQ3까지 통과해야 인과적으로 사용할 수 있는 자연어 bottleneck이라고 부릅니다.
 
 ---
 
@@ -841,30 +843,39 @@ typical disease template.
 
 ## Slide 26. 현재 RQ별 답
 
-### RQ1. Activation에 임상 정보가 존재하는가?
+### Gate 0. Activation에 임상 정보가 존재하는가?
 
-**예.**
+**예. 단, 이는 RQ1의 답이 아니라 선행 representation audit입니다.**
 
 - DiReCT diagnosis category/PDD linear probe가 majority를 크게 상회
 - DDXPlus finding F1 0.9562, native value 0.7659
 - same-diagnosis shuffled gap +0.1624 / +0.1868
 
-### RQ2. Vanilla NLA가 그 정보를 자연어로 읽는가?
+### RQ1. Medical-NLA가 임상 설명을 더 잘 복원하는가?
 
-**현재 공개 checkpoint에서는 아니오.**
+**현재 validation에서는 아니오. Locked 결론은 아직 미완료입니다.**
 
-- DiReCT P0 target mention 거의 0
-- DDXPlus locked 10,028행 frozen ontology claim 0
-- 20-case audit에서 모두 generic clinical prose
+- Source CoT Obscomp: 0.2130
+- Vanilla NLA Obscomp: 0.0000
+- Full-data SFT seed17/29 Obscomp: 0.0301 / 0.0296
+- SFT 출력은 parse 가능한 임상 문장을 만들었지만 physician observation보다 질환 전형 template에 가까웠음
 
-### RQ3. Medical fine-tuning이 해결했는가?
+### RQ2. 생성된 설명이 해당 사례 activation에 근거하는가?
 
-**현재 시도한 surrogate 계열에서는 아니오.**
+**현재 통과한 open-ended Medical-NLA가 없습니다.**
 
-- SFT는 형식을 학습했지만 template collapse
-- ranking은 deletion detector shortcut
-- retained anchor는 shortcut을 막았으나 changed signal도 소거
-- public AR은 medical matched-vs-shuffled 측정기로 실패
+- Closed probe와 structured reader는 사례별 정보의 존재를 확인했지만 open NLA가 아님
+- Vanilla NLA는 DDXPlus locked 10,028행에서 frozen ontology claim 0건
+- Counterfactual SFT는 seed17에서 contrast가 올랐지만 phantom도 0.2138에서 0.4253으로 증가했고 seed29에서 미재현
+- D10 budget은 deletion-detector shortcut, D20은 shortcut 차단 후 changed signal 부재
+
+### RQ3. 검증된 설명 편집이 상태와 행동을 선택적으로 바꾸는가?
+
+**미실행입니다. RQ2 진입 조건을 통과한 readout과 유효한 AR가 없어 Table 4를 열지 않았습니다.**
+
+- 공개 AR는 structured reader와 Source CoT 양성 대조의 matched-vs-shuffled gap을 구분하지 못함
+- 따라서 현재 AR cosine을 reward 또는 text-to-activation 복원 근거로 사용하지 않음
+- RQ3 미실행은 인과 개입 실패가 아니라 사전 등록한 안전 gate 적용 결과임
 
 ---
 
