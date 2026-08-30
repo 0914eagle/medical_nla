@@ -353,6 +353,42 @@ Reconstruction:    생성 text가 원 activation의 사례 정보를 보존하�
 Full Medical-NLA:  세 조건을 모두 학습하고 독립 gate로 검증한 경우
 ```
 
+### 이 표를 읽는 방법
+
+이 표는 방법들의 성능 순위를 나타내는 표가 아니라, **어떤 학습 신호를 사용했고 그 결과를 어떤 이름으로 부를 수 있는지**를 구분하는 방법론적 계약입니다. 특히 의료 문장을 잘 생성하는 것, 해당 환자의 activation을 구분해 읽는 것, 생성 문장이 원 activation의 정보를 보존하는 것은 서로 다른 조건입니다.
+
+**Clinical CE**는 activation을 입력받은 AV가 정답 임상 설명을 생성하도록 하는 token-level cross-entropy loss입니다. 이 학습은 모델에 출력 schema, 임상 finding의 표현 방식, 의료 문장의 어휘를 가르칩니다. 그러나 loss가 낮아졌다는 사실만으로 생성된 finding이 바로 그 환자의 activation에서 읽힌 것이라고 결론 내릴 수는 없습니다. 진단별로 반복되는 전형적 문장이나 학습 target의 주변 분포를 배웠을 가능성이 남기 때문입니다.
+
+```text
+activation -> AV -> "환자는 발열과 마른기침을 보인다"
+                    ^ 의료적으로 올바른 형식은 Clinical CE로 학습 가능
+                    ^ 이 환자 activation에 특이적인지는 별도 검증 필요
+```
+
+**Counterfactual/pair grounding**은 같은 환자에서 하나의 cue 또는 value만 바꿔 다시 계산한 activation 쌍을 사용합니다. 원본 activation에서 읽힌 cue는 삭제 activation에서 사라져야 하고, 삭제하지 않은 cue는 유지되어야 합니다. 따라서 이 항목은 단순히 설명이 의료적으로 자연스러운지가 아니라, 설명이 **바로 이 activation의 사례별 변화에 반응하는지**를 다룹니다.
+
+- `sequence CE`: original, cue-deleted, value-edited activation마다 현재 cue set에 맞는 전체 설명을 target으로 학습
+- `ranking`: 삭제된 cue의 문장이 original activation에서는 더 낮은 NLL을, deleted activation에서는 더 높은 NLL을 갖도록 학습
+- `retained anchor`: 삭제하지 않은 cue의 NLL은 original/deleted activation 사이에서 유지되도록 제약
+
+이 목적함수를 사용했다는 것과 grounding에 성공했다는 것은 다릅니다. 현재 `Grounding-aware surrogate` 계열은 grounding을 겨냥한 loss를 사용했지만, changed-cue 반응과 retained-cue specificity를 함께 요구한 promotion gate를 통과하지 못했습니다. 따라서 **grounding-aware objective를 시도했다**고는 할 수 있지만 **grounded Medical-NLA를 완성했다**고 표현하지 않습니다.
+
+**검증된 medical AR reconstruction**은 AV가 생성한 text를 AR이 다시 activation으로 복원할 수 있는지를 뜻합니다.
+
+```text
+source activation h -> AV -> text z -> AR -> reconstructed activation h_hat
+```
+
+사례 정보가 text에 보존되었다면 `h_hat`은 같은 진단의 다른 환자 activation보다 자기 activation `h`에 더 가까워야 합니다. 따라서 높은 cosine 자체보다 `cos(h_hat, h_own) - cos(h_hat, h_same-diagnosis-shuffled)`가 양수인지가 중요합니다. 공개 general-domain AR는 D22에서 own과 shuffled가 거의 같아 positive control을 통과하지 못했습니다. 그러므로 공개 AR가 존재한다는 이유만으로 medical reconstruction 신호가 검증되었다고 간주하지 않습니다.
+
+각 방법 계열의 해석 범위는 다음과 같습니다.
+
+- **Vanilla NLA**: 공개 AV를 수정 없이 사용한 baseline입니다. 의료 target, pair grounding, 검증된 medical AR가 없으므로 Medical-NLA라고 부르지 않습니다.
+- **Medical-AV SFT-only**: Clinical CE로 의료 finding과 출력 형식을 학습했습니다. 임상 언어 생성은 평가할 수 있지만 사례별 activation grounding은 별도 증거가 필요합니다.
+- **Grounding-aware surrogate**: Clinical CE에 sequence CE, ranking 또는 retained anchor를 추가했습니다. 의료 grounding을 겨냥했지만 현재 실험에서는 promotion gate에 실패했습니다.
+- **Reconstruction-capable Medical-NLA**: 의료 분포에서 own-vs-shuffled positive control을 통과한 AR를 확보하고 reconstruction objective를 사용할 수 있는 단계입니다. 현재는 domain-valid AR가 없어 미구현입니다.
+- **Full Medical-NLA**: Clinical CE, pair grounding, medical AR reconstruction을 모두 사용하고 각각의 독립 gate까지 통과한 최종 성공 조건입니다. 현재 완료된 모델의 이름이 아니라 사전 정의한 목표입니다.
+
 > 현재까지의 `full-data SFT`는 DDXPlus 4,655건을 모두 사용했다는 데이터 규모 이름입니다. `Full Medical-NLA`를 구현했다는 뜻이 아닙니다.
 
 ### 공통 출력 prompt/schema
