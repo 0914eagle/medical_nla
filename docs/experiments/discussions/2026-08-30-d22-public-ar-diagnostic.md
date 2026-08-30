@@ -187,10 +187,28 @@ target inspection prompt --Gemma layers 0..32--> h_placeholder
 ```
 
 같은 Gemma-3-12B의 HS32를 같은 Gemma-3-12B HS32에 patch하는 1차 baseline은 가중치
-학습이나 공간 변환이 필요 없다. 해석 prompt는 `Which clinical findings are represented?`,
-`Is pulmonary embolism represented?`, `What value is represented for chest-pain location?`처럼
-질문을 교체할 수 있다. 다른 model family/width로 cross-model patching하는 경우에만
-affine mapping 학습을 검토한다.
+학습이나 공간 변환이 필요 없다. 다른 model family/width로 cross-model patching하는
+경우에만 affine mapping 학습을 검토한다.
+
+다만 첫 smoke에서는 targeted yes/no 또는 bare-value QA를 사용하지 않는다. 현재 동결된
+semantic mapper는 질문을 함께 받지 않고, self-contained clinical claim을 DDXPlus
+`evidence_id`와 선택적 `value_id`로 변환한다. 따라서 `Yes`, `No`, `substernal` 같은
+응답은 질문 문맥 없이는 채점할 수 없다. 첫 Patchscope prompt와 출력 계약을 다음처럼
+고정한다.
+
+```text
+A patient-state representation is provided at <STATE>.
+List only the clinical findings represented in that state.
+Return zero or more self-contained English clinical claims, one per bullet.
+Each value-bearing claim must name both the finding and its value.
+Do not output a diagnosis, rationale, question, yes/no answer, or bare value.
+If no clinical finding is represented, output exactly: NONE
+```
+
+예시는 `- The patient has pleuritic chest pain.` 또는
+`- Chest pain is substernal.`이다. `NONE`은 claim이 없는 빈 집합으로 정규화한다.
+이 출력 계약을 바꾸거나 targeted QA를 추가하려면 question-conditioned scorer와 별도
+validation gate가 필요하며, 현재 G1-G4 receipt를 그대로 승계할 수 없다.
 
 장점은 우리 AV SFT가 학습해야 했던 `HS32 -> layer-0 embedding`의 domain/position
 변환을 피하고, activation을 원래 존재하던 layer에 직접 넣는다는 점이다. 단,
@@ -206,25 +224,83 @@ target prompt와 model prior만으로 질환 전형을 만들 수 있으므로 �
 | cue-deleted activation | changed finding 선택적 제거 |
 | value-edited activation | old/new value 전환 |
 
+#### Patchscope smoke의 동결 실행 계약
+
+- **모집단**: DDXPlus official validation에서 original, cue-deleted, native-value-edited
+  activation과 train-supported value label이 모두 존재하고 same-diagnosis donor를 만들 수
+  있는 사례만 eligible로 둔다. 진단별 round-robin 뒤
+  `SHA256("d22_patchscope_v1" || base_id)` 오름차순으로 50개를 선택한다. 사례 ID와
+  제외 사유별 수는 generation 전에 receipt로 동결한다.
+- **activation arms**: 같은 50개 사례의 original, cue-deleted, value-edited HS32
+  CoT-P0를 사용한다.
+- **real patch**: source run의 P0 마지막 token에서 추출한 HS32를 target prompt의 첫
+  `<STATE>` marker 마지막 subtoken HS32 위치에 덮어쓴다. source와 target은 기존 HS32
+  extraction hook과 동일한 layer-module 경계를 사용하며, hook 이름·layer index·token
+  index·token ID를 receipt에 기록한다.
+- **shuffled patch**: 같은 diagnosis와 같은 activation arm 안에서 base ID가 겹치지 않는
+  결정론적 derangement를 사용한다. donor는 validation label이나 출력 점수를 보고
+  선택하지 않는다.
+- **mean patch**: DDXPlus official-train original CoT-P0/HS32만으로 계산한 단일 mean
+  activation을 사용한다. validation/test activation은 mean 계산에 사용하지 않는다.
+- **no patch**: 동일 target prompt를 실행하되 native `<STATE>` hidden state를 교체하지
+  않는다.
+- **generation**: Gemma-3-12B backbone, greedy decoding(`do_sample=false`),
+  `max_new_tokens=128`, EOS 종료를 사용한다. prompt bytes, tokenizer revision, model
+  revision, generation config와 모든 입력 manifest SHA256을 generation 전에 기록한다.
+- **실행량**: 50 cases x 3 activation arms x 4 logical patch conditions = 600 logical
+  cells이다. Mean/no-patch 출력은 activation arm과 무관하므로 각각 50개만 한 번 생성해
+  재사용할 수 있어 실제 고유 generation은 400개다. 재사용 관계도 receipt에 기록한다.
+
 Patchscope는 AR/reconstruction 병목 없이 activation의 정보가 상위 layer에서 자연어로
 추출 가능한지 보는 **비학습 baseline**이다. 성공하면 activation은 읽힐 수 있지만
 기존 AV injection/training이 병목이었다는 원인 분리가 가능하다. probe는 성공하고
 Patchscope도 실패하면, 자연어 decoder가 환자별 신호를 발화하는 부분이 핵심
 병목으로 남는다.
 
-**채점기 동결 (실행 전 고정)**: Patchscope 출력도 open text이므로 채점 규칙을
-사전에 고정한다. 이미 G1–G4를 통과한 frozen semantic mapper 프로토콜
-(SHA `12e4500f...`)을 validation 용도로 사용한다 — cache key가 protocol-bound라
-새 prompt/조건 조합에도 stale 재사용이 없다. 빠른 screen이 필요하면 lexical
-매칭을 보조로 병기하되, 판정은 mapper 결과로만 한다. 실행 후 채점기 교체나
-기준 조정은 무효.
+**채점기 동결 (실행 전 고정)**: Patchscope 출력도 open text이므로 이미 G1-G4를
+통과한 frozen semantic mapping pipeline을 그대로 사용한다. 프로토콜 전체 SHA256은
+`12e4500fa45f90d11c0146ad12e972afd9b5bd80128f49b388b11dea360b506b`이며,
+실행기는 `semantic_mapper_freeze_receipt.json`의 `all_gates_passed`, 전체 protocol hash,
+primary model ID를 exact match로 검증해야 한다. 이 pipeline은 Stage 0 claim split,
+Stage 1 frozen lexical mapping, Stage 2 residual-claim method-blind LLM mapping으로 구성되며,
+최종 set은 두 mapping을 모두 포함한다. Lexical-only 수치를 별도 진단으로 병기할 수
+있지만 주 판정은 동결 pipeline의 deduplicated evidence/value set으로 한다.
+
+Cache key는 claim text, ontology hash, alias-table hash, mapper-prompt hash, model ID에
+결합되어 있으므로 새 Patchscope claim이 과거 claim과 우연히 같을 때만 검증된 결정을
+재사용한다. Patchscope 출력을 본 뒤 alias, ontology, splitter, mapper prompt/model 또는
+threshold를 바꾸면 별도 protocol이 되며 이 실험의 판정에는 사용할 수 없다.
+
+#### 동결 지표와 판정
+
+Paired row bootstrap과 diagnosis-cluster bootstrap을 각각 10,000회 수행하고 두 CI를
+모두 보고한다. 판정에는 더 보수적인 diagnosis-cluster CI를 사용한다. 결과는 다음
+세 신호를 분리해 판정하며, 하나의 종합 점수로 합치지 않는다.
+
+1. **환자별 finding readout**: original-real의 finding micro F1이
+   same-diagnosis-shuffled, train-mean, no-patch보다 각각 높고, 세 paired gap의
+   cluster-bootstrap 95% CI 하한이 모두 0보다 크면 통과한다.
+2. **선택적 deletion response**: real patch에서 삭제 대상 finding의 original-to-deleted
+   hit-rate 감소 CI 하한이 0보다 크고, untouched finding retention이 0.90 이상이면
+   통과한다. 삭제 대상뿐 아니라 모든 claim이 사라지는 해는 통과하지 못한다.
+3. **value-edit response**: real patch에서 edited arm의 replacement hit가 original arm보다
+   증가하고 old-value persistence가 감소하며, replacement-hit delta의 cluster CI 하한이
+   0보다 크고 old-persistence delta의 cluster CI 상한이 0보다 작으면 통과한다.
+   Clean-switch rate도 함께 보고한다.
+
+Parse rate, mean emitted claims, diagnosis mention, lexical/LLM mapping 비율과 모든 분모를
+함께 보고한다. Output-contract parse rate가 0.95 미만이면 semantic 결과와 무관하게
+Patchscope 측정 실패로 판정한다. 이 Patchscope 판정은 비학습 baseline의 해석만 정하며,
+Medical-AR smoke의 개방 여부를 자동으로 결정하지 않는다.
 
 ### D22 다음 실행 순서
 
 1. 기존 160 text의 reconstruction vector를 저장하는 소규모 AR 재실행.
 2. A1–A5 geometry audit 실행.
-3. 독립 비학습 baseline으로 DDXPlus validation 50-case Patchscope smoke:
-   original/deletion/value-edit x real/shuffled/mean/no-patch.
+3. 위 계약으로 동결한 DDXPlus validation 50-case Patchscope smoke:
+   original/deletion/value-edit x real/shuffled/train-mean/no-patch. Generation 전에
+   population/prompt/model/hook receipt를 쓰고, generation 뒤에는 frozen mapper receipt를
+   exact-hash 검증한 한 번의 채점만 허용한다.
 4. 공개 AR가 reward gate를 통과하지 못하면 DDXPlus 4,655 Medical-AR pipeline smoke.
 5. smoke의 oracle/reader FVE가 양수이면 official train 47k–100k로 확대 —
    **단, 이 단계는 자동 진행이 아니다.** 47k–100k 규모는 source CoT 생성과
