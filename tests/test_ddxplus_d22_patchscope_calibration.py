@@ -6,10 +6,19 @@ from pathlib import Path
 import torch
 
 from scripts.calibrate_ddxplus_d22_patchscope import (
+    CLINICAL_PROMPT,
+    IDENTITY_PROMPT,
     distribution_metrics,
     select_ddx_cases,
 )
 from src.jsonl import write_jsonl
+
+
+def test_paper_style_prompts_end_at_the_patched_marker() -> None:
+    assert IDENTITY_PROMPT.endswith("; foo")
+    assert CLINICAL_PROMPT.endswith("; foo")
+    assert not IDENTITY_PROMPT.endswith("foo ->")
+    assert not CLINICAL_PROMPT.endswith("foo ->")
 
 
 def test_distribution_metrics_reports_patch_lift_and_rank() -> None:

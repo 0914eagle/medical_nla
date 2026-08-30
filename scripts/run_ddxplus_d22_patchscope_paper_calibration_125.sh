@@ -4,7 +4,7 @@ set -euo pipefail
 DATA_ROOT="${DATA_ROOT:-/data1/heejae}"
 GPUS="${GPUS:-2,3}"
 CASES="${CASES:-5}"
-OUT="${OUT:-${DATA_ROOT}/medical_nla/results/ddxplus_d22_patchscope_paper_calibration5_v1}"
+OUT="${OUT:-${DATA_ROOT}/medical_nla/results/ddxplus_d22_patchscope_paper_calibration5_v2}"
 
 if [[ "${DATA_ROOT}" != "/data1/heejae" ]]; then
   echo "[error] this validation calibration is frozen for server 125" >&2

@@ -336,7 +336,21 @@ finding F1, deletion, value-edit가 모두 0인 것은 임상 정보 부재의 �
 
 이 calibration은 validation-only이고 semantic score를 만들거나 v1을 재판정하지 않는다.
 결과 artifact는
-`results/ddxplus_d22_patchscope_paper_calibration5_v1/`에 별도로 쓴다.
+`results/ddxplus_d22_patchscope_paper_calibration5_v2/`에 별도로 쓴다.
+
+첫 calibration 구현(`...calibration5_v1`)은 실행 후 원 논문과의 target-position 불일치가
+확인되어 판정에서 제외한다. Saved-state consistency는 통과했지만 token-identity target을
+`...; foo ->`로 만들고 `foo`를 patch했기 때문에, 채점된 next-token 분포는 patched marker
+직후가 아니라 뒤따르는 화살표 토큰까지 처리한 위치의 분포였다. 그 결과 HS32
+precision@1은 `.0000`이면서 target log-probability lift는 `+8.0141`, KL은 `6.603053`으로
+나왔다. 이는 patch가 무효였다는 결과와 양립하지 않으며, 원 논문의
+`...; tok_k` final-marker 규약을 재현한 값도 아니다. Entity keyword hit는 `2/5`,
+no-patch divergence는 `5/5`였지만 전체 양성 대조가 유효하지 않으므로 clinical 결과도
+해석하지 않는다.
+
+V2에서는 identity와 clinical target 모두 마지막을 `...; foo`에서 끝내고 그 마지막
+subtoken의 same-layer pre-hook state를 교체한 직후 next-token distribution/generation을
+측정한다. V1 artifact와 protocol은 삭제하거나 덮어쓰지 않는다.
 
 ### D22 다음 실행 순서
 
@@ -415,7 +429,7 @@ method-blind mapping을 실행한다. Frozen parser가 거부한 batch만 최대
 뒤 exact request population과 mapper receipt hash를 검증한다. 결과를 본 뒤 prompt,
 ontology, alias 또는 gate를 바꾸는 재실행은 허용하지 않는다.
 
-v1 측정 실패 뒤 원 논문형 calibration은 server 125의 같은 source backbone을 GPU 2,3에
+v1 측정 실패 뒤 원 논문형 calibration V2는 server 125의 같은 source backbone을 GPU 2,3에
 올려 다음처럼 별도 실행한다.
 
 ```bash
@@ -424,10 +438,10 @@ nohup env \
   GPUS=2,3 \
   CASES=5 \
   bash scripts/run_ddxplus_d22_patchscope_paper_calibration_125.sh \
-  > /data1/heejae/medical_nla/logs/ddxplus_d22_patchscope_paper_calibration5_v1.log 2>&1 &
+  > /data1/heejae/medical_nla/logs/ddxplus_d22_patchscope_paper_calibration5_v2.log 2>&1 &
 
 tail -f \
-  /data1/heejae/medical_nla/logs/ddxplus_d22_patchscope_paper_calibration5_v1.log
+  /data1/heejae/medical_nla/logs/ddxplus_d22_patchscope_paper_calibration5_v2.log
 ```
 
 검증된 경로는 둘이다: ① AR-reward RL (원 NLA), ② 대규모 diverse supervised

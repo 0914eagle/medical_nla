@@ -25,7 +25,7 @@ from src.modeling import load_causal_lm, load_tokenizer
 from src.reconstruction_scoring import load_activation
 
 
-IDENTITY_PROMPT = "apple -> apple; river -> river; seven -> seven; music -> music; foo ->"
+IDENTITY_PROMPT = "apple -> apple; river -> river; seven -> seven; music -> music; foo"
 ENTITY_PROMPT = (
     "Syria: Country in the Middle East, "
     "Leonardo DiCaprio: American actor, "
@@ -34,7 +34,7 @@ ENTITY_PROMPT = (
 CLINICAL_PROMPT = (
     "state_a -> fever and productive cough; "
     "state_b -> substernal chest pain and exertional dyspnea; "
-    "state_c -> itchy swollen rash; foo ->"
+    "state_c -> itchy swollen rash; foo"
 )
 MARKER = "foo"
 LAYERS = (16, 24, 32, 40)
@@ -293,7 +293,7 @@ def run(args: argparse.Namespace) -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     protocol_path = args.out_dir / "protocol.json"
     protocol = {
-        "schema_version": 1,
+        "schema_version": 2,
         "written_before_model_inference": True,
         "validation_only": True,
         "locked_test_read": False,
@@ -512,7 +512,7 @@ def run(args: argparse.Namespace) -> None:
     clinical_interpretable = extraction_gate and identity_gate and entity_gate
 
     result = {
-        "schema_version": 1,
+        "schema_version": 2,
         "validation_only": True,
         "locked_test_read": False,
         "paper_reference": "Ghandeharioun et al. 2024 Patchscopes",
