@@ -294,6 +294,50 @@ Parse rate, mean emitted claims, diagnosis mention, lexical/LLM mapping 비율�
 Patchscope 측정 실패로 판정한다. 이 Patchscope 판정은 비학습 baseline의 해석만 정하며,
 Medical-AR smoke의 개방 여부를 자동으로 결정하지 않는다.
 
+#### Patchscope v1 결과와 원 논문형 calibration
+
+위 동결 계약의 v1은 실행 자체는 완결됐다: 50 cases, 400 unique generations, 600 logical
+cells를 모두 생성했고 locked test는 읽지 않았다. 그러나 output-contract parse rate는
+`0/600 = 0.0000`이었다. 400개 고유 generation의 raw response는 condition과 activation
+arm에 무관하게 다음 한 문자열로 완전히 같았다.
+
+```text
+Okay, please provide the patient-state representation at <STATE>. I will then list the clinical findings as requested.
+```
+
+Claim splitter는 이를 행당 두 claim occurrence로 나눠 총 1,200개를 만들었지만 unique
+residual claim은 2개뿐이었고, frozen mapper가 수용한 ontology claim은 0개였다. 따라서
+finding F1, deletion, value-edit가 모두 0인 것은 임상 정보 부재의 깨끗한 음성 결과가
+아니라 **early-marker zero-shot target prompt의 측정 실패**다. v1 결과는 덮어쓰지 않는다.
+
+원 논문의 [`Few-Shot Token Identity Patchscope`](https://arxiv.org/abs/2401.06102)와 더
+가까운 별도 calibration을 다음처럼 실행 전에 동결한다.
+
+1. **saved-state 경계 검증**: v1의 첫 5개 DDXPlus 사례에서 exact rendered source prompt를
+   재실행한다. 저장 HS32와 재계산 `hidden_states[32]`의 cosine이 5건 모두 `.999` 이상이어야
+   extraction/patch layer 경계가 일치한 것으로 본다.
+2. **few-shot token identity**: 고정된 일반-domain source prompt 20개의 모델 자체 final
+   next-token top-1을 정답으로 삼는다. Target은
+   `apple -> apple; river -> river; seven -> seven; music -> music; foo ->`이며 `foo`의
+   마지막 subtoken state를 source와 같은 layer의 state로 교체한다. HS16/24/32/40을
+   report하고, HS32 precision@1이 `.40` 이상이면서 no-patch precision@1보다 높고 source
+   top-1 mean log-probability lift가 양수여야 통과한다.
+3. **entity-description positive control**: 원 논문의
+   `subject: description, ..., x` target과 동형인
+   `Syria: Country in the Middle East, Leonardo DiCaprio: American actor, Samsung: South Korean electronics company, foo`
+   를 사용한다. Paris/Saturn/Mozart/oxygen/Mount Everest의 source last-token HS32를
+   `foo`에 patch한다. 사전 고정 keyword hit가 `3/5` 이상이고 no-patch와 다른 generation이
+   `4/5` 이상이어야 통과한다.
+4. **clinical calibration**: 두 양성 대조 뒤에만 v1과 같은 첫 5개 DDXPlus original HS32를
+   `state_a -> ...; state_b -> ...; state_c -> ...; foo ->` few-shot target에 patch한다.
+   real/same-diagnosis-shuffled/train-mean/no-patch의 raw continuation, first-token KL, max logit
+   delta만 보고한다. 앞의 두 양성 대조가 하나라도 실패하면 clinical text는 의미적으로
+   해석하지 않는다.
+
+이 calibration은 validation-only이고 semantic score를 만들거나 v1을 재판정하지 않는다.
+결과 artifact는
+`results/ddxplus_d22_patchscope_paper_calibration5_v1/`에 별도로 쓴다.
+
 ### D22 다음 실행 순서
 
 1. 기존 160 text의 reconstruction vector를 저장하는 소규모 AR 재실행.
@@ -370,6 +414,21 @@ Patchscope `MODE=all`은 generation 뒤 frozen mapper request를 만들고 `gpt-
 method-blind mapping을 실행한다. Frozen parser가 거부한 batch만 최대 세 번 다시 판정한
 뒤 exact request population과 mapper receipt hash를 검증한다. 결과를 본 뒤 prompt,
 ontology, alias 또는 gate를 바꾸는 재실행은 허용하지 않는다.
+
+v1 측정 실패 뒤 원 논문형 calibration은 server 125의 같은 source backbone을 GPU 2,3에
+올려 다음처럼 별도 실행한다.
+
+```bash
+nohup env \
+  DATA_ROOT=/data1/heejae \
+  GPUS=2,3 \
+  CASES=5 \
+  bash scripts/run_ddxplus_d22_patchscope_paper_calibration_125.sh \
+  > /data1/heejae/medical_nla/logs/ddxplus_d22_patchscope_paper_calibration5_v1.log 2>&1 &
+
+tail -f \
+  /data1/heejae/medical_nla/logs/ddxplus_d22_patchscope_paper_calibration5_v1.log
+```
 
 검증된 경로는 둘이다: ① AR-reward RL (원 NLA), ② 대규모 diverse supervised
 (LatentQA/AO). D22가 ①을 택한 이유는 공개 checkpoint 호환과 원 방법 재현성이며,
