@@ -725,13 +725,47 @@ typical disease template.
 
 ## Slide 18. RQ2 = Main Table 3A: 해당 사례 activation을 읽는가?
 
-| method class | method | input layer | finding F1 | shuffled F1 | pair gap | native-value acc |
-|---|---|---:|---:|---:|---:|---:|
-| closed decoder | Frozen probe | HS24 | .9562 | .7938 | +.1624 | .7659 |
-| structured monitor | Probe-guided reader | HS24 | **.9587** | .7938 | +.1624 | **.7654** |
-| open generator | Vanilla NLA | HS32 | .0000 | .0000 | .0000 | .0000 |
-| open generator | Medical-AV, SFT only | HS32 | validation only | validation only | promotion fail | validation only |
-| open generator | **Medical-NLA, final** | 사전 동결 | pending | pending | pending | pending |
+### 어디에서 무엇을 측정했는가?
+
+| item | frozen evaluation contract |
+|---|---|
+| dataset | DDXPlus E5 **locked test** |
+| activation position | CoT-P0: 답 생성 전 clinical prompt 마지막 token |
+| original population | 4,543 cases, frozen 47-diagnosis population |
+| finding target | train-supported 91 evidence IDs |
+| hard-shuffle control | 4,121 own/donor pairs; donor는 같은 diagnosis의 다른 환자 |
+| native-value target | 6 evidence tasks / 32 value classes; all-original eligible targets 2,136 |
+| value ontology coverage | train-supported native values / 전체 single-value target = .7161 |
+
+`locked test`는 validation-only와 반대되는 단순한 데이터 이름이 아닙니다. Train에서 ontology와
+head를 학습하고 validation에서 layer/threshold/hyperparameter를 고정한 뒤, test 4,543명을
+**재선택 없이 한 번만** 평가했다는 뜻입니다.
+
+### Locked result와 실행 상태
+
+| class | method | layer | finding F1 | shuffled F1 | pair gap | native-value acc | status |
+|---|---|---:|---:|---:|---:|---:|---|
+| closed decoder | Frozen probe | HS24 | .9562* | .7938 | +.1624 | .7659* | locked |
+| structured monitor | Probe-guided reader | HS24 | **.9587†** | .7938 | +.1624 | **.7654†** | locked |
+| open generator | Vanilla NLA | HS32 | .0000 | .0000 | .0000 | .0000 | locked |
+| open generator | Medical-AV, SFT only | HS32 | — | — | — | — | validation gate FAIL; locked 미실행 |
+| open generator | **Medical-NLA, final** | 사전 동결 | — | — | — | — | promoted checkpoint 없음 |
+
+### 각 metric은 정확히 무엇인가?
+
+- `finding F1`: 91개 finding의 TP/FP/FN을 모든 case-label에 합친 micro F1,
+  `2TP/(2TP+FP+FN)`입니다. Diagnosis 정답률이 아닙니다.
+- `shuffled F1`: own case의 prediction을 같은 diagnosis donor의 gold finding set에 채점합니다.
+  질환명만 보고 전형적인 finding을 나열해도 얻는 점수를 측정합니다.
+- `pair gap`: 동일한 4,121 pairs에서 `own finding F1 - shuffled F1`입니다.
+  `+.1624`는 진단 공통 template를 넘는 환자별 정보가 있다는 뜻입니다.
+- `native-value accuracy`: evidence ID가 존재한다고 조건을 건 뒤, train-supported native value를
+  맞힌 비율입니다. 모든 4,543명에 대한 진단 accuracy가 아닙니다.
+- `*`: Frozen probe의 `.9562/.7659`는 hard-shuffle과 같은 **pair-eligible subset**에서 계산한
+  direct-head own score입니다.
+- `†`: Structured reader의 `.9587/.7654`는 **전체 4,543 originals**와 value target 2,136에서
+  canonical text를 다시 mapping한 end-to-end score입니다. 따라서 `*`와 `†`는 직접적인
+  우열 비교값이 아니며, 최종 논문에서는 공통 분모 열과 all-original 열을 분리해야 합니다.
 
 ### Structured reader의 정확한 의미
 
@@ -741,8 +775,15 @@ typical disease template.
 
 > 따라서 structured reader는 “probe가 고른 state를 말로 표시할 수 있다”는 closed-monitor 양성 대조이지, activation에서 자유 문장을 생성하는 NLA의 성공이 아닙니다.
 
-- Pair gap은 own activation 점수에서 같은 diagnosis의 다른 환자 activation 점수를 뺀 값입니다.
-- HS24는 closed probe의 validation-selected layer이고 HS32는 generative AV의 architecture-native input입니다.
+### `validation only`는 무슨 뜻이었는가?
+
+- 기존 표의 `validation only`는 점수가 아니라 **실행 상태**였습니다.
+- SFT 모델은 DDXPlus validation paired pilot 435 bases / 952 readouts에서만 개발 평가했고,
+  사전 등록 promotion gate를 통과하지 못해 locked test generation을 하지 않았습니다.
+- 그러므로 이 셀을 0으로 쓰거나 locked 행과 비교하면 안 되며, 표에서는 `— / locked 미실행`으로
+  고쳤습니다. `Medical-NLA, final`도 아직 실재하는 promoted checkpoint가 아닌 조건부 설계 행입니다.
+- HS24는 closed probe의 validation-selected layer이고 HS32는 공개 generative AV의
+  architecture-native input이므로 layer 차이도 method 역할과 함께 보고합니다.
 
 ---
 
@@ -752,8 +793,8 @@ typical disease template.
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Probe-guided reader | 1.0000 | .3593 | .6407 | .9987 | .1466 | .5955 | .0804 |
 | Vanilla NLA | .0000 | .0000 | N/A | N/A | .0000 | .0000 | N/A |
-| Medical-AV, SFT only | validation development only | validation development only | validation development only | validation development only | validation development only | validation development only | validation development only |
-| **Medical-NLA, final** | pending | pending | pending | pending | pending | pending | pending |
+| Medical-AV, SFT only | — | — | — | — | — | — | — |
+| **Medical-NLA, final** | — | — | — | — | — | — | — |
 
 ### Locked 분모와 해석
 
@@ -761,6 +802,7 @@ typical disease template.
 - Native value edit: 539 pairs; clean-switch eligible: 398
 - Static finding state는 잘 읽히지만 cue deletion 반응은 부분적이고 value clean switch는 `.0804`입니다.
 - Vanilla phantom `.0000`은 성공이 아닙니다. Original hit도 `.0000`이라 removal/retention/clean-switch 분모가 없습니다.
+- Medical-AV/Medical-NLA의 `—`는 0이 아니라 validation gate FAIL 또는 checkpoint 부재로 locked evaluation을 실행하지 않았다는 뜻입니다.
 - Final Medical-NLA는 changed cue 제거뿐 아니라 retained cue 보존과 old→new value 전환을 동시에 통과해야 합니다.
 
 ---
@@ -1246,8 +1288,12 @@ P0 medical activation h (3,840-d)
 | closed decoder | Frozen probe | HS24 | .9562 | .7938 | +.1624 | .7659 |
 | structured monitor | Probe-guided reader | HS24 | **.9587** | .7938 | +.1624 | **.7654** |
 | open generator | Vanilla NLA | HS32 | .0000 | .0000 | .0000 | .0000 |
-| open generator | Medical-AV, SFT only | HS32 | validation only | validation only | promotion fail | validation only |
-| open generator | **Medical-NLA, final** | 사전 동결 | pending | pending | pending | pending |
+| open generator | Medical-AV, SFT only | HS32 | — | — | — | — |
+| open generator | **Medical-NLA, final** | 사전 동결 | — | — | — | — |
+
+- `—`는 0점이 아니라 validation promotion FAIL 또는 checkpoint 부재로 **locked evaluation을 실행하지 않은 셀**입니다.
+- Frozen `.9562/.7659`는 pair-eligible direct-head 기준이고 reader `.9587/.7654`는 all-original
+  end-to-end 기준입니다. 최종 논문 표에서는 Slide 18의 규약대로 공통 분모와 all-original 열을 분리합니다.
 
 ### Main Table 3B (RQ2). DDXPlus counterfactual grounding
 
@@ -1255,10 +1301,11 @@ P0 medical activation h (3,840-d)
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Probe-guided reader | 1.0000 | .3593 | .6407 | .9987 | .1466 | .5955 | .0804 |
 | Vanilla NLA | .0000 | .0000 | N/A | N/A | .0000 | .0000 | N/A |
-| Medical-AV, SFT only | validation development only | validation development only | validation development only | validation development only | validation development only | validation development only | validation development only |
-| **Medical-NLA, final** | pending | pending | pending | pending | pending | pending | pending |
+| Medical-AV, SFT only | — | — | — | — | — | — | — |
+| **Medical-NLA, final** | — | — | — | — | — | — | — |
 
 - Vanilla의 phantom 0은 성공이 아닙니다. Original hit도 0이라 removal/retention/clean-switch 조건부 분모가 없습니다.
+- Medical-AV/Medical-NLA의 `—`는 validation gate 이후 locked generation을 열지 않았다는 뜻입니다.
 - Final Medical-NLA는 DiReCT clinical alignment와 DDXPlus activation grounding을 모두 통과해야 두 표의 최종 행이 됩니다.
 - Table 4 text patching은 AR identity/grounding gate를 통과할 때만 엽니다.
 
