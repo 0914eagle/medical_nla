@@ -1,6 +1,6 @@
 # Medical-NLA 교수님 미팅 자료
 
-> **2026-08-30 갱신본**<br>
+> **2026-08-31 갱신본**<br>
 > 2026-08-27 예정 미팅이 진행되지 않아, 당시 초안을 현재 실험 결과와 수치로 대체했습니다.
 
 ---
@@ -15,7 +15,7 @@
 
 ---
 
-# Part I. 연구 질문과 현재 결론
+# Part I. Introduction
 
 ---
 
@@ -41,7 +41,7 @@
 
 1. 정보의 **존재**는 probe와 intervention으로 확인했습니다.
 2. 정보의 **자연어 변환**은 별도 문제이며 현재 방법으로 해결되지 않았습니다.
-3. 다음 단계는 free-paragraph SFT 반복이 아니라 Medical Activation Oracle과 domain-adapted AR입니다.
+3. 다음 단계는 free-paragraph SFT 반복이 아니라 AR geometry audit과 Patchscopes 원인 분리, 이후 Medical Activation Oracle/domain-adapted AR입니다.
 
 ---
 
@@ -136,28 +136,65 @@
 
 ## Slide 6. Closed probe 검증 규약
 
-### Finding presence
+### Probe 1. DiReCT diagnosis probe
 
-- activation: CoT-P0, HS16/24/32
-- 모델: train-only multi-label linear probe
-- validation에서 layer, regularization, threshold 선택
-- locked test에는 선택된 설정을 한 번만 적용
+| item | protocol |
+|---|---|
+| input | CoT-P0 last-token activation, HS16/24/32 |
+| train / validation | 266 / 52 |
+| targets | canonical PDD 49-way, disease category 25-way |
+| decoder | one affine linear layer + softmax |
+| learning-rate grid | `3e-4`, `1e-3` |
+| weight-decay grid | `0`, `1e-4`, `1e-3`, `1e-2` |
+| class weighting | on/off 모두 비교 |
+| training | 최대 300 epochs, patience 30, seed 17 |
+| selection | validation NLL 최소, accuracy는 선택에 사용하지 않음 |
+| control | majority baseline; locked test는 설정 동결 전 미접근 |
 
-### Native value
+### Probe 2. DDXPlus finding/value probe
 
-- evidence ID가 존재한다고 가정한 conditional value classification
-- train에서 관찰된 multi-value evidence만 평가
-- 예: `rash swollen = rated 4`처럼 evidence와 값이 함께 있는 항목
+| item | protocol |
+|---|---|
+| input | CoT-P0 last-token activation, HS16/24/32 |
+| train / validation | 4,655 / 4,525 originals |
+| finding targets | train-supported 91 evidence IDs, multi-label sigmoid |
+| value targets | evidence ID별 conditional native-value classifier, 6 tasks/32 values |
+| support minimum | finding 20 train cases, value 10 train cases |
+| learning-rate grid | `1e-3`, `3e-3` |
+| weight-decay grid | `0`, `1e-3` |
+| finding weighting | weighted/unweighted 비교 |
+| threshold grid | `.1`, `.2`, `.3`, `.4`, `.5` |
+| training | 최대 80 epochs, patience 8, batch 512, seed 17 |
+| selection | own micro F1와 same-diagnosis shuffled gap을 우선해 HS24/threshold .5 동결 |
 
 ### 사례 특이성 control
 
-- 같은 diagnosis의 다른 환자 activation을 deterministic hard shuffle
-- own score에서 shuffled score를 뺀 gap 사용
-- 진단 template만 읽어서는 높은 gap을 만들 수 없음
+1. 각 환자에 같은 diagnosis의 다른 `base_id`를 deterministic donor로 배정합니다.
+2. 원래 text/label을 own activation과 donor activation에 각각 적용합니다.
+3. `own score - shuffled score`를 paired gap으로 계산합니다.
+4. 따라서 diagnosis template만 공통으로 읽는 probe는 높은 own score를 내더라도 gap이 작습니다.
+
+### Probe가 증명하는 범위
+
+- 증명: 고정 ontology의 label 정보가 activation에 선형적으로 존재함
+- 증명하지 않음: 자유 자연어 설명 생성, 새로운 finding 발견, causal faithfulness
 
 ---
 
 ## Slide 7. Counterfactual 평가 규약
+
+### Counterfactual activation을 만드는 방법
+
+| arm | input text 변경 | activation 재추출 | gold/target |
+|---|---|---|---|
+| original | 없음 | CoT-P0 | 원래 cue set/value |
+| cue deletion | 사전 선택한 cue 1개를 물리적으로 제거 | 같은 CoT prompt로 재추출 | 삭제 cue와 공통 retained cues |
+| native-value edit | 하나의 categorical value를 다른 유효 native value로 교체 | 같은 CoT prompt로 재추출 | old/new value pair |
+
+- diagnosis text나 label을 prompt에 추가하지 않습니다.
+- original/deleted/value-edited family는 같은 `base_id`로 묶습니다.
+- deletion은 한 번에 cue 하나만 바꿔 어떤 정보가 변했는지 식별 가능하게 합니다.
+- test에서 새 intervention 또는 threshold를 만들지 않습니다.
 
 ### Cue deletion
 
@@ -185,6 +222,12 @@ Edited:   rash severity = 5
 
 > 단순 정확도보다 intervention에 대한 선택적 반응이 grounding의 더 강한 증거입니다.
 
+### 두 병목을 분리하는 판정
+
+- static F1이 낮음: activation state selection 또는 decoder 모두 문제일 수 있음
+- static F1은 높고 phantom이 높음: 삭제 후에도 representation에 cue가 남는 표현 병목
+- probe는 반응하지만 NLA가 반응하지 않음: language decoder 병목
+
 ---
 
 ## Slide 8. Open-ended 설명 평가
@@ -202,10 +245,24 @@ Edited:   rash severity = 5
 
 ### DDXPlus semantic mapper
 
-1. Stage 0: claim splitting
-2. Stage 1: frozen lexical alias mapping
-3. Stage 2: method-blind AI semantic mapping
-4. case별 evidence/value set으로 deduplicate 후 동일 scorer 적용
+| stage | input/operation | output/control |
+|---|---|---|
+| 0. deterministic split | `<observed>` bullet 우선, 없으면 문장 분리 | 빈 출력도 0-claim case로 분모 유지 |
+| 1. frozen lexical | official-train modal phrase + release metadata alias | ambiguous alias 제외, 수동 동의어 없음 |
+| 2. method-blind AI | 잔여 claim + frozen 91-evidence ontology | JSON `(evidence_id, value_id/null, exact quote)` |
+| aggregation | case별 evidence/value set dedupe | structured reader와 같은 metric 코드 재사용 |
+
+### AI mapper에 주지 않은 정보
+
+- method 이름, case ID, diagnosis, split, gold cue/value
+- probe probability와 intervention type
+- 다른 method의 출력
+
+### 결정론과 provenance
+
+- exact supporting quote가 원문에 없으면 mapping을 거부합니다.
+- claim, ontology, prompt, model ID를 묶은 SHA-256 key로 cache합니다.
+- alias table, prompt, mapper code commit, model ID, G1-G4 receipt를 locked scoring 전에 동결합니다.
 
 ### Mapper validation
 
@@ -214,19 +271,66 @@ Edited:   rash severity = 5
 - G3 cache/replay determinism
 - G4 independent AI concordance
 
+> 이 계측기는 open-generator끼리 공통으로 사용하며, probe/reader의 closed score를 대체하지 않습니다.
+
 ---
 
 ## Slide 9. 생성형 Medical-NLA 개발 규율
 
-### 시도한 방법 계열
+### 공통 출력 prompt/schema
 
-1. DiReCT-only SFT
-2. DiReCT + DDXPlus common/full-data SFT
-3. Counterfactual sequence SFT
-4. Changed-cue ranking objective
-5. Specificity-anchored ranking
-6. 256-dimensional soft latent bottleneck
-7. Public AR reconstruction diagnostic
+```text
+The vector above was extracted after a clinical presentation and a reasoning
+instruction, immediately before the source model began its response.
+Read the patient-specific clinical state represented by the vector.
+
+Report only concrete clinical findings represented by the vector.
+Do not infer a diagnosis, add background medical knowledge, or complete a
+typical disease template.
+
+<explanation><readout><observed>
+- patient-specific clinical finding
+</observed></readout></explanation>
+```
+
+### Common/full-data SFT recipe
+
+| setting | value |
+|---|---|
+| base | `kitft/nla-gemma3-12b-L32-av` |
+| activation | CoT-P0/HS32/last token |
+| train | DDXPlus 4,655 + DiReCT 248 |
+| validation | DDXPlus 50 + DiReCT 50 |
+| source sampling | exponent alpha=.5; DiReCT case당 약 4.3회 exposure |
+| optimizer | AdamW, learning rate `2e-4`, weight decay 0, gradient clipping 1.0 |
+| batch | 4, gradient accumulation 2, effective 8 |
+| LoRA | rank 16, alpha 32, dropout .05 |
+| modules | q/k/v/o, gate/up/down projections |
+| precision | frozen base bf16, trainable LoRA fp32 |
+| checkpoint selection | DDXPlus/DiReCT source-macro content-token NLL |
+| generation | greedy, max new tokens 512, batch 4 |
+
+### Target construction
+
+- DDXPlus: original presentation의 train-supported cue를 입력 순서대로 중복 제거, 최대 12개
+- DiReCT: physician deduction 중 `observation_exact_in_note=true`만 사용, 최대 12개
+- diagnosis와 backbone source answer는 common target에서 제거
+- bullet content token loss와 XML scaffold token loss를 분리
+
+### 실제로 시도한 방법 계열
+
+| phase | supervision/objective | 핵심 질문 |
+|---|---|---|
+| Direct-only SFT | DiReCT 248 physician observation | 소량 domain target만으로 읽는가? |
+| Common mixed SFT | DiReCT 248 + DDXPlus 248 | 동일 schema가 transfer를 돕는가? |
+| Full-data SFT | DiReCT 248 + DDXPlus 4,655 | 데이터 양이 병목인가? |
+| Counterfactual sequence SFT | original/deletion/value-edit 각각의 현재 cue set CE | intervention 예시를 직접 보여주면 반응하는가? |
+| Sentence contrastive | matched text NLL < crossed text NLL | activation-target alignment를 직접 키울 수 있는가? |
+| D10 1x2 ranking | one claim, original NLL < deleted NLL | 긴 문장 난이도를 제거하면 changed cue를 배우는가? |
+| D14 OOF distillation | OOF probe가 선택한 hard finding set | activation-supported target만 학습하면 되는가? |
+| D16 soft bottleneck | 3840→256→3840 + training-only auxiliary head | continuous support가 shared latent를 조직화하는가? |
+| D20 specificity anchor | D10 + retained claim CE on original/deleted | global deletion-detector shortcut을 막을 수 있는가? |
+| D22 public AR | text reconstruction matched vs shuffled | 원 NLA의 AR가 medical distribution을 측정하는가? |
 
 ### 공통 promotion 원칙
 
@@ -239,9 +343,17 @@ Edited:   rash severity = 5
 
 > 잘 말하는 모델을 찾는 것이 아니라 activation-dependent한 모델을 찾습니다.
 
+### 현재 고려 중인 세 경로
+
+1. **Geometry audit A1-A5**: mean direction 제거, normalized FVE, own-case retrieval로 공개 AR 실패 원인을 분해
+2. **Patchscopes baseline**: HS32 state를 같은 Gemma의 native HS32 placeholder에 직접 patch해 AV injection 변환을 우회
+3. **Medical AO + Medical AR**: 대규모 supervised clinical-state decoder와 domain AR를 각각 학습한 뒤 constrained renderer에 연결
+
+현재 우선순위는 `geometry audit → Patchscopes smoke → Medical-AR positive control → Medical AO/AV`입니다. Raw cosine이 양성 대조를 통과하기 전에는 AR reward/RL을 열지 않습니다.
+
 ---
 
-# Part III. Data
+## Method subsection. Experimental setup and data
 
 ---
 
@@ -294,7 +406,7 @@ Edited:   rash severity = 5
 
 ---
 
-# Part IV. Results
+# Part III. Experimental Results
 
 ---
 
@@ -323,53 +435,63 @@ Edited:   rash severity = 5
 
 ### Linear probe, validation n=52
 
-| target | HS16 | HS24 | HS32 | majority |
-|---|---:|---:|---:|---:|
-| disease category Top-1 | 0.5000 | **0.5962** | 0.5192 | 0.0577 |
-| canonical PDD Top-1 | 0.3846 | **0.4423** | 0.3846 | 0.0962 |
+| target | HS | majority | Top-1 | Top-5 | MRR | macro recall | val NLL |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| canonical PDD | 16 | 0.0962 | 0.3846 | 0.6923 | 0.5294 | 0.3597 | 2.5533 |
+| canonical PDD | **24** | 0.0962 | **0.4423** | **0.7692** | **0.5762** | **0.3868** | **2.0489** |
+| canonical PDD | 32 | 0.0962 | 0.3846 | 0.6923 | 0.5335 | 0.2771 | 2.3784 |
+| disease category | 16 | 0.0577 | 0.5000 | 0.7885 | 0.6374 | 0.4833 | 1.9679 |
+| disease category | **24** | 0.0577 | **0.5962** | **0.9038** | **0.7284** | **0.5000** | **1.3961** |
+| disease category | 32 | 0.0577 | 0.5192 | 0.8654 | 0.6609 | 0.4426 | 1.6869 |
 
 ### Forced-answer likelihood baseline
 
-| target/ranking | Top-1 | Top-5 | MRR | mean gold rank |
-|---|---:|---:|---:|---:|
-| category raw | 0.4808 | 0.6731 | 0.5814 | 5.02 |
-| category calibrated | 0.2308 | 0.3077 | 0.3091 | 9.58 |
-| PDD raw, train49 | 0.1538 | 0.5192 | 0.3250 | 7.92 |
-| PDD calibrated | 0.0577 | 0.1346 | 0.1486 | 15.83 |
+| target/ranking | candidates | Top-1 | Top-5 | MRR | mean gold rank |
+|---|---:|---:|---:|---:|---:|
+| category raw | 25 | 0.4808 | 0.6731 | 0.5814 | 5.02 |
+| category calibrated sensitivity | 25 | 0.2308 | 0.3077 | 0.3091 | 9.58 |
+| PDD raw, full ontology | 61 | 0.1538 | 0.4423 | 0.3168 | 8.77 |
+| PDD raw, train ontology | 49 | 0.1538 | 0.5192 | 0.3250 | 7.92 |
+| PDD calibrated sensitivity | 49 | 0.0577 | 0.1346 | 0.1486 | 15.83 |
 
 ### 해석
 
 - P0 activation에 진단 관련 선형 정보가 존재합니다.
-- calibration은 label prior를 제거했지만 성능을 크게 낮췄습니다.
+- calibration prompt는 `Clinical case:\nN/A\n\nWhat is the most likely diagnosis?`이며 후보 문자열 prior를 차감했지만 성능을 크게 낮췄습니다.
 - HS24가 validation에서 category와 PDD 모두 최선이었습니다.
+- Raw PDD는 35/52에서 하나의 희귀 후보를 top-1으로 골라 candidate surface-form prior가 강했습니다.
 
 ---
 
 ## Slide 14. DiReCT Vanilla NLA: P0를 자연어로 읽는가?
 
-### Primary P0, validation n=52
+### P0 blinded semantic audit, validation n=52
 
-| prompt | source answer mention | gold PDD mention | category mention |
+| prompt | input HS | parse | source answer | gold PDD | category |
+|---|---:|---:|---:|---:|---:|
+| Default | 16 | 1.0000 | 0/52 | 0/52 | 1/52 |
+| Default | 24 | 1.0000 | 0/52 | 0/52 | 0/52 |
+| **Default primary** | **32** | **1.0000** | **0/52** | **0/52** | **0/52** |
+| Task-aligned | 16 | 1.0000 | 0/52 | 0/52 | 1/52 |
+| Task-aligned | 24 | 1.0000 | 0/52 | 0/52 | 0/52 |
+| Task-aligned | 32 | 1.0000 | 0/52 | 0/52 | 0/52 |
+
+- 총 P0 readouts: 52 cases x 2 prompts x 3 layers = **312**
+- local Llama-3-8B judge가 `match=true`일 때 readout의 exact supporting quote를 요구했습니다.
+- Lexical default/task-aligned HS32도 source/gold/category가 모두 0이었습니다.
+
+### P1/P2 leakage control, source-answer lexical mention
+
+| prompt | P1 | P2 | leakage-free P1 subset |
 |---|---:|---:|---:|
-| default, HS32 | 0/52 | 0/52 | 0/52 |
-| task-aligned, HS32 | 0/52 | 0/52 | 0/52 |
-
-### 6-arm layer audit
-
-- 대부분의 arm에서 세 target 모두 **0/52**
-- 예외: HS16 category가 default/task-aligned에서 각각 **1/52**
-
-### P1/P2 leakage control
-
-| position | source | gold PDD | category | own-shuffled gap |
-|---|---:|---:|---:|---:|
-| P1 | 0.4912 | 0.1404 | 0.5848 | +0.4146 |
-| P2 | 0.3918 | 0.0819 | 0.4854 | +0.3598 |
+| Default | 0.5192 | 0.5962 | 0/5 |
+| Task-aligned | 0.5577 | 0.5000 | 0/5 |
 
 ### 해석
 
 - 공개 Vanilla NLA는 P0의 진단 정보를 읽지 못했습니다.
-- P1/P2 성공은 reasoning/answer 문자열 노출과 일치하며 P0 reader 성공이 아닙니다.
+- P1/P2의 절대 mention은 reasoning/answer 문자열 노출과 일치하고, leakage-free P1은 0/5이므로 P0 reader 성공이 아닙니다.
+- HS16/24 입력은 HS32용 decoder와 layer mismatch가 있으므로 sensitivity일 뿐 primary 성능이 아닙니다.
 
 ---
 
@@ -387,18 +509,28 @@ Edited:   rash severity = 5
 |---|---:|---:|---:|---:|
 | conditional accuracy | **0.7659** | 0.5791 | **+0.1868** | [0.1650, 0.2091] |
 
-### Validation layer sensitivity
+### Validation finding layer sensitivity, n=4,525
 
-| target | HS16 | HS24 | HS32 |
-|---|---:|---:|---:|
-| finding micro F1 | 0.9636 | **0.9607** | 0.9607 |
-| native-value accuracy | 0.7641 | **0.7700** | 0.6990 |
+| HS | labels | coverage | micro F1 | macro F1 | micro AUROC | shuffled F1 | own-shuffled |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 16 | 91 | 0.9997 | 0.9636 | 0.9097 | 1.0000 | 0.7985 | +0.1651 |
+| **24** | 91 | 0.9997 | **0.9607** | 0.9049 | 1.0000 | 0.7954 | **+0.1653** |
+| 32 | 91 | 0.9997 | 0.9607 | **0.9134** | 0.9999 | 0.8062 | +0.1546 |
+
+### Validation native-value layer sensitivity, n=2,183
+
+| HS | tasks/classes | accuracy | macro recall | MRR | shuffled accuracy | own-shuffled |
+|---:|---:|---:|---:|---:|---:|---:|
+| 16 | 6/32 | 0.7641 | 0.6957 | 0.8582 | 0.5799 | +0.1842 |
+| **24** | 6/32 | **0.7700** | **0.7152** | **0.8636** | 0.5758 | **+0.1942** |
+| 32 | 6/32 | 0.6990 | 0.6197 | 0.8144 | 0.5786 | +0.1205 |
 
 ### 해석
 
 - activation에는 환자별 finding과 값 정보가 강하게 존재합니다.
 - 같은 진단 내 shuffle gap이 양수이므로 diagnosis template만 읽은 결과가 아닙니다.
-- HS16의 raw finding F1이 0.0029 높지만, validation own-minus-shuffled 우선 규칙으로 HS24를 frozen layer로 선택했습니다.
+- HS16의 raw finding F1이 0.0029 높지만, finding/value own-minus-shuffled joint 규칙으로 HS24를 frozen layer로 선택했습니다.
+- Locked test에서 layer, threshold, ontology 또는 checkpoint를 다시 선택하지 않았습니다.
 
 ---
 
@@ -408,27 +540,27 @@ Edited:   rash severity = 5
 
 ### Static readout
 
-| metric | value |
-|---|---:|
-| original cases | 4,543 |
-| mean emitted claims | 4.9353 |
-| finding micro F1 | **0.9587** |
-| shuffled F1 | 0.7938 |
-| own-shuffled gap | **+0.1624** |
-| native-value accuracy | **0.7654** |
-| value emission coverage | 0.9995 |
+| metric | validation | locked test |
+|---|---:|---:|
+| original cases | 4,525 | 4,543 |
+| mean emitted claims | 4.9485 | 4.9353 |
+| finding micro F1 | 0.9607 | **0.9587** |
+| same-diagnosis shuffled F1 | 0.7954 | 0.7938 |
+| own-shuffled gap | +0.1630 | **+0.1624** |
+| native-value accuracy | 0.7700 | **0.7654** |
+| value emission coverage | 1.0000 | 0.9995 |
 
 ### Counterfactual response
 
-| metric | value | denominator |
-|---|---:|---:|
-| deletion original hit | 1.0000 | 4,540 |
-| deletion phantom | 0.3593 | 4,540 |
-| removal success | 0.6407 | original-hit conditional |
-| untouched retention | 0.9987 | 16,105 |
-| replacement hit | 0.1466 | 539 |
-| old-value persistence | 0.5955 | 539 |
-| clean switch | 0.0804 | 398 |
+| metric | validation | locked test | locked denominator |
+|---|---:|---:|---:|
+| deletion original hit | 1.0000 | 1.0000 | 4,540 |
+| deletion phantom | 0.3626 | 0.3593 | 4,540 |
+| removal success | 0.6374 | 0.6407 | original-hit conditional |
+| untouched retention | 0.9985 | 0.9987 | 16,105 |
+| replacement hit | 0.1407 | 0.1466 | 539 |
+| old-value persistence | 0.5722 | 0.5955 | 539 |
+| clean switch | 0.1038 | 0.0804 | 398 |
 
 ### 해석
 
@@ -470,6 +602,17 @@ Edited:   rash severity = 5
 - value-edited: **942**
 - total readouts: **10,028**
 
+### Frozen generation protocol
+
+| item | setting |
+|---|---|
+| model | `kitft/nla-gemma3-12b-L32-av` |
+| activation | DDXPlus locked CoT-P0/HS32 |
+| decoding | greedy, max new tokens 512, batch 4 |
+| execution | 5,013/5,015 two shards, exact 10,028-row merge |
+| pre-scoring control | actor prompt/model/config/manifest hash 기록 후 generation seal 검증 |
+| evaluation order | mapper V2 G1-G4 receipt를 먼저 커밋한 뒤 sealed outputs 1회 채점 |
+
 ### Frozen mapper 결과
 
 | item | count |
@@ -497,30 +640,66 @@ Edited:   rash severity = 5
 
 ### Common mixed pilot population
 
-| method | parsed | Obspre | Obsrec | Obscomp | Expcom | Expall |
-|---|---:|---:|---:|---:|---:|---:|
-| Source CoT | 50/50 | 0.3110 | 0.4069 | **0.2399** | 0.0657 | 0.0168 |
-| Vanilla NLA | 10/50 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
-| Common SFT seed17 | 50/50 | 0.0100 | 0.0037 | 0.0034 | 0.0000 | 0.0000 |
-| Common SFT seed29 | 50/50 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
-| Common SFT seed43 | 4/50 | 0.0070 | 0.0054 | 0.0043 | 0.0000 | 0.0000 |
+| method | obs rows | extracted obs | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | 50/50 | 562 | 0 | 0.3110 | 0.4069 | **0.2399** | 0.0657 | 0.0168 |
+| Vanilla NLA | 10/50 | 10 | 0 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+| Common SFT seed17 | 50/50 | 150 | 0 | 0.0100 | 0.0037 | 0.0034 | 0.0000 | 0.0000 |
+| Common SFT seed29 | 50/50 | 150 | 0 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+| Common SFT seed43 | 50/50 | 329 | 0 | 0.0070 | 0.0054 | 0.0043 | 0.0000 | 0.0000 |
 
 ### Full-data population
 
-| method | parsed | Obspre | Obsrec | Obscomp | Expcom | Expall |
-|---|---:|---:|---:|---:|---:|---:|
-| Source CoT | 50/50 | 0.2835 | 0.3726 | **0.2130** | 0.0650 | 0.0153 |
-| Full-data SFT seed17 | 50/50 | 0.0544 | 0.0502 | 0.0301 | 0.0000 | 0.0000 |
-| Full-data SFT seed29 | 50/50 | 0.0553 | 0.0388 | 0.0296 | 0.0000 | 0.0000 |
+| method | obs rows | extracted obs | Accdiag | Obspre | Obsrec | Obscomp | Expcom | Expall |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Source CoT | 50/50 | 558 | 0 | 0.2835 | 0.3726 | **0.2130** | 0.0650 | 0.0153 |
+| Full-data SFT seed17 | 50/50 | 471 | 0 | 0.0544 | 0.0502 | 0.0301 | 0.0000 | 0.0000 |
+| Full-data SFT seed29 | 50/50 | 228 | 0 | 0.0553 | 0.0388 | 0.0296 | 0.0000 | 0.0000 |
 
 ### 해석
 
 - DDXPlus train 4,655건을 추가해도 DiReCT case-specific alignment는 Source CoT floor에 미달했습니다.
 - SFT는 출력 형식을 학습했지만 activation-dependent observation을 안정적으로 복원하지 못했습니다.
+- Common seed43의 `obs rows=50/50`은 extractor 결과이며, raw `<observed>` schema parse는 Direct subset에서 4/50이었습니다. 두 분모를 혼동하지 않습니다.
 
 ---
 
-## Slide 20. SFT 원문 census: template collapse
+## Slide 20. Medical-NLA SFT: DDXPlus grounding
+
+### Original-only common/full-data SFT, validation
+
+| method | DDX cue recall | cue precision | DiReCT lexical recall | current finding | deletion phantom | removal success | clean switch |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 248+248 pilot, seed29 | 0.1784 | 0.2533 | 0.0000 | 0.1499 | 0.1356 | 0.0000 | 0.0000 |
+| full data, seed17 | **0.3763** | **0.3816** | 0.0216 | 0.3389 | **0.2138** | **0.4052** | **0.0244** |
+| full data, seed29 | 0.3506 | 0.3758 | 0.0076 | **0.3612** | 0.2667 | 0.3232 | 0.0122 |
+
+### Counterfactual sequence SFT, validation 435 bases / 952 readouts
+
+| method | current recall | original target hit | deleted phantom | deletion contrast | removal success | clean switch |
+|---|---:|---:|---:|---:|---:|---:|
+| original-only seed17 | 0.3389 | 0.3517 | 0.2138 | 0.1379 | 0.4052 | 0.0244 |
+| counterfactual seed17 | **0.5632** | **0.6345** | **0.4253** | **0.2092** | 0.3659 | **0.0488** |
+| original-only seed29 | 0.3612 | 0.3770 | 0.2667 | 0.1103 | 0.3232 | 0.0122 |
+| counterfactual seed29 | 0.3475 | 0.3770 | 0.2713 | 0.1057 | **0.4268** | 0.0000 |
+
+### Value-edit 상세
+
+- Counterfactual seed17 replacement hit: **0.0732**
+- Counterfactual seed17 old-value persistence: **0.4024**
+- Counterfactual seed17 clean switch: **0.0488**
+- 평가 가능한 value-edit bases: **82**
+
+### 판정
+
+- Full-data SFT는 DDXPlus finding recall과 deletion response를 개선했습니다.
+- Counterfactual seed17은 deletion contrast가 0.1379에서 0.2092로 증가했지만 phantom도 0.2138에서 0.4253으로 약 2배 증가했습니다.
+- Seed29에서는 contrast 개선이 재현되지 않았습니다.
+- 따라서 sequence CE에 학습 가능한 신호는 있지만 changed finding을 선택적으로 말하게 하는 objective로는 불충분합니다.
+
+---
+
+## Slide 21. SFT 원문 census: template collapse
 
 > AI checklist가 불안정해 최종 판정에는 사용하지 않고, 전체 50-case deterministic exact-text census를 사용했습니다.
 
@@ -546,11 +725,13 @@ Edited:   rash severity = 5
 
 ---
 
-## Slide 21. 생성형 개발 gate 전체 결과
+## Slide 22. 생성형 개발 gate 전체 결과
 
 | experiment | primary observed result | frozen criterion | verdict |
 |---|---|---|---|
 | Full-data SFT | Obscomp 0.0301 / 0.0296 | > Source CoT 0.2130 | FAIL |
+| Counterfactual sequence SFT | contrast 0.2092 only in seed17; phantom 0.4253 | seed 재현 + phantom 감소 | FAIL |
+| Sentence contrastive | gap 0.0013 / 0.0022 | baseline 0.0051 초과, CI > 0 | FAIL |
 | D10 ranking, 20 steps | changed +0.0005 / +0.0028 / +0.0030 | each >= 0.05, CI/specificity | FAIL |
 | D14 K=5 OOF teacher | precision 0.8881 | >= 0.90 plus calibration gates | FAIL |
 | D16 soft bottleneck | -0.001137 / -0.001476 / +0.001433 | each >= 0.005, CI > 0 | FAIL |
@@ -558,6 +739,23 @@ Edited:   rash severity = 5
 | D10 budget 1,552 | changed +0.5558, retained +0.5604, specificity -0.0046 | selective changed-cue gain | FAIL |
 | D20 anchored 1,552 | specificity -0.0278 / -0.0255 / -0.0217 | positive each seed, CI > 0 | FAIL |
 | D22 public AR | positive-control gap approximately 0 | matched > shuffled | FAIL as instrument |
+
+### Sentence-level contrastive 세부
+
+| objective | symmetric gap | category-cluster 95% CI | matched win |
+|---|---:|---:|---:|
+| lambda=.1 | +0.0013 | [-0.0006, +0.0033] | 0.5556 |
+| lambda=1 | +0.0022 | [-0.0010, +0.0055] | 0.5778 |
+| SFT=1, lambda=5 | +0.0051 | [+0.0011, +0.0099] | 0.5333 |
+| SFT=0, lambda=1 | +0.0030 | [+0.0003, +0.0057] | 0.6444 |
+
+### D10 20-step paired arm 세부
+
+| seed | changed delta | cluster 95% CI | retained delta | specificity | specificity 95% CI |
+|---:|---:|---:|---:|---:|---:|
+| 17 | +0.0005 | [-0.0006, +0.0016] | +0.0010 | -0.0005 | [-0.0020, +0.0010] |
+| 29 | +0.0028 | [+0.0017, +0.0039] | -0.0000 | +0.0029 | [+0.0015, +0.0045] |
+| 43 | +0.0030 | [+0.0015, +0.0048] | -0.0007 | +0.0037 | [+0.0017, +0.0059] |
 
 ### 공통 교훈
 
@@ -567,7 +765,7 @@ Edited:   rash severity = 5
 
 ---
 
-## Slide 22. D10 budget trajectory
+## Slide 23. D10 budget trajectory
 
 ### Across-seed means
 
@@ -594,7 +792,7 @@ Edited:   rash severity = 5
 
 ---
 
-## Slide 23. D20: specificity를 loss에 넣은 결과
+## Slide 24. D20: specificity를 loss에 넣은 결과
 
 | seed | changed gap | retained gap | specificity | changed original NLL | retained original NLL |
 |---:|---:|---:|---:|---:|---:|
@@ -613,7 +811,7 @@ Edited:   rash severity = 5
 
 ---
 
-## Slide 24. D22: 공개 AR reconstruction 진단
+## Slide 25. D22: 공개 AR reconstruction 진단
 
 > Released `kitft/nla-gemma3-12b-L32-ar`, validation-only, arm당 n=20
 
@@ -637,11 +835,11 @@ Edited:   rash severity = 5
 
 ---
 
-# Part V. 종합과 다음 결정
+# Part IV. Conclusion
 
 ---
 
-## Slide 25. 현재 RQ별 답
+## Slide 26. 현재 RQ별 답
 
 ### RQ1. Activation에 임상 정보가 존재하는가?
 
@@ -670,23 +868,49 @@ Edited:   rash severity = 5
 
 ---
 
-## Slide 26. 논문에 지금 넣을 수 있는 결과
+## Slide 27. 논문 표 완성 현황
 
-| component | status |
-|---|---|
-| DDXPlus validation layer sensitivity | 확정 |
-| DDXPlus locked finding/value probe | 확정 |
-| DDXPlus structured reader locked | 확정 |
-| DDXPlus Vanilla NLA locked | 확정 |
-| DDXPlus semantic mapper V2 gates | 확정 |
-| DiReCT exploratory Direct vs CoT | 확정, exploratory 표기 |
-| DiReCT validation diagnosis probe | 확정 |
-| DiReCT validation explanation alignment | 확정 |
-| Medical-NLA development gate appendix | 확정 |
-| D22 public AR diagnostic | validation diagnostic로 확정 |
-| DiReCT locked 72/106 source/probe/NLA baseline | **pending** |
-| Generative Medical-NLA locked row | validation 통과 모델 없음 |
-| Text patching Table 4 | promotion 모델 없음, 현재 닫힘 |
+### Table 1A. Backbone behavior
+
+| population | Direct strict PDD | Direct category | CoT strict PDD | CoT category | status |
+|---|---:|---:|---:|---:|---|
+| exploratory 171 | 0.2105 | 0.5029 | 0.1930 | 0.5088 | 계산 완료, exploratory |
+| test-seen 72 | Not computed | Not computed | Not computed | Not computed | locked batch pending |
+| PDD-heldout 106 | Not computed | Not computed | Not computed | Not computed | locked batch pending |
+
+### Table 1B. P0 decodability
+
+| dataset/target | validation | locked test | control |
+|---|---:|---:|---|
+| DiReCT category HS24 | 0.5962 | Not computed | majority 0.0577 |
+| DiReCT PDD HS24 | 0.4423 | Not computed | majority 0.0962 |
+| DDXPlus finding HS24 | 0.9607 | **0.9562** | shuffled 0.7938, gap +0.1624 |
+| DDXPlus native value HS24 | 0.7700 | **0.7659** | shuffled 0.5791, gap +0.1868 |
+
+### Table 2. DiReCT explanation alignment
+
+| method | validation Obscomp | validation Expcom | test-seen 72 | PDD-heldout 106 |
+|---|---:|---:|---|---|
+| Source CoT | **0.2130** | **0.0650** | Not computed | Not computed |
+| Vanilla NLA | 0.0000 | 0.0000 | Not computed | Not computed |
+| Full-data SFT seed17 | 0.0301 | 0.0000 | promotion fail | promotion fail |
+| Full-data SFT seed29 | 0.0296 | 0.0000 | promotion fail | promotion fail |
+
+### Table 3. DDXPlus locked grounding
+
+| method | finding F1 | shuffled | gap | value acc | phantom | removal | retention | replacement | old persist | clean switch |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Frozen probe | 0.9562 | 0.7938 | +0.1624 | 0.7659 | 0.3593 | 0.6407 | 0.9987 | 0.1466 | 0.5955 | 0.0804 |
+| Structured reader | 0.9587 | 0.7938 | +0.1624 | 0.7654 | 0.3593 | 0.6407 | 0.9987 | 0.1466 | 0.5955 | 0.0804 |
+| Vanilla NLA | 0.0000 | 0.0000 | +0.0000 | 0.0000 | 0.0000 | N/A | N/A | 0.0000 | 0.0000 | N/A |
+
+- Probe와 reader의 counterfactual set 선택은 같은 frozen threshold를 사용하므로 해당 열이 동일합니다. Static F1/value의 작은 차이는 rendered text의 end-to-end normalization 차이입니다.
+- Vanilla의 phantom 0은 성공이 아닙니다. Original hit도 0이라 removal/retention/clean-switch 조건부 분모가 없습니다.
+
+### 아직 표에 넣지 않는 행
+
+- Generative Medical-NLA locked row: validation promotion gate 미통과
+- Table 4 text patching: AR identity/grounding gate 미통과로 현재 닫힘
 
 ### 논문의 현재 중심 주장
 
@@ -694,7 +918,7 @@ Edited:   rash severity = 5
 
 ---
 
-## Slide 27. 다음 방법: Medical AO + Medical AR
+## Slide 28. 지금 검토 중인 다음 방법
 
 ### 왜 free-paragraph SFT를 더 반복하지 않는가?
 
@@ -703,7 +927,41 @@ Edited:   rash severity = 5
 - deletion ranking은 global detector shortcut을 허용함
 - 공개 AR은 이 의료 activation 분포를 구분하지 못함
 
-### 제안 파이프라인
+### Lane 1. 공개 AR geometry audit, 가장 먼저
+
+| audit | 질문 |
+|---|---|
+| A1 | same/different-diagnosis activation cosine 자체가 얼마나 높은가? |
+| A2 | train mean direction 제거 후 matched-over-shuffled gap이 생기는가? |
+| A3 | train-mean predictor 대비 direction-normalized FVE가 양수인가? |
+| A4 | same-diagnosis donor가 different-diagnosis donor보다 어려운가? |
+| A5 | 같은 diagnosis 후보 중 own-case retrieval top-1/MRR가 chance를 넘는가? |
+
+- A2 또는 A5 양성 대조 통과 시 공개 AR를 초기화/비교용으로만 재론합니다.
+- A2, A5, A3가 모두 통과하기 전에는 AV reward로 사용하지 않습니다.
+
+### Lane 2. Patchscopes, 학습 없는 native-layer baseline
+
+```text
+source CoT-P0 HS32 state
+        -> target prompt의 HS32 placeholder에 직접 patch
+        -> remaining Gemma layers가 finding/value를 생성
+```
+
+| patch condition | 분리하는 요인 |
+|---|---|
+| real activation | 실제 patient state |
+| same-diagnosis shuffled | 사례 특이성 |
+| train-mean activation | 공통 방향 baseline |
+| no patch | target prompt/model prior |
+| cue-deleted | changed finding 선택적 제거 |
+| value-edited | old/new value 전환 |
+
+이 방법은 HS32를 layer-0 embedding으로 바꾸는 AV injection 병목을 우회합니다. 성공하면 activation은 읽히지만 기존 AV 변환/학습이 병목이었다고 원인 분리할 수 있습니다.
+
+### Lane 3. Medical AO + Medical AR
+
+#### 제안 파이프라인
 
 ```text
 Medical activation
@@ -719,7 +977,7 @@ constrained text renderer
   - claim selection과 문장 생성을 분리
 ```
 
-### 단계
+#### 단계
 
 1. Train-only DDXPlus finding/value로 Medical Activation Oracle 학습
 2. DiReCT claim ontology와 연결 가능한 공통 clinical-state schema 정의
@@ -727,9 +985,17 @@ constrained text renderer
 4. Structured reader 양성 대조가 matched > shuffled를 통과하는지 확인
 5. 그 이후에만 AV를 reconstruction/preference objective로 학습
 
+### 실행 우선순위
+
+1. 기존 160 text의 reconstruction vector 저장 및 A1-A5 계산
+2. DDXPlus validation 50-case Patchscope smoke
+3. 공개 AR가 탈락하면 DDXPlus 4,655 Medical-AR smoke
+4. reader/oracle matched-vs-shuffled와 FVE가 양수일 때 official train 47k-100k로 확장
+5. Medical-AR positive control 통과 후에만 Medical-AV SFT와 AR-reward optimization
+
 ---
 
-## Slide 28. 교수님께 확인받을 결정
+## Slide 29. 교수님께 확인받을 결정
 
 ### 결정 1. 논문의 중심 프레이밍
 
@@ -755,7 +1021,7 @@ constrained text renderer
 
 ---
 
-## Slide 29. 결론
+## Slide 30. 결론
 
 1. **정보는 있습니다.** DDXPlus locked probe에서 finding F1 0.9562, value accuracy 0.7659입니다.
 2. **환자별 정보입니다.** 같은 진단 내 shuffle gap이 +0.1624와 +0.1868입니다.
@@ -763,7 +1029,7 @@ constrained text renderer
 4. **자유 자연어 readout은 실패했습니다.** Vanilla NLA는 locked 10,028행에서 ontology claim을 하나도 내지 못했습니다.
 5. **단순 SFT/ranking은 충분하지 않습니다.** Template collapse와 deletion detector shortcut이 확인됐습니다.
 6. **공개 AR도 그대로는 사용할 수 없습니다.** Positive-control matched-vs-shuffled gap이 약 0입니다.
-7. 다음 positive route는 **Medical Activation Oracle + domain-adapted AR + constrained renderer**입니다.
+7. 다음 route는 **geometry audit → Patchscopes → Medical Activation Oracle + domain-adapted AR + constrained renderer**입니다.
 
 ---
 
