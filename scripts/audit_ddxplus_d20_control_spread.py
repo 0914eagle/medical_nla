@@ -15,6 +15,7 @@ from statistics import mean
 from typing import Any
 
 from scripts.summarize_ddxplus_d10_arms import metrics_by_id
+from scripts.score_medical_nla_v2_readouts import extract_tag
 from src.cue_readout_scoring import observed_items
 from src.jsonl import read_jsonl
 from src.nla_text import extract_explanation
@@ -61,7 +62,8 @@ def readout_claim_mean(path: Path) -> tuple[int, float]:
     for row in rows:
         text = str(row.get("nla_output") or row.get("response") or "")
         explanation, _parsed = extract_explanation(text)
-        counts.append(len(observed_items(explanation)))
+        observed, parsed_observed = extract_tag(explanation, "observed")
+        counts.append(len(observed_items(observed if parsed_observed else explanation)))
     return len(rows), mean(counts)
 
 

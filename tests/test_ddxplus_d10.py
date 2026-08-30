@@ -17,7 +17,7 @@ from scripts.train_ddxplus_d10_1x2 import (
     retained_variants,
     specificity_anchored_objective,
 )
-from scripts.audit_ddxplus_d20_control_spread import recommendation
+from scripts.audit_ddxplus_d20_control_spread import readout_claim_mean, recommendation
 from scripts.summarize_ddxplus_d20_arms import build_report as build_d20_report
 from scripts.summarize_ddxplus_d10_budget_trajectory import (
     FROZEN_STEPS,
@@ -223,6 +223,25 @@ def test_d20_control_audit_uses_twice_seed_range_with_floors(tmp_path: Path) -> 
         "retained_original_nll_delta_max"
     ] == pytest.approx(0.06)
     assert report["recommended_gates"]["mean_claim_relative_drop_max"] is None
+
+
+def test_d20_claim_count_excludes_xml_scaffold(tmp_path: Path) -> None:
+    path = tmp_path / "readouts.jsonl"
+    write_jsonl(
+        path,
+        [
+            {
+                "nla_output": (
+                    "<explanation>\n<readout>\n<observed>\n"
+                    "- first finding\n- second finding\n"
+                    "</observed>\n</readout>\n</explanation>"
+                )
+            }
+        ],
+    )
+    n, mean_claims = readout_claim_mean(path)
+    assert n == 1
+    assert mean_claims == 2.0
 
 
 def test_d20_gate_requires_all_seed_specificity_and_noninferiority(
