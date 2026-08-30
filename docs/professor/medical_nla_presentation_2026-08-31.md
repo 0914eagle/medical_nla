@@ -741,6 +741,27 @@ typical disease template.
 head를 학습하고 validation에서 layer/threshold/hyperparameter를 고정한 뒤, test 4,543명을
 **재선택 없이 한 번만** 평가했다는 뜻입니다.
 
+### Probe를 실제로 어떻게 학습하고 고정했는가?
+
+| component | finding-presence head | native-value head |
+|---|---|---|
+| train / validation / locked originals | 4,655 / 4,525 / 4,543 | 동일 |
+| input | CoT-P0 HS16/24/32, train mean/std로 표준화 | 동일 |
+| output | one affine map, 91 independent logits | one affine map, 6 evidence별 value-logit slices, 총 32 classes |
+| train support | evidence count `>=20` | evidence-value count `>=10` |
+| loss | multi-label `BCEWithLogits` | evidence-conditioned cross-entropy |
+| optimizer | AdamW, batch 512 | AdamW, full batch |
+| learning rate / weight decay | `.001/.003` x `0/.001` | 동일 |
+| extra choice | positive weighting off/on | evidence slice 안 argmax |
+| max epochs / patience / seed | 80 / 8 / 17 | 80 / 8 / 17 |
+
+1. 각 layer에서 validation BCE/NLL로 head hyperparameter를 먼저 선택했습니다.
+2. Finding threshold는 validation grid `.1/.2/.3/.4/.5`에서 micro F1→macro F1→`.5`와의
+   거리 순으로 한 개를 골랐습니다.
+3. Layer는 finding own-minus-shuffled gap, value own-minus-shuffled gap, 더 낮은 layer 순으로
+   선택해 **HS24**로 동결했습니다.
+4. 이 artifact의 weight, train normalization, label 순서, threshold를 그대로 locked test에 적용했습니다.
+
 ### Locked result와 실행 상태
 
 | class | method | layer | finding F1 | shuffled F1 | pair gap | native-value acc | status |
@@ -822,6 +843,21 @@ h_P0 (3,840-d) -> one affine head -> 91 logits -> 91 sigmoid probabilities
 
 ## Slide 19. RQ2 = Main Table 3B: counterfactual change에 선택적으로 반응하는가?
 
+### 어떤 locked counterfactual 데이터를 만들었는가?
+
+| population/denominator | n | 생성·eligibility 규칙 |
+|---|---:|---|
+| original cases | 4,543 | frozen DDXPlus E5 locked originals |
+| cue-deleted rows | 4,543 | 각 original에서 한 cue를 제거하고 CoT-P0 activation 재추출 |
+| deletion metric eligible | 4,540 | 삭제 cue가 frozen 91-label finding ontology에 있는 pair |
+| untouched finding occurrences | 16,105 | original/deleted 입력에 공통으로 남은 train-supported finding occurrences |
+| value-edited rows | 942 | native value 하나를 다른 허용 값으로 바꾸고 activation 재추출 |
+| value-edit metric eligible | 539 | old/new가 모두 frozen 6-task/32-class value ontology에 있는 pair |
+| clean-switch denominator | 398 | original activation에서 old value를 실제로 맞힌 eligible pair |
+
+모든 수치는 Slide 18과 같은 locked protocol을 사용합니다. Prompt를 문자열 수준에서만 고친 뒤
+같은 activation을 재사용한 것이 아니라, **각 edited prompt에서 activation을 다시 추출**했습니다.
+
 | method | original hit | deletion phantom | removal | retention | replacement | old persist | clean switch |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Probe-guided reader | 1.0000 | .3593 | .6407 | .9987 | .1466 | .5955 | .0804 |
@@ -829,14 +865,44 @@ h_P0 (3,840-d) -> one affine head -> 91 logits -> 91 sigmoid probabilities
 | Medical-AV, SFT only | — | — | — | — | — | — | — |
 | **Medical-NLA, final** | — | — | — | — | — | — | — |
 
-### Locked 분모와 해석
+### Deletion metric 정의
 
-- Deletion: 4,540 pairs; untouched retention: 16,105 finding occurrences
-- Native value edit: 539 pairs; clean-switch eligible: 398
-- Static finding state는 잘 읽히지만 cue deletion 반응은 부분적이고 value clean switch는 `.0804`입니다.
-- Vanilla phantom `.0000`은 성공이 아닙니다. Original hit도 `.0000`이라 removal/retention/clean-switch 분모가 없습니다.
-- Medical-AV/Medical-NLA의 `—`는 0이 아니라 validation gate FAIL 또는 checkpoint 부재로 locked evaluation을 실행하지 않았다는 뜻입니다.
-- Final Medical-NLA는 changed cue 제거뿐 아니라 retained cue 보존과 old→new value 전환을 동시에 통과해야 합니다.
+삭제 대상 cue를 `c`, original/deleted output의 selected finding set을 `S_orig/S_del`이라 두면:
+
+```text
+original hit     = P(c in S_orig)                                  [n=4,540]
+deletion phantom = P(c in S_del)                                   [n=4,540]
+removal success  = P(c not in S_del | c in S_orig)                 [conditional]
+retention        = P(u in S_del | u in S_orig, u unchanged)        [16,105 occurrences]
+```
+
+- Reader는 original hit `1.0000`이어서 모든 deletion pair에서 지울 cue를 원래 읽었습니다.
+- 삭제 뒤에도 `.3593`에서 cue가 남아 removal은 `.6407`이었습니다.
+- Threshold 이전의 연속 확률도 평균 `.9999→.3896`, drop `+.6103`으로 반응했지만 완전 제거는 아니었습니다.
+- Unchanged cue preservation `.9987`은 삭제 반응이 모든 finding을 함께 지운 결과가 아님을 확인합니다.
+
+### Value-edit metric 정의
+
+Old/new value를 `v_old/v_new`, edited output의 evidence-conditioned argmax를 `v_after`라 두면:
+
+```text
+replacement hit      = P(v_after = v_new)                           [n=539]
+old-value persistence= P(v_after = v_old)                           [n=539]
+clean switch         = P(v_after = v_new | v_before = v_old)        [n=398]
+```
+
+- Reader의 replacement `.1466`과 clean switch `.0804`는 static value accuracy `.7654`보다 훨씬 낮았습니다.
+- Old persistence `.5955`는 값을 편집해도 이전 값이 약 60%에서 유지됐다는 뜻입니다.
+- Value head는 evidence마다 값 하나만 argmax하므로 clean switch에서 new를 선택하면 old는 동시에 선택되지 않습니다.
+
+### 0, N/A, `—`를 구분해야 하는 이유
+
+- Vanilla의 original hit와 replacement가 실제 `.0000`입니다. Claim을 하나도 내지 않아 phantom도
+  `.0000`이지만 이는 deletion 성공이 아닙니다.
+- Vanilla removal/retention/clean-switch는 조건을 만족한 original prediction이 없어 분모 0인 `N/A`입니다.
+- Medical-AV/Medical-NLA의 `—`는 0도 N/A도 아니며 validation gate FAIL 또는 checkpoint 부재로
+  locked evaluation을 실행하지 않은 셀입니다.
+- 따라서 RQ2를 통과하려면 changed cue/value 반응뿐 아니라 original coverage와 retained cue 보존을 동시에 충족해야 합니다.
 
 ---
 
