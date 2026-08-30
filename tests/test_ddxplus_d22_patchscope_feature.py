@@ -14,9 +14,11 @@ def control_row(
     hit: bool,
     no_patch_hit: bool = False,
     changed: bool = True,
+    source_layer: int = 32,
 ) -> dict[str, object]:
     return {
         "family": family,
+        "source_layer": source_layer,
         "target_layer": layer,
         "keyword_hit": hit,
         "no_patch_keyword_hit": no_patch_hit,
@@ -56,6 +58,19 @@ def test_choose_control_cell_prefers_hs32_then_relation_on_ties() -> None:
     assert selected is not None
     assert selected["target_layer"] == 32
     assert selected["family"] == "relation_specific"
+
+
+def test_summary_keeps_source_layers_separate() -> None:
+    rows = [
+        control_row("entity_description", 24, True, source_layer=16),
+        control_row("entity_description", 24, False, source_layer=24),
+    ]
+    summaries = summarize_control_rows(rows)
+    assert len(summaries) == 2
+    assert {(row["source_layer"], row["keyword_hits"]) for row in summaries} == {
+        (16, 1),
+        (24, 0),
+    }
 
 
 def test_clinical_prompts_end_at_final_marker() -> None:

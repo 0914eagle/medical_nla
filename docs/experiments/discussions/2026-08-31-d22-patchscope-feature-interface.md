@@ -125,3 +125,15 @@ tail -f \
 
 `protocol.json`은 모델 inference 전에 쓰고, `selection.json`은 clinical activation을
 읽기 전에 쓴다.
+
+## 결과
+
+실행 결과 eligible cell은 없었다. Entity-description은 HS32→16/24/32에서 모두 `2/5`,
+relation-specific은 각각 `1/5`, `1/5`, `0/5`였다. 모든 no-patch hit는 `0/5`, exact
+continuation divergence는 `5/5`였다. 따라서 selection은 `none`, control gate는 `False`,
+clinical generation은 0건으로 종료됐다.
+
+Target layer 변경만으로는 feature fidelity가 개선되지 않았다. Source layer 자체를
+포함하는 마지막 same-layer 진단은
+[`2026-08-31-d22-patchscope-same-layer-source-sweep.md`](2026-08-31-d22-patchscope-same-layer-source-sweep.md)
+에서 별도로 관리한다.

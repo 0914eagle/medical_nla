@@ -115,15 +115,21 @@ def keyword_hit(text: str, keywords: tuple[str, ...] | list[str]) -> bool:
 
 
 def summarize_control_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    grouped: dict[tuple[str, int], list[dict[str, Any]]] = defaultdict(list)
+    grouped: dict[tuple[str, int, int], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
-        grouped[(str(row["family"]), int(row["target_layer"]))].append(row)
+        grouped[
+            (
+                str(row["family"]),
+                int(row["source_layer"]),
+                int(row["target_layer"]),
+            )
+        ].append(row)
     summaries = []
-    for (family, target_layer), group in sorted(grouped.items()):
+    for (family, source_layer, target_layer), group in sorted(grouped.items()):
         summaries.append(
             {
                 "family": family,
-                "source_layer": SOURCE_LAYER,
+                "source_layer": source_layer,
                 "target_layer": target_layer,
                 "n": len(group),
                 "keyword_hits": sum(bool(row["keyword_hit"]) for row in group),
@@ -187,6 +193,10 @@ def run_control_family(
     tokenizer: Any,
     layers: Any,
     family: str,
+    *,
+    source_layer: int = SOURCE_LAYER,
+    target_layers: tuple[int, ...] = TARGET_LAYERS,
+    source_layers_by_target: dict[int, int] | None = None,
 ) -> list[dict[str, Any]]:
     controls = ENTITY_CONTROLS if family == "entity_description" else RELATION_CONTROLS
     rows = []
@@ -210,13 +220,18 @@ def run_control_family(
             str(control["source"]),
             add_special_tokens=True,
         )
-        for target_layer in TARGET_LAYERS:
+        for target_layer in target_layers:
+            row_source_layer = (
+                source_layers_by_target.get(target_layer, source_layer)
+                if source_layers_by_target is not None
+                else source_layer
+            )
             patched_logits = patched_target_logits(
                 model,
                 tokenizer,
                 layers,
                 target,
-                states[SOURCE_LAYER],
+                states[row_source_layer],
                 target_layer,
             )
             response = patched_generate(
@@ -224,7 +239,7 @@ def run_control_family(
                 tokenizer,
                 layers,
                 target,
-                states[SOURCE_LAYER],
+                states[row_source_layer],
                 layer_index=target_layer,
                 max_new_tokens=40,
             )
@@ -241,7 +256,7 @@ def run_control_family(
                     "source": str(control["source"]),
                     "target_prompt": target,
                     "keywords": list(keywords),
-                    "source_layer": SOURCE_LAYER,
+                    "source_layer": row_source_layer,
                     "target_layer": target_layer,
                     "response": response,
                     "no_patch_response": no_patch_response,
