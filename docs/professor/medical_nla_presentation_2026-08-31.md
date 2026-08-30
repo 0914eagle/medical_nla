@@ -770,10 +770,18 @@ head를 학습하고 validation에서 layer/threshold/hyperparameter를 고정�
 ### Structured reader의 정확한 의미
 
 1. Frozen HS24 probe가 91개 finding과 지원되는 native value의 label/probability를 선택합니다.
-2. 각 label을 official-train-only modal phrase lexicon으로 결정론적 bullet로 렌더링합니다.
-3. prompt text, diagnosis, gold cue를 사용하지 않고 자유 생성도 하지 않습니다.
+2. Evaluation 전에 official train 4,655건만 읽어 다음 **고정 lookup 사전**을 만듭니다.
+   - Finding ID별로 train의 exact cue text 빈도를 세고 가장 자주 나온 문구 하나를 저장합니다.
+   - Value가 있는 finding은 `(finding ID, value ID)`별 최빈 exact 문구를 따로 저장합니다.
+   - 동률이면 문자열 오름차순으로 하나를 골라 재실행 결과가 항상 같게 합니다.
+3. Test-time에는 probe label을 이 사전에서 단순 치환합니다. 예를 들어 probe가
+   `E_132`와 value `4`를 고르면 생성 없이 `the rash is swollen (rated 4)`를 가져옵니다.
+4. 선택된 finding probability 내림차순으로 정렬해 `<observed>` 안의 bullet 목록으로 출력합니다.
+5. Test prompt text, diagnosis, gold cue를 사용하지 않고 LLM decoding도 하지 않습니다.
 
-> 따라서 structured reader는 “probe가 고른 state를 말로 표시할 수 있다”는 closed-monitor 양성 대조이지, activation에서 자유 문장을 생성하는 NLA의 성공이 아닙니다.
+> 따라서 2번은 “label을 자연어로 추론한다”가 아니라 **이미 고른 label의 이름표를 train-only
+> 문구로 바꿔 붙인다**는 뜻입니다. Structured reader는 probe state의 closed rendering control이지,
+> activation에서 claim을 발견하고 문장을 만드는 open-ended NLA가 아닙니다.
 
 ### `validation only`는 무슨 뜻이었는가?
 
