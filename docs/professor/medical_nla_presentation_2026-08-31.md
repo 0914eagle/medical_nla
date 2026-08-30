@@ -805,11 +805,25 @@ h_P0 (3,840-d) -> one affine head -> 91 logits -> 91 sigmoid probabilities
 
 - Finding target은 case마다 91차원 multi-hot vector이고 loss는 `BCEWithLogits`입니다.
 - Threshold는 train에서 정하지 않고 validation grid `.1/.2/.3/.4/.5` 중 micro F1, macro F1
-  순으로 한 개를 선택한 뒤 locked test 전에 동결했습니다. **Top-k를 고정하지 않습니다.**
+  순으로 **전체 label에 공통으로 적용할 확률 기준 `t` 하나**를 선택한 뒤 locked test 전에 동결했습니다.
 - Probability 1등/2등 순서는 bullet 표시 순서에만 사용합니다. F1은 순위를 무시하고
   threshold를 넘은 predicted set과 gold finding set의 TP/FP/FN으로 계산합니다.
 - 따라서 한 환자에서 fever, cough, dyspnea 세 probability가 threshold를 넘으면 세 finding을
   모두 출력하며, 그중 “1등만 정답”으로 처리하지 않습니다.
+
+`Top-k를 고정하지 않는다`는 말은 모든 환자에게 무조건 상위 3개 또는 5개를 출력하지 않는다는
+뜻입니다. 아래에서 frozen threshold를 예시로 `t=.5`라고 하면:
+
+| case | 높은 finding probabilities | fixed top-3라면 | 실제 threshold rule |
+|---|---|---|---|
+| A | `.95, .88, .70, .62, .10` | 항상 3개 | `.5` 이상 **4개** 선택 |
+| B | `.91, .55, .30, .20, .10` | 항상 3개 | `.5` 이상 **2개** 선택 |
+| C | `.42, .35, .20, .10, .05` | 낮아도 3개 | `.5` 이상이 없어 **0개** 선택 |
+
+DDXPlus 환자마다 실제 finding 수가 다르므로 fixed top-k는 불필요한 finding을 강제로 추가하거나
+필요한 finding을 잘라낼 수 있습니다. Global threshold rule은 예측 개수가 환자별로 달라지게 하고,
+그 결과의 false positive와 false negative를 micro F1이 함께 벌점 줍니다. 표의 `.5`는 동작 설명용
+예시이며 실제 locked run은 validation에서 선택해 artifact에 동결한 threshold를 사용합니다.
 
 ### Structured reader의 정확한 의미
 
