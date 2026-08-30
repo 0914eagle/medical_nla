@@ -757,7 +757,7 @@ head를 학습하고 validation에서 layer/threshold/hyperparameter를 고정�
 
 1. 각 layer에서 validation BCE/NLL로 head hyperparameter를 먼저 선택했습니다.
 2. Finding threshold는 validation grid `.1/.2/.3/.4/.5`에서 micro F1→macro F1→`.5`와의
-   거리 순으로 한 개를 골랐습니다.
+   거리 순으로 한 개를 골랐고, 실제 선택값은 **`t=.5`**였습니다.
 3. Layer는 finding own-minus-shuffled gap, value own-minus-shuffled gap, 더 낮은 layer 순으로
    선택해 **HS24**로 동결했습니다.
 4. 이 artifact의 weight, train normalization, label 순서, threshold를 그대로 locked test에 적용했습니다.
@@ -812,7 +812,7 @@ h_P0 (3,840-d) -> one affine head -> 91 logits -> 91 sigmoid probabilities
   모두 출력하며, 그중 “1등만 정답”으로 처리하지 않습니다.
 
 `Top-k를 고정하지 않는다`는 말은 모든 환자에게 무조건 상위 3개 또는 5개를 출력하지 않는다는
-뜻입니다. 아래에서 frozen threshold를 예시로 `t=.5`라고 하면:
+뜻입니다. 실제 frozen threshold `t=.5`를 적용하면:
 
 | case | 높은 finding probabilities | fixed top-3라면 | 실제 threshold rule |
 |---|---|---|---|
@@ -822,8 +822,8 @@ h_P0 (3,840-d) -> one affine head -> 91 logits -> 91 sigmoid probabilities
 
 DDXPlus 환자마다 실제 finding 수가 다르므로 fixed top-k는 불필요한 finding을 강제로 추가하거나
 필요한 finding을 잘라낼 수 있습니다. Global threshold rule은 예측 개수가 환자별로 달라지게 하고,
-그 결과의 false positive와 false negative를 micro F1이 함께 벌점 줍니다. 표의 `.5`는 동작 설명용
-예시이며 실제 locked run은 validation에서 선택해 artifact에 동결한 threshold를 사용합니다.
+그 결과의 false positive와 false negative를 micro F1이 함께 벌점 줍니다. Validation에서 선택된
+`.5`를 artifact와 structured-reader protocol에 동결해 locked test에서 바꾸지 않고 사용했습니다.
 
 ### Structured reader의 정확한 의미
 
