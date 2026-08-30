@@ -5,7 +5,7 @@
 1. [`current_research_brief_2026-08-26.md`](current_research_brief_2026-08-26.md): 처음 설명할 때 사용하는 요약
 2. [`medical_nla_evaluation_confirmation_2026-08-26.md`](medical_nla_evaluation_confirmation_2026-08-26.md): 가설과 평가 층
 3. [`medical_nla_tables_and_execution_plan_2026-08-26.md`](medical_nla_tables_and_execution_plan_2026-08-26.md): 데이터·표·실험 상세
-4. [`medical_nla_presentation_2026-08-27.md`](medical_nla_presentation_2026-08-27.md): 실제 슬라이드 순서, 표, 발표 원고
+4. [`medical_nla_presentation_2026-08-27.md`](medical_nla_presentation_2026-08-27.md): 8월 27일 예정안을 현재 결과로 갱신한 교수님 미팅 슬라이드, 표, 발표 원고
 
 8월 25일까지의 wrong-note 발표 자료는
 [`../archive/legacy_wrong_note_2026-08-25/professor/`](../archive/legacy_wrong_note_2026-08-25/professor/)에
