@@ -1708,6 +1708,38 @@ A5에서는 같은 diagnosis stratum 안의 `K`개 activation을 후보로 두�
 CI 하한이 0보다 클 때만 A5를 통과시켰습니다. 여기서 **chance CI가 0을 포함한다**는 것은 관측값이
 우연한 후보 선택보다 안정적으로 낫다고 말할 수 없다는 뜻입니다.
 
+### A5 retrieval은 무엇을 묻는가?
+
+A5는 finding 정답률이나 진단 정확도가 아닙니다. 한 환자의 text를 AR에 넣어 만든 `h_hat`만 가지고,
+**같은 진단군의 여러 환자 activation 중 그 text를 만든 원래 환자 activation을 다시 찾을 수 있는가**를
+검사하는 사례 특이성 지표입니다. 같은 진단군 안에서 찾게 한 이유는 진단명처럼 모든 후보가 공유하는
+정보로 맞히지 못하게 하고, 환자별 세부 정보가 복원됐는지를 보기 위해서입니다.
+
+```text
+한 환자의 text --AR--> h_hat
+
+candidates in the same diagnosis stratum:
+  h_own, h_donor1, h_donor2, ..., h_donor(K-1)
+
+cos(h_hat, candidate)를 내림차순 정렬
+  -> own이 1등인가?                 = top-1
+  -> own 순위의 역수는 얼마인가?   = reciprocal rank
+  -> 전체 case의 reciprocal rank 평균 = MRR
+```
+
+- `mean K`: case마다 비교한 같은 진단군 후보 수의 평균입니다. K가 클수록 무작위 top-1 확률 `1/K`는 작아집니다.
+- `top-1`: own activation이 가장 가까운 후보였던 case 비율입니다. `0/20`이면 20건 모두 원 환자를 1등으로 찾지 못했습니다.
+- `MRR`: own 순위가 1등이면 `1`, 2등이면 `1/2`, 3등이면 `1/3`을 주고 평균한 값입니다. top-1이 아니어도 상위권이면 반영됩니다.
+- `top1-chance CI`: 관측 top-1에서 case별 무작위 확률 `1/K`를 뺀 값의 diagnosis-cluster 95% CI입니다.
+- `MRR-chance CI`: 관측 reciprocal rank에서 무작위 순열의 기대 reciprocal rank를 뺀 값의 같은 CI입니다.
+
+따라서 아래 표의 DDXPlus reader `mean K=95.85; top-1 0/20`은 사례별 finding text가 명시적이어도
+공개 AR가 약 96명의 같은 진단 후보 중 원 환자를 한 번도 가장 가깝게 찾지 못했다는 뜻입니다.
+DiReCT Source CoT의 `top-1=.40`은 20건 중 8건을 1등으로 찾았다는 뜻이지만, 평균 후보가 `3.95`개라
+무작위 top-1도 약 `.25`입니다. 그래서 top1-minus-chance CI가 0을 포함했고, own 환자를 상위권에 두는
+MRR-minus-chance CI만 0보다 높았습니다. 즉 **약한 순위 신호는 있지만 안정적인 원 환자 식별이라고
+보기에는 부족한 결과**입니다.
+
 ### Raw cosine와 centered geometry
 
 | arm | own/shuffled cosine | A2 centered gap [cluster CI] | A3 direction-normalized FVE | A5 retrieval |
