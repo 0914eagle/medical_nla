@@ -1742,7 +1742,29 @@ MRR-minus-chance CI만 0보다 높았습니다. 즉 **약한 순위 신호는 �
 
 ### Raw cosine와 centered geometry
 
-| arm | own/shuffled cosine | A2 centered gap [cluster CI] | A3 direction-normalized FVE | A5 retrieval |
+#### 표의 `own/shuffled cosine`은 무엇인가?
+
+AR가 한 환자의 text에서 복원한 activation을 `h_hat`이라고 할 때 다음 두 raw cosine을 계산하고,
+각 arm의 20개 case에서 평균했습니다.
+
+```text
+own cosine     = cos(h_hat, h_own)
+shuffled cosine = cos(h_hat, h_same-diagnosis-other-patient)
+```
+
+- `own`: 그 text를 실제로 만든 원 환자의 activation입니다.
+- `shuffled`: 진단은 같지만 환자는 다른 deterministic donor의 activation입니다.
+- cosine은 두 vector의 **방향 유사도**로, `1`이면 같은 방향, `0`이면 직교, `-1`이면 반대 방향입니다.
+- 원하는 결과는 단순히 own cosine이 높은 것이 아니라 **own cosine이 shuffled cosine보다 일관되게
+  높아야 하는 것**입니다. 그래야 진단군 공통 성분이 아니라 환자별 정보를 복원했다고 볼 수 있습니다.
+
+예를 들어 DDXPlus reader의 `.9765/.9765`는 복원 vector가 원 환자와 매우 비슷해 보이지만, 같은
+진단의 다른 환자와도 똑같이 `.9765`입니다. 따라서 raw cosine만 보면 AR가 공통 평균 방향 `mu`를
+복원했는지, 원 환자의 고유 성분을 복원했는지 구분할 수 없습니다. DiReCT Source CoT의
+`.9835/.9834`와 Vanilla의 `.9962/.9961`도 own 우위가 각각 약 `.0001`에 불과합니다. 이 때문에
+평균 방향을 제거한 A2와 후보 전체에서 원 환자를 찾는 A5가 필요했습니다.
+
+| arm | raw cos: own / shuffled | A2: centered own-minus-shuffled [cluster CI] | A3: direction-normalized FVE | A5: same-stratum own retrieval |
 |---|---|---:|---:|---|
 | DDXPlus structured reader | .9765/.9765 | -.0047 [-.0375,+.0261] | **-119.2169** | mean K=95.85; top-1 0/20; top1-chance CI < 0 |
 | DiReCT Source CoT | .9835/.9834 | +.0304 [+.0012,+.0635] | **-109.3544** | mean K=3.95; top1-chance CI includes 0; MRR-chance CI > 0 |
@@ -1751,6 +1773,33 @@ MRR-minus-chance CI만 0보다 높았습니다. 즉 **약한 순위 신호는 �
 `FVE > 0`이어야 train-mean predictor보다 나은 복원입니다. 모든 arm의 FVE는 음수였습니다. DiReCT
 Source CoT는 A2와 A5를 통과했지만 A3를 실패했고, DDXPlus reader는 A2ㆍA3ㆍA5를 모두 실패했습니다.
 사전 gate는 **두 positive control 모두 A2와 A5 통과 + 두 arm 모두 FVE > 0**이었으므로 최종 실패입니다.
+
+#### 표를 행별로 어떻게 읽는가?
+
+**DDXPlus structured reader**
+
+- raw cosine `.9765/.9765`: 원 환자와 다른 환자를 raw 방향에서 구분하지 못했습니다.
+- A2 `-.0047`, CI `[-.0375,+.0261]`: 평균 방향을 제거하면 own 우위가 음수이고 CI도 0을 포함합니다.
+- FVE `-119.2169`: AR error가 train-mean baseline error의 `120.2169`배입니다.
+- A5 `0/20`, mean K `95.85`: 약 96명 후보 중 원 환자를 단 한 번도 1등으로 찾지 못했습니다.
+- 결론: 사례별 finding이 확실한 양성 대조인데도 A2ㆍA3ㆍA5가 모두 실패했습니다.
+
+**DiReCT Source CoT**
+
+- raw cosine `.9835/.9834`: own이 약 `.0001` 높지만 raw 공간에서는 거의 같은 값입니다.
+- A2 `+.0304`, CI `[+.0012,+.0635]`: 평균 방향 제거 후에는 작은 own-case 신호가 확인됐습니다.
+- FVE `-109.3544`: 그래도 AR error는 train-mean baseline의 `110.3544`배입니다.
+- A5 mean K `3.95`: top-1 `.40`은 20건 중 8건이지만 top1-minus-chance CI는 0을 포함합니다.
+  MRR-minus-chance CI만 0보다 높아, 원 환자를 상위권에 두는 약한 순위 신호만 확인됐습니다.
+- 결론: A2/A5는 통과했지만 가장 중요한 mean-baseline 비열등 조건 A3를 크게 실패했습니다.
+
+**DiReCT Vanilla, report-only**
+
+- raw cosine `.9962/.9961`과 A2 `+.0696`은 표에서 가장 높지만 이 arm은 positive control이 아닙니다.
+- FVE `-19.7012`는 AR error가 train-mean baseline의 `20.7012`배라는 뜻입니다.
+- chance-adjusted retrieval도 양수였지만, Vanilla 출력의 길이ㆍ문체 등 nuisance가 case와 함께
+  달라진 효과인지 환자 임상 정보를 복원한 효과인지 분리할 수 없습니다.
+- 결론: 흥미로운 report-only 이상치일 뿐, AR reward를 승인하는 근거로 사용하지 않았습니다.
 
 ### 문제와 다음 변경
 
