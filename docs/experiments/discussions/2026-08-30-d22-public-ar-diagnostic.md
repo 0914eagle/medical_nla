@@ -162,6 +162,19 @@ MRR-minus-chance CI 하한 `+.0044`로 통과했고 A3 FVE는 `-109.3544`였다.
 이 결과는 AR를 사용하지 않는 supervised prefix mapper를 막지는 않으며, 해당 경로의
 선행 geometry 기록 조건은 이 음성/불일치 결과로 완료된 것으로 본다.
 
+**사후 donor finding-difference 감사:** D22 donor builder는 같은 diagnosis와 다른
+`base_id`만 강제했으며 finding 차이를 eligibility로 사용하지 않았다. DDXPlus reader
+20쌍을 감사한 결과 probe-selected finding set과 gold cue finding set은 각각 `17/20`에서
+달랐고 `3/20`에서는 같았다. Probe-selected finding/value signature도 `17/20`에서만
+달랐으며, gold finding/value signature는 `18/20`에서 달랐다. Mean probe finding
+Jaccard는 `.635`였다. 즉 3쌍은 reader가 동일한 finding/value text를 렌더링한 두 환자를
+구별하도록 요구한 셈이다. A5의 전체 same-diagnosis candidate pool 역시
+finding-difference-filtered population이 아니므로, A5는 finding semantic retrieval보다
+엄격한 exact-patient identity retrieval로 제한 해석한다. 따라서 DDXPlus A2/A5 실패를
+단독으로 공개 AR의 임상 의미 복원 실패 근거로 사용하지 않는다. 그러나 donor를 사용하지
+않는 A3 FVE가 DDXPlus reader `-119.2169`, DiReCT source CoT `-109.3544`로 모두 크게
+음수이므로 공개 AR를 AV reconstruction reward로 기각하는 최종 결정은 바뀌지 않는다.
+
 DiReCT Vanilla가 A2 `+.0696`, top-1 `.4500`, FVE `-19.7012`로 다른 open-text arm보다
 높았다는 점도 별도 이상치로 남긴다. 평균 후보 수는 `3.75`였지만 top-1-minus-chance
 `+.1533`의 cluster CI `[+.0088,+.3262]`와 MRR-minus-chance `+.0972`의 CI

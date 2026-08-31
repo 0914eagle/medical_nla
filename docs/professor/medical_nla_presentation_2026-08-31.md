@@ -1740,6 +1740,26 @@ DiReCT Source CoT의 `top-1=.40`은 20건 중 8건을 1등으로 찾았다는 �
 MRR-minus-chance CI만 0보다 높았습니다. 즉 **약한 순위 신호는 있지만 안정적인 원 환자 식별이라고
 보기에는 부족한 결과**입니다.
 
+#### 사후 donor finding-difference 감사
+
+원래 D22 donor builder는 `같은 diagnosis + 다른 base_id`만 강제했고 finding 차이는 강제하지 않았습니다.
+20개 DDXPlus reader pair를 사후 감사한 결과는 다음과 같습니다.
+
+| audit item | different pairs | interpretation |
+|---|---:|---|
+| probe-selected finding set | 17/20 | 3쌍은 own/donor reader finding set이 완전히 같음 |
+| probe-selected finding/value signature | 17/20 | 위 3쌍은 reader가 렌더링한 value signature도 같음 |
+| gold cue finding set | 17/20 | 실제 입력 cue 기준으로도 3쌍은 finding set이 같음 |
+| gold cue finding/value signature | 18/20 | finding이 같은 3쌍 중 1쌍만 value가 다르고 2쌍은 전체 signature도 같음 |
+| mean probe finding Jaccard | .635 | 다른 17쌍도 상당한 finding overlap을 가짐 |
+
+따라서 3/20 pair에서는 동일한 reader text로 두 환자를 구별하라고 요구한 셈이어서 A2 pair control의
+깨끗한 양성 대조가 아닙니다. 또한 A5의 전체 same-diagnosis candidate pool도 finding-difference로
+필터링하지 않았으므로, A5는 finding 의미 복원보다 더 엄격한 **exact-patient identity retrieval**입니다.
+동일한 finding text를 가진 후보가 있으면 text만으로 원 환자를 식별할 수 없으므로 DDXPlus A5
+`0/20`만으로 공개 AR의 임상 의미 복원 실패를 단정하지 않습니다. 이 사후 감사는 A2/A5 해석을
+제한하지만, donor와 무관한 A3 FVE `-119.2169`에는 영향을 주지 않습니다.
+
 ### Raw cosine와 centered geometry
 
 #### 표의 `own/shuffled cosine`은 무엇인가?
@@ -1773,6 +1793,8 @@ shuffled cosine = cos(h_hat, h_same-diagnosis-other-patient)
 `FVE > 0`이어야 train-mean predictor보다 나은 복원입니다. 모든 arm의 FVE는 음수였습니다. DiReCT
 Source CoT는 A2와 A5를 통과했지만 A3를 실패했고, DDXPlus reader는 A2ㆍA3ㆍA5를 모두 실패했습니다.
 사전 gate는 **두 positive control 모두 A2와 A5 통과 + 두 arm 모두 FVE > 0**이었으므로 최종 실패입니다.
+다만 사후 donor 감사 후 DDXPlus A2/A5는 exact-patient control로만 제한 해석하며, 최종 AR reward
+기각의 donor-independent 근거는 두 positive control에서 모두 크게 음수였던 A3 FVE입니다.
 
 #### 표를 행별로 어떻게 읽는가?
 
@@ -1782,7 +1804,8 @@ Source CoT는 A2와 A5를 통과했지만 A3를 실패했고, DDXPlus reader는 
 - A2 `-.0047`, CI `[-.0375,+.0261]`: 평균 방향을 제거하면 own 우위가 음수이고 CI도 0을 포함합니다.
 - FVE `-119.2169`: AR error가 train-mean baseline error의 `120.2169`배입니다.
 - A5 `0/20`, mean K `95.85`: 약 96명 후보 중 원 환자를 단 한 번도 1등으로 찾지 못했습니다.
-- 결론: 사례별 finding이 확실한 양성 대조인데도 A2ㆍA3ㆍA5가 모두 실패했습니다.
+- donor audit: 17/20 pair만 finding set이 달랐고 3/20은 reader finding/value signature가 같았습니다.
+- 결론: A2/A5는 exact-patient retrieval로 제한 해석해야 하지만, A3는 독립적으로 크게 실패했습니다.
 
 **DiReCT Source CoT**
 
@@ -1803,9 +1826,11 @@ Source CoT는 A2와 A5를 통과했지만 A3를 실패했고, DDXPlus reader는 
 
 ### 문제와 다음 변경
 
-- 높은 raw cosine은 공통 평균 방향 때문에 생겼고, DDXPlus 양성 대조조차 자기 환자를 찾지 못했습니다.
+- 높은 raw cosine은 공통 평균 방향 때문에 생겼습니다. DDXPlus reader는 exact-patient retrieval에
+  실패했지만, 3/20 pair의 finding signature가 같아 A5 단독 해석에는 사후 확인된 한계가 있습니다.
 - DDXPlus reader는 A2 CI가 0을 포함하고 A5 top-1 `0/20`, 평균 후보 `95.85`, median rank
-  `50`이었습니다. DiReCT Source CoT는 일부 centered/retrieval 신호가 있었지만 FVE가
+  `50`이었습니다. 이 수치는 report하되 finding-difference-filtered retrieval로 해석하지 않습니다.
+  DiReCT Source CoT는 일부 centered/retrieval 신호가 있었지만 FVE가
   `-109.3544`, 즉 normalized error가 train-mean baseline의 `110.3544`배여서 훨씬 나빴습니다.
 - DiReCT Source CoT의 top-1은 `.40`이지만 평균 후보 수가 `3.95`이고 top1-minus-chance cluster CI가
   `[-.0194,+.2941]`로 0을 포함했습니다. A5 통과는 MRR-minus-chance CI
