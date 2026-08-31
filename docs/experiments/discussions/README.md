@@ -13,7 +13,7 @@
 
 | 상태 | 주제 | 다음 판정 |
 |---|---|---|
-| proposal | [Paper task definition and external table anchors](2026-08-31-paper-task-definition-and-table-anchors.md) | Medical Activation Verbalization의 two-table core 범위와 Table 1 actor contract를 사람 승인으로 동결 |
+| proposal | [Paper task definition and external table anchors](2026-08-31-paper-task-definition-and-table-anchors.md) | 교수 회신 반영 3-task 구조(MedThink-Bench 재현+26년 1행 / DiagnosisArena 재현 / MAV-Bench 신규) — 사람 승인으로 동결, preflight 1-4 병렬 가능 |
 | resolved (FAIL) | [D22 Patchscope same-layer source sweep](2026-08-31-d22-patchscope-same-layer-source-sweep.md) | general control PASS, clinical own/donor correspondence 0/5 at HS16/HS24; identity Patchscope 종료, learned prefix mapper 후보 |
 | resolved (FAIL) | [D22 Patchscope feature-interface calibration](2026-08-31-d22-patchscope-feature-interface.md) | entity 2/5 전 layer, relation 1/5·1/5·0/5; clinical 미실행, same-layer source sweep으로 분리 |
 | resolved (FAIL) | [D22 public-AR medical-distribution diagnostic](2026-08-30-d22-public-ar-diagnostic.md) | geometry decision inconclusive; limited diagnostic=False, AV reward=False; supervised prefix 경로의 선행 기록 완료 |

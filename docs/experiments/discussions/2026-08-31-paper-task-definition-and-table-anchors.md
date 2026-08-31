@@ -326,3 +326,96 @@ DDXPlus/DiReCT에 맞게 구현한 새로운 medical faithfulness benchmark로 �
 이 문서가 승인되기 전에는 기존 DiReCT locked Table 1A/1B/2를 새 논문의 main table이라고
 부르지 않는다. 그것들은 current baseline/development evidence이며, 새 task protocol을 결정한
 뒤 재사용 범위를 명시적으로 정한다.
+
+## 교수 회신 반영: 3-task 확정 구조 (2026-08-31, Claude 작성)
+
+교수 회신 요지: ① Table 1 방향 승인, 단 25/26년 baseline이 **이미 채워진 더 최신
+표**를 가져올 것(우리가 최신 모델들을 직접 돌려 채우지 말 것). ② Task/표는 3개 —
+예컨대 임상 설명(rationale 생성) task와 진단 task를 분리. ③ Table 2(faithfulness)는
+**우리가 벤치마크를 직접 새로 구축해도 됨**. 즉 기존 논문 표 2개 + 신규 제안 표 1개.
+
+### 확정 구조
+
+| Task | 출처 | Anchor | 우리 행 |
+|---|---|---|---|
+| 1. 임상 rationale 생성 | 기존 표 재현 | **MedThink-Bench** (npj Digital Medicine 2025) | Gemma CoT / +Z(vanilla) / +Z(Medical-NLA) / +Z(shuffled) |
+| 2. 진단 | 기존 표 재현 | **DiagnosisArena** (ACL Findings 2026), 보조 MedXpertQA (ICML 2025) | 동일 ablation, 단 정답 비노출 계약 |
+| 3. Activation faithfulness | **신규 구축 (교수 허가)** | 가칭 **MAV-Bench** — PRISM set-retrieval + CHIVE counterfactual 원리를 DDXPlus에 구현 | probe / reader / vanilla / (SAE) / (LatentQA류) / Medical-NLA |
+
+### Task 1 anchor 교체 근거 (검증 완료)
+
+ChallengeClinicalQA(NAACL 2025)의 Table 3 모델 행은 GPT-3.5/GPT-4/PaLM 2/Llama 2/
+Llama 3/MedAlpaca/Meerkat — 전부 2023–24년 모델이라 교수 조건에 미달한다(원표
+스크린샷으로 확인). MedThink-Bench는 12개 모델이 기평가돼 있고 그중 o3,
+Gemini-2.5-Flash, DeepSeek-R1, Qwen3-32B, MedGemma-27B, HuatuoGPT-o1-70B,
+Llama-3.3-70B 등 **2025년 모델 행이 이미 채워져 있다.** 지표는 answer accuracy +
+LLM-w/o-Rationale + LLM-w-Rationale(전문가 단계 coverage, 전문가 상관 .87)로
+reference 기반 설명 평가라는 표 성격도 동일하다. JAMA 콘텐츠 라이선스 문제도
+함께 회피된다.
+
+- 공식: <https://www.nature.com/articles/s41746-025-02208-7>,
+  <https://github.com/plusnli/MedThink-Bench>
+- ChallengeClinicalQA는 related work와 protocol 선례 인용으로 유지한다.
+
+### 2026년 모델 행 현황 (검증 완료)
+
+Rationale 생성 계열 표에 2026 frontier 모델(GPT-5 계열, Gemini 3, Opus 4.x)이
+채워진 발표 논문은 현재 없다. 26년 모델 행을 가진 의료 벤치마크는
+PhysAssistBench(2606.18613, 대화형 EHR 보조)와 stress-testing(2606.07929, 안전성)
+뿐이며 둘 다 task가 다르다. 따라서 **"26년 baseline" 충족 경로는 MedThink-Bench
+공개 evaluator로 26년 모델 1행(예: GPT-5 계열 또는 Gemini 3)을 동일 프로토콜로
+추가하는 것**이다(500문항 API 소액 작업). 이는 표 전체 재구축이 아니라 공개 표에
+행을 더하는 최소 보강이며, 교수의 "직접 채우지 말라" 취지(표 재구축 금지)와
+"26년 baseline 포함"을 동시에 만족한다. 진단 task도 동일 논리로 DiagnosisArena
+published 행 + MedXpertQA live leaderboard의 최신 갱신분을 확인한다.
+
+### Task 2 실행 계약 요점
+
+고정 solver(Gemma backbone) 하나가 동일 문항을 추가 evidence 조건만 바꿔 푼다:
+text-only / +CoT / +Z(Medical-NLA) / +Z_shuffled. 네 행은 추가 evidence 외 전부
+동일하므로, +Z만 오르고 +Z_shuffled가 오르지 않을 때 개선을 환자별 activation
+정보에 귀속할 수 있다. Published 행(o1/R1/QwQ 등)은 난이도 맥락으로만 두고 직접
+SOTA 비교라 쓰지 않는다("피해야 할 주장 4"). Task 1과 달리 **gold answer 비노출
+상태에서 Z를 생성**한다 — 두 task의 계약 차이가 교수가 요구한 task 분리의 실질이다.
+
+### Task 3: MAV-Bench 구축 범위
+
+기존 locked 자산이 벤치마크 구축물의 골격이다: 4-패널(static recovery /
+same-diagnosis control / cue deletion / value edit) × frozen split × semantic
+mapper(G1–G4 통과, hash 동결) × counterfactual activation family(원본 4,543 /
+삭제 4,540 / value-edit 942, locked 채점 완료). 남은 구축 작업은 baseline 행 확충
+(SAE 1개 학습, LatentQA/AO류 1개 실행 — Decision C 규칙대로 실행 불가하면 행을
+비우지 않고 appendix로 내림)과 패키징이다.
+
+- **공개 범위**: release 본체는 재배포 가능한 DDXPlus 파생만(activation,
+  counterfactual pair, mapper, 채점 코드). DiReCT 패널은 DUA 보유자용 확장으로
+  분리 — 기존 반출 금지 규칙과 일치.
+- **선택 패널(시간 허용 시)**: CoT 조작 강건성(유도 힌트/sycophancy 조건 activation
+  추가 추출; MedOmni-45 원리 참조) — 독립 4번째 task로 세우지 않고 MAV-Bench의
+  패널로 흡수해 표 3개 제약을 지킨다. CHIVE의 "activation 도구가 transcript를 못
+  이겼다" null을 의료에서 검증/반전하는 지점이 정확히 이 패널이다.
+
+### 우선순위와 fallback
+
+1. Task 1–3이 주장의 필요충분이다. 선택 패널은 일정이 밀리면 첫 번째로 잘라
+   후속 논문으로 넘긴다.
+2. Task 1/2 파이프라인(actor contract, 채점기 재현, text-only/CoT/vanilla/shuffled
+   행)은 **Medical-NLA 성공 없이도 지금 구축·검증 가능**하다. 성공한 Medical-NLA를
+   만드는 방법 개발(supervised prefix mapper 등)은 별개 트랙이며, 끝내 실패하면
+   Decision A의 C(개발·음성 결과 논문)로 내려간다 — 기존 locked 자산은 그 경우의
+   주표로 그대로 복원된다.
+3. Walk the Talk(ICLR 2025)은 이번 구조에서 anchor로 채택하지 않는다 — F 지표가
+   답변 모델의 자기 설명에 정의돼 있어 행 의미가 바뀌기 때문. Task 3 counterfactual
+   패널의 방법론 인용으로 유지한다.
+4. MedThink-Bench 연도 표기는 2025로 통일한다(s41746-025-02208).
+
+### 즉시 실행 가능한 preflight (방법 개발과 병렬)
+
+1. MedThink-Bench evaluator/데이터 다운로드, published 수치 재현 확인(judge 모델
+   포함), split·프롬프트 hash 동결.
+2. DiagnosisArena 데이터/평가 프로토콜 다운로드와 동일 확인.
+3. Task 1/2 공용 actor contract 초안(Decision B 6항목) 작성.
+4. MAV-Bench 패키징 명세(공개 파일 목록, 라이선스, DiReCT 분리) 초안.
+
+이 절은 교수 회신의 실행 번역이며, Decision A는 사실상 A(two-table core)에서
+**3-task 구조로 갱신**된 것으로 본다. 최종 동결은 사람 승인으로 한다.
