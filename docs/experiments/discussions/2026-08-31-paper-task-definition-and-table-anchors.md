@@ -44,6 +44,21 @@
 "Medical-NLA가 모델을 faithful하게 만든다"고 주장하지 않는다. Target backbone을 바꾸거나
 더 정답으로 만드는 것이 아니라, 이미 존재하는 내부 상태를 읽는 interface를 만드는 것이다.
 
+### 교수님 보고용 요약 (2026-08-31)
+
+> **Medical-NLA는 의료 LLM의 hidden activation을 환자별 임상 설명으로 faithfully
+> verbalize한다.** 이를 검증하기 위해 (1) 동일 의료 사례에서 clinical rationale을 생성하는
+> task와 (2) 그 설명이 실제 해당 환자의 activation을 반영하는지를 검증하는 task를 분리한다.
+
+첫 번째 task는 CoT보다 더 임상적으로 유용한 explanation evidence를 제공하는지, 두 번째
+task는 그 improvement가 일반적인 의료 상식이나 diagnosis template이 아니라 해당 activation에
+의존하는지를 각각 검사한다. 두 표가 함께 통과해야 위 중심 주장을 지지한다.
+
+Table 1의 비교 대상은 표의 **행**이다. Published LLM 행은 benchmark 맥락을 제공할 수 있지만,
+primary comparison은 같은 Gemma backbone에서의 text-only/CoT, Vanilla NLA, Medical-NLA다.
+같은 answer condition, rationale prompt, decoding budget을 고정해 activation-derived information
+외의 차이를 통제한다.
+
 ## 중심 task: Medical Activation Verbalization
 
 ### 공통 입출력 계약
@@ -122,6 +137,11 @@ case X + benchmark answer Y* + Z
 
 같은-backbone text-only row와 shuffled-activation row가 없으면, 더 좋은 base model 또는 더 긴
 prompt가 이긴 것인지 activation evidence가 이긴 것인지 분리할 수 없다.
+
+이 설계는 Chen et al.의 표를 숫자까지 그대로 복사하는 것이 아니다. 원래 explanation-only
+계약 `X + Y* -> R`를 `X + Y* + activation-derived state Z -> R`로 확장하고, published model
+결과는 재현 가능한 경우에만 reference rows로 둔다. Medical-NLA의 핵심 비교는 동일 Gemma
+backbone의 ablation rows다.
 
 ### Table 1이 말하는 것과 말하지 않는 것
 
