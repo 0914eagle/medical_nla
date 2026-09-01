@@ -26,6 +26,115 @@
 따라서 "Medical-NLA가 내부 신호를 자연어로 바꾼다"는 방법 설명이고,
 "다른 LLM output보다 더 많은 설명을 제공한다"는 검증할 가설이다. 둘 자체가 task는 아니다.
 
+## 일반 도메인에서 AV/NLA를 만드는 이유
+
+표를 고르기 전에 원 방법 계열이 해결하려는 문제를 고정한다. 일반 도메인의 AV/NLA는
+더 좋은 정답이나 더 좋은 CoT를 직접 생성하는 solver가 아니다. 핵심 목적은 **모델이 출력으로
+말하지 않은 hidden state를 사람이 감사할 수 있는 자연어 interface로 바꾸는 것**이다.
+
+### AV와 NLA의 역할
+
+```text
+target activation h
+    -> activation verbalizer AV
+    -> natural-language state report z
+    -> activation reconstructor AR
+    -> reconstructed activation h_hat
+```
+
+- **AV**는 activation을 사람이 읽을 수 있는 자연어로 바꾸는 실제 판독기다.
+- **AR**은 `z`만 보고 원 activation을 복원하는 학습용 측정기다.
+- **NLA**는 AV와 AR을 묶어 `h -> z -> h_hat` round trip을 학습하는 체계다. 정답 설명이
+  없어도 `z`가 activation 정보를 보존하도록 reconstruction reward를 제공하는 것이 AR의
+  목적이다.
+- 따라서 최종 사용자가 보는 것은 AV의 state report이며, AR은 그 state report가 activation을
+  무시한 일반 문장으로 퇴화하지 않도록 하는 학습 신호다. 단, reconstruction이 높다는 사실만으로
+  `z`의 인간 해석이나 사실성이 자동 보장되지는 않는다.
+
+원 NLA 연구는 이 구조를 `activation -> text explanation -> reconstructed activation`으로
+정의한다: <https://transformer-circuits.pub/2026/nla/index.html>.
+
+### 일반 도메인의 주된 사용처
+
+| 목적 | 묻는 질문 | 대표 예시 |
+|---|---|---|
+| 출력되지 않은 상태 읽기 | 모델이 말하지 않았지만 내부적으로 무엇을 알고, 가정하고, 계획하는가? | 답변 전에 계획한 rhyme, 사용자에 대한 추정, future response propensity |
+| 안전·정렬 감사 | 출력에서는 숨긴 목표, 평가 인식, secret knowledge, misalignment가 있는가? | evaluation awareness, 탐지 회피 동기, fine-tuning으로 주입된 hidden objective |
+| 오류 원인 조사 | 이상 출력 직전 내부 상태에 어떤 잘못된 가정이나 계획이 있었는가? | 잘못된 언어로 답하는 현상, multi-hop reasoning 오류의 중간 상태 |
+| 유연한 activation 질의 | 사전 지정 label 하나가 아니라 자연어로 여러 질문을 할 수 있는가? | "무엇을 알고 있는가?", "어떤 목표가 있는가?", "다음 행동 성향은 무엇인가?" |
+| 모델 비교·diffing | 원 모델과 fine-tuned 모델의 activation 차이가 어떤 의미인가? | emergent misalignment를 유발한 propensity 설명 |
+| 후속 steering/control | 읽은 상태를 이용해 편향이나 오류 행동을 줄일 수 있는가? | debiasing, sentiment/persona control, reasoning self-correction |
+
+이 계열의 대표적인 위치는 다음과 같다.
+
+- [Patchscopes](https://research.google/pubs/patchscopes-a-unifying-framework-for-inspecting-hidden-representations-of-language-models/):
+  hidden representation을 적절한 target context에 patch해 자연어 continuation으로 검사한다.
+  harmful belief extraction과 multi-hop reasoning self-correction을 응용으로 보인다.
+- [LatentQA](https://arxiv.org/abs/2412.08686): activation과 자연어 질문을 함께 받아 답하는
+  open-ended activation QA를 정의한다. 판독뿐 아니라 differentiable loss를 통한 steering도
+  보인다.
+- [Activation Oracles](https://alignment.anthropic.com/2025/activation-oracles/): activation을
+  text와 나란한 추가 input modality로 취급하고, secret knowledge와 fine-tuned misalignment를
+  찾는 auditing task에서 평가한다.
+- [Natural Language Autoencoders](https://www.anthropic.com/research/natural-language-autoencoders):
+  별도 자연어 label 없이 reconstruction을 이용해 activation verbalization을 학습하고,
+  evaluation awareness, hidden motivation, 비정상 출력 원인 조사에 적용한다.
+
+공통점은 **좋은 benchmark rationale을 쓰는 것 자체가 최종 목적이 아니라, 관찰되지 않는
+모델 상태를 읽어 감사하는 것**이다. 일부 연구가 읽은 상태를 사용해 모델을 교정하지만, 이는
+판독기가 유효하다는 것이 확인된 뒤의 downstream application이다.
+
+### Medical-NLA로 옮긴 큰 그림
+
+의료 도메인에서의 직접 대응은 **diagnostic-state auditing**이다.
+
+```text
+clinical case X
+    -> frozen target medical LLM
+    -> patient-specific activation h(X)
+    -> Medical-NLA
+    -> natural-language diagnostic-state report Z
+    -> clinician or fixed auditor
+```
+
+`Z`의 이상적인 내용은 gold rationale의 모사가 아니라 target model 내부 상태에 대한 보고다.
+
+1. activation에 표현된 patient findings와 values
+2. 현재 activation이 기울어 있는 diagnostic hypothesis 또는 disposition
+3. 표현되지 않았거나 약한 근거, 상충하는 근거, 불확실성
+4. 최종 출력이나 visible CoT에는 나타나지 않은 환자별 상태
+
+모델이 틀렸다면 Medical-NLA도 전문가 정답 설명을 만들어서는 안 된다. 대신 모델 activation에
+실제로 들어 있는 잘못된 finding, 누락, diagnostic direction을 충실하게 드러내야 한다. 따라서
+Medical-NLA의 중심 출력은 **expert rationale**보다 **model-state report**라고 부르는 것이
+정확하다.
+
+### 논문 task와 표에 주는 수정
+
+이 큰 그림을 따르면 논문의 우선순위는 다음과 같다.
+
+1. **Clinical state-report adequacy:** 보고서가 환자별 임상 내용을 읽을 수 있는 자연어로
+   제시하는가?
+2. **Activation faithfulness:** 보고서가 의료 상식이나 diagnosis template이 아니라 own
+   activation에 의존하는가?
+3. **Diagnostic auditing utility:** 이 보고서를 받은 독립 auditor가 CoT만 받은 경우보다
+   target model의 진단 오류와 환자별 원인을 더 잘 발견·교정하는가?
+
+기존 의료 rationale 표의 BLEU/ROUGE/METEOR 또는 expert-reference similarity는 1번의
+**clinical adequacy sanity check**로는 사용할 수 있다. 그러나 그것만으로 2번 activation
+faithfulness를 증명할 수 없으며, 원 NLA 계열의 중심 목적을 직접 평가하지도 않는다.
+
+- CoT가 전문가 설명을 그럴듯하게 모사하면 activation과 무관해도 높은 점수를 받을 수 있다.
+- Medical-NLA가 잘못된 model state를 정확히 보고하면 expert rationale과 달라 낮은 점수를
+  받을 수 있다.
+- 따라서 "CoT보다 더 좋은 reasoning을 생성한다"를 중심 주장으로 두면 structured clinical
+  reasoning 방법과 구분이 약해진다.
+
+이 문서의 이후 Table 1 설계는 현재 **activation-augmented rationale utility 후보**로 남겨
+두되, final main task로 자동 확정하지 않는다. 중심 주장을 원 NLA의 목적에 맞출 경우 Table 1은
+clinical adequacy 보조표로 내리고, Table 2 activation faithfulness와 diagnostic-error auditing을
+주표로 올리는 재구성이 더 자연스럽다. 이 우선순위 변경은 별도 사람 결정으로 동결한다.
+
 ## 제안하는 중심 주장
 
 논문 중심 문장은 다음으로 좁힌다.
