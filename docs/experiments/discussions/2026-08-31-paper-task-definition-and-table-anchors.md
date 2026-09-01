@@ -627,3 +627,41 @@ clinical utility가 제한된 도구로 해석한다.
 Diagnostic-error auditing은 NLA의 일반-domain auditing 목적을 의료에 가장 직접적으로 옮긴
 추가 후보지만, 현재 교수 회신의 세 표에는 포함되지 않았다. DiagnosisArena utility와 교체하거나
 네 번째 task로 추가하려면 별도 사람 승인이 필요하다.
+
+## MAV-Bench 패널 구조: 왜 Part A/B는 task 두 개가 아닌가 (2026-09-01, Claude)
+
+사람 질문 — "counterfactual faithfulness(Part A)와 manipulation audit(Part B)는 task
+두 개가 되어야 하는 것 아닌가" — 에 대한 기록.
+
+**Task 경계는 개입 종류가 아니라 입출력 계약이다.** 이 문서의 task 정의("고정한 입력,
+출력, reference, metric, control의 묶음")를 적용하면 두 패널은 같은 task다:
+
+| | Part A (counterfactual faithfulness) | Part B (manipulation audit) |
+|---|---|---|
+| 입력 | activation `h` | activation `h` |
+| 출력 | state report `Z` → frozen mapper claim set | 동일 |
+| 채점기 | frozen semantic mapper | 동일 |
+| 질문 | 개입 시 판독이 실제 내부 변화를 따라가는가 | 동일 |
+| **개입** | 사례 내용을 바꿈 (cue 삭제 / value 교체) | 내용은 고정, 문맥 압력만 주입 (유도 힌트 / sycophancy) |
+
+두 패널은 한 축의 양극이다: **내용이 바뀌면 판독도 바뀌어야 하고(A), 내용이 안 바뀌면
+판독은 안 바뀌어야 한다(B).** 서로가 서로의 대조군이므로 한 벤치마크 안에 있어야
+해석이 완결된다. 선례도 동일하다 — perturbation 계열 벤치마크는 개입 종류별로 task를
+쪼개지 않고(ImageNet-C 15 corruption = 한 벤치마크, PRISM의 정상/injection/hidden-objective
+= 한 표), 우리 현행 Table 3도 이미 Panel A(static)/Panel B(counterfactual) 구조다.
+
+**교수 제약과의 정합**: 표 3개 = 기존 2 + 신규 1이 유지된다. Part B를 독립 task로
+승격하면 신규 벤치마크가 2개가 되어 회신 구조를 벗어난다. 교수가 B를 별도 표로 보고
+싶어 하면 그때 패널을 표로 승격하면 되는 표현 층위의 결정이며, 지금의 task 구조
+결정과는 독립이다.
+
+**T3(diagnostic-error auditing)와의 관계**: Part B는 T3 축의 최소 구현이다 — 숨은
+요인을 우리가 실험적으로 주입하므로 ground truth(진짜 원인)를 알고 채점할 수 있고,
+별도 auditor 프로토콜 없이 기존 mapper 채점 체계 안에서 "CoT는 조작에 흔들리고
+판독은 안정적인가"를 측정한다. MEDEC류 완전한 error-auditing task는 위 절대로 별도
+사람 승인이 필요한 4번째 후보로 남는다.
+
+**실행 순서**: 구조상 한 task지만 비용이 다르다. Part A는 locked 자산 재사용으로 거의
+완성이므로 MAV-Bench v1 본체로 먼저 패키징하고, Part B(조작 조건 생성 + activation
+추출 신규 GPU 작업)는 두 번째 패널로 추가한다. 일정 압박 시 첫 삭제 후보가 Part B라는
+기존 우선순위 규칙과 일치한다.
