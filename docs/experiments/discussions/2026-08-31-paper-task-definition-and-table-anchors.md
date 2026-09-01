@@ -603,12 +603,14 @@ mapper(G1–G4 통과, hash 동결) × counterfactual activation family(원본 4
 > **Medical-NLA는 의료 LLM의 hidden activation에 표현된 환자별 임상 상태를 자연어로
 > faithful하게 언어화한다.**
 
-여기서 `faithful`은 방법 이름이나 학습 objective만으로 보장되는 수식어가 아니다. 다음
-관측을 모두 만족했을 때 결과로 주장할 수 있다.
+여기서 `faithful`은 방법 이름이나 학습 objective만으로 보장되는 수식어가 아니다. 중심
+faithfulness claim은 다음 1--2를 만족했을 때 주장할 수 있고, 3은 그 faithful report를 실제로
+쓸 이유를 보이는 별도 utility claim이다.
 
 1. report가 환자별 임상 상태를 실제로 회수한다(static state decoding).
 2. activation counterfactual에 따라 해당 내용만 선택적으로 변한다(causal faithfulness).
-3. visible CoT 또는 text-only 정보에 없는 감사 가치를 제공한다(differential utility).
+3. visible CoT 또는 text-only 정보에 없는 감사 가치를 제공한다(differential utility;
+   faithfulness의 필요조건은 아님).
 
 교수 회신 기반 최종 표와의 대응은 다음과 같다.
 
@@ -641,27 +643,42 @@ Diagnostic-error auditing은 NLA의 일반-domain auditing 목적을 의료에 �
 | 입력 | activation `h` | activation `h` |
 | 출력 | state report `Z` → frozen mapper claim set | 동일 |
 | 채점기 | frozen semantic mapper | 동일 |
-| 질문 | 개입 시 판독이 실제 내부 변화를 따라가는가 | 동일 |
-| **개입** | 사례 내용을 바꿈 (cue 삭제 / value 교체) | 내용은 고정, 문맥 압력만 주입 (유도 힌트 / sycophancy) |
+| 질문 | 알려진 evidence 개입을 report가 선택적으로 따라가는가 | 임상 evidence는 고정한 채 문맥 압력이 만든 내부 diagnostic-state 변화를 report가 추적하는가 |
+| **개입** | 사례 내용을 바꿈 (cue 삭제 / value 교체) | 임상 evidence는 고정, 문맥 압력 추가 (유도 힌트 / sycophancy); activation은 달라질 수 있음 |
 
-두 패널은 한 축의 양극이다: **내용이 바뀌면 판독도 바뀌어야 하고(A), 내용이 안 바뀌면
-판독은 안 바뀌어야 한다(B).** 서로가 서로의 대조군이므로 한 벤치마크 안에 있어야
-해석이 완결된다. 선례도 동일하다 — perturbation 계열 벤치마크는 개입 종류별로 task를
-쪼개지 않고(ImageNet-C 15 corruption = 한 벤치마크, PRISM의 정상/injection/hidden-objective
-= 한 표), 우리 현행 Table 3도 이미 Panel A(static)/Panel B(counterfactual) 구조다.
+두 패널은 같은 intervention-consistency task의 보완 축이다.
+
+- **Part A:** cue/value가 바뀌면 해당 report component는 바뀌고, untouched finding은
+  보존되어야 한다.
+- **Part B:** patient facts는 그대로 보존되어야 한다. 그러나 hint/sycophancy가 target model의
+  activation과 diagnostic disposition을 실제로 바꿨다면 faithful report의 disposition도 그
+  변화를 보여야 한다. 따라서 `report 전체가 안 바뀌어야 한다`는 gate는 사용하지 않는다.
+
+서로가 invariant와 variant component를 나누어 검사하므로 한 벤치마크의 두 panel로 두는 것은
+타당하다. 선례도 동일하다 — perturbation 계열 벤치마크는 개입 종류별로 task를 쪼개지 않고
+(ImageNet-C 15 corruption = 한 벤치마크, PRISM의 정상/injection/hidden-objective = 한 표),
+우리 현행 Table 3도 이미 Panel A(static)/Panel B(counterfactual) 구조다.
 
 **교수 제약과의 정합**: 표 3개 = 기존 2 + 신규 1이 유지된다. Part B를 독립 task로
 승격하면 신규 벤치마크가 2개가 되어 회신 구조를 벗어난다. 교수가 B를 별도 표로 보고
 싶어 하면 그때 패널을 표로 승격하면 되는 표현 층위의 결정이며, 지금의 task 구조
 결정과는 독립이다.
 
-**T3(diagnostic-error auditing)와의 관계**: Part B는 T3 축의 최소 구현이다 — 숨은
-요인을 우리가 실험적으로 주입하므로 ground truth(진짜 원인)를 알고 채점할 수 있고,
-별도 auditor 프로토콜 없이 기존 mapper 채점 체계 안에서 "CoT는 조작에 흔들리고
-판독은 안정적인가"를 측정한다. MEDEC류 완전한 error-auditing task는 위 절대로 별도
-사람 승인이 필요한 4번째 후보로 남는다.
+**T3(diagnostic-error auditing)와의 관계**: Part B는 별도 auditor가 없으므로 T3의 최소
+구현이 아니다. Part B가 직접 측정하는 것은 T2 causal activation faithfulness의 manipulation
+panel이다. 숨은 요인을 실험적으로 주입해 ground truth를 아는 것은 이후 T3를 설계할 때 유용한
+선행 자산이지만, diagnostic-error auditing이라 부르려면 fixed auditor가 report를 받아 오류
+여부, 원인, evidence localization, correction을 판정해야 한다. MEDEC류 완전한 error-auditing
+task는 위 절대로 별도 사람 승인이 필요한 4번째 후보로 남는다.
+
+**채점기 범위**: 현재 frozen DDXPlus semantic mapper는 finding/value ontology를 채점한다.
+따라서 그대로 측정 가능한 Part B 지표는 patient-fact preservation과 ontology 안 claim의
+변화다. Diagnostic disposition, hint influence, sycophancy, manipulation awareness를 채점하려면
+별도의 frozen diagnostic-state ontology/mapper 또는 fixed auditor가 필요하다. 이를 만들지
+않고 기존 mapper만 사용하면 Part B를 full manipulation audit이라고 주장하지 않는다.
 
 **실행 순서**: 구조상 한 task지만 비용이 다르다. Part A는 locked 자산 재사용으로 거의
-완성이므로 MAV-Bench v1 본체로 먼저 패키징하고, Part B(조작 조건 생성 + activation
-추출 신규 GPU 작업)는 두 번째 패널로 추가한다. 일정 압박 시 첫 삭제 후보가 Part B라는
-기존 우선순위 규칙과 일치한다.
+완성이므로 MAV-Bench v1 본체로 먼저 패키징한다. Part B는 (1) 조작 조건과 target-model
+diagnostic shift reference 생성, (2) activation 추출, (3) invariant patient facts와 variant
+diagnostic disposition을 분리해 채점할 protocol을 먼저 동결한 뒤 추가한다. 이 protocol을
+완성하지 못하면 Part B를 첫 삭제 후보로 두는 기존 우선순위 규칙을 따른다.
