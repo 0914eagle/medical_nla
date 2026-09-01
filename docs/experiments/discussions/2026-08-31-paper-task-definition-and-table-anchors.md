@@ -19,7 +19,7 @@
 |---|---|
 | 문제 | 의료 LLM의 hidden activation에는 환자별 임상 상태가 있을 수 있지만, 사용자는 그것을 직접 읽을 수 없다. Visible CoT는 그 상태를 완전히 또는 충실하게 드러낸다는 보장이 없다. |
 | 방법 | Medical-NLA: fixed target medical LLM의 activation을 받아 자연어 clinical-state text로 변환하는 activation-conditioned verbalizer. |
-| 논문 주장 | Medical-NLA가 activation의 환자별 임상 정보를 자연어로 **faithfully verbalize**하고, 그 text가 visible CoT보다 임상적으로 더 유용한 explanation evidence가 될 수 있다. |
+| 논문 주장 | Medical-NLA는 의료 LLM의 hidden activation에 표현된 환자별 임상 상태를 자연어로 **faithfully verbalize**한다. CoT 대비 우위와 auditing utility는 이 중심 주장에서 파생되는 별도 검증 가설이다. |
 | task | 위 주장을 판별할 수 있도록 고정한 입력, 출력, reference, metric, control의 묶음. |
 | 표 | 각 task에서 어떤 주장 성분을 검증했는지 보고하는 결과 형식. |
 
@@ -135,33 +135,100 @@ faithfulness를 증명할 수 없으며, 원 NLA 계열의 중심 목적을 직�
 clinical adequacy 보조표로 내리고, Table 2 activation faithfulness와 diagnostic-error auditing을
 주표로 올리는 재구성이 더 자연스럽다. 이 우선순위 변경은 별도 사람 결정으로 동결한다.
 
+### 중심 claim의 세 검증 요소 (2026-09-01)
+
+중심 claim을 해석하기 위한 과학적 검증 요소는 다음과 같다. 아래 세 항목은 문서 하단의
+교수 회신 기반 최종 Table 1--3 구성을 자동으로 대체하지 않는다. 동일한 mapping `h(X) -> Z`가
+무엇을 만족해야 하는지를 분해한 것이며, final table과의 대응은 아래 consistency note에서
+명시한다.
+
+| task | 입력과 출력 | 핵심 질문 | primary metric |
+|---|---|---|---|
+| T1. Medical diagnostic-state decoding | `h(X) -> Z` | activation에 표현된 환자 finding, value, diagnostic disposition을 자연어로 읽는가? | finding precision/recall/F1, value accuracy, diagnostic-disposition accuracy, unsupported-claim rate |
+| T2. Causal activation faithfulness | `do(h) -> Z_do` | activation만 바꿨을 때 report가 해당 변화만 선택적으로 따라가는가? | own-vs-shuffled gap, deletion removal/phantom, retained preservation, value replacement/old persistence/clean switch, specificity |
+| T3. Diagnostic error auditing | `X + proposed diagnosis + evidence E -> auditor decision` | Medical-NLA report가 CoT보다 target model의 오진과 환자별 원인을 잘 찾게 하는가? | error-detection AUROC/F1, evidence-error localization F1, correction accuracy, false-alarm rate |
+
+T1에서 CoT는 activation decoder가 아니라 **visible-output baseline**이다. Linear probe,
+Patchscope, Vanilla NLA, Medical-NLA는 activation 접근 방법이다. 모든 자연어 출력은 동일한
+method-blind mapper 또는 동일 fixed auditor로 평가하고, probe는 closed-ontology upper-bound로
+분리해 해석한다.
+
+T3의 권장 비교 조건은 다음과 같다.
+
+| fixed auditor에 주는 추가 evidence `E` | 목적 |
+|---|---|
+| 없음 | case와 proposed diagnosis만으로 가능한 black-box audit |
+| target model CoT | visible reasoning baseline |
+| Vanilla NLA | 일반-domain activation verbalizer baseline |
+| Medical-NLA | proposed medical state report |
+| same-stratum shuffled Medical-NLA | 더 긴 의료 text나 diagnosis template 효과 통제 |
+
+과학적 목적상 T3는 independent solver의 일반적인 정답률 향상보다 **diagnostic-error detection
+and localization**이 더 직접적이다. 외부 task anchor로는 의료 오류 탐지·수정 형식을 제공하는
+[MEDEC](https://arxiv.org/abs/2412.19260)와, DDXPlus/CupCase/MedCase에서 evidence subset
+intervention을 사용하는 [Auditing Evidence Use in Medical LLM Diagnosis](https://arxiv.org/abs/2607.20848)을
+검토한다. 어느 것도 activation report row를 그대로 제공하지 않으므로, 데이터·target backbone·
+auditor를 고정하고 모든 조건을 재실행해야 한다. 교수 회신 기반 최종 Task 2가 일반 diagnosis
+utility로 유지된다면 diagnostic-error auditing은 main table이 아니라 후속/appendix 후보로 둔다.
+
+### 이 목적에 맞는 학습 원칙
+
+Gold diagnosis rationale만 SFT하면 activation reader가 아니라 case/diagnosis template을
+모사하는 clinical reasoner가 될 수 있다. Medical-NLA 학습 단위는 단순한 의료 문서 수가 아니라
+**activation 변화와 target text 변화가 연결된 예제**여야 한다.
+
+1. **Query-conditioned activation QA:** `h + question -> answer` 형식으로 finding, value,
+   diagnostic disposition, conflicting/absent evidence를 묻는다. Unconditional 장문 하나보다
+   LatentQA/Activation-Oracle 계열의 on-demand 판독에 가깝다.
+2. **Controlled clinical pairs:** DDXPlus original, deletion, value edit, same-diagnosis donor,
+   negated/absent finding을 사용해 어떤 text 조각이 바뀌어야 하는지 고정한다.
+3. **Correct/error balance:** target model이 맞힌 사례와 틀린 사례를 모두 포함한다. Gold answer는
+   downstream correctness label로 사용할 수 있지만 AV가 전문가 정답 rationale을 복사하는
+   target으로 사용하지 않는다.
+4. **Medical self-supervision/AR adaptation:** 의료 activation에서 context/evidence prediction을
+   학습하고, reconstruction을 쓸 경우 medical-distribution AR을 먼저 확보한다. 공개 general-domain
+   AR의 cosine/FVE만으로 promotion하지 않는다.
+5. **Counterfactual objective:** changed evidence의 반응과 unchanged evidence 보존을 loss와
+   validation gate에 모두 둔다. 일반 의료 문장 생성 CE만으로는 사례 특이성을 보장하지 않는다.
+
+권장 학습 계보는 `general activation-reader initialization -> medical activation-QA SFT ->
+counterfactual consistency/specificity training -> optional medical-AR reconstruction`이다. 이
+구조를 사용하면 방법 이름은 strict한 unsupervised NLA인지 query-conditioned Medical Activation
+Oracle인지 명확히 구분해 써야 한다. AR round trip을 실제 최종 objective로 사용하지 않는다면
+NLA라는 이름만 유지하지 않는다.
+
 ## 제안하는 중심 주장
 
-논문 중심 문장은 다음으로 좁힌다.
+논문 중심 문장은 다음으로 좁힌다. 이것은 방법 정의가 아니라 T1--T3로 검증해야 하는 중심
+hypothesis다.
 
-> **Medical-NLA is a faithful natural-language interface for medical LLM activations: it
-> verbalizes patient-specific hidden clinical state into explanations that are clinically
-> informative beyond visible chain-of-thought.**
+> **Medical-NLA faithfully verbalizes patient-specific clinical state encoded in the hidden
+> activations of a medical LLM.**
+>
+> **Medical-NLA는 의료 LLM의 hidden activation에 표현된 환자별 임상 상태를 자연어로
+> faithful하게 언어화한다.**
 
-이 문장은 두 검증 조항을 갖는다.
+이 문장은 세 검증 조항을 갖는다.
 
-1. **Clinically informative:** Medical-NLA가 제공한 정보로 만든 explanation이 CoT 또는
-   text-only explanation보다 전문가 reference에 더 잘 정렬되는가?
-2. **Faithful to activation:** 그 설명이 그럴듯한 의료 상식이 아니라 해당 환자의 activation을
-   실제로 반영하는가?
+1. **Decodable clinical state:** 환자별 finding/value/diagnostic disposition을 자연어로
+   회수할 수 있는가?
+2. **Faithful to activation:** 그 설명이 그럴듯한 의료 상식이 아니라 해당 환자의 activation과
+   counterfactual 변화에 실제로 의존하는가?
+3. **Useful for auditing:** 그 설명이 visible CoT보다 target model의 오진과 환자별 원인을
+   찾는 데 도움이 되는가?
 
 "Medical-NLA가 모델을 faithful하게 만든다"고 주장하지 않는다. Target backbone을 바꾸거나
 더 정답으로 만드는 것이 아니라, 이미 존재하는 내부 상태를 읽는 interface를 만드는 것이다.
 
-### 교수님 보고용 요약 (2026-08-31)
+### 중심 claim 검증 요약 (2026-09-01)
 
-> **Medical-NLA는 의료 LLM의 hidden activation을 환자별 임상 설명으로 faithfully
-> verbalize한다.** 이를 검증하기 위해 (1) 동일 의료 사례에서 clinical rationale을 생성하는
-> task와 (2) 그 설명이 실제 해당 환자의 activation을 반영하는지를 검증하는 task를 분리한다.
+> **Medical-NLA는 의료 LLM의 hidden activation에 표현된 환자별 임상 상태를 자연어로
+> faithfully verbalize한다.** 이를 검증하기 위해 (1) diagnostic-state decoding, (2) causal
+> activation faithfulness, (3) diagnostic-error auditing utility를 분리한다.
 
-첫 번째 task는 CoT보다 더 임상적으로 유용한 explanation evidence를 제공하는지, 두 번째
-task는 그 improvement가 일반적인 의료 상식이나 diagnosis template이 아니라 해당 activation에
-의존하는지를 각각 검사한다. 두 표가 함께 통과해야 위 중심 주장을 지지한다.
+첫 번째 task는 report의 의료 내용을, 두 번째 task는 그 내용의 activation 의존성을, 세 번째
+task는 그 state report를 실제 감사에 쓰는 이유를 검사한다. CoT보다 expert rationale과 더
+비슷한 문장을 쓰는지는 clinical adequacy 보조평가이며 중심 claim 자체가 아니다.
 
 Table 1의 비교 대상은 표의 **행**이다. Published LLM 행은 benchmark 맥락을 제공할 수 있지만,
 primary comparison은 같은 Gemma backbone에서의 text-only/CoT, Vanilla NLA, Medical-NLA다.
@@ -190,7 +257,7 @@ X --target medical LLM, P0--> h_P0(X) --Medical-NLA--> Z
 이 하나의 mapping이 논문의 중심 task다. 아래 Table 1과 Table 2는 같은 mapping의 서로
 다른 성공 조건을 평가한다.
 
-## Table 1: activation-augmented clinical rationale generation
+## 기존 Table 1 후보: activation-augmented clinical rationale generation
 
 ### 질문
 
@@ -323,7 +390,7 @@ Medical-NLA 성공 결과가 아니다. Vanilla NLA semantic row는 ontology cla
 main-table comparison result로 바꾸어 적지 않는다. 이것들은 method-development appendix의
 promotion-failure evidence다.
 
-## 선택적 Table 3: explanation의 downstream utility
+## 기존 Table 3 후보: explanation의 downstream solver utility
 
 Table 1은 explanation quality, Table 2는 activation faithfulness다. "설명을 다른 clinical
 solver에게 주었을 때 실제 의사결정이 좋아지는가"까지 주장하려면 세 번째 task가 필요하다.
@@ -528,3 +595,35 @@ mapper(G1–G4 통과, hash 동결) × counterfactual activation family(원본 4
 
 이 절은 교수 회신의 실행 번역이며, Decision A는 사실상 A(two-table core)에서
 **3-task 구조로 갱신**된 것으로 본다. 최종 동결은 사람 승인으로 한다.
+
+## 중심 claim과 교수 회신 3-task 구조의 consistency note (2026-09-01)
+
+현재 논문의 중심 claim은 다음으로 고정 후보를 둔다.
+
+> **Medical-NLA는 의료 LLM의 hidden activation에 표현된 환자별 임상 상태를 자연어로
+> faithful하게 언어화한다.**
+
+여기서 `faithful`은 방법 이름이나 학습 objective만으로 보장되는 수식어가 아니다. 다음
+관측을 모두 만족했을 때 결과로 주장할 수 있다.
+
+1. report가 환자별 임상 상태를 실제로 회수한다(static state decoding).
+2. activation counterfactual에 따라 해당 내용만 선택적으로 변한다(causal faithfulness).
+3. visible CoT 또는 text-only 정보에 없는 감사 가치를 제공한다(differential utility).
+
+교수 회신 기반 최종 표와의 대응은 다음과 같다.
+
+| 교수 회신 table | 중심 claim에서의 역할 | 단독으로 증명하지 못하는 것 |
+|---|---|---|
+| Task 1 MedThink rationale | state report가 임상적으로 유용한 explanation evidence인지 보는 external adequacy/utility | activation을 실제로 읽었다는 인과적 faithfulness |
+| Task 2 DiagnosisArena diagnosis | `Z`가 fixed solver의 진단에 유용한지 보는 downstream utility | `Z` 내용 자체가 true model state인지 여부 |
+| Task 3 MAV-Bench | static recovery와 intervention consistency로 state decoding + activation faithfulness를 직접 검증 | 실제 사용자/auditor에게 유용한지 여부 |
+
+따라서 세 표는 서로 대체 관계가 아니다. Task 3가 중심 claim을 직접 검증하고, Task 1과 Task 2가
+그 faithful state report가 readable하고 useful한 이유를 외부 의료 task에서 보강한다. Task 1에서
+CoT보다 점수가 높더라도 MAV-Bench를 통과하지 못하면 Medical-NLA의 faithfulness 성공으로
+판정하지 않는다. 반대로 MAV-Bench를 통과하더라도 Task 1/2가 낮으면 faithful하지만 현재 형식의
+clinical utility가 제한된 도구로 해석한다.
+
+Diagnostic-error auditing은 NLA의 일반-domain auditing 목적을 의료에 가장 직접적으로 옮긴
+추가 후보지만, 현재 교수 회신의 세 표에는 포함되지 않았다. DiagnosisArena utility와 교체하거나
+네 번째 task로 추가하려면 별도 사람 승인이 필요하다.
