@@ -426,38 +426,87 @@ Vanilla/Medical NLA의 free text는 frozen semantic mapper로 evidence ID와 val
 
 ## 4. Experimental Setup
 
-### 4.1 Data and populations
+### 4.1 RQ별 데이터와 평가 모집단
 
-- **RQ1:** `Right Diagnoses, Decorative Reasoning`의 공개 4-dataset medical QA population과
-  M-block perturbation을 재사용한다. 핵심 직접 비교는 동일 Gemma에서 CoT, Vanilla NLA,
-  Medical-NLA를 생성한 결과다.
-- **RQ2:** 공개 medical QA/clinical vignette에서 동일 question과 answer reference를 사용한다.
-  published Qwen 값은 출처 표기로 유지하고, 직접 비교는 동일 Gemma 출력에 동일 splitter와
-  judge를 적용한다.
-- **RQ3:** DDXPlus validation/locked population에서 P0/HS32 own activation과 same-diagnosis
-  different-finding donor를 사용한다. Locked test는 validation에서 method, threshold와 mapper를
-  동결한 뒤 한 번만 평가한다.
+| RQ | 근거 논문/benchmark | 원 논문 모집단 | 이 연구의 직접 비교 모집단 | 주 평가 단위 |
+|---|---|---|---|---|
+| RQ1: perturbation responsiveness | `Right Diagnoses, Decorative Reasoning` (2026) | MedQA, MedMCQA, PubMedQA, medical MMLU 각 200문항; M-block 13 variants | 같은 800문항에서 Gemma-3-12B CoT/Vanilla NLA/Medical-NLA를 실행. EDR은 실제로 fired한 M2/M4/M5 destructive edits만 사용 | 원본-변형 question pair |
+| RQ2: clinical factuality | `Better Accuracies, Worse Reasoning` (2026), Appendix E sentence-chunk control | MedQA-USMLE test의 first 500 questions; Qwen3-8B Base/Distilled CoT | 같은 first-500 MedQA에서 Qwen 및 Gemma의 CoT/NLA를 동일 sentence splitter와 style-blind judge로 재평가 | question 안의 sentence chunk |
+| RQ3: direct activation dependence | 이 연구의 DDXPlus benchmark | validation 4,525 originals / 4,106 same-diagnosis hard-shuffle pairs; locked test 4,543 originals / 4,121 pairs | DDXPlus P0에서 동일 진단이지만 finding set이 다른 own/donor activation pair. 최종 main comparison은 HS32로 site를 맞춤 | symmetric patient pair |
 
-### 4.2 Baselines
+RQ1 원 논문은 네 benchmark에서 각 200문항을 사용하지만 reference Python과 decoder별 세부 설정은
+저자 요청 방식이다. Appendix F의 regex, 치환표와 seed 규칙으로 operator를 재구현하고, 정확한
+sample ID를 받지 못하면 published 행은 `reported`, 우리 실행은 `re-implemented population`으로
+구분한다. 원 논문의 open-model CDR 분모는 M2/M4/M5가 실제로 발화한 965개 pair다. non-firing
+operator는 성공으로 세지 않고 분모에서 제외한다.
 
-| Method | Backbone/site | 출력 | RQ1 | RQ2 | RQ3 | 상태 |
+RQ2의 직접 비교는 원 논문의 전체 1,273문항 primary step audit이 아니라, 형식 차이를 줄이기 위해
+사용한 **first-500 sentence-chunk control**을 따른다. 원 논문의 Qwen3-8B 수치는 Kimi-K2.6
+style-blind judge 결과다. 같은 judge/version을 재현하지 못하면 published Qwen 수치와 우리 수치의
+절대값 비교를 주장하지 않고, 같은 frozen judge로 채점한 Gemma 내부의 paired comparison을 주
+결론으로 사용한다.
+
+RQ3는 외부 논문의 표를 옮기는 실험이 아니다. DDXPlus의 explicit finding/value annotation과
+counterfactual activation을 이용해 새로 정의한 benchmark다. validation에서 donor 규칙, HS32
+site, semantic mapper와 threshold를 고정하고 locked test 4,121 pair는 마지막에 한 번만 평가한다.
+
+### 4.2 Baseline 모델과 역할
+
+| Baseline/method | Backbone 및 site | 생성 또는 예측 대상 | RQ1 | RQ2 | RQ3 | 수치 출처/필요 작업 |
 |---|---|---|---:|---:|---:|---|
-| Gemma CoT | Gemma-3-12B | visible rationale | O | O | X | 실행 필요 |
-| Linear probe | Gemma P0/HS32 | 91-label probabilities | △ | X | O | 일부 값 존재 |
-| SAE | Gemma P0/HS32 | sparse feature IDs | X | X | O* | mapping 미구축 |
-| Qwen Vanilla NLA | Qwen2.5-7B L20 | free-text activation report | O | O | O† | 공개 AV/AR 존재, 우리 task 재실행 필요 |
-| Gemma Vanilla NLA | Gemma-3-12B L32 | free-text activation report | O | O | O | DDXPlus locked 평가 완료 |
-| Medical-NLA | Gemma-3-12B L32 | medical state report | O | O | O | 성공 checkpoint 미정 |
+| Published CoT panel | Mistral-7B, Qwen2.5-7B/14B, Llama-3.1-8B, Gemma-2-9B, BioMistral-7B, Meditron-7B, Med42-8B, OpenBioLLM-8B, HuatuoGPT-o1, DeepSeek-R1-D | visible CoT + answer | O | X | X | RQ1 원 논문 Table 3의 Acc/CDR를 reported block으로 사용 |
+| Qwen3-8B Base/Distilled CoT | Qwen3-8B | sentence-chunked visible CoT | X | O | X | RQ2 원 논문 Appendix E의 first-500 reported result |
+| Gemma CoT | Gemma-3-12B-IT | visible rationale + answer | O | O | X | 두 공개 population에서 신규 실행; same-backbone visible-output control |
+| Qwen Released NLA | Qwen2.5-7B-Instruct, pre-answer last-token L20, public AV/AR | free-text activation report | O | O | 별도 block | 공개 checkpoint와 Blake Masters MedQA 구현 존재; 공통 metric으로 신규 재채점 |
+| Gemma Released NLA | Gemma-3-12B-IT, P0/HS32, public AV/AR | free-text activation report | O | O | O | same-backbone Vanilla NLA baseline; DDXPlus locked 생성/semantic score 완료 |
+| Linear probe | Gemma-3-12B-IT, P0/HS32 | 91 finding probabilities | X | X | O | 자연어 설명기가 아니므로 RQ3 positive control로만 사용; HS32 재집계 필요 |
+| SAE | Gemma-3-12B-IT, P0/HS32 | sparse feature activations | X | X | O* | feature-to-finding mapping을 validation에서 동결한 경우에만 포함 |
+| Medical-NLA | Gemma-3-12B-IT, P0/HS32 | patient-specific diagnostic-state report | O | O | O | 성공 checkpoint가 생긴 뒤 세 frozen protocol로 한 번 평가 |
 
-`O*`는 feature-to-clinical-concept mapping을 validation에서 동결한 경우만 가능하다. `O†`는
-Qwen activation과 Qwen NLA를 함께 평가하는 별도-backbone block이다. Qwen NLA에 Gemma
-activation을 넣을 수 없으므로 Gemma와 같은-backbone 인과 비교로 해석하지 않는다.
+`O*`는 SAE feature가 어떤 clinical finding을 뜻하는지 held-out validation에서 먼저 판독한 경우만
+가능하다는 뜻이다. Linear probe와 SAE는 자유문 explanation을 만들지 않으므로 RQ1의 EDR이나
+RQ2의 sentence-chunk error 표에 억지로 넣지 않는다. 대신 RQ3에서 activation에 존재하는
+patient-specific information의 closed-label ceiling/control 역할을 한다.
 
-Lens, transcoder와 Patchscope는 기능 비교 및 appendix에 둔다. 현재 Patchscope는 general-domain
+Qwen Released NLA는 `kitft/nla-qwen2.5-7b-L20-av/ar`를 사용한다. 기존 medical NLA preprint는
+MedQA 200문항에 canonical/compact/option-shuffle 세 prompt를 적용해 answer accuracy 57.5%,
+reconstruction cosine .828, heuristic alignment 5.5%, MedGemma alignment 77.7%를 보고했다. 이
+값은 관련 연구의 reported result일 뿐 RQ1 EDR/RQ2 chunk error/RQ3 activation gap이 아니므로,
+세 main table에 넣으려면 Qwen L20 activation과 설명을 각 protocol에서 다시 생성·채점한다.
+
+Lens, transcoder와 Patchscope는 기능 비교와 appendix에 둔다. 현재 Patchscope는 general-domain
 control은 통과했지만 DDXPlus own/donor correspondence가 0/5여서 main baseline으로 승격하지
 않는다.
 
-### 4.3 Common controls and statistics
+### 4.3 공통 모델 설정
+
+- **Primary source model:** `google/gemma-3-12b-it`.
+- **Primary activation site:** answer/explanation을 생성하기 전 마지막 prompt token의 P0/HS32
+  residual activation. RQ3의 최종 직접 비교는 모든 Gemma reader를 HS32로 맞춘다.
+- **Gemma CoT:** activation decoder가 아니라 동일 source model의 visible self-report baseline이다.
+- **Gemma Released NLA:** `kitft/nla-gemma3-12b-L32-av`; 공개 일반-domain verbalizer다.
+- **Medical-NLA:** 같은 Gemma HS32 activation을 입력받되 의료 supervision과 patient-specific
+  grounding constraint를 적용한 목표 모델이다.
+- **Qwen external block:** `Qwen/Qwen2.5-7B-Instruct`의 L20 activation과
+  `kitft/nla-qwen2.5-7b-L20-av/ar`를 함께 사용한다. Gemma activation을 Qwen AV에 넣지 않는다.
+
+동일 Gemma의 CoT/Vanilla NLA/Medical-NLA는 같은 원본·변형 question과 같은 backbone answer를
+공유한다. 따라서 RQ1/RQ2의 answer accuracy는 설명 방법별 성능이 아니라 공통 source-model
+문맥값이며, 방법 간 핵심 차이는 EDR과 sentence-chunk error다.
+
+### 4.4 Reported 결과와 신규 측정의 경계
+
+| 항목 | 그대로 가져올 수 있는 값 | 반드시 새로 측정할 값 |
+|---|---|---|
+| RQ1 | 원 논문 Table 3의 11개 open/reasoning CoT `Acc`, `CDR` | Gemma-3-12B CoT, Qwen/Gemma Released NLA, Medical-NLA의 EDR |
+| RQ2 | Qwen3-8B Base/Distilled first-500의 answer accuracy, sentence-chunk error, uncertain/chunk counts | Qwen/Gemma CoT와 NLA를 같은 splitter/judge로 채점한 값 |
+| RQ3 | 외부 published 값 없음; 기존 HS24 probe 값은 선행 positive control | HS32 probe, Qwen/Gemma Released NLA, Medical-NLA의 own/shuffled/pair gap |
+
+즉 2026 논문 숫자는 빈칸을 임의로 채우는 용도가 아니라 `reported baseline`으로 보존한다. 우리
+방법과의 직접 우열은 같은 case, backbone, activation site, decoder 조건 또는 최소한 같은 frozen
+scorer를 사용해 신규 계산한 행에서만 주장한다.
+
+### 4.5 Common controls and statistics
 
 모든 직접 비교에서 case population, decoding parameters, semantic mapper와 judge를 고정한다.
 Generated method name은 judge에 제공하지 않는다. RQ1/RQ2는 같은 case의 paired difference를,
