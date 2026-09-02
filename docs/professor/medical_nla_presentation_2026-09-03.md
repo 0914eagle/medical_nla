@@ -291,13 +291,13 @@ reconstruction을 정보 보존 신호로 쓴다는 것이다. 본 논문은 이
 
 #### 3.1.1 Slide — Medical-NLA가 입력받고 출력하는 것
 
-환자 사례를 $X_i$, frozen target medical LLM을 $M$, 고정한 extraction layer를 $l$, activation
-verbalizer를 $G_\theta$라고 하자. Source model은 환자 사례를 모두 읽은 뒤 아직 answer나 CoT를
+환자 사례를 `X_i`, frozen target medical LLM을 `M`, 고정한 extraction layer를 `l`, activation
+verbalizer를 `G_θ`라고 하자. Source model은 환자 사례를 모두 읽은 뒤 아직 answer나 CoT를
 발화하지 않은 **P0 시점**에서 멈춘다.
 
-$$
-h_i = M_l(X_i), \qquad Z_i = G_\theta(h_i)
-$$
+```text
+h_i = M_l(X_i),    Z_i = G_θ(h_i)
+```
 
 ```text
 patient case X_i
@@ -307,8 +307,8 @@ patient case X_i
     -> natural-language diagnostic-state report Z_i
 ```
 
-CoT는 $X_i$를 다시 읽고 다음 token을 생성하는 visible self-report지만, Medical-NLA verbalizer는
-원 환자 문장을 입력받지 않고 추출된 $h_i$를 입력받는다. 목표 출력 $Z_i$는 정답 풀이를 대신하는
+CoT는 `X_i`를 다시 읽고 다음 token을 생성하는 visible self-report지만, Medical-NLA verbalizer는
+원 환자 문장을 입력받지 않고 추출된 `h_i`를 입력받는다. 목표 출력 `Z_i`는 정답 풀이를 대신하는
 gold rationale이 아니라 activation에 표현된 다음 상태를 사람이 읽을 수 있게 보고하는 text다.
 
 - 현재 환자의 finding과 categorical/ordinal value
@@ -320,12 +320,11 @@ gold rationale이 아니라 activation에 표현된 다음 상태를 사람이 �
 평가 대상은 자유 자연어 report다. 평가할 때만 frozen method-blind mapper가 text를 공통 ontology로
 변환한다.
 
-$$
-Z_i \xrightarrow{\text{frozen semantic mapper}}
-(\widehat{F}_i,\widehat{V}_i,\widehat{D}_i)
-$$
+```text
+Z_i --frozen semantic mapper--> (F_hat_i, V_hat_i, D_hat_i)
+```
 
-여기서 $\widehat{F}_i$는 finding set, $\widehat{V}_i$는 finding value, $\widehat{D}_i$는
+여기서 `F_hat_i`는 finding set, `V_hat_i`는 finding value, `D_hat_i`는
 diagnostic disposition이다. Mapper에는 method 이름, gold label, patient reference를 주지 않는다.
 
 #### 3.1.2 Slide — 하나의 recipe를 Qwen과 Gemma에 적용하는 방법
@@ -352,49 +351,45 @@ backbone에서 `Released NLA -> Medical-NLA`가 같은 방향으로 개선되는
 
 첫 가설은 의료 target을 충분히 보여주면 공개 AV가 activation에서 환자 finding을 읽는다는
 것이었다. Original-only full-data SFT는 DDXPlus original 4,655건과 DiReCT physician-observation
-248건을 같은 `<observed>` schema로 학습했다. Target token sequence를 $y=(y_1,\ldots,y_T)$라 하면
+248건을 같은 `<observed>` schema로 학습했다. Target token sequence를 `y = (y_1, ..., y_T)`라 하면
 loss는 일반적인 teacher-forced token CE다.
 
-$$
-\mathcal{L}_{\mathrm{clinical\ CE}}
-= -\frac{1}{T}\sum_{t=1}^{T}
-\log p_\theta(y_t\mid y_{<t},h)
-$$
+```text
+L_clinical-CE = -(1/T) Σ_{t=1..T} log p_θ(y_t | y_<t, h)
+```
 
 | Setting | Frozen value |
 |---|---|
 | Initialization/site | released Gemma L32 AV; CoT-P0/HS32 last-token activation |
 | Train | DDXPlus 4,655 originals + DiReCT 248 |
-| Sampling | source exponent $\alpha=.5$; DiReCT case당 약 4.3회 exposure |
-| Optimizer | AdamW, LR $2\times10^{-4}$, weight decay 0, grad clip 1.0 |
+| Sampling | source exponent α=.5; DiReCT case당 약 4.3회 exposure |
+| Optimizer | AdamW, LR `2e-4`, weight decay 0, grad clip 1.0 |
 | Adapter/batch | LoRA rank 16, alpha 32, dropout .05; batch 4, grad accumulation 2 |
 | Budget/seeds | 1 epoch; seeds 17/29 |
 | Selection | DDXPlus/DiReCT source-macro content-token NLL |
 
 다음에는 loss 형식을 바꾸지 않고 original, cue-deleted, value-edited activation마다 현재 cue set
-$y_a$를 target으로 넣는 counterfactual sequence SFT를 실행했다.
+`y_a`를 target으로 넣는 counterfactual sequence SFT를 실행했다.
 
-$$
-\mathcal{L}_{\mathrm{CF\text{-}SFT}}
-= \sum_{a\in\{\mathrm{orig},\mathrm{del},\mathrm{edit}\}}
-\mathcal{L}_{\mathrm{CE}}(y_a\mid h_a)
-$$
+```text
+L_CF-SFT = Σ_{a ∈ {orig, del, edit}} L_CE(y_a | h_a)
+```
 
 | Result | Actual value |
 |---|---:|
-| Full SFT DiReCT Obscomp, seed 17/29 | $.0301/.0296$ |
-| Source CoT DiReCT Obscomp | $.2130$ |
+| Full SFT DiReCT Obscomp, seed 17/29 | .0301/.0296 |
+| Source CoT DiReCT Obscomp | .2130 |
 
 CF-SFT는 두 seed의 세 지표를 대칭으로 보고한다 (original-only → counterfactual):
 
 | CF-SFT (validation 435 base / 952 readouts) | seed17 | seed29 |
 |---|---:|---:|
-| current recall | $.3389\rightarrow.5632$ | $.3612\rightarrow.3475$ |
-| deletion phantom | $.2138\rightarrow.4253$ | $.2667\rightarrow.2713$ |
-| deletion contrast | $.1379\rightarrow.2092$ | $.1103\rightarrow.1057$ |
+| current recall | .3389 → .5632 | .3612 → .3475 |
+| deletion phantom | .2138 → .4253 | .2667 → .2713 |
+| deletion contrast | .1379 → .2092 | .1103 → .1057 |
 
 CE는 출력 형식과 자주 등장하는 finding을 학습했지만, 같은 환자의 두 activation을 **직접 비교하는
-항이 없었다**. Seed17은 contrast가 $+.07$ 오르긴 했으나 recall 상승과 함께 삭제 cue phantom이
+항이 없었다**. Seed17은 contrast가 +.07 오르긴 했으나 recall 상승과 함께 삭제 cue phantom이
 약 2배가 됐다 — 선택적 판독이 아니라 출력 성향 변화다. Seed29는 recall·contrast가 모두
 하락해 그 작은 개선조차 재현되지 않았다. 따라서 다음 시도에서는 전체 문장 CE 대신 삭제한 cue
 하나의 상대 NLL을 직접 최적화했다.
@@ -404,51 +399,43 @@ CE는 출력 형식과 자주 등장하는 finding을 학습했지만, 같은 �
 먼저 activation에서 실제로 읽히는 cue만 target으로 쓰기 위해 out-of-fold probe support cut을
 고정했다. 각 train case는 자신이 들어가지 않은 fold에서 학습한 probe로만 채점했다.
 
-$$
-\begin{aligned}
-p(c\mid h_{\mathrm{orig}}) &\ge .90,\\
-p(c\mid h_{\mathrm{orig}})-p(c\mid h_{\mathrm{del}}) &\ge 0,\\
-p(c\mid h_{\mathrm{orig}})-\mathbb{E}_{d}[p(c\mid h_d)] &\ge 0.
-\end{aligned}
-$$
+```text
+p(c | h_orig) ≥ .90
+p(c | h_orig) − p(c | h_del) ≥ 0
+p(c | h_orig) − E_donor[ p(c | h_donor) ] ≥ 0
+```
 
-이 cut은 validation positive coverage $3{,}032/3{,}034=.9993$, absent-cue null false support
-$112/2{,}964=.0378$을 보였고 train pair 3,104개를 남겼다. Changed claim $y_c$의 길이 정규화
+이 cut은 validation positive coverage 3,032/3,034 = .9993, absent-cue null false support
+112/2,964 = .0378을 보였고 train pair 3,104개를 남겼다. Changed claim `y_c`의 길이 정규화
 NLL과 original-deleted gap은 다음과 같다.
 
-$$
-n_o=\mathrm{NLL}(y_c\mid h_{\mathrm{orig}}),\qquad
-n_d=\mathrm{NLL}(y_c\mid h_{\mathrm{del}}),\qquad
-g_c=n_d-n_o.
-$$
+```text
+n_o = NLL(y_c | h_orig),    n_d = NLL(y_c | h_del),    g_c = n_d − n_o
+```
 
-$$
-\mathcal{L}_{\mathrm{D10}}
-= \mathrm{CE}(y_c\mid h_{\mathrm{orig}})
-+ \lambda\,\mathrm{softplus}\!\left(-\frac{g_c}{T}\right),
-\qquad \lambda=1,\quad T=1.
-$$
+```text
+L_D10 = CE(y_c | h_orig) + λ·softplus(−g_c / T),    λ = 1, T = 1
+```
 
-NLL은 길이 정규화된 content-token 값이다: claim을 토큰 $t_1,\dots,t_k$로 두면
+NLL은 길이 정규화된 content-token 값이다: claim을 토큰 `t_1, ..., t_k`로 두면
 
-$$
-\mathrm{NLL}(y_c\mid h)
-= -\frac{1}{k}\sum_{j=1}^{k}\log p\big(t_j\mid t_{<j},\ \mathrm{prompt},\ h\big),
-$$
+```text
+NLL(y_c | h) = −(1/k) Σ_{j=1..k} log p(t_j | t_<j, prompt, h)
+```
 
 XML scaffold 토큰은 마스킹하고 claim content 토큰만 평균한다(형식 토큰은 모든 arm에서
-동일해 신호가 없다). $g_c$ 자체는 같은 $y_c$를 두 activation에서 평가하므로 길이가 양변에서
-상쇄되지만, 토큰당 평균으로 두어야 쌍마다 $g_c$가 같은 단위("토큰당 난이도 차")가 되어
+동일해 신호가 없다). `g_c` 자체는 같은 `y_c`를 두 activation에서 평가하므로 길이가 양변에서
+상쇄되지만, 토큰당 평균으로 두어야 쌍마다 `g_c`가 같은 단위("토큰당 난이도 차")가 되어
 고정 temperature와 배치 평균이 claim 길이에 지배되지 않는다.
 
-`softplus(-g_c/T)`는 $\log(1+e^{-g_c/T}) = -\log\sigma(g_c/T)$, 즉 **쌍의 순서가 맞을 확률
-$\sigma(g_c/T)$의 음의 로그**(pairwise logistic ranking, RankNet 계열)다. 대안 대비 선택
-이유: raw $-g_c$는 순서가 이미 맞아도 무한정 밀어붙여 "삭제본 전부 억제"류 퇴화 해를
+`softplus(-g_c/T)`는 `log(1+e^-g_c/T) = -logσ(g_c/T)`, 즉 **쌍의 순서가 맞을 확률
+`σ(g_c/T)`의 음의 로그**(pairwise logistic ranking, RankNet 계열)다. 대안 대비 선택
+이유: raw `-g_c`는 순서가 이미 맞아도 무한정 밀어붙여 "삭제본 전부 억제"류 퇴화 해를
 장려하고, hinge는 margin 밖에서 gradient가 정확히 0이며 경계가 비평활하다. Softplus는
-순서가 크게 틀리면 $\approx-g_c$의 선형 벌점, 맞으면 지수적으로 소멸하고 전 구간
-매끄럽다 — 실측 gap이 $\pm.003$ 수준으로 0 근처에서 움직였으므로 $g\approx0$에서
-gradient $\sigma(0)=.5$가 유지되는 성질이 실질적으로 중요했다. Gradient 항
-$\sigma((m-g_c)/T)$가 trainer의 `strength`다. Control은 같은 data/order/initialization에서
+순서가 크게 틀리면 `≈-g_c`의 선형 벌점, 맞으면 지수적으로 소멸하고 전 구간
+매끄럽다 — 실측 gap이 ±.003 수준으로 0 근처에서 움직였으므로 `g≈0`에서
+gradient `σ(0)=.5`가 유지되는 성질이 실질적으로 중요했다. Gradient 항
+`σ((m-g_c)/T)`가 trainer의 `strength`다. Control은 같은 data/order/initialization에서
 ranking weight만 0인 original-only CE였다.
 
 **설정 (동결값)**
@@ -456,8 +443,8 @@ ranking weight만 0인 original-only CE였다.
 | 항목 | 값 |
 |---|---|
 | Data | changed-cue pairs — train 3,104 / validation 3,032 |
-| Objective 상수 | $\lambda=1$, $T=1$, margin $0$ — sweep 없음 |
-| Optimization | LR $2\times10^{-4}$, grad accumulation 4, LoRA dropout 0 (`model.eval()`), seeds 17/29/43 |
+| Objective 상수 | λ=1, `T=1`, margin 0 — sweep 없음 |
+| Optimization | LR `2e-4`, grad accumulation 4, LoRA dropout 0 (`model.eval()`), seeds 17/29/43 |
 | Control | 동일 data·순서·초기화에서 ranking weight만 0 (original-only CE) |
 | Runs | 20-step smoke → **step 수 하나만 변경**해 1,552 steps (2 epochs); checkpoint {20, 194, 388, 776, 1164, 1552} report-only |
 
@@ -465,56 +452,50 @@ ranking weight만 0인 original-only CE였다.
 
 | 지표 | step 20 | step 1,552 | 성공 조건 |
 |---|---:|---:|---|
-| Changed-cue gap | $+.0019$ | $+.5558$ | $\geq +.05$ — 표면상 통과 |
-| **Retained-cue gap** (삭제 안 된 대조 cue) | $+.0002$ | $+.5604$ | $\approx 0$ 이어야 함 |
-| **Specificity** (changed $-$ retained) | $+.0017$ | $-.0046$ | $> 0$ |
+| Changed-cue gap | +.0019 | +.5558 | ≥ +.05 — 표면상 통과 |
+| **Retained-cue gap** (삭제 안 된 대조 cue) | +.0002 | +.5604 | ≈ 0 이어야 함 |
+| **Specificity** (changed - retained) | +.0017 | -.0046 | > 0 |
 
 **Step 1,552 seed별 changed-gap delta (불안정성 증거)**
 
 | seed 17 | seed 29 | seed 43 |
 |---:|---:|---:|
-| $-.0177$ | $+.5618$ | $+1.1233$ |
+| -.0177 | +.5618 | +1.1233 |
 
 결과 표는 세로로 읽는다: 첫 줄만 보면 budget 연장이 성공했지만(+.5558), 둘째 줄이
 그것을 취소한다 — **삭제와 무관한 retained cue의 gap이 정확히 같은 크기로 커졌고**, 그
 차이인 specificity는 전 구간 평평하다. 모델은 삭제한 cue를 구분한 것이 아니라 "deleted
 activation이면 모든 claim을 어렵게 한다"는 deletion-detector shortcut을 학습했다: loss가
 changed cue만 보고 retained를 보지 않으므로, 사례별로 읽는 해보다 activation의 전역
-"삭제됨" 신호를 감지하는 값싼 해가 이긴다. Seed별 발산(같은 데이터에서 $-.02$부터
-$+1.12$까지)은 데이터가 해를 제약하지 못했다는 보조 증거다. 다음 시도에서는 retained
+"삭제됨" 신호를 감지하는 값싼 해가 이긴다. Seed별 발산(같은 데이터에서 -.02부터
++1.12까지)은 데이터가 해를 제약하지 못했다는 보조 증거다. 다음 시도에서는 retained
 claim을 유지하지 못하면 loss에서 직접 손해를 보도록 anchor를 추가했다.
 
 #### 3.1.5 Slide — 시도 C: Specificity-anchored ranking
 
-각 pair에서 changed cue $c$ 외에 original/deleted 양쪽에 공통인 retained cue $r$ 하나를
+각 pair에서 changed cue `c` 외에 original/deleted 양쪽에 공통인 retained cue `r` 하나를
 `SHA256(base_id || cue_text)` 최소값으로 미리 고정했다. Retained claim은 두 activation 모두에서
 계속 쉽게 생성되어야 한다.
 
-$$
-\begin{aligned}
-\mathcal{L}_{\mathrm{D20}}
-=\;&\mathrm{CE}(y_c\mid h_{\mathrm{orig}})
-+\mathrm{softplus}(-g_c)\\
-&+\mathrm{CE}(y_r\mid h_{\mathrm{orig}})
-+\mathrm{CE}(y_r\mid h_{\mathrm{del}}).
-\end{aligned}
-$$
+```text
+L_D20 = CE(y_c | h_orig) + softplus(−g_c)
+      + CE(y_r | h_orig) + CE(y_r | h_del)
+```
 
-모든 항의 weight는 1이고 $T=1$, margin 0, LR $2\times10^{-4}$, seeds 17/29/43,
+모든 항의 weight는 1이고 `T=1`, margin 0, LR `2e-4`, seeds 17/29/43,
 max steps 1,552를 사용했다. 선택적 반응은 changed gap에서 retained gap을 뺀 값으로 정의했다.
 
-$$
-\mathrm{Specificity}
-=\big[n_d(c)-n_o(c)\big]-\big[n_d(r)-n_o(r)\big].
-$$
+```text
+Specificity = [ n_d(c) − n_o(c) ] − [ n_d(r) − n_o(r) ]
+```
 
 | Seed | Changed-gap delta | Retained-gap delta | Specificity delta |
 |---:|---:|---:|---:|
-| 17 | $-.0143$ | $+.0135$ | $-.0278$ |
-| 29 | $-.0040$ | $+.0215$ | $-.0255$ |
-| 43 | $-.0266$ | $-.0049$ | $-.0217$ |
+| 17 | -.0143 | +.0135 | -.0278 |
+| 29 | -.0040 | +.0215 | -.0255 |
+| 43 | -.0266 | -.0049 | -.0217 |
 
-Retained gap은 이전 budget run의 $+.5604$에서 $|g|\le.0215$로 줄어 shortcut 차단 자체는
+Retained gap은 이전 budget run의 +.5604에서 `|g|≤.0215`로 줄어 shortcut 차단 자체는
 작동했다. 그러나 changed gap과 specificity가 세 seed 모두 음수였다. Retained-original NLL은
 개선됐으므로 optimizer가 멈춘 것이 아니라, shortcut을 제거하자 cue-specific signal도 사라진
 것이다. Teacher-forced gate에서 중단해 generation, best-checkpoint 사후 선택, 추가 sweep은 하지
@@ -526,30 +507,27 @@ Retained gap은 이전 budget run의 $+.5604$에서 $|g|\le.0215$로 줄어 shor
 그러나 공개 AR는 general-domain에서 학습됐으므로 의료 AV 학습 loss에 넣기 전에 측정기로서의
 유효성을 먼저 검사했다. 이 단계에서는 **학습하거나 gradient를 계산하지 않았다**.
 
-$$
-h_i \xrightarrow{G} Z_i
-\xrightarrow{\mathrm{released\ AR}} \widehat h_i
-$$
+```text
+h_i --G--> Z_i --released AR--> h_hat_i
+```
 
-Raw cosine만 높으면 모든 환자가 공유하는 train-mean 방향 $\mu$를 복원해도 성공처럼 보일 수
+Raw cosine만 높으면 모든 환자가 공유하는 train-mean 방향 μ를 복원해도 성공처럼 보일 수
 있다. 따라서 own-shuffled gap, 평균 방향 제거 후의 centered gap, same-diagnosis retrieval과
 fraction of variance explained(FVE)를 함께 사용했다.
 
-$$
-\mathrm{FVE}
-=1-\frac{\sum_i\|\mathrm{unit}(h_i)-\mathrm{unit}(\widehat h_i)\|_2^2}
-{\sum_i\|\mathrm{unit}(h_i)-\mathrm{unit}(\mu)\|_2^2}.
-$$
+```text
+FVE = 1 − Σ_i ||unit(h_i) − unit(h_hat_i)||²  /  Σ_i ||unit(h_i) − unit(μ)||²
+```
 
 | Setting/result | Value |
 |---|---|
 | AR/population | released Gemma L32 AR; validation-only, 8 text arms x 20 cases |
-| DDXPlus structured-reader raw cosine | own $.9765$, shuffled $.9765$ |
-| DDXPlus centered gap | $-.0047$; cluster CI $[-.0375,+.0261]$ |
-| DDXPlus own retrieval | top-1 $0/20$, median rank 50 |
-| DDXPlus FVE | $-119.2169$ |
-| DiReCT Source CoT centered gap | $+.0304$; CI $[+.0012,+.0635]$ |
-| DiReCT Source CoT FVE | $-109.3544$ |
+| DDXPlus structured-reader raw cosine | own .9765, shuffled .9765 |
+| DDXPlus centered gap | -.0047; cluster CI [-.0375,+.0261] |
+| DDXPlus own retrieval | top-1 0/20, median rank 50 |
+| DDXPlus FVE | -119.2169 |
+| DiReCT Source CoT centered gap | +.0304; CI [+.0012,+.0635] |
+| DiReCT Source CoT FVE | -109.3544 |
 
 FVE가 음수라는 것은 공개 AR의 reconstructed activation error가 train-mean 상수 예측기보다 더
 크다는 뜻이다. 양성 대조에서도 DDXPlus 환자 correspondence와 FVE gate를 통과하지 못했으므로,
@@ -578,8 +556,8 @@ Medical-NLA는 아직 학습 전이므로 결과표에서는 둘 다 성공값�
 
 #### 3.2.1 Slide — RQ1: 임상 변경을 설명이 등록하는가
 
-**평가 단위는 원본-변형 question pair 하나다.** 원본 사례 $X_i$와 임상 근거 하나를 바꾼
-$X'_i$를 같은 frozen source model에 넣는다. 각 조건에서 answer와 CoT를 생성하고, P0 activation을
+**평가 단위는 원본-변형 question pair 하나다.** 원본 사례 `X_i`와 임상 근거 하나를 바꾼
+`X'_i`를 같은 frozen source model에 넣는다. 각 조건에서 answer와 CoT를 생성하고, P0 activation을
 각각 추출해 Released NLA와 Medical-NLA explanation도 생성한다.
 
 ```text
@@ -595,21 +573,18 @@ Operator가 치환할 문자열이나 조건을 찾지 못한 non-firing pair를
 
 두 binary event를 method-blind evaluator로 판정한다.
 
-- $U_Z=1$: $Z_i\to Z'_i$가 변경·삭제·반전된 임상 근거 또는 그에 따른 판단 변화를 명시적으로
+- `U_Z=1`: `Z_i → Z'_i`가 변경·삭제·반전된 임상 근거 또는 그에 따른 판단 변화를 명시적으로
   등록했다.
-- $U_Y=1$: 정규화한 final answer가 $Y_i\neq Y'_i$로 바뀌었다.
+- `U_Y=1`: 정규화한 final answer가 `Y_i≠ Y'_i`로 바뀌었다.
 
-$$
-\mathrm{EDR}
-=\frac{\sum_{i\in\mathcal P_M}
-\mathbf 1[U_Z(i)=0\ \land\ U_Y(i)=0]}
-{|\mathcal P_M|}
-$$
+```text
+EDR = |{ i ∈ P_M : U_Z(i) = 0 and U_Y(i) = 0 }| / |P_M|
+```
 
-$\mathcal P_M$은 fired destructive pair 집합이다. EDR(Explanation-Decoupling Rate)은 중요한
+`P_M`은 fired destructive pair 집합이다. EDR(Explanation-Decoupling Rate)은 중요한
 임상 변경을 **설명도 등록하지 않고 answer도 바꾸지 않은 비율**이므로 낮을수록 좋다.
 
-| Explanation update $U_Z$ | Answer flip $U_Y$ | 해석 | EDR 실패로 집계 |
+| Explanation update `U_Z` | Answer flip `U_Y` | 해석 | EDR 실패로 집계 |
 |---:|---:|---|---:|
 | 0 | 0 | 설명과 결정이 모두 변경을 무시 | O |
 | 1 | 0 | 설명은 변경됐지만 answer는 유지 | X |
@@ -618,10 +593,9 @@ $\mathcal P_M$은 fired destructive pair 집합이다. EDR(Explanation-Decouplin
 
 표의 두 지표는 다음과 같다.
 
-$$
-\mathrm{Acc}_{\mathrm{orig}}
-=\frac{1}{N}\sum_{i=1}^{N}\mathbf 1[Y_i=Y_i^{\mathrm{gold}}]
-$$
+```text
+Acc_orig = (1/N) Σ_i 1[ Y_i = Y_i_gold ]
+```
 
 | Metric | 분자/분모 | 방향 | 의미 |
 |---|---|---:|---|
@@ -629,10 +603,10 @@ $$
 | EDR | no-update AND no-flip pair / fired destructive pair | 낮음 | 임상 변경과 explanation/decision의 decoupling |
 
 NLA는 answer를 다시 생성하지 않으므로 같은 backbone의 CoT, Released NLA, Medical-NLA는 동일한
-$Y_i,Y'_i$와 answer accuracy를 공유한다. 공개 CoT의 CDR은 이 정의에서 $Z$가 CoT인 특수 경우다.
+`Y_i,Y'_i`와 answer accuracy를 공유한다. 공개 CoT의 CDR은 이 정의에서 `Z`가 CoT인 특수 경우다.
 Published CDR은 `reported`로 두고, NLA EDR은 같은 pair와 evaluator로 새로 계산한다.
 
-**RQ1의 한계:** EDR은 바꾼 $A\to A'$를 등록했는지만 본다. 출력에 함께 등장한 $B,C,D,E$가
+**RQ1의 한계:** EDR은 바꾼 `A → A'`를 등록했는지만 본다. 출력에 함께 등장한 `B,C,D,E`가
 의료적으로 정확한지, 빠진 finding이 없는지, 변화가 prompt wording이 아니라 activation에서
 왔는지는 증명하지 않는다.
 
@@ -660,23 +634,17 @@ splitter 코드·regex를 확보하면 그대로 hash-freeze하고, 확보하지
 | `error` | 잘못된 의학 사실, 사례와 모순되는 finding, 또는 성립하지 않는 임상 추론을 단정함 |
 | `uncertain` | 문장이 모호하거나 필요한 정보가 없어 correct/error를 안정적으로 결정할 수 없음 |
 
-Case 수를 $N$, 전체 judgeable chunk 수를 $N_c+N_e+N_u$라고 하면 다음을 보고한다.
+Case 수를 `N`, 전체 judgeable chunk 수를 `N_c+N_e+N_u`라고 하면 다음을 보고한다.
 
-$$
-\mathrm{ChunkError}
-=\frac{N_e}{N_c+N_e},\qquad
-\mathrm{UncertainRate}
-=\frac{N_u}{N_c+N_e+N_u}
-$$
+```text
+ChunkError = N_e / (N_c + N_e),    UncertainRate = N_u / (N_c + N_e + N_u)
+```
 
-$$
-\mathrm{ChunksPerCase}
-=\frac{N_c+N_e+N_u}{N},\qquad
-\mathrm{EmptyRate}
-=\frac{N_{\mathrm{empty}}}{N}
-$$
+```text
+ChunksPerCase = (N_c + N_e + N_u) / N,    EmptyRate = N_empty / N
+```
 
-여기서 $N_{\mathrm{empty}}$는 judgeable clinical chunk가 하나도 없는 case 수다.
+여기서 `N_empty`는 judgeable clinical chunk가 하나도 없는 case 수다.
 
 | Metric | 분모 | 방향 | 필요한 이유 |
 |---|---|---:|---|
@@ -696,25 +664,24 @@ Chunks/case와 EmptyRate가 함께 악화되지 않아야 한다.
 
 #### 3.2.3 Slide — RQ3: 설명이 해당 환자의 activation에 직접 의존하는가
 
-**평가 단위는 같은 diagnosis 안의 환자 pair다.** DDXPlus에서 서로 다른 base case $i,j$를
+**평가 단위는 같은 diagnosis 안의 환자 pair다.** DDXPlus에서 서로 다른 base case `i,j`를
 다음 조건으로 짝짓고 donor 파일을 validation 단계에서 동결한다.
 
-$$
-D_i=D_j,\qquad i\neq j,\qquad F_i\neq F_j
-$$
+```text
+D_i = D_j,    i ≠ j,    F_i ≠ F_j
+```
 
 같은 diagnosis를 강제하는 이유는 질환명과 전형적인 disease template만 출력해도 own case를
 맞히는 지름길을 막기 위해서다. Decoder prompt, temperature, max tokens, semantic mapper는
 고정하고 입력 activation만 own에서 donor로 교체한다.
 
-$$
-Z_i^{\mathrm{own}}=G(h_i),\qquad
-Z_i^{\mathrm{shuffle}}=G(h_j)
-$$
+```text
+Z_i_own = G(h_i),    Z_i_shuffle = G(h_j)
+```
 
 방법마다 출력 단위가 다르므로 먼저 동일한 91-finding ontology로 맞춘다.
 
-| Method | Ontology prediction $\widehat F$를 만드는 방법 |
+| Method | Ontology prediction `F_hat`을 만드는 방법 |
 |---|---|
 | Linear probe | finding별 probability에 validation-frozen threshold 적용 |
 | SAE | validation에서 feature-to-finding mapping이 동결된 경우에만 active feature를 finding으로 변환 |
@@ -722,39 +689,33 @@ $$
 
 전체 population에서 true positive, false positive, false negative를 합산한 micro F1을 사용한다.
 
-$$
-P=\frac{TP}{TP+FP},\qquad
-R=\frac{TP}{TP+FN},\qquad
-F1_{\mathrm{micro}}=\frac{2PR}{P+R}
-$$
+```text
+P = TP/(TP+FP),    R = TP/(TP+FN),    F1_micro = 2PR/(P+R)
+```
 
-$$
-\Delta_{\mathrm{activation}}
-=F1_{\mathrm{own}}-F1_{\mathrm{same\text{-}diagnosis\ shuffled}}
-$$
+```text
+Δ_activation = F1_own − F1_same-diagnosis-shuffled
+```
 
 | Metric | reference와 prediction | 방향 | 실패 시 해석 |
 |---|---|---:|---|
-| Own F1 | $\widehat F(h_i)$ 대 $F_i$ | 높음 | 환자 finding 자체를 정확히 읽지 못함 |
-| Shuffled F1 | $\widehat F(h_j)$ 대 $F_i$ | 낮음 | 다른 환자 activation에도 같은 template을 출력 |
+| Own F1 | `F_hat(h_i)` 대 `F_i` | 높음 | 환자 finding 자체를 정확히 읽지 못함 |
+| Shuffled F1 | `F_hat(h_j)` 대 `F_i` | 낮음 | 다른 환자 activation에도 같은 template을 출력 |
 | Own-Shuffled gap | 위 두 micro F1의 차이 | 높음 | 0이면 환자 activation 교체에 둔감 |
 
 본문에는 직관적인 세 값을 보고하지만 통계 검정은 두 방향을 모두 사용하는 symmetric 2x2 score로
-수행한다. $S$는 한 prediction-reference 쌍의 finding score다.
+수행한다. `S`는 한 prediction-reference 쌍의 finding score다.
 
-$$
-S_{\mathrm{matched}}
-=\frac{S(G(h_i),F_i)+S(G(h_j),F_j)}{2}
-$$
+```text
+S_matched = [ S(G(h_i), F_i) + S(G(h_j), F_j) ] / 2
+```
 
-$$
-S_{\mathrm{crossed}}
-=\frac{S(G(h_i),F_j)+S(G(h_j),F_i)}{2},\qquad
-\Delta_{\mathrm{pair}}=S_{\mathrm{matched}}-S_{\mathrm{crossed}}
-$$
+```text
+S_crossed = [ S(G(h_i), F_j) + S(G(h_j), F_i) ] / 2,    Δ_pair = S_matched − S_crossed
+```
 
 환자 pair를 독립 표본처럼 무작위 재표집하지 않고 diagnosis category 전체를 cluster 단위로
-bootstrap한다. `diagnosis-cluster 95% CI`는 이 재표집에서 얻은 $\Delta_{\mathrm{pair}}$ 분포의
+bootstrap한다. `diagnosis-cluster 95% CI`는 이 재표집에서 얻은 `Δ_pair` 분포의
 2.5/97.5 percentile이다. CI 하한이 0보다 클 때만 일부 환자나 한 질환군의 효과가 아니라
 일관된 activation dependence가 있다고 판정한다.
 
@@ -762,7 +723,7 @@ bootstrap한다. `diagnosis-cluster 95% CI`는 이 재표집에서 얻은 $\Delt
 |---|---|
 | Own F1 높음, gap 약 0 | 정확해 보이지만 diagnosis template일 수 있음 |
 | Own F1 낮음, gap 큼 | activation에 따라 달라지지만 임상적으로 틀린 text |
-| Own F1 높음, gap 양수, cluster CI 하한 $>0$ | 정확하면서 patient-specific한 activation reader |
+| Own F1 높음, gap 양수, cluster CI 하한 >0 | 정확하면서 patient-specific한 activation reader |
 
 Cue deletion의 original hit/phantom/removal, untouched retention, value-edit replacement/old
 persistence/clean switch는 이 main own-shuffled 결과의 원인을 분석하는 **secondary counterfactual
