@@ -411,15 +411,15 @@ $112/2{,}964=.0378$을 보였고 train pair 3,104개를 남겼다. Changed claim
 NLL과 original-deleted gap은 다음과 같다.
 
 $$
-n_o=\operatorname{NLL}(y_c\mid h_{\mathrm{orig}}),\qquad
-n_d=\operatorname{NLL}(y_c\mid h_{\mathrm{del}}),\qquad
+n_o=\mathrm{NLL}(y_c\mid h_{\mathrm{orig}}),\qquad
+n_d=\mathrm{NLL}(y_c\mid h_{\mathrm{del}}),\qquad
 g_c=n_d-n_o.
 $$
 
 $$
 \mathcal{L}_{\mathrm{D10}}
-= \operatorname{CE}(y_c\mid h_{\mathrm{orig}})
-+ \lambda\,\operatorname{softplus}\!\left(-\frac{g_c}{T}\right),
+= \mathrm{CE}(y_c\mid h_{\mathrm{orig}})
++ \lambda\,\mathrm{softplus}\!\left(-\frac{g_c}{T}\right),
 \qquad \lambda=1,\quad T=1.
 $$
 
@@ -449,10 +449,10 @@ shortcut을 학습했다. 다음 시도에서는 retained claim을 유지하지 
 $$
 \begin{aligned}
 \mathcal{L}_{\mathrm{D20}}
-=\;&\operatorname{CE}(y_c\mid h_{\mathrm{orig}})
-+\operatorname{softplus}(-g_c)\\
-&+\operatorname{CE}(y_r\mid h_{\mathrm{orig}})
-+\operatorname{CE}(y_r\mid h_{\mathrm{del}}).
+=\;&\mathrm{CE}(y_c\mid h_{\mathrm{orig}})
++\mathrm{softplus}(-g_c)\\
+&+\mathrm{CE}(y_r\mid h_{\mathrm{orig}})
++\mathrm{CE}(y_r\mid h_{\mathrm{del}}).
 \end{aligned}
 $$
 
@@ -460,7 +460,7 @@ $$
 max steps 1,552를 사용했다. 선택적 반응은 changed gap에서 retained gap을 뺀 값으로 정의했다.
 
 $$
-\operatorname{Specificity}
+\mathrm{Specificity}
 =\big[n_d(c)-n_o(c)\big]-\big[n_d(r)-n_o(r)\big].
 $$
 
@@ -492,9 +492,9 @@ Raw cosine만 높으면 모든 환자가 공유하는 train-mean 방향 $\mu$를
 fraction of variance explained(FVE)를 함께 사용했다.
 
 $$
-\operatorname{FVE}
-=1-\frac{\sum_i\|\operatorname{unit}(h_i)-\operatorname{unit}(\widehat h_i)\|_2^2}
-{\sum_i\|\operatorname{unit}(h_i)-\operatorname{unit}(\mu)\|_2^2}.
+\mathrm{FVE}
+=1-\frac{\sum_i\|\mathrm{unit}(h_i)-\mathrm{unit}(\widehat h_i)\|_2^2}
+{\sum_i\|\mathrm{unit}(h_i)-\mathrm{unit}(\mu)\|_2^2}.
 $$
 
 | Setting/result | Value |
@@ -556,7 +556,7 @@ Operator가 치환할 문자열이나 조건을 찾지 못한 non-firing pair를
 - $U_Y=1$: 정규화한 final answer가 $Y_i\neq Y'_i$로 바뀌었다.
 
 $$
-\operatorname{EDR}
+\mathrm{EDR}
 =\frac{\sum_{i\in\mathcal P_M}
 \mathbf 1[U_Z(i)=0\ \land\ U_Y(i)=0]}
 {|\mathcal P_M|}
@@ -575,7 +575,7 @@ $\mathcal P_M$은 fired destructive pair 집합이다. EDR(Explanation-Decouplin
 표의 두 지표는 다음과 같다.
 
 $$
-\operatorname{Acc}_{\mathrm{orig}}
+\mathrm{Acc}_{\mathrm{orig}}
 =\frac{1}{N}\sum_{i=1}^{N}\mathbf 1[Y_i=Y_i^{\mathrm{gold}}]
 $$
 
@@ -619,18 +619,20 @@ splitter 코드·regex를 확보하면 그대로 hash-freeze하고, 확보하지
 Case 수를 $N$, 전체 judgeable chunk 수를 $N_c+N_e+N_u$라고 하면 다음을 보고한다.
 
 $$
-\operatorname{ChunkError}
+\mathrm{ChunkError}
 =\frac{N_e}{N_c+N_e},\qquad
-\operatorname{UncertainRate}
+\mathrm{UncertainRate}
 =\frac{N_u}{N_c+N_e+N_u}
 $$
 
 $$
-\operatorname{ChunksPerCase}
+\mathrm{ChunksPerCase}
 =\frac{N_c+N_e+N_u}{N},\qquad
-\operatorname{EmptyRate}
-=\frac{N_{\mathrm{no\ judgeable\ clinical\ chunk}}}{N}
+\mathrm{EmptyRate}
+=\frac{N_{\mathrm{empty}}}{N}
 $$
+
+여기서 $N_{\mathrm{empty}}$는 judgeable clinical chunk가 하나도 없는 case 수다.
 
 | Metric | 분모 | 방향 | 필요한 이유 |
 |---|---|---:|---|
