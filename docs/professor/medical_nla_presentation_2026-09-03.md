@@ -201,6 +201,36 @@ Decorative Reasoning`은 severity, negation, demographic, evidence ablation을 �
 operator와 CDR을 제안한다. `Better Accuracies, Worse Reasoning`은 answer-level 향상이 local
 clinical factuality 향상을 뜻하지 않는다는 별도의 실패 축을 보인다.
 
+이 가운데 두 편은 본 논문 RQ1/RQ2가 **표를 그대로 재현하는 anchor**이므로 별도로
+상술한다. 1.2가 이들의 발견을 인용했다면, 여기서는 원 표의 구조와 우리의 재현 계약을
+적는다.
+
+#### 2.1.1 Anchor 1 — Right Diagnoses, Decorative Reasoning (RQ1 표)
+
+원 표는 14개 모델 × 4개 의료 QA benchmark에 30개 임상 perturbation operator를
+적용하고, 주 지표로 **CDR**(임상적으로 의미 있는 변경을 chain이 등록하지 않고
+answer도 유지한 비율; 전체 평균 72.9%)을 보고한다. Fact ablation, demographic swap,
+irrelevant distractor, negation flip, severity reversal, temporal shift의 M-block
+operator 정의가 공개돼 있다.
+
+- **그대로 가져오는 것**: M-block operator 정의, case-pair 구성, CDR 정의와 공개 수치.
+- **추가하는 것**: 평가 대상 설명을 CoT에서 NLA readout까지 확장한 **EDR**과
+  same-backbone Gemma 행. 공개 수치는 CDR 이름으로 보존하고, 우리 explanation 출력은
+  같은 case pair에서 재측정한다(3.2.1, 5.1의 계약).
+
+#### 2.1.2 Anchor 2 — Better Accuracies, Worse Reasoning (RQ2 표)
+
+원 표는 CoT distillation 전후로 answer accuracy/calibration과 style-blind
+reasoning-step 오류율을 대조한다(Qwen3-8B 기준 step 오류율 30.6% → 50.3%). 이
+논문이 재는 것은 엄밀히는 faithfulness(설명이 실제 원인을 반영하는가)가 아니라
+**explanation factuality**(설명 문장 자체가 임상적으로 정확한가)다 — visible
+explanation을 신뢰할 수 없다는 같은 감사 문헌의 **두 번째 축**이며, 두 축을
+구분해서 쓴다.
+
+- **그대로 가져오는 것**: style-blind sentence/step 단위 임상 사실성 audit 계약.
+- **추가하는 것**: 같은 audit을 CoT뿐 아니라 Vanilla NLA와 Medical-NLA 출력에
+  적용하는 method-neutral 행(3.2.2, 5.2의 계약).
+
 Medical-NLA는 이 연구들을 “CoT보다 더 잘 reasoning하는 모델”로 대체하려는 것이 아니다.
 이들이 행동 수준에서 발견한 visible self-report의 간극을 **hidden-state readout**으로 직접
 측정하려는 것이다.
