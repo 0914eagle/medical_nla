@@ -517,27 +517,41 @@ RQ3는 same-diagnosis symmetric pair와 diagnosis-category cluster bootstrap 95%
 
 ### 5.1 RQ1: 임상 근거 변경을 설명이 등록하는가?
 
-아래 값은 `Right Diagnoses, Decorative Reasoning` Table 3의 4개 의료 benchmark 평균이다.
-공개 CoT 행에서는 원 논문의 CDR을 method-neutral한 EDR의 CoT 특수 경우로 표시한다. 다른
-보조 metric은 버리고 `Acc.`와 `EDR`만 한 표에서 비교한다.
+`Right Diagnoses, Decorative Reasoning` Table 3의 4개 의료 benchmark 평균을
+published CoT reference로 사용한다. 메인 표는 설명 방법을 가로로 놓고 `Acc.`와
+`EDR`을 세로로 배치해, 같은 backbone의 CoT·released NLA·Medical-NLA를 읽기 쉽게
+비교한다. 공개 CoT 행의 CDR은 method-neutral EDR의 CoT 특수 경우로 표시한다.
 
-| Model | Acc. ↑ | EDR ↓ |
+| Metric | Mistral-7B CoT (reported) | Qwen2.5-7B CoT (reported) | Gemma-2-9B CoT (reported) | DeepSeek-R1-D CoT (reported) | Qwen2.5-7B Released NLA L20 | Gemma-3-12B CoT | Gemma-3-12B Released NLA L32 | Gemma-3-12B Medical-NLA L32 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Acc. ↑ | .52 | .54 | .67 | .60 | Qwen source answer와 공유* | 미측정 | Gemma source answer와 공유* | Gemma source answer와 공유* |
+| EDR ↓ | .80 | .94 | .75 | .51 | 미측정 | 미측정 | 미측정 | 미측정 |
+
+`*` NLA는 정답을 다시 푸는 모델이 아니라 같은 source-model activation의 설명기다. 따라서
+Qwen NLA의 `Acc.`는 동일 Qwen2.5-7B 실행의 answer accuracy를, 두 Gemma NLA의
+`Acc.`는 동일 Gemma-3-12B 실행의 answer accuracy를 공유한다. 공개 표의 `.54`를
+Qwen NLA 셀에 바로 복사하지 않고, 같은 perturbation population에서 activation과 NLA를
+생성한 실행이 확인된 뒤 공유값으로 기입한다.
+
+#### Published CoT reference block
+
+메인 표에서 생략한 공개 baseline까지 포함한 원 논문 Table 3 수치는 아래와
+같다. 이 block은 보고된 수치의 출처 원장이며 우리 NLA와의 same-backbone 직접 비교표가
+아니다.
+
+| Model | Acc. ↑ | CDR (= CoT EDR) ↓ |
 |---|---:|---:|
-| Mistral-7B (CoT, reported) | .52 | .80 |
-| Qwen2.5-7B (CoT, reported) | .54 | .94 |
-| Llama-3.1-8B (CoT, reported) | .51 | .72 |
-| Gemma-2-9B (CoT, reported) | .67 | .75 |
-| Qwen2.5-14B (CoT, reported) | .68 | .72 |
-| BioMistral-7B (CoT, reported) | .38 | .96 |
-| Meditron-7B (CoT, reported) | .24 | .26 |
-| Med42-8B (CoT, reported) | .66 | .68 |
-| OpenBioLLM-8B (CoT, reported) | .50 | .89 |
-| HuatuoGPT-o1 (CoT, reported) | .55 | .80 |
-| DeepSeek-R1-D (CoT, reported) | .60 | .51 |
-| Qwen2.5-7B (Released NLA L20) | 미측정 | 미측정 |
-| Gemma-3-12B (CoT) | 미측정 | 미측정 |
-| Gemma-3-12B (Released NLA L32) | 미측정 | 미측정 |
-| Gemma-3-12B (Medical-NLA L32) | 미측정 | 미측정 |
+| Mistral-7B | .52 | .80 |
+| Qwen2.5-7B | .54 | .94 |
+| Llama-3.1-8B | .51 | .72 |
+| Gemma-2-9B | .67 | .75 |
+| Qwen2.5-14B | .68 | .72 |
+| BioMistral-7B | .38 | .96 |
+| Meditron-7B | .24 | .26 |
+| Med42-8B | .66 | .68 |
+| OpenBioLLM-8B | .50 | .89 |
+| HuatuoGPT-o1 | .55 | .80 |
+| DeepSeek-R1-D | .60 | .51 |
 
 EDR은 destructive M-block에서 `explanation no-update AND answer no-flip` 비율이다. 높은 EDR은
 정답을 안정적으로 유지했다는 뜻이 아니라, 임상적으로 중요한 변경을 설명과 답이 모두 무시한
