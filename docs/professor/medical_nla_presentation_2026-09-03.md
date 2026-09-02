@@ -289,79 +289,246 @@ reconstruction을 정보 보존 신호로 쓴다는 것이다. 본 논문은 이
 
 ### 3.1 Medical-NLA
 
-#### 3.1.1 Problem formulation
+#### 3.1.1 Slide — Medical-NLA가 입력받고 출력하는 것
 
-환자 사례를 $X_i$, frozen target medical LLM을 $M$, 고정한 extraction layer를 $l$이라고 하자.
+환자 사례를 $X_i$, frozen target medical LLM을 $M$, 고정한 extraction layer를 $l$, activation
+verbalizer를 $G_\theta$라고 하자. Source model은 환자 사례를 모두 읽은 뒤 아직 answer나 CoT를
+발화하지 않은 **P0 시점**에서 멈춘다.
 
-\[
-h_i=M_l(X_i), \qquad Z_i=G_\theta(h_i)
-\]
+$$
+h_i = M_l(X_i), \qquad Z_i = G_\theta(h_i)
+$$
 
-$h_i$는 환자 사례를 읽은 target model의 hidden activation이고, $G_\theta$는 activation을
-자연어 report $Z_i$로 바꾸는 Medical-NLA verbalizer다. 목표는 physician gold rationale을
-그대로 모사하는 것이 아니라 $h_i$에 표현된 다음 상태를 읽을 수 있게 보존하는 것이다.
+```text
+patient case X_i
+    -> frozen medical LLM M
+    -> pre-answer P0 activation h_i
+    -> Medical-NLA verbalizer G_theta
+    -> natural-language diagnostic-state report Z_i
+```
 
-- 환자 finding과 categorical/ordinal value
-- 현재 activation의 diagnostic hypothesis 또는 disposition
+CoT는 $X_i$를 다시 읽고 다음 token을 생성하는 visible self-report지만, Medical-NLA verbalizer는
+원 환자 문장을 입력받지 않고 추출된 $h_i$를 입력받는다. 목표 출력 $Z_i$는 정답 풀이를 대신하는
+gold rationale이 아니라 activation에 표현된 다음 상태를 사람이 읽을 수 있게 보고하는 text다.
+
+- 현재 환자의 finding과 categorical/ordinal value
+- activation에 형성된 diagnostic hypothesis 또는 disposition
 - 약하게 표현되거나 누락된 근거
 - 상충하는 근거와 불확실성
 
-#### 3.1.2 Activation site and output contract
+개발 SFT에서는 정답을 안정적으로 직렬화하기 위해 `<observed>` bullet schema를 사용했지만,
+평가 대상은 자유 자연어 report다. 평가할 때만 frozen method-blind mapper가 text를 공통 ontology로
+변환한다.
 
-Medical-NLA는 특정 backbone 하나에 묶인 checkpoint 이름이 아니라 동일한 의료 적응 recipe다.
-이를 두 공개 NLA 계열에 각각 적용한다.
+$$
+Z_i \xrightarrow{\text{frozen semantic mapper}}
+(\widehat{F}_i,\widehat{V}_i,\widehat{D}_i)
+$$
 
-- **Qwen Medical-NLA:** Qwen2.5-7B-Instruct의 P0, layer 20 last-token residual과 공개
-  `nla-qwen2.5-7b-L20-av` 초기화를 사용한다.
-- **Gemma Medical-NLA:** Gemma-3-12B-IT의 P0, layer 32 last-token residual과 공개
-  `nla-gemma3-12b-L32-av` 초기화를 사용한다.
+여기서 $\widehat{F}_i$는 finding set, $\widehat{V}_i$는 finding value, $\widehat{D}_i$는
+diagnostic disposition이다. Mapper에는 method 이름, gold label, patient reference를 주지 않는다.
 
-P0는 모델이 임상 사례를 모두 읽었지만 visible answer나 CoT를 생성하기 전이다. 따라서 두
-구현 모두 answer text leakage 없이 사례를 통합한 pre-generation state를 읽는다. 각 backbone의
-activation 차원과 native extraction layer가 다르므로 하나의 AV checkpoint를 공유하지 않고,
-동일한 target construction, loss, sampling, counterfactual constraint와 promotion gate를 적용한
-별도 checkpoint를 학습한다.
+#### 3.1.2 Slide — 하나의 recipe를 Qwen과 Gemma에 적용하는 방법
 
-Medical-NLA 출력은 free natural-language clinical state report다. 평가할 때만 method-blind
-semantic mapper를 사용해 공통 DDXPlus ontology로 변환한다.
-
-\[
-Z_i \longrightarrow \widehat F_i,\widehat V_i,\widehat D_i
-\]
-
-$\widehat F_i$는 finding set, $\widehat V_i$는 finding value, $\widehat D_i$는 diagnostic
-disposition이다. Mapper는 method 이름, gold label과 patient reference를 받지 않는다.
-
-#### 3.1.3 Training contract and current status
-
-최종 Medical-NLA는 다음 학습 신호를 함께 만족해야 한다.
-
-1. 임상 문장 형식과 finding/value 표현을 위한 clinical language supervision
-2. own activation과 report 사이의 정보 보존 또는 reconstruction
-3. cue deletion/value edit에서 changed component만 반응시키는 constraint
-4. untouched finding을 보존하는 specificity constraint
-5. 같은 진단의 다른 환자 activation과 구별하는 patient-level contrast
-
-두 구현에서 공유하는 것과 backbone별로 달라지는 것은 다음처럼 고정한다.
+Medical-NLA는 Gemma checkpoint의 고유 이름이 아니라 **의료 supervision과 grounding constraint를
+공개 NLA interface에 적용하는 학습 recipe**다. Qwen과 Gemma의 activation 차원과 native layer가
+다르므로 weight를 공유하지 않고, 같은 임상 사례를 각 frozen source model로 다시 forward해 두
+별도 verbalizer를 학습한다.
 
 | Contract item | Qwen Medical-NLA | Gemma Medical-NLA |
 |---|---|---|
-| Clinical cases and targets | 동일 DDXPlus train split, 동일 finding/value text target | 동일 DDXPlus train split, 동일 finding/value text target |
 | Frozen source model | Qwen2.5-7B-Instruct | Gemma-3-12B-IT |
 | Activation site | P0 last-token, L20 | P0 last-token, L32 |
 | AV initialization | released Qwen L20 AV | released Gemma L32 AV |
-| Activation corpus | Qwen으로 전체 train/counterfactual을 다시 forward | Gemma로 전체 train/counterfactual을 다시 forward |
-| Optimization contract | 동일 loss 정의, sampling rule, seed, budget 원칙 | 동일 loss 정의, sampling rule, seed, budget 원칙 |
-| Promotion contract | 동일 RQ1/RQ2 validation gate와 backbone 내부 RQ3 own-shuffled gate | 동일 RQ1/RQ2 validation gate와 backbone 내부 RQ3 own-shuffled gate |
+| Clinical cases/targets | 동일 DDXPlus train split과 finding/value target | 동일 DDXPlus train split과 finding/value target |
+| Activation corpus | Qwen으로 original/deletion/edit를 재추출 | Gemma로 original/deletion/edit를 재추출 |
+| Training rule | 동일 target construction, loss 정의, sampling, seed/budget 원칙 | 동일 target construction, loss 정의, sampling, seed/budget 원칙 |
+| Promotion rule | Qwen 내부 CoT/Released/Medical 비교와 RQ1–RQ3 gate | Gemma 내부 CoT/Released/Medical 비교와 RQ1–RQ3 gate |
 
-즉 “같은 Medical-NLA 방법”은 weight나 activation을 공유한다는 뜻이 아니라, **같은 의료
-supervision과 학습·판정 알고리즘을 각 backbone의 native NLA interface에 적용한다**는 뜻이다.
+따라서 방법의 일반성은 Qwen 점수와 Gemma 점수의 절대값을 직접 비교해 주장하지 않는다. 각
+backbone에서 `Released NLA -> Medical-NLA`가 같은 방향으로 개선되는지를 본다.
 
-현재 위 시도들은 Gemma 계열에서 validation promotion gate를 통과하지 못했다. 공개 AR도 이
-의료 분포에서 valid reconstruction instrument로 인정되지 않았다. Qwen 계열에는 같은 recipe를
-적용한 의료 적응 실행 자체가 아직 없다. 따라서 아래 결과표의 Qwen/Gemma `Medical-NLA` 행은
-최종 목표를 명시하기 위한 행이며 각 backbone에서 성공한 checkpoint가 생기기 전에는 `미측정`으로
-둔다. 한 backbone의 실패 checkpoint나 다른 backbone의 수치를 옮겨 쓰지 않는다.
+#### 3.1.3 Slide — 시도 A: Clinical CE와 counterfactual sequence SFT
+
+첫 가설은 의료 target을 충분히 보여주면 공개 AV가 activation에서 환자 finding을 읽는다는
+것이었다. Original-only full-data SFT는 DDXPlus original 4,655건과 DiReCT physician-observation
+248건을 같은 `<observed>` schema로 학습했다. Target token sequence를 $y=(y_1,\ldots,y_T)$라 하면
+loss는 일반적인 teacher-forced token CE다.
+
+$$
+\mathcal{L}_{\mathrm{clinical\ CE}}
+= -\frac{1}{T}\sum_{t=1}^{T}
+\log p_\theta(y_t\mid y_{<t},h)
+$$
+
+| Setting | Frozen value |
+|---|---|
+| Initialization/site | released Gemma L32 AV; CoT-P0/HS32 last-token activation |
+| Train | DDXPlus 4,655 originals + DiReCT 248 |
+| Sampling | source exponent $\alpha=.5$; DiReCT case당 약 4.3회 exposure |
+| Optimizer | AdamW, LR $2\times10^{-4}$, weight decay 0, grad clip 1.0 |
+| Adapter/batch | LoRA rank 16, alpha 32, dropout .05; batch 4, grad accumulation 2 |
+| Budget/seeds | 1 epoch; seeds 17/29 |
+| Selection | DDXPlus/DiReCT source-macro content-token NLL |
+
+다음에는 loss 형식을 바꾸지 않고 original, cue-deleted, value-edited activation마다 현재 cue set
+$y_a$를 target으로 넣는 counterfactual sequence SFT를 실행했다.
+
+$$
+\mathcal{L}_{\mathrm{CF\text{-}SFT}}
+= \sum_{a\in\{\mathrm{orig},\mathrm{del},\mathrm{edit}\}}
+\mathcal{L}_{\mathrm{CE}}(y_a\mid h_a)
+$$
+
+| Result | Actual value |
+|---|---:|
+| Full SFT DiReCT Obscomp, seed 17/29 | $.0301/.0296$ |
+| Source CoT DiReCT Obscomp | $.2130$ |
+| CF-SFT seed17 current recall | $.3389\rightarrow.5632$ |
+| CF-SFT seed17 deletion phantom | $.2138\rightarrow.4253$ |
+| CF-SFT seed29 contrast | $.1103\rightarrow.1057$ |
+
+CE는 출력 형식과 자주 등장하는 finding을 학습했지만, 같은 환자의 두 activation을 **직접 비교하는
+항이 없었다**. Seed17에서는 더 많이 말해 recall이 증가한 만큼 삭제 cue phantom도 약 2배가 됐고,
+seed29에서는 contrast가 재현되지 않았다. 따라서 다음 시도에서는 전체 문장 CE 대신 삭제한 cue
+하나의 상대 NLL을 직접 최적화했다.
+
+#### 3.1.4 Slide — 시도 B: OOF-supported changed-cue ranking
+
+먼저 activation에서 실제로 읽히는 cue만 target으로 쓰기 위해 out-of-fold probe support cut을
+고정했다. 각 train case는 자신이 들어가지 않은 fold에서 학습한 probe로만 채점했다.
+
+$$
+\begin{aligned}
+p(c\mid h_{\mathrm{orig}}) &\ge .90,\\
+p(c\mid h_{\mathrm{orig}})-p(c\mid h_{\mathrm{del}}) &\ge 0,\\
+p(c\mid h_{\mathrm{orig}})-\mathbb{E}_{d}[p(c\mid h_d)] &\ge 0.
+\end{aligned}
+$$
+
+이 cut은 validation positive coverage $3{,}032/3{,}034=.9993$, absent-cue null false support
+$112/2{,}964=.0378$을 보였고 train pair 3,104개를 남겼다. Changed claim $y_c$의 길이 정규화
+NLL과 original-deleted gap은 다음과 같다.
+
+$$
+n_o=\operatorname{NLL}(y_c\mid h_{\mathrm{orig}}),\qquad
+n_d=\operatorname{NLL}(y_c\mid h_{\mathrm{del}}),\qquad
+g_c=n_d-n_o.
+$$
+
+$$
+\mathcal{L}_{\mathrm{D10}}
+= \operatorname{CE}(y_c\mid h_{\mathrm{orig}})
++ \lambda\,\operatorname{softplus}\!\left(-\frac{g_c}{T}\right),
+\qquad \lambda=1,\quad T=1.
+$$
+
+`softplus(-g_c/T)`는 $g_c<0$인 잘못된 순서를 크게 벌점 주면서 경계에서 gradient가 끊기지 않는
+매끄러운 pairwise ranking loss다. Control은 같은 data/order/initialization에서 ranking weight만
+0인 original-only CE였다.
+
+| Setting/result | Value |
+|---|---|
+| Train/validation | 3,104 / 3,032 changed-cue pairs |
+| Optimization | LR $2\times10^{-4}$, grad accumulation 4, LoRA dropout 0, seeds 17/29/43 |
+| 20-step changed delta | $+.0005/+.0028/+.0030$; frozen floor $+.05$ 미달 |
+| Budget extension | 다른 것은 고정하고 20 -> 1,552 steps, 2 epochs |
+| Step 1,552 across-seed mean | changed $+.5558$, retained $+.5604$, specificity $-.0046$ |
+
+Budget을 늘리자 changed gap은 커졌지만 retained claim gap도 똑같이 커졌다. 모델은 삭제한 cue를
+구분한 것이 아니라 `deleted activation이면 모든 claim을 어렵게 한다`는 deletion-detector
+shortcut을 학습했다. 다음 시도에서는 retained claim을 유지하지 못하면 loss에서 직접 손해를
+보도록 anchor를 추가했다.
+
+#### 3.1.5 Slide — 시도 C: Specificity-anchored ranking
+
+각 pair에서 changed cue $c$ 외에 original/deleted 양쪽에 공통인 retained cue $r$ 하나를
+`SHA256(base_id || cue_text)` 최소값으로 미리 고정했다. Retained claim은 두 activation 모두에서
+계속 쉽게 생성되어야 한다.
+
+$$
+\begin{aligned}
+\mathcal{L}_{\mathrm{D20}}
+=\;&\operatorname{CE}(y_c\mid h_{\mathrm{orig}})
++\operatorname{softplus}(-g_c)\\
+&+\operatorname{CE}(y_r\mid h_{\mathrm{orig}})
++\operatorname{CE}(y_r\mid h_{\mathrm{del}}).
+\end{aligned}
+$$
+
+모든 항의 weight는 1이고 $T=1$, margin 0, LR $2\times10^{-4}$, seeds 17/29/43,
+max steps 1,552를 사용했다. 선택적 반응은 changed gap에서 retained gap을 뺀 값으로 정의했다.
+
+$$
+\operatorname{Specificity}
+=\big[n_d(c)-n_o(c)\big]-\big[n_d(r)-n_o(r)\big].
+$$
+
+| Seed | Changed-gap delta | Retained-gap delta | Specificity delta |
+|---:|---:|---:|---:|
+| 17 | $-.0143$ | $+.0135$ | $-.0278$ |
+| 29 | $-.0040$ | $+.0215$ | $-.0255$ |
+| 43 | $-.0266$ | $-.0049$ | $-.0217$ |
+
+Retained gap은 이전 budget run의 $+.5604$에서 $|g|\le.0215$로 줄어 shortcut 차단 자체는
+작동했다. 그러나 changed gap과 specificity가 세 seed 모두 음수였다. Retained-original NLL은
+개선됐으므로 optimizer가 멈춘 것이 아니라, shortcut을 제거하자 cue-specific signal도 사라진
+것이다. Teacher-forced gate에서 중단해 generation, best-checkpoint 사후 선택, 추가 sweep은 하지
+않았다.
+
+#### 3.1.6 Slide — 시도 D: 공개 AR를 reconstruction loss로 쓸 수 있는가
+
+원 NLA는 text가 source activation 정보를 보존하도록 activation reconstructor(AR)를 사용한다.
+그러나 공개 AR는 general-domain에서 학습됐으므로 의료 AV 학습 loss에 넣기 전에 측정기로서의
+유효성을 먼저 검사했다. 이 단계에서는 **학습하거나 gradient를 계산하지 않았다**.
+
+$$
+h_i \xrightarrow{G} Z_i
+\xrightarrow{\mathrm{released\ AR}} \widehat h_i
+$$
+
+Raw cosine만 높으면 모든 환자가 공유하는 train-mean 방향 $\mu$를 복원해도 성공처럼 보일 수
+있다. 따라서 own-shuffled gap, 평균 방향 제거 후의 centered gap, same-diagnosis retrieval과
+fraction of variance explained(FVE)를 함께 사용했다.
+
+$$
+\operatorname{FVE}
+=1-\frac{\sum_i\|\operatorname{unit}(h_i)-\operatorname{unit}(\widehat h_i)\|_2^2}
+{\sum_i\|\operatorname{unit}(h_i)-\operatorname{unit}(\mu)\|_2^2}.
+$$
+
+| Setting/result | Value |
+|---|---|
+| AR/population | released Gemma L32 AR; validation-only, 8 text arms x 20 cases |
+| DDXPlus structured-reader raw cosine | own $.9765$, shuffled $.9765$ |
+| DDXPlus centered gap | $-.0047$; cluster CI $[-.0375,+.0261]$ |
+| DDXPlus own retrieval | top-1 $0/20$, median rank 50 |
+| DDXPlus FVE | $-119.2169$ |
+| DiReCT Source CoT centered gap | $+.0304$; CI $[+.0012,+.0635]$ |
+| DiReCT Source CoT FVE | $-109.3544$ |
+
+FVE가 음수라는 것은 공개 AR의 reconstructed activation error가 train-mean 상수 예측기보다 더
+크다는 뜻이다. 양성 대조에서도 DDXPlus 환자 correspondence와 FVE gate를 통과하지 못했으므로,
+공개 AR cosine을 Medical-NLA reconstruction loss나 checkpoint 선택에 사용하지 않았다. 필요한
+것은 공개 AR의 단순 재사용이 아니라 의료 activation-text pair로 검증된 domain AR다.
+
+#### 3.1.7 Slide — 네 실패가 고정한 최종 방법 계약
+
+네 시도는 checkpoint를 순서대로 누적한 하나의 학습 run이 아니다. 앞선 실패가 다음 가설을
+정했지만 각 branch는 가능한 한 같은 initialization/control에서 변경점 하나를 검증했다.
+
+| Required component | 왜 필요한가 | 현재 상태 |
+|---|---|---|
+| Clinical language CE | finding/value를 읽을 수 있는 의료 문장으로 표현 | 구현; 형식 학습, grounding 실패 |
+| Patient/cue contrast | own activation과 changed cue를 구분 | 구현; 작은 효과 또는 shortcut |
+| Retained specificity | 변경하지 않은 finding을 보존 | 구현; shortcut 차단 후 changed signal 소거 |
+| Medical reconstruction | text가 환자별 activation 정보를 보존 | 공개 AR 부적합; domain AR 필요 |
+| Independent RQ1–RQ3 gates | 유창성, 사실성, activation dependence를 분리 | 평가 protocol 정의; 최종 checkpoint 없음 |
+
+따라서 아직 검증되지 않은 단일 합산 loss를 “최종 Medical-NLA objective”라고 제시하지 않는다.
+Qwen L20과 Gemma L32 각각에서 위 구성요소를 구현하고, validation에서 RQ1–RQ3를 모두 통과한
+checkpoint만 최종 Medical-NLA로 부른다. 현재 Gemma 실패 checkpoint는 ablation이고, Qwen
+Medical-NLA는 아직 학습 전이므로 결과표에서는 둘 다 성공값으로 사용하지 않는다.
 
 ### 3.2 Faithfulness Evaluation Framework
 
@@ -374,9 +541,9 @@ demographic swap, irrelevant distractor, negation flip, severity reversal, tempo
 
 설명이 변경된 사실을 등록했는지 $U_Z$, final answer가 바뀌었는지 $U_Y$로 표시한다.
 
-\[
+$$
 \mathrm{EDR}=P(\neg U_Z\land\neg U_Y)
-\]
+$$
 
 EDR(Explanation-Decoupling Rate)은 CDR의 `chain`을 CoT와 NLA를 포괄하는 `explanation`으로
 확장한 이름이다. 낮을수록 좋다. 원 논문의 CDR 수치를 EDR이라고 단순히 이름만 바꿔 재사용하지
@@ -396,10 +563,10 @@ style-blind judge가 각 chunk를 `correct`, `error`, `uncertain`으로 판정�
 reasoning step을 전제하지 않기 위해 `Better Accuracies, Worse Reasoning`의 sentence-chunk
 control을 채택한다.
 
-\[
+$$
 \mathrm{ChunkError}=\frac{N_{error}}{N_{correct}+N_{error}}, \qquad
 \mathrm{UncertainRate}=\frac{N_{uncertain}}{N_{correct}+N_{error}+N_{uncertain}}
-\]
+$$
 
 `Chunks/case`와 empty/non-clinical output rate를 함께 보고한다. 아무 말도 하지 않아 오류율을
 낮추는 trivial solution을 막기 위해서다. 이 metric은 발화한 내용의 사실성을 보지만 중요한
@@ -409,22 +576,22 @@ finding을 모두 포함했는지와 activation source를 직접 증명하지는
 
 DDXPlus에서 진단은 같지만 finding set이 다른 두 환자 $i,j$를 짝짓는다.
 
-\[
+$$
 D_i=D_j, \qquad F_i\neq F_j
-\]
+$$
 
-두 환자의 P0/HS32 activation을 얻고 decoder prompt, temperature, max token과 semantic mapper를
-고정한 채 reader 입력 activation만 바꾼다.
+두 환자의 P0 activation을 native site(Qwen L20 또는 Gemma L32)에서 얻고 decoder prompt,
+temperature, max token과 semantic mapper를 고정한 채 reader 입력 activation만 바꾼다.
 
-\[
+$$
 Z_i^{own}=G(h_i), \qquad Z_i^{shuffle}=G(h_j)
-\]
+$$
 
 환자 $i$의 reference에 대해 own/shuffled finding F1과 그 차이를 계산한다.
 
-\[
+$$
 \Delta_{activation}=F1(\widehat F(h_i),F_i)-F1(\widehat F(h_j),F_i)
-\]
+$$
 
 예를 들어 환자 A와 B가 같은 진단이지만 A에만 발열이 있다고 하자. A activation을 읽은 설명은
 A finding과 높은 F1을 보여야 한다. 반대로 decoder 설정은 그대로 두고 B activation을 넣으면,
@@ -433,14 +600,14 @@ A reference에 대한 F1이 낮아져야 한다. 두 조건의 차이가 activat
 주 분석은 환자 난이도를 상쇄하는 symmetric 2x2 pair score지만, 본문 표에는 이를 직관적인
 `Own F1`, `Shuffled F1`, `Own-Shuffled gap`으로 요약한다.
 
-\[
+$$
 S_{matched}=\frac{S(G(h_i),F_i)+S(G(h_j),F_j)}{2}
-\]
+$$
 
-\[
+$$
 S_{crossed}=\frac{S(G(h_i),F_j)+S(G(h_j),F_i)}{2}, \qquad
 \Delta_{pair}=S_{matched}-S_{crossed}
-\]
+$$
 
 Own F1과 pair gap이 함께 높아야 정확하면서 patient-specific한 reader다. 진단 category cluster
 bootstrap 95% CI가 0보다 큰지도 보고해 일부 질환군만 효과를 만드는지 확인한다.
