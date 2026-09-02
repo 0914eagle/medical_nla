@@ -290,17 +290,16 @@ demographic swap, irrelevant distractor, negation flip, severity reversal, tempo
 설명이 변경된 사실을 등록했는지 $U_Z$, final answer가 바뀌었는지 $U_Y$로 표시한다.
 
 \[
-\mathrm{Registration}=P(U_Z), \qquad
 \mathrm{EDR}=P(\neg U_Z\land\neg U_Y)
 \]
 
 EDR(Explanation-Decoupling Rate)은 CDR의 `chain`을 CoT와 NLA를 포괄하는 `explanation`으로
 확장한 이름이다. 낮을수록 좋다. 원 논문의 CDR 수치를 EDR이라고 단순히 이름만 바꿔 재사용하지
-않고, 공개 수치는 CDR로 보존하며 우리 explanation 출력은 같은 case pair에서 다시 측정한다.
-
-Answer Flip Rate, FCS, ECR, CHS, DFG는 perturbation population과 backbone 행동을 설명하는
-보조 metric이다. 같은 Gemma와 같은 case pair라면 answer-side 값은 explanation method마다
-반복하지 않고 context panel에 한 번만 보고한다.
+않고, CoT 행에서는 원 논문의 CDR 정의와 수치를 그대로 EDR의 CoT 특수 경우로 표시하며 우리
+NLA 출력은 같은 case pair에서 다시 측정한다. 표에는 원본 문제에서의 answer accuracy와 EDR만
+보고한다. Accuracy는 모델의 진단 능력에 대한 문맥이고, EDR이 설명의 변경 미등록을 측정하는
+핵심값이다. NLA는 backbone answer를 바꾸지 않으므로 같은 backbone의 CoT/NLA 행은 동일한
+answer accuracy를 공유한다.
 
 RQ1은 $A\to A'$ 변경의 등록 여부를 보지만, 출력 전체의 $B,C,D,E$가 정확한지는 보장하지
 않는다. 그 빈칸이 RQ2다.
@@ -342,7 +341,12 @@ Z_i^{own}=G(h_i), \qquad Z_i^{shuffle}=G(h_j)
 \Delta_{activation}=F1(\widehat F(h_i),F_i)-F1(\widehat F(h_j),F_i)
 \]
 
-주 분석은 환자 난이도를 상쇄하는 symmetric 2x2 pair score다.
+예를 들어 환자 A와 B가 같은 진단이지만 A에만 발열이 있다고 하자. A activation을 읽은 설명은
+A finding과 높은 F1을 보여야 한다. 반대로 decoder 설정은 그대로 두고 B activation을 넣으면,
+A reference에 대한 F1이 낮아져야 한다. 두 조건의 차이가 activation dependence gap이다.
+
+주 분석은 환자 난이도를 상쇄하는 symmetric 2x2 pair score지만, 본문 표에는 이를 직관적인
+`Own F1`, `Shuffled F1`, `Own-Shuffled gap`으로 요약한다.
 
 \[
 S_{matched}=\frac{S(G(h_i),F_i)+S(G(h_j),F_j)}{2}
@@ -404,92 +408,86 @@ RQ3는 same-diagnosis symmetric pair와 diagnosis-category cluster bootstrap 95%
 
 ### 5.1 RQ1: 임상 근거 변경을 설명이 등록하는가?
 
-#### Panel A. 2026 published CoT perturbation baselines
-
 아래 값은 `Right Diagnoses, Decorative Reasoning` Table 3의 4개 의료 benchmark 평균이다.
-원 논문의 metric 이름과 숫자를 그대로 유지한다. 이는 최신 baseline의 문제 규모를 보여주는
-reported block이며 우리 Gemma/NLA와 동일 실행에서 나온 숫자는 아니다.
+공개 CoT 행에서는 원 논문의 CDR을 method-neutral한 EDR의 CoT 특수 경우로 표시한다. 다른
+보조 metric은 버리고 `Acc.`와 `EDR`만 한 표에서 비교한다.
 
-| Model | Acc. | CDR ↓ | AFR-D | FCS | ECR | CHS ↓ | DFG ↓ |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Mistral-7B | .52 | .80 | .22 | .51 | .72 | .11 | .16 |
-| Qwen2.5-7B | .54 | .94 | .14 | .53 | .78 | .07 | .15 |
-| Llama-3.1-8B | .51 | .72 | .17 | .50 | .87 | .11 | .11 |
-| Gemma-2-9B | .67 | .75 | .06 | .52 | .90 | .08 | .25 |
-| Qwen2.5-14B | .68 | .72 | .06 | .52 | .92 | .07 | .30 |
-| BioMistral-7B | .38 | .96 | .01 | .50 | .00 | .06 | .22 |
-| Meditron-7B | .24 | .26 | .44 | .50 | .64 | .20 | .22 |
-| Med42-8B | .66 | .68 | .12 | .53 | .85 | .10 | .16 |
-| OpenBioLLM-8B | .50 | .89 | .23 | .54 | .00 | .08 | .17 |
-| HuatuoGPT-o1 | .55 | .80 | .10 | .53 | .93 | .10 | .09 |
-| DeepSeek-R1-D | .60 | .51 | .09 | .53 | .93 | .17 | .26 |
+| Model | Acc. ↑ | EDR ↓ |
+|---|---:|---:|
+| Mistral-7B (CoT, reported) | .52 | .80 |
+| Qwen2.5-7B (CoT, reported) | .54 | .94 |
+| Llama-3.1-8B (CoT, reported) | .51 | .72 |
+| Gemma-2-9B (CoT, reported) | .67 | .75 |
+| Qwen2.5-14B (CoT, reported) | .68 | .72 |
+| BioMistral-7B (CoT, reported) | .38 | .96 |
+| Meditron-7B (CoT, reported) | .24 | .26 |
+| Med42-8B (CoT, reported) | .66 | .68 |
+| OpenBioLLM-8B (CoT, reported) | .50 | .89 |
+| HuatuoGPT-o1 (CoT, reported) | .55 | .80 |
+| DeepSeek-R1-D (CoT, reported) | .60 | .51 |
+| Qwen2.5-7B (Released NLA L20) | 미측정 | 미측정 |
+| Gemma-3-12B (CoT) | 미측정 | 미측정 |
+| Gemma-3-12B (Released NLA L32) | 미측정 | 미측정 |
+| Gemma-3-12B (Medical-NLA L32) | 미측정 | 미측정 |
 
-CDR은 destructive M-block에서 `chain no-update AND answer no-flip` 비율이다. 높은 CDR은
-정답을 유지했다는 장점이 아니라, chain이 변경된 임상 근거조차 등록하지 않은 decoupling을
-뜻한다. AFR-D/FCS/ECR은 sensitivity diagnostic이고, CHS/DFG는 각각 위험한 answer flip과
-demographic variation을 보는 보조 지표다.
-
-#### Panel B. Same-backbone explanation comparison
-
-| Explanation source | Registration ↑ | EDR ↓ | Empty/non-clinical ↓ | 출처/상태 |
-|---|---:|---:|---:|---|
-| Gemma-3-12B CoT | 미측정 | 미측정 | 미측정 | ours |
-| Qwen2.5-7B released NLA L20 | 미측정 | 미측정 | 미측정 | external-backbone rerun |
-| Gemma-3-12B Vanilla NLA L32 | 미측정 | 미측정 | 미측정 | ours |
-| Medical-NLA L32 | 미측정 | 미측정 | 미측정 | 성공 checkpoint 이후 |
-
-핵심 결론은 Panel B의 같은-backbone paired comparison에서 낸다. Qwen 행은 공개 NLA가 의료
-perturbation에 반응하는지 보는 외부 재현이고, Gemma CoT와 Gemma NLA의 직접 효과 비교에는
-사용하지 않는다.
+EDR은 destructive M-block에서 `explanation no-update AND answer no-flip` 비율이다. 높은 EDR은
+정답을 안정적으로 유지했다는 뜻이 아니라, 임상적으로 중요한 변경을 설명과 답이 모두 무시한
+decoupling을 뜻한다. 공개 CoT 행은 published result이고, Qwen/Gemma NLA 행은 같은 공개
+perturbation population에서 다시 실행해야 한다. 같은 backbone에서 CoT와 NLA는 동일 target
+answer를 설명하므로 `Acc.`를 공유하고, 핵심 비교값은 EDR이다.
 
 ### 5.2 RQ2: 생성 설명의 임상 문장은 정확한가?
 
-#### Panel A. 2026 published step-level factuality baselines
+`Better Accuracies, Worse Reasoning` Appendix E의 sentence-chunk control을 모든 자연어 설명에
+공통 적용한다. 번호가 있는 CoT step과 자유 형식 NLA를 억지로 같은 reasoning-step으로 부르지
+않고, 둘 다 문장 단위 clinical segment로 잘라 `correct/error/uncertain`으로 판정한다.
 
-아래는 `Better Accuracies, Worse Reasoning`의 reported robustness table이다. `Step error`를
-우리 마음대로 clinical-claim error로 바꾸지 않는다.
+| Model | Answer acc. (%) ↑ | Sentence-chunk error (%) ↓ | Uncertain chunks (%) ↓ | Chunks/case |
+|---|---:|---:|---:|---:|
+| Qwen3-8B Base CoT (reported) | 71.6 | 60.1 | 1.83 | 5.24 |
+| Qwen3-8B Distilled CoT (reported) | 76.6 | 77.5 | 2.38 | 4.70 |
+| Qwen2.5-7B CoT | 미측정 | 미측정 | 미측정 | 미측정 |
+| Qwen2.5-7B Released NLA L20 | 미측정 | 미측정 | 미측정 | 미측정 |
+| Gemma-3-12B CoT | 미측정 | 미측정 | 미측정 | 미측정 |
+| Gemma-3-12B Released NLA L32 | 미측정 | 미측정 | 미측정 | 미측정 |
+| Gemma-3-12B Medical-NLA L32 | 미측정 | 미측정 | 미측정 | 미측정 |
 
-| Student | Answer acc. base | Answer acc. distilled | Step error base ↓ | Step error distilled ↓ | Uncertain base | Uncertain distilled |
-|---|---:|---:|---:|---:|---:|---:|
-| Qwen3-8B | 71.6 | 76.6 | 31.0 | 50.1 | 2.1 | 0.5 |
-| Qwen3-14B | 74.6 | 80.8 | 31.5 | 37.9 | 0.8 | 0.5 |
-| Qwen3-32B | 81.8 | 84.2 | 22.8 | 30.6 | 2.5 | 0.6 |
-| Llama-3.1-8B | 66.8 | 73.6 | 31.2 | 45.5 | 0.1 | 0.4 |
-| Mistral-7B | 48.6 | 67.6 | 56.5 | 49.1 | 0.1 | 14.9 |
-
-이 표는 대부분의 capable student에서 distillation 후 answer accuracy는 오르지만 committed
-reasoning-step error도 함께 증가할 수 있음을 보여준다. NLA는 numbered reasoning step이 없을
-수 있으므로 직접 비교에는 아래 sentence-chunk protocol을 사용한다.
-
-#### Panel B. Method-neutral sentence-chunk audit
-
-| Explanation source | Chunk error ↓ | Uncertain ↓ | Chunks/case ↑ | Empty/non-clinical ↓ | 출처/상태 |
-|---|---:|---:|---:|---:|---|
-| Qwen3-8B Base CoT | 60.1 | 미보고 | 미보고 | 미보고 | reported control |
-| Qwen3-8B Distilled CoT | 77.5 | 미보고 | 미보고 | 미보고 | reported control |
-| Gemma-3-12B CoT | 미측정 | 미측정 | 미측정 | 미측정 | ours |
-| Qwen2.5-7B released NLA L20 | 미측정 | 미측정 | 미측정 | 미측정 | external-backbone rerun |
-| Gemma-3-12B Vanilla NLA L32 | 미측정 | 미측정 | 미측정 | 미측정 | ours |
-| Medical-NLA L32 | 미측정 | 미측정 | 미측정 | 미측정 | 성공 checkpoint 이후 |
-
-`60.1/77.5`는 원 논문의 MedQA 500문항 sentence-chunk control 값이다. 정확히는 base가
-`1,546/(1,025+1,546)=60.1%`, distilled가 `1,779/(516+1,779)=77.5%`이며 uncertain chunk는
-각각 48개와 56개로 분모에서 제외된다. evaluator 환경을 완전히 맞추지 않으면 우리 숫자와
-절대값 SOTA 비교를 하지 않는다. 핵심 비교는 동일한 splitter와 judge로 다시 평가한 Gemma
-CoT, Gemma Vanilla NLA, Medical-NLA 세 행이다.
+Answer accuracy `71.6/76.6`은 원 논문 Table 8의 first-500 MedQA Qwen3-8B 실행값이고,
+`60.1/77.5`는 같은 first-500 control을 model-agnostic sentence splitter로 다시 자른 Appendix E
+값이다. Base는 correct 1,025, error 1,546, uncertain 48개이고, distilled는 correct 516,
+error 1,779, uncertain 56개다. 따라서 chunk error는 uncertain을 제외한 committed chunk 중
+error 비율이고, uncertain 비율과 chunks/case는 이 공개 count에서 계산했다. Answer accuracy와
+chunk error가 함께 있어야 “정답은 좋아졌지만 설명의 임상 문장은 더 부정확해지는” 현상을 볼
+수 있다. NLA는 answer를 새로 생성하는 방법이 아니므로 동일 backbone의 CoT/NLA 행은 같은
+answer accuracy를 공유한다. 직접 결론은 동일 splitter와 style-blind judge로 다시 측정한 Qwen
+및 Gemma 내부 비교에서 낸다.
 
 ### 5.3 RQ3: 설명은 해당 환자의 activation에 의존하는가?
 
-#### Main paired activation table
+환자 A의 activation으로 만든 설명을 A의 finding과 비교한 것이 `Own F1`이다. 같은 진단이지만
+finding이 다른 환자 B의 activation을 같은 reader에 넣고 여전히 A의 finding을 기준으로 채점한
+것이 `Shuffled F1`이다. Decoder prompt와 설정은 같고 activation만 바뀐다.
 
-| Method | Site | Own finding F1 ↑ | Shuffled F1 ↓ | Own-shuffled gap ↑ | Symmetric pair gap ↑ | Cluster 95% CI | 상태 |
-|---|---|---:|---:|---:|---:|---:|---|
-| Linear probe | Gemma HS24 | .9587 | .7938 | +.1624 | 미집계 | 미집계 | DDXPlus locked |
-| Linear probe | Gemma HS32 | 미집계 | 미집계 | 미집계 | 미집계 | 미집계 | 같은-site 재집계 필요 |
-| SAE | Gemma HS32 | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 | validated mapping 필요 |
-| Qwen2.5-7B released NLA | Qwen L20 | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 | 별도-backbone block |
-| Gemma Vanilla NLA | Gemma HS32 | .0000 | .0000 | +.0000 | 미집계 | 미집계 | DDXPlus locked 10,028 rows |
-| Medical-NLA | Gemma HS32 | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 | 성공 checkpoint 이후 |
+| Model/reader | Site | Own F1 ↑ | Shuffled F1 ↓ | Gap [diagnosis-cluster 95% CI] ↑ |
+|---|---|---:|---:|---:|
+| Linear probe | Gemma HS24 | .9587 | .7938 | +.1624 [미집계] |
+| Linear probe | Gemma HS32 | 미집계 | 미집계 | 미집계 |
+| Linear probe | Qwen L20 | 미측정 | 미측정 | 미측정 |
+| SAE | Gemma HS32 | 미측정 | 미측정 | 미측정 |
+| Qwen2.5-7B Released NLA | Qwen L20 | 미측정 | 미측정 | 미측정 |
+| Gemma-3-12B Released NLA | Gemma HS32 | .0000 | .0000 | +.0000 [미집계] |
+| Gemma-3-12B Medical-NLA | Gemma HS32 | 미측정 | 미측정 | 미측정 |
+
+해석에는 두 조건이 모두 필요하다. Own F1만 높고 gap이 0에 가까우면 모든 환자에게 같은 질환
+template을 출력했을 수 있다. Gap만 높고 Own F1이 낮으면 activation에 따라 문장은 달라지지만
+정확한 임상 정보를 읽은 것은 아니다. **높은 Own F1과 0보다 유의하게 큰 gap을 동시에 만족해야**
+정확하면서 patient-specific한 activation reader로 해석한다. Donor를 같은 진단에서 고르는
+이유는 질환 이름만 구분하는 쉬운 해를 막고 환자별 finding 차이를 실제로 읽는지 보기 위해서다.
+
+CoT는 임의의 hidden activation을 직접 입력받는 reader가 아니므로 이 표에 넣지 않는다. CoT의
+input 변화 반응은 RQ1에서 비교한다. Linear probe는 activation에 finding 정보가 실제 존재하는지
+보이는 positive control이고, SAE는 feature-to-finding mapping을 validation에서 동결했을 때만
+채점할 수 있다.
 
 HS24 probe와 HS32 NLA를 같은-site 성능 비교로 주장하지 않는다. 현재 HS24 probe 값은
 activation에 patient finding이 존재한다는 선행 positive control이고, 최종 main comparison을
@@ -499,18 +497,9 @@ Gemma Vanilla NLA의 0은 결측이 아니다. Frozen semantic mapper가 locked 
 인정한 DDXPlus ontology claim이 0개였고, 20-case private audit은 mapper miss가 아니라 generic
 clinical text 생성을 원인으로 판정했다.
 
-#### Cue-level activation counterfactual appendix
-
-| Method | Original hit ↑ | Deletion phantom ↓ | Removal ↑ | Retained preservation ↑ | Replacement hit ↑ | Old persistence ↓ | Clean switch ↑ |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Linear probe, HS24 | 1.0000 | .3593 | .6407 | .9987 | .1466 | .5955 | .0804 |
-| Qwen2.5-7B released NLA L20 | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 |
-| Gemma Vanilla NLA L32 | .0000 | .0000 | N/A | N/A | .0000 | .0000 | N/A |
-| Medical-NLA L32 | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 |
-
-Probe의 deletion original hit 1.0은 삭제 전 target cue를 모두 읽었다는 뜻이다. Phantom .3593은
-삭제 후에도 해당 cue를 양성으로 유지한 비율이며, removal .6407은 그 보수 관계다. Clean switch는
-old value를 버리고 new value만 선택한 비율이다.
+Cue deletion과 value edit의 `original hit`, `phantom`, `removal`, `retention`, `clean switch`는
+이 main table의 원인을 분석하는 appendix diagnostic으로만 유지하고 별도의 본문 RQ 표로 세지
+않는다.
 
 ### 5.4 현재 답할 수 있는 것과 없는 것
 
@@ -556,7 +545,7 @@ ablation이 아니다.
 ## 8. 다음 실행 순서
 
 1. RQ1 공개 perturbation population에서 Gemma CoT와 Gemma Vanilla NLA를 동일 case pair로
-   생성하고 Registration/EDR을 측정한다.
+   생성하고 shared answer accuracy와 EDR을 측정한다.
 2. RQ2 동일 Gemma 출력에 frozen sentence splitter와 style-blind clinical judge를 적용한다.
 3. RQ3 HS32 linear probe를 NLA와 동일 same-diagnosis donor population에서 재집계한다.
 4. 공개 Qwen2.5-7B L20 NLA를 같은 의료 task에 별도-backbone external block으로 재실행한다.
