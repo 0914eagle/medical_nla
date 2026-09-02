@@ -384,13 +384,19 @@ $$
 |---|---:|
 | Full SFT DiReCT Obscomp, seed 17/29 | $.0301/.0296$ |
 | Source CoT DiReCT Obscomp | $.2130$ |
-| CF-SFT seed17 current recall | $.3389\rightarrow.5632$ |
-| CF-SFT seed17 deletion phantom | $.2138\rightarrow.4253$ |
-| CF-SFT seed29 contrast | $.1103\rightarrow.1057$ |
+
+CF-SFT는 두 seed의 세 지표를 대칭으로 보고한다 (original-only → counterfactual):
+
+| CF-SFT (validation 435 base / 952 readouts) | seed17 | seed29 |
+|---|---:|---:|
+| current recall | $.3389\rightarrow.5632$ | $.3612\rightarrow.3475$ |
+| deletion phantom | $.2138\rightarrow.4253$ | $.2667\rightarrow.2713$ |
+| deletion contrast | $.1379\rightarrow.2092$ | $.1103\rightarrow.1057$ |
 
 CE는 출력 형식과 자주 등장하는 finding을 학습했지만, 같은 환자의 두 activation을 **직접 비교하는
-항이 없었다**. Seed17에서는 더 많이 말해 recall이 증가한 만큼 삭제 cue phantom도 약 2배가 됐고,
-seed29에서는 contrast가 재현되지 않았다. 따라서 다음 시도에서는 전체 문장 CE 대신 삭제한 cue
+항이 없었다**. Seed17은 contrast가 $+.07$ 오르긴 했으나 recall 상승과 함께 삭제 cue phantom이
+약 2배가 됐다 — 선택적 판독이 아니라 출력 성향 변화다. Seed29는 recall·contrast가 모두
+하락해 그 작은 개선조차 재현되지 않았다. 따라서 다음 시도에서는 전체 문장 CE 대신 삭제한 cue
 하나의 상대 NLL을 직접 최적화했다.
 
 #### 3.1.4 Slide — 시도 B: OOF-supported changed-cue ranking
