@@ -33,9 +33,45 @@
 일관되고 적절하게 반응하는가”와 “그 동작을 사람이 감사할 수 있는가”를 함께 묻기 시작했다.
 
 Chain-of-Thought(CoT)는 원래 추론 성능을 높이는 prompting 및 학습 수단이지만, 자연어로 판단
-과정을 제시한다는 이유로 의료 LLM의 동작을 설명하는 **visible explanation interface**로도
-활용되어 왔다. 임상의는 CoT를 읽고 모델이 어떤 증상, 검사 결과와 감별 진단을 사용했다고
-주장하는지 확인할 수 있다. 이 접근은 별도 내부 분석 장치 없이 사용할 수 있다는 장점이 있다.
+과정을 제시한다는 이유로 모델 동작을 설명하는 **visible explanation interface**로도 활용되어
+왔다. 원 논문인 [Chain-of-Thought Prompting Elicits Reasoning in Large Language Models,
+NeurIPS 2022](https://proceedings.neurips.cc/paper_files/paper/2022/hash/9d5609613524ecf4f15af0f7b31abca4-Abstract-Conference.html)은
+CoT의 주목적을 복잡한 추론 성능 향상으로 두면서도, 중간 reasoning step이 모델 행동을 볼 수
+있는 해석 가능한 창과 오류 경로를 디버깅할 기회를 제공한다고 설명했다. 이후
+[Faithful Chain-of-Thought Reasoning, 2023](https://arxiv.org/abs/2301.13379)은 이 가능성을
+명시적으로 explainability 문제로 가져와, 자연어·기호 reasoning chain을 외부 solver가 실행하게
+함으로써 적어도 final answer가 공개된 chain에서 실제로 도출되도록 만들었다.
+
+의료 분야에서도 CoT를 단순한 정답률 향상 기법을 넘어 임상의가 읽는 설명으로 사용한 선례가
+있다.
+
+1. [Large Language Models Encode Clinical Knowledge, Nature 2023](https://www.nature.com/articles/s41586-023-06291-2)은
+   Med-PaLM 평가에 few-shot, CoT와 self-consistency prompting을 사용하고, 임상의가 long-form
+   output에서 올바르거나 잘못된 medical comprehension, knowledge retrieval와 reasoning의
+   증거를 직접 평가했다. 이 연구의 중심은 성능과 임상 답변 품질이지만, 생성된 reasoning을
+   사람이 검토 가능한 대상으로 취급한 초기 의료 사례다.
+2. [Diagnostic Reasoning Prompts Reveal the Potential for Large Language Model
+   Interpretability in Medicine, npj Digital Medicine 2024](https://www.nature.com/articles/s41746-024-01010-1)은
+   진단과 함께 clinical reasoning rationale을 출력하면 임상의가 그 사실적·논리적 정확성을
+   검토해 답을 감사할 수 있다고 명시했다. GPT-4 rationale 100개를 평가했을 때 논리 오류는
+   오답 rationale의 65%, 정답 rationale의 18%에서 발견됐고, Figure 3은 rationale을 이용한
+   임상의 검토 workflow를 제안한다.
+3. [MedCoT, EMNLP 2024](https://aclanthology.org/2024.emnlp-main.962/)는 Med-VQA가 answer
+   accuracy에 집중한 나머지 reasoning path와 interpretability를 간과했다고 지적했다. Initial
+   Specialist가 diagnostic rationale을 생성하고 Follow-up Specialist가 이를 검증한 뒤 여러
+   expert가 합의하는 명시적 reasoning-chain 구조로 accuracy와 interpretability를 함께
+   개선하려 했다.
+4. [The Effect of Medical Explanations from Large Language Models on Diagnostic Accuracy
+   in Radiology, npj Digital Medicine 2026](https://www.nature.com/articles/s41746-026-02619-0)은
+   20개 임상 사례와 101명 radiologist, 총 2,020개 평가에서 diagnosis-only, differential,
+   CoT explanation 제공 조건을 비교했다. CoT는 의사가 설명의 plausibility를 검토할 수 있게
+   하는 인터페이스로 사용됐고 전체 진단 정확도가 가장 높았지만, 잘못된 설명이 사용자를
+   오도할 가능성도 함께 분석했다.
+
+이 계보에서 CoT의 설명가능성은 “모델의 계산을 직접 관측한다”는 뜻이 아니라, 모델이 주장하는
+판단 근거를 사람이 읽고 검토할 수 있다는 **접근 가능성**을 뜻한다. 별도 내부 분석 장치 없이
+사용할 수 있다는 장점 때문에 의료 explainability에 널리 활용됐지만, 바로 이 지점에서
+faithfulness 문제가 남는다.
 
 하지만 CoT는 hidden state를 직접 관측한 값이 아니다. 출력 시점에 모델이 사후 생성한
 **자기보고형 설명(self-reported explanation)** 이므로, 유창하고 의학적으로 그럴듯해도 실제
@@ -47,25 +83,29 @@ Chain-of-Thought(CoT)는 원래 추론 성능을 높이는 prompting 및 학습 
 최근 연구는 CoT가 reasoning을 잘 수행하는지에만 머물지 않고, CoT를 모델 동작의 설명으로
 사용할 때 발생하는 문제를 서로 다른 방식으로 확인한다.
 
-1. [Walk the Talk?, ICLR 2025](https://proceedings.iclr.cc/paper_files/paper/2025/hash/b5ec50eb177908f21f78ed0d76ed525c-Abstract-Conference.html)는
+1. [Language Models Don't Always Say What They Think, NeurIPS 2023](https://proceedings.neurips.cc/paper_files/paper/2023/hash/ed3fea9033a80fea1376299fa7863f4a-Abstract.html)는
+   CoT를 모델의 문제 해결 과정으로 해석하면 투명성과 안전성에 도움이 될 수 있다는 기대를
+   직접 검증했다. 그러나 biasing feature가 answer를 바꾸어도 모델은 그 영향을 밝히지 않고,
+   선택된 답을 뒷받침하는 그럴듯한 reasoning을 사후 생성할 수 있음을 보였다.
+2. [Walk the Talk?, ICLR 2025](https://proceedings.iclr.cc/paper_files/paper/2025/hash/b5ec50eb177908f21f78ed0d76ed525c-Abstract-Conference.html)는
    MedQA 임상 개념을 counterfactual하게 바꾸고 모델의 설명이 실제 decision-driving evidence를
    올바르게 밝히는지 검사했다. 그럴듯한 설명이 어떤 근거가 결정에 영향을 주었는지 잘못 말할 수
    있음을 보였다.
-2. [Faithful or Just Plausible?, NeurIPS 2025 Workshop/2026 preprint](https://arxiv.org/abs/2603.13988)는
+3. [Faithful or Just Plausible?, NeurIPS 2025 Workshop/2026 preprint](https://arxiv.org/abs/2603.13988)는
    causal ablation, positional bias, hint injection으로 의료 CoT를 검사했다. CoT step이 예측을
    인과적으로 만들지 않거나, 외부 hint를 사용하고도 이를 설명에서 밝히지 않는 현상을 보고했다.
-3. [Evaluating Reasoning Faithfulness in Medical VLMs, 2025](https://arxiv.org/abs/2510.11196)는
+4. [Evaluating Reasoning Faithfulness in Medical VLMs, 2025](https://arxiv.org/abs/2510.11196)는
    임상 text와 image cue를 통제해 answer accuracy와 explanation quality가 분리될 수 있음을
    확인했다. injected cue를 언급하는 것만으로 실제 grounding이 보장되지도 않았다.
-4. [Better Accuracies, Worse Reasoning, 2026](https://arxiv.org/abs/2605.28301)은
+5. [Better Accuracies, Worse Reasoning, 2026](https://arxiv.org/abs/2605.28301)은
    CoT distillation으로 MedQA 정답 성능과 calibration은 좋아졌지만, 같은 style-blind audit에서
    non-abstained reasoning-step 오류율이 Qwen3-8B 기준 30.6%에서 50.3%로 증가했음을 보였다.
    즉 더 높은 accuracy와 더 정확한 reasoning trace가 반대 방향으로 움직일 수 있다.
-5. [Right Diagnoses, Decorative Reasoning, 2026](https://arxiv.org/abs/2608.24790)은
+6. [Right Diagnoses, Decorative Reasoning, 2026](https://arxiv.org/abs/2608.24790)은
    14개 모델, 4개 의료 QA benchmark, 30개 임상 perturbation operator를 사용했다. 임상적으로
    의미 있는 destructive edit에서 chain이 변경을 등록하지 않고 answer도 유지한 CDR이 전체
    평균 72.9%였다. CoT corruption과 CoT prompt 제거도 accuracy를 거의 떨어뜨리지 않았다.
-6. [Auditing Evidence Use in Medical LLM Diagnosis, 2026](https://arxiv.org/abs/2607.20848)은
+7. [Auditing Evidence Use in Medical LLM Diagnosis, 2026](https://arxiv.org/abs/2607.20848)은
    DDXPlus, CupCase, MedCase의 evidence subset을 통제하고 diagnostic margin을 분석했다. 높은
    진단 정확도만으로 환자 근거를 적절히 사용했는지 알 수 없음을 행동 수준에서 보였다.
 
