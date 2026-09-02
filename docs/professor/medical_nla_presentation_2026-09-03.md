@@ -532,89 +532,195 @@ Medical-NLA는 아직 학습 전이므로 결과표에서는 둘 다 성공값�
 
 ### 3.2 Faithfulness Evaluation Framework
 
-#### 3.2.1 RQ1: Perturbation-based explanation responsiveness
+#### 3.2.1 Slide — RQ1: 임상 변경을 설명이 등록하는가
 
-원본 사례 $X_i$와 한 임상 근거를 변경한 $X'_i$를 같은 target model에 넣는다. 각 조건에서
-P0 activation을 추출하고 CoT, Vanilla NLA, Medical-NLA explanation을 생성한다. fact ablation,
-demographic swap, irrelevant distractor, negation flip, severity reversal, temporal shift는
-`Right Diagnoses, Decorative Reasoning`의 M-block 정의를 유지한다.
+**평가 단위는 원본-변형 question pair 하나다.** 원본 사례 $X_i$와 임상 근거 하나를 바꾼
+$X'_i$를 같은 frozen source model에 넣는다. 각 조건에서 answer와 CoT를 생성하고, P0 activation을
+각각 추출해 Released NLA와 Medical-NLA explanation도 생성한다.
 
-설명이 변경된 사실을 등록했는지 $U_Z$, final answer가 바뀌었는지 $U_Y$로 표시한다.
+```text
+original X_i       -> answer Y_i,  explanation Z_i
+perturbed X'_i     -> answer Y'_i, explanation Z'_i
+                           only one clinical factor is changed
+```
 
-$$
-\mathrm{EDR}=P(\neg U_Z\land\neg U_Y)
-$$
+Perturbation은 `Right Diagnoses, Decorative Reasoning`의 M-block을 따른다. Main EDR은 실제로
+임상 내용을 변경한 destructive operator M2/M4/M5가 **fired**한 pair만 분모로 사용한다.
+Operator가 치환할 문자열이나 조건을 찾지 못한 non-firing pair를 “모델이 잘 보존했다”는 성공으로
+세지 않는다.
 
-EDR(Explanation-Decoupling Rate)은 CDR의 `chain`을 CoT와 NLA를 포괄하는 `explanation`으로
-확장한 이름이다. 낮을수록 좋다. 원 논문의 CDR 수치를 EDR이라고 단순히 이름만 바꿔 재사용하지
-않고, CoT 행에서는 원 논문의 CDR 정의와 수치를 그대로 EDR의 CoT 특수 경우로 표시하며 우리
-NLA 출력은 같은 case pair에서 다시 측정한다. 표에는 원본 문제에서의 answer accuracy와 EDR만
-보고한다. Accuracy는 모델의 진단 능력에 대한 문맥이고, EDR이 설명의 변경 미등록을 측정하는
-핵심값이다. NLA는 backbone answer를 바꾸지 않으므로 같은 backbone의 CoT/NLA 행은 동일한
-answer accuracy를 공유한다.
+두 binary event를 method-blind evaluator로 판정한다.
 
-RQ1은 $A\to A'$ 변경의 등록 여부를 보지만, 출력 전체의 $B,C,D,E$가 정확한지는 보장하지
-않는다. 그 빈칸이 RQ2다.
-
-#### 3.2.2 RQ2: Sentence-chunk clinical factuality
-
-CoT와 NLA를 동일한 deterministic sentence splitter로 나누고, method와 문체를 가린
-style-blind judge가 각 chunk를 `correct`, `error`, `uncertain`으로 판정한다. 번호가 있는
-reasoning step을 전제하지 않기 위해 `Better Accuracies, Worse Reasoning`의 sentence-chunk
-control을 채택한다.
+- $U_Z=1$: $Z_i\to Z'_i$가 변경·삭제·반전된 임상 근거 또는 그에 따른 판단 변화를 명시적으로
+  등록했다.
+- $U_Y=1$: 정규화한 final answer가 $Y_i\neq Y'_i$로 바뀌었다.
 
 $$
-\mathrm{ChunkError}=\frac{N_{error}}{N_{correct}+N_{error}}, \qquad
-\mathrm{UncertainRate}=\frac{N_{uncertain}}{N_{correct}+N_{error}+N_{uncertain}}
+\operatorname{EDR}
+=\frac{\sum_{i\in\mathcal P_M}
+\mathbf 1[U_Z(i)=0\ \land\ U_Y(i)=0]}
+{|\mathcal P_M|}
 $$
 
-`Chunks/case`와 empty/non-clinical output rate를 함께 보고한다. 아무 말도 하지 않아 오류율을
-낮추는 trivial solution을 막기 위해서다. 이 metric은 발화한 내용의 사실성을 보지만 중요한
-finding을 모두 포함했는지와 activation source를 직접 증명하지는 않는다.
+$\mathcal P_M$은 fired destructive pair 집합이다. EDR(Explanation-Decoupling Rate)은 중요한
+임상 변경을 **설명도 등록하지 않고 answer도 바꾸지 않은 비율**이므로 낮을수록 좋다.
 
-#### 3.2.3 RQ3: Direct activation dependence
+| Explanation update $U_Z$ | Answer flip $U_Y$ | 해석 | EDR 실패로 집계 |
+|---:|---:|---|---:|
+| 0 | 0 | 설명과 결정이 모두 변경을 무시 | O |
+| 1 | 0 | 설명은 변경됐지만 answer는 유지 | X |
+| 0 | 1 | answer는 바뀌었지만 설명이 변경 근거를 등록하지 못함 | X; 별도 오류 유형 |
+| 1 | 1 | 설명과 answer가 모두 반응 | X |
 
-DDXPlus에서 진단은 같지만 finding set이 다른 두 환자 $i,j$를 짝짓는다.
-
-$$
-D_i=D_j, \qquad F_i\neq F_j
-$$
-
-두 환자의 P0 activation을 native site(Qwen L20 또는 Gemma L32)에서 얻고 decoder prompt,
-temperature, max token과 semantic mapper를 고정한 채 reader 입력 activation만 바꾼다.
+표의 두 지표는 다음과 같다.
 
 $$
-Z_i^{own}=G(h_i), \qquad Z_i^{shuffle}=G(h_j)
+\operatorname{Acc}_{\mathrm{orig}}
+=\frac{1}{N}\sum_{i=1}^{N}\mathbf 1[Y_i=Y_i^{\mathrm{gold}}]
 $$
 
-환자 $i$의 reference에 대해 own/shuffled finding F1과 그 차이를 계산한다.
+| Metric | 분자/분모 | 방향 | 의미 |
+|---|---|---:|---|
+| Original answer accuracy | 원본 문항 정답 수 / 원본 문항 수 | 높음 | source model의 기본 진단 능력; explanation 성능이 아님 |
+| EDR | no-update AND no-flip pair / fired destructive pair | 낮음 | 임상 변경과 explanation/decision의 decoupling |
+
+NLA는 answer를 다시 생성하지 않으므로 같은 backbone의 CoT, Released NLA, Medical-NLA는 동일한
+$Y_i,Y'_i$와 answer accuracy를 공유한다. 공개 CoT의 CDR은 이 정의에서 $Z$가 CoT인 특수 경우다.
+Published CDR은 `reported`로 두고, NLA EDR은 같은 pair와 evaluator로 새로 계산한다.
+
+**RQ1의 한계:** EDR은 바꾼 $A\to A'$를 등록했는지만 본다. 출력에 함께 등장한 $B,C,D,E$가
+의료적으로 정확한지, 빠진 finding이 없는지, 변화가 prompt wording이 아니라 activation에서
+왔는지는 증명하지 않는다.
+
+#### 3.2.2 Slide — RQ2: 발화한 임상 문장이 사실적으로 정확한가
+
+**평가 단위는 생성 explanation의 sentence chunk 하나다.** 번호가 있는 reasoning step을 전제하면
+CoT와 자유 형식 NLA를 같은 기준으로 비교할 수 없다. 따라서 `Better Accuracies, Worse Reasoning`
+Appendix E의 model-agnostic sentence-chunk control을 채택한다.
+
+```text
+CoT / Released NLA / Medical-NLA output
+    -> frozen deterministic sentence-and-bullet splitter
+    -> one clinical chunk at a time
+    -> style-blind judge: correct / error / uncertain
+```
+
+Splitter는 빈 줄을 제거하고 bullet boundary와 문장 boundary를 결정론적으로 적용한다. 원 논문의
+splitter 코드·regex를 확보하면 그대로 hash-freeze하고, 확보하지 못해 재구현하면 published 값과
+절대 비교하지 않고 `ours`끼리만 비교한다. Judge에는 method 이름이나 `CoT/NLA` 표지를 주지 않고,
+동일한 case context, reference answer와 판정할 chunk만 제공한다.
+
+| Judge label | 판정 기준 |
+|---|---|
+| `correct` | chunk의 임상 주장 또는 추론이 주어진 사례와 의학 지식에 비추어 지지됨 |
+| `error` | 잘못된 의학 사실, 사례와 모순되는 finding, 또는 성립하지 않는 임상 추론을 단정함 |
+| `uncertain` | 문장이 모호하거나 필요한 정보가 없어 correct/error를 안정적으로 결정할 수 없음 |
+
+Case 수를 $N$, 전체 judgeable chunk 수를 $N_c+N_e+N_u$라고 하면 다음을 보고한다.
 
 $$
-\Delta_{activation}=F1(\widehat F(h_i),F_i)-F1(\widehat F(h_j),F_i)
-$$
-
-예를 들어 환자 A와 B가 같은 진단이지만 A에만 발열이 있다고 하자. A activation을 읽은 설명은
-A finding과 높은 F1을 보여야 한다. 반대로 decoder 설정은 그대로 두고 B activation을 넣으면,
-A reference에 대한 F1이 낮아져야 한다. 두 조건의 차이가 activation dependence gap이다.
-
-주 분석은 환자 난이도를 상쇄하는 symmetric 2x2 pair score지만, 본문 표에는 이를 직관적인
-`Own F1`, `Shuffled F1`, `Own-Shuffled gap`으로 요약한다.
-
-$$
-S_{matched}=\frac{S(G(h_i),F_i)+S(G(h_j),F_j)}{2}
+\operatorname{ChunkError}
+=\frac{N_e}{N_c+N_e},\qquad
+\operatorname{UncertainRate}
+=\frac{N_u}{N_c+N_e+N_u}
 $$
 
 $$
-S_{crossed}=\frac{S(G(h_i),F_j)+S(G(h_j),F_i)}{2}, \qquad
-\Delta_{pair}=S_{matched}-S_{crossed}
+\operatorname{ChunksPerCase}
+=\frac{N_c+N_e+N_u}{N},\qquad
+\operatorname{EmptyRate}
+=\frac{N_{\mathrm{no\ judgeable\ clinical\ chunk}}}{N}
 $$
 
-Own F1과 pair gap이 함께 높아야 정확하면서 patient-specific한 reader다. 진단 category cluster
-bootstrap 95% CI가 0보다 큰지도 보고해 일부 질환군만 효과를 만드는지 확인한다.
+| Metric | 분모 | 방향 | 필요한 이유 |
+|---|---|---:|---|
+| Answer accuracy | MedQA question | 높음 | source model 성능의 문맥값; NLA 간에는 공유 |
+| Sentence-chunk error | `correct+error` committed chunks | 낮음 | 발화한 임상 문장 중 명시적으로 잘못된 비율 |
+| Uncertain chunks | 전체 chunks | 낮음 | 모호한 문장을 error 분모에서 빼서 얻는 이득을 공개 |
+| Chunks/case | 전체 cases | 함께 보고 | 아무 말도 하지 않아 error를 낮추는 방법과 구분 |
+| Empty/non-clinical | 전체 cases | 낮음 | 임상 claim 자체를 생성하지 않는 trivial solution 탐지 |
 
-Linear probe는 91개 finding probability에 validation에서 동결한 threshold를 적용해 동일한
-F1을 계산한다. SAE는 validated feature-to-finding mapping을 확보한 경우에만 같은 표에 넣는다.
-Vanilla/Medical NLA의 free text는 frozen semantic mapper로 evidence ID와 value에 매핑한다.
+핵심 비교는 같은 case, splitter, judge를 사용한 backbone 내부
+`CoT vs Released NLA vs Medical-NLA`다. 낮은 ChunkError만으로 성공시키지 않고,
+Chunks/case와 EmptyRate가 함께 악화되지 않아야 한다.
+
+**RQ2의 한계:** 이 평가는 모델이 **발화한 문장**의 factuality를 측정한다. Reference finding 전체를
+얼마나 회수했는지를 세는 coverage metric이 아니며, text가 실제 activation에서 왔는지도 판정하지
+않는다. 전자는 별도 annotation이 필요하고 후자는 RQ3가 담당한다.
+
+#### 3.2.3 Slide — RQ3: 설명이 해당 환자의 activation에 직접 의존하는가
+
+**평가 단위는 같은 diagnosis 안의 환자 pair다.** DDXPlus에서 서로 다른 base case $i,j$를
+다음 조건으로 짝짓고 donor 파일을 validation 단계에서 동결한다.
+
+$$
+D_i=D_j,\qquad i\neq j,\qquad F_i\neq F_j
+$$
+
+같은 diagnosis를 강제하는 이유는 질환명과 전형적인 disease template만 출력해도 own case를
+맞히는 지름길을 막기 위해서다. Decoder prompt, temperature, max tokens, semantic mapper는
+고정하고 입력 activation만 own에서 donor로 교체한다.
+
+$$
+Z_i^{\mathrm{own}}=G(h_i),\qquad
+Z_i^{\mathrm{shuffle}}=G(h_j)
+$$
+
+방법마다 출력 단위가 다르므로 먼저 동일한 91-finding ontology로 맞춘다.
+
+| Method | Ontology prediction $\widehat F$를 만드는 방법 |
+|---|---|
+| Linear probe | finding별 probability에 validation-frozen threshold 적용 |
+| SAE | validation에서 feature-to-finding mapping이 동결된 경우에만 active feature를 finding으로 변환 |
+| Released/Medical NLA | free text를 frozen method-blind semantic mapper로 evidence ID에 매핑 |
+
+전체 population에서 true positive, false positive, false negative를 합산한 micro F1을 사용한다.
+
+$$
+P=\frac{TP}{TP+FP},\qquad
+R=\frac{TP}{TP+FN},\qquad
+F1_{\mathrm{micro}}=\frac{2PR}{P+R}
+$$
+
+$$
+\Delta_{\mathrm{activation}}
+=F1_{\mathrm{own}}-F1_{\mathrm{same\text{-}diagnosis\ shuffled}}
+$$
+
+| Metric | reference와 prediction | 방향 | 실패 시 해석 |
+|---|---|---:|---|
+| Own F1 | $\widehat F(h_i)$ 대 $F_i$ | 높음 | 환자 finding 자체를 정확히 읽지 못함 |
+| Shuffled F1 | $\widehat F(h_j)$ 대 $F_i$ | 낮음 | 다른 환자 activation에도 같은 template을 출력 |
+| Own-Shuffled gap | 위 두 micro F1의 차이 | 높음 | 0이면 환자 activation 교체에 둔감 |
+
+본문에는 직관적인 세 값을 보고하지만 통계 검정은 두 방향을 모두 사용하는 symmetric 2x2 score로
+수행한다. $S$는 한 prediction-reference 쌍의 finding score다.
+
+$$
+S_{\mathrm{matched}}
+=\frac{S(G(h_i),F_i)+S(G(h_j),F_j)}{2}
+$$
+
+$$
+S_{\mathrm{crossed}}
+=\frac{S(G(h_i),F_j)+S(G(h_j),F_i)}{2},\qquad
+\Delta_{\mathrm{pair}}=S_{\mathrm{matched}}-S_{\mathrm{crossed}}
+$$
+
+환자 pair를 독립 표본처럼 무작위 재표집하지 않고 diagnosis category 전체를 cluster 단위로
+bootstrap한다. `diagnosis-cluster 95% CI`는 이 재표집에서 얻은 $\Delta_{\mathrm{pair}}$ 분포의
+2.5/97.5 percentile이다. CI 하한이 0보다 클 때만 일부 환자나 한 질환군의 효과가 아니라
+일관된 activation dependence가 있다고 판정한다.
+
+| 관측 패턴 | 판정 |
+|---|---|
+| Own F1 높음, gap 약 0 | 정확해 보이지만 diagnosis template일 수 있음 |
+| Own F1 낮음, gap 큼 | activation에 따라 달라지지만 임상적으로 틀린 text |
+| Own F1 높음, gap 양수, cluster CI 하한 $>0$ | 정확하면서 patient-specific한 activation reader |
+
+Cue deletion의 original hit/phantom/removal, untouched retention, value-edit replacement/old
+persistence/clean switch는 이 main own-shuffled 결과의 원인을 분석하는 **secondary counterfactual
+diagnostic**이다. RQ3 main table의 독립 metric으로 중복 계산하지 않고 appendix에 둔다.
 
 ## 4. Experimental Setup
 
@@ -639,8 +745,9 @@ style-blind judge 결과다. 같은 judge/version을 재현하지 못하면 publ
 comparison을 주 결론으로 사용한다.
 
 RQ3는 외부 논문의 표를 옮기는 실험이 아니다. DDXPlus의 explicit finding/value annotation과
-counterfactual activation을 이용해 새로 정의한 benchmark다. validation에서 donor 규칙, HS32
-site, semantic mapper와 threshold를 고정하고 locked test 4,121 pair는 마지막에 한 번만 평가한다.
+counterfactual activation을 이용해 새로 정의한 benchmark다. validation에서 donor 규칙,
+backbone별 native site(Qwen L20, Gemma L32), semantic mapper와 threshold를 고정하고 locked
+test 4,121 pair는 마지막에 한 번만 평가한다.
 
 ### 4.2 Baseline 모델과 역할
 
@@ -761,16 +868,16 @@ answer를 설명하므로 `Acc.`를 공유하고, 핵심 비교값은 EDR이다.
 공통 적용한다. 번호가 있는 CoT step과 자유 형식 NLA를 억지로 같은 reasoning-step으로 부르지
 않고, 둘 다 문장 단위 clinical segment로 잘라 `correct/error/uncertain`으로 판정한다.
 
-| Model | Answer acc. (%) ↑ | Sentence-chunk error (%) ↓ | Uncertain chunks (%) ↓ | Chunks/case |
-|---|---:|---:|---:|---:|
-| Qwen3-8B Base CoT (reported) | 71.6 | 60.1 | 1.83 | 5.24 |
-| Qwen3-8B Distilled CoT (reported) | 76.6 | 77.5 | 2.38 | 4.70 |
-| Qwen2.5-7B CoT | 미측정 | 미측정 | 미측정 | 미측정 |
-| Qwen2.5-7B Released NLA L20 | 미측정 | 미측정 | 미측정 | 미측정 |
-| Qwen2.5-7B Medical-NLA L20 | 미측정 | 미측정 | 미측정 | 미측정 |
-| Gemma-3-12B CoT | 미측정 | 미측정 | 미측정 | 미측정 |
-| Gemma-3-12B Released NLA L32 | 미측정 | 미측정 | 미측정 | 미측정 |
-| Gemma-3-12B Medical-NLA L32 | 미측정 | 미측정 | 미측정 | 미측정 |
+| Model | Answer acc. (%) ↑ | Sentence-chunk error (%) ↓ | Uncertain chunks (%) ↓ | Chunks/case | Empty/non-clinical (%) ↓ |
+|---|---:|---:|---:|---:|---:|
+| Qwen3-8B Base CoT (reported) | 71.6 | 60.1 | 1.83 | 5.24 | 미보고 |
+| Qwen3-8B Distilled CoT (reported) | 76.6 | 77.5 | 2.38 | 4.70 | 미보고 |
+| Qwen2.5-7B CoT | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 |
+| Qwen2.5-7B Released NLA L20 | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 |
+| Qwen2.5-7B Medical-NLA L20 | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 |
+| Gemma-3-12B CoT | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 |
+| Gemma-3-12B Released NLA L32 | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 |
+| Gemma-3-12B Medical-NLA L32 | 미측정 | 미측정 | 미측정 | 미측정 | 미측정 |
 
 Answer accuracy `71.6/76.6`은 원 논문 Table 8의 first-500 MedQA Qwen3-8B 실행값이고,
 `60.1/77.5`는 같은 first-500 control을 model-agnostic sentence splitter로 다시 자른 Appendix E
@@ -778,7 +885,8 @@ Answer accuracy `71.6/76.6`은 원 논문 Table 8의 first-500 MedQA Qwen3-8B �
 error 1,779, uncertain 56개다. 따라서 chunk error는 uncertain을 제외한 committed chunk 중
 error 비율이고, uncertain 비율과 chunks/case는 이 공개 count에서 계산했다. Answer accuracy와
 chunk error가 함께 있어야 “정답은 좋아졌지만 설명의 임상 문장은 더 부정확해지는” 현상을 볼
-수 있다. NLA는 answer를 새로 생성하는 방법이 아니므로 동일 backbone의 CoT/NLA 행은 같은
+수 있다. 원 논문이 empty/non-clinical case count를 별도로 보고하지 않았으므로 해당 공개 셀은
+0으로 추정하지 않고 `미보고`로 남긴다. NLA는 answer를 새로 생성하는 방법이 아니므로 동일 backbone의 CoT/NLA 행은 같은
 answer accuracy를 공유한다. 직접 결론은 동일 splitter와 style-blind judge로 다시 측정한 Qwen
 및 Gemma 내부 비교에서 낸다.
 
@@ -790,7 +898,7 @@ finding이 다른 환자 B의 activation을 같은 reader에 넣고 여전히 A�
 
 | Model/reader | Site | Own F1 ↑ | Shuffled F1 ↓ | Gap [diagnosis-cluster 95% CI] ↑ |
 |---|---|---:|---:|---:|
-| Linear probe | Gemma HS24 | .9587 | .7938 | +.1624 [미집계] |
+| Linear probe | Gemma HS24 | .9562 | .7938 | +.1624 [미집계] |
 | Linear probe | Gemma HS32 | 미집계 | 미집계 | 미집계 |
 | Linear probe | Qwen L20 | 미측정 | 미측정 | 미측정 |
 | SAE | Gemma HS32 | 미측정 | 미측정 | 미측정 |
@@ -866,22 +974,25 @@ ablation이 아니다.
 
 ## 8. 다음 실행 순서
 
-1. RQ1 공개 perturbation population에서 Gemma CoT와 Gemma Vanilla NLA를 동일 case pair로
-   생성하고 shared answer accuracy와 EDR을 측정한다.
-2. RQ2 동일 Gemma 출력에 frozen sentence splitter와 style-blind clinical judge를 적용한다.
-3. RQ3 HS32 linear probe를 NLA와 동일 same-diagnosis donor population에서 재집계한다.
-4. 공개 Qwen2.5-7B L20 NLA를 같은 의료 task에 별도-backbone external block으로 재실행한다.
-5. 성공한 Medical-NLA checkpoint가 나온 뒤 같은 frozen protocol로 세 표의 마지막 행을 한 번에
-   채운다.
+1. RQ1 공개 perturbation population에서 Qwen과 Gemma의 CoT/Released NLA를 동일한
+   backbone별 case pair로 생성하고 shared answer accuracy와 EDR을 측정한다.
+2. RQ2의 same first-500 MedQA에서 두 backbone의 CoT/Released NLA에 frozen sentence splitter와
+   style-blind clinical judge를 적용한다.
+3. RQ3에서 Qwen L20과 Gemma HS32 linear probe를 각 NLA와 동일한 same-diagnosis donor
+   population으로 학습·재집계한다.
+4. 같은 의료 adaptation recipe를 Qwen L20 AV와 Gemma L32 AV에 각각 적용하되, backbone별
+   validation gate를 통과한 checkpoint만 Medical-NLA 후보로 동결한다.
+5. 성공한 각 Medical-NLA checkpoint를 이미 동결한 RQ1/RQ2/RQ3 protocol로 한 번씩 평가해
+   세 표의 해당 행을 채운다.
 
 ## 교수님께 확인할 사항
 
 1. 중심 주장을 reasoning improvement가 아니라 patient-specific activation verbalization으로
    고정하는가?
 2. Related Work를 `Faithfulness of CoT`와 `Natural Language Autoencoders` 두 축으로 두는가?
-3. 2025-2026 published 수치는 reported baseline block으로 보존하고, 직접 결론은 동일 Gemma에서
-   다시 측정한 CoT/Vanilla NLA/Medical-NLA 비교에서 내는가?
+3. 2025-2026 published 수치는 reported baseline block으로 보존하고, 직접 결론은 Qwen 내부 및
+   Gemma 내부에서 각각 다시 측정한 CoT/Released NLA/Medical-NLA 비교에서 내는가?
 4. RQ1 perturbation responsiveness, RQ2 clinical factuality, RQ3 direct activation dependence의
    세 표를 본문 결과표로 두는가?
-5. Qwen2.5-7B 공개 NLA는 중요한 외부 baseline으로 포함하되 Medical-NLA나 same-backbone
-   comparison으로 표현하지 않는가?
+5. Qwen2.5-7B와 Gemma-3-12B에 동일한 의료 adaptation 원칙을 적용하되, 서로 다른 native layer와
+   모델 크기 때문에 backbone 간 절대값보다 각 backbone 내부 개선을 핵심 근거로 삼는가?
