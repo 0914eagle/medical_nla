@@ -16,28 +16,36 @@
 
 ## 1. Introduction
 
-### 1.1 정답 정확도에서 reasoning faithfulness로
+### 1.1 정답 정확도에서 안정성과 설명가능성으로
 
-최근 의료 LLM은 의료 질의응답과 진단 benchmark에서 높은 정답률을 보인다. 그러나 정답이
-맞는 것과 그 답을 만드는 과정에서 환자 근거를 올바르게 사용한 것은 같은 문제가 아니다.
-모델은 맞는 답에 잘못된 근거를 붙일 수 있고, 틀린 답을 유창한 임상 서술로 정당화할 수도 있다.
-따라서 의료 LLM 평가는 answer accuracy뿐 아니라 **reasoning과 explanation의 정확성 및
-faithfulness**를 별도로 측정하는 방향으로 확장되고 있다.
+최근 의료 LLM은 의료 질의응답과 진단 benchmark에서 높은 정답률을 보인다. 그러나 임상적으로
+신뢰할 수 있는 모델이 되려면 평균 정확도만으로는 충분하지 않다. 같은 의미를 유지하는 작은
+입력 변화에 판단이 불필요하게 흔들리지 않아야 하고, 반대로 진단에 중요한 근거가 바뀌면 그
+변화를 인식해 판단을 갱신해야 한다. 또한 임상의가 모델이 어떤 환자 근거를 읽었고 무엇을
+무시했으며 왜 특정 진단 방향으로 기울었는지 검토할 수 있어야 한다. 본 논문은 이 두 요구를
+각각 **안정성(stability)** 과 **설명가능성(explainability)** 의 문제로 본다.
 
 [MedOmni-45°, AAAI 2026](https://ojs.aaai.org/index.php/AAAI/article/view/40864)은
 의료 reasoning 모델의 안전성 축에 CoT faithfulness와 sycophancy를 포함한다.
 [Trustworthy Medical Question Answering, EMNLP 2025](https://aclanthology.org/2025.emnlp-main.1398/)도
 의료 QA의 신뢰성을 factuality, robustness, safety, explainability, calibration 등으로 나누며
-정답률 하나로 평가할 수 없음을 정리한다. 이 흐름에서 CoT는 단순한 성능 향상 기법을 넘어,
-임상의가 모델의 판단 근거를 검토하는 **visible explanation interface**로 사용된다.
+정답률 하나로 평가할 수 없음을 정리한다. 즉 최근 평가는 “정답을 맞혔는가”를 넘어 “근거 변화에
+일관되고 적절하게 반응하는가”와 “그 동작을 사람이 감사할 수 있는가”를 함께 묻기 시작했다.
 
-다만 CoT를 “모델 내부 생각의 기록”이라고 단정해서는 안 된다. CoT는 hidden state를 직접
-관측한 값이 아니라 출력 시점에 모델이 생성한 **자기보고형 설명(self-reported explanation)** 이다.
-따라서 좋은 문장과 faithful한 설명을 구분해야 한다.
+Chain-of-Thought(CoT)는 원래 추론 성능을 높이는 prompting 및 학습 수단이지만, 자연어로 판단
+과정을 제시한다는 이유로 의료 LLM의 동작을 설명하는 **visible explanation interface**로도
+활용되어 왔다. 임상의는 CoT를 읽고 모델이 어떤 증상, 검사 결과와 감별 진단을 사용했다고
+주장하는지 확인할 수 있다. 이 접근은 별도 내부 분석 장치 없이 사용할 수 있다는 장점이 있다.
 
-### 1.2 의료 CoT에 제기된 구체적인 문제
+하지만 CoT는 hidden state를 직접 관측한 값이 아니다. 출력 시점에 모델이 사후 생성한
+**자기보고형 설명(self-reported explanation)** 이므로, 유창하고 의학적으로 그럴듯해도 실제
+내부 상태나 decision-driving evidence와 일치하지 않을 수 있다. 따라서 CoT의 문장 품질을
+확인하는 것과 모델의 안정성·설명가능성을 검증하는 것은 구분해야 한다.
 
-최근 연구는 서로 다른 방식으로 CoT 자기보고의 한계를 확인한다.
+### 1.2 CoT 기반 안정성·설명가능성 검증의 한계
+
+최근 연구는 CoT가 reasoning을 잘 수행하는지에만 머물지 않고, CoT를 모델 동작의 설명으로
+사용할 때 발생하는 문제를 서로 다른 방식으로 확인한다.
 
 1. [Walk the Talk?, ICLR 2025](https://proceedings.iclr.cc/paper_files/paper/2025/hash/b5ec50eb177908f21f78ed0d76ed525c-Abstract-Conference.html)는
    MedQA 임상 개념을 counterfactual하게 바꾸고 모델의 설명이 실제 decision-driving evidence를
@@ -61,15 +69,18 @@ faithfulness**를 별도로 측정하는 방향으로 확장되고 있다.
    DDXPlus, CupCase, MedCase의 evidence subset을 통제하고 diagnostic margin을 분석했다. 높은
    진단 정확도만으로 환자 근거를 적절히 사용했는지 알 수 없음을 행동 수준에서 보였다.
 
-이 논문들이 공통으로 말하는 것은 “CoT가 나쁘다”가 아니다. **CoT가 유창하고 답이 맞다는
-사실만으로 그 CoT가 실제 model state 또는 decision process를 faithful하게 설명했다고 볼 수
-없다**는 것이다.
+이 논문들이 공통으로 말하는 것은 “CoT가 나쁘다”거나 “reasoning을 사용하면 안 된다”는 것이
+아니다. 핵심은 **CoT가 유창하고 답이 맞다는 사실만으로 모델이 임상 근거 변화에 안정적으로
+반응했다고 볼 수 없고, 그 CoT가 실제 model state 또는 decision process를 faithful하게
+설명했다고도 볼 수 없다**는 것이다. 즉 문제는 reasoning 성능 자체보다 CoT를 안정성과
+설명가능성의 대리 측정치로 그대로 믿을 수 있느냐에 있다.
 
 ### 1.3 왜 내부 상태를 관찰해야 하는가
 
-기존 CoT audit은 input, visible chain, answer를 조작하여 faithfulness를 행동적으로 추론한다.
-이는 중요하지만 hidden activation을 직접 읽지는 않는다. 내부 상태를 관찰하는 도구에도 각자의
-강점과 한계가 있다.
+기존 CoT audit은 input, visible chain, answer를 조작하여 안정성과 faithfulness를 행동적으로
+추론한다. 이는 중요하지만 모델이 환자 사례를 읽은 직후 실제로 형성한 hidden activation을
+직접 설명하지는 않는다. 이 때문에 내부 상태를 관찰하자는 접근이 필요하지만, 기존 내부
+관찰 도구에도 각자의 강점과 한계가 있다.
 
 - **Linear probe**는 activation에 특정 diagnosis/finding label이 linearly decodable한지 정확히
   측정할 수 있다. 하지만 사전에 정한 label 공간만 출력하므로 ontology 밖의 임상 상태나 여러
