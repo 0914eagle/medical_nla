@@ -429,22 +429,60 @@ $$
 \qquad \lambda=1,\quad T=1.
 $$
 
-`softplus(-g_c/T)`는 $g_c<0$인 잘못된 순서를 크게 벌점 주면서 경계에서 gradient가 끊기지 않는
-매끄러운 pairwise ranking loss다. Control은 같은 data/order/initialization에서 ranking weight만
-0인 original-only CE였다.
+NLL은 길이 정규화된 content-token 값이다: claim을 토큰 $t_1,\dots,t_k$로 두면
 
-| Setting/result | Value |
+$$
+\mathrm{NLL}(y_c\mid h)
+= -\frac{1}{k}\sum_{j=1}^{k}\log p\big(t_j\mid t_{<j},\ \mathrm{prompt},\ h\big),
+$$
+
+XML scaffold 토큰은 마스킹하고 claim content 토큰만 평균한다(형식 토큰은 모든 arm에서
+동일해 신호가 없다). $g_c$ 자체는 같은 $y_c$를 두 activation에서 평가하므로 길이가 양변에서
+상쇄되지만, 토큰당 평균으로 두어야 쌍마다 $g_c$가 같은 단위("토큰당 난이도 차")가 되어
+고정 temperature와 배치 평균이 claim 길이에 지배되지 않는다.
+
+`softplus(-g_c/T)`는 $\log(1+e^{-g_c/T}) = -\log\sigma(g_c/T)$, 즉 **쌍의 순서가 맞을 확률
+$\sigma(g_c/T)$의 음의 로그**(pairwise logistic ranking, RankNet 계열)다. 대안 대비 선택
+이유: raw $-g_c$는 순서가 이미 맞아도 무한정 밀어붙여 "삭제본 전부 억제"류 퇴화 해를
+장려하고, hinge는 margin 밖에서 gradient가 정확히 0이며 경계가 비평활하다. Softplus는
+순서가 크게 틀리면 $\approx-g_c$의 선형 벌점, 맞으면 지수적으로 소멸하고 전 구간
+매끄럽다 — 실측 gap이 $\pm.003$ 수준으로 0 근처에서 움직였으므로 $g\approx0$에서
+gradient $\sigma(0)=.5$가 유지되는 성질이 실질적으로 중요했다. Gradient 항
+$\sigma((m-g_c)/T)$가 trainer의 `strength`다. Control은 같은 data/order/initialization에서
+ranking weight만 0인 original-only CE였다.
+
+**설정 (동결값)**
+
+| 항목 | 값 |
 |---|---|
-| Train/validation | 3,104 / 3,032 changed-cue pairs |
-| Optimization | LR $2\times10^{-4}$, grad accumulation 4, LoRA dropout 0, seeds 17/29/43 |
-| 20-step changed delta | $+.0005/+.0028/+.0030$; frozen floor $+.05$ 미달 |
-| Budget extension | 다른 것은 고정하고 20 -> 1,552 steps, 2 epochs |
-| Step 1,552 across-seed mean | changed $+.5558$, retained $+.5604$, specificity $-.0046$ |
+| Data | changed-cue pairs — train 3,104 / validation 3,032 |
+| Objective 상수 | $\lambda=1$, $T=1$, margin $0$ — sweep 없음 |
+| Optimization | LR $2\times10^{-4}$, grad accumulation 4, LoRA dropout 0 (`model.eval()`), seeds 17/29/43 |
+| Control | 동일 data·순서·초기화에서 ranking weight만 0 (original-only CE) |
+| Runs | 20-step smoke → **step 수 하나만 변경**해 1,552 steps (2 epochs); checkpoint {20, 194, 388, 776, 1164, 1552} report-only |
 
-Budget을 늘리자 changed gap은 커졌지만 retained claim gap도 똑같이 커졌다. 모델은 삭제한 cue를
-구분한 것이 아니라 `deleted activation이면 모든 claim을 어렵게 한다`는 deletion-detector
-shortcut을 학습했다. 다음 시도에서는 retained claim을 유지하지 못하면 loss에서 직접 손해를
-보도록 anchor를 추가했다.
+**결과 — across-seed mean delta (vs control, validation 3,032쌍)**
+
+| 지표 | step 20 | step 1,552 | 성공 조건 |
+|---|---:|---:|---|
+| Changed-cue gap | $+.0019$ | $+.5558$ | $\geq +.05$ — 표면상 통과 |
+| **Retained-cue gap** (삭제 안 된 대조 cue) | $+.0002$ | $+.5604$ | $\approx 0$ 이어야 함 |
+| **Specificity** (changed $-$ retained) | $+.0017$ | $-.0046$ | $> 0$ |
+
+**Step 1,552 seed별 changed-gap delta (불안정성 증거)**
+
+| seed 17 | seed 29 | seed 43 |
+|---:|---:|---:|
+| $-.0177$ | $+.5618$ | $+1.1233$ |
+
+결과 표는 세로로 읽는다: 첫 줄만 보면 budget 연장이 성공했지만(+.5558), 둘째 줄이
+그것을 취소한다 — **삭제와 무관한 retained cue의 gap이 정확히 같은 크기로 커졌고**, 그
+차이인 specificity는 전 구간 평평하다. 모델은 삭제한 cue를 구분한 것이 아니라 "deleted
+activation이면 모든 claim을 어렵게 한다"는 deletion-detector shortcut을 학습했다: loss가
+changed cue만 보고 retained를 보지 않으므로, 사례별로 읽는 해보다 activation의 전역
+"삭제됨" 신호를 감지하는 값싼 해가 이긴다. Seed별 발산(같은 데이터에서 $-.02$부터
+$+1.12$까지)은 데이터가 해를 제약하지 못했다는 보조 증거다. 다음 시도에서는 retained
+claim을 유지하지 못하면 loss에서 직접 손해를 보도록 anchor를 추가했다.
 
 #### 3.1.5 Slide — 시도 C: Specificity-anchored ranking
 
