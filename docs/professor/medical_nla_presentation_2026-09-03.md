@@ -176,7 +176,14 @@ RQ1은 **변경에 대한 반응성**, RQ2는 **발화 내용의 사실성**, RQ
 
 ## 2. Related Work
 
-### 2.1 Faithfulness of Chain-of-Thought
+### 2.1 Explanation Faithfulness
+
+Faithfulness는 모델이 아니라 **설명의 속성**이다: 설명(CoT, self-report, rationale)이
+모델의 실제 계산 과정을 반영하는가를 묻는다(Jacovi & Goldberg, ACL 2020). 선행 연구는
+그 "실제 과정"의 기준을 input perturbation, hint 주입, unlearning 같은 **행동 수준**으로
+조작화했다. 본 연구는 같은 질문의 기준을 hidden state 수준으로 옮긴다. CoT는 이 문헌이
+다루는 지배적 설명 형식이므로 아래 검토도 CoT 연구가 중심이지만, 절의 대상은 설명
+일반이며 3.2의 EDR이 CoT와 NLA readout을 같은 계약으로 평가하는 근거가 된다.
 
 일반-domain 연구는 CoT를 모델이 답을 만든 과정을 설명하는 자기보고로 사용하면서도 그
 faithfulness를 별도로 검증해야 한다고 지적했다. [Reasoning Models Don't Always Say What They
@@ -198,7 +205,15 @@ Medical-NLA는 이 연구들을 “CoT보다 더 잘 reasoning하는 모델”�
 이들이 행동 수준에서 발견한 visible self-report의 간극을 **hidden-state readout**으로 직접
 측정하려는 것이다.
 
-### 2.2 Natural Language Autoencoders and activation readout
+### 2.2 Interpreting Hidden Representations
+
+Hidden representation을 해석하는 방법은 출력 형식으로 세 계열로 나뉜다. **닫힌
+decoder** — linear probe, SAE, transcoder, logit/tuned lens — 는 사전 정의된 label/feature
+공간으로만 읽으므로 검증은 정확하지만 열린 임상 서술을 만들지 못한다(각 도구의 한계는
+1.3). **무학습 자연어 방법** — Patchscope, SelfIE — 는 activation을 target context에 넣어
+자연어 continuation으로 읽지만 prompt·patch 위치에 민감하다. **학습형 자연어 방법** —
+LatentQA(query-conditioned activation QA), Activation Oracle(범용 activation 해석기),
+그리고 NLA — 이 본 논문이 확장하는 계열이다.
 
 [Natural Language Autoencoders, 2026](https://transformer-circuits.pub/2026/nla/)는 activation
 verbalizer(AV)가 hidden activation을 자연어로 바꾸고 activation reconstructor(AR)가 그
@@ -219,11 +234,26 @@ GRPO를 사용한다. 공개 구현 선례로는 유용하지만 의료 benchmar
 아니다. 따라서 본문 결과표의 published SOTA 숫자로 사용하지 않고 구현 참고 또는 appendix
 baseline으로 구분한다.
 
-Activation-to-language의 인접 계열에는 Patchscope, SelfIE, LatentQA와 Activation Oracle이
-있다. 이들은 각각 prompt-conditioned patching, self-interpretation, query-conditioned
-activation QA를 수행한다. 반면 NLA는 activation을 독립적인 자연어 bottleneck으로 만들고
-reconstruction을 정보 보존 신호로 쓴다. 본 논문은 이 NLA 인터페이스에 의료 임상성 및
-patient-specific grounding constraint를 추가한다.
+NLA가 인접 계열과 다른 점은 activation을 독립적인 자연어 bottleneck으로 만들고
+reconstruction을 정보 보존 신호로 쓴다는 것이다. 본 논문은 이 NLA 인터페이스에 의료
+임상성 및 patient-specific grounding constraint를 추가한다.
+
+두 절을 합치면 지형이 하나의 행렬로 정리된다. 2.1의 검사 프로토콜은 완성돼 있으나
+기준이 행동 수준이고, 2.2에서 자연어를 내는 방법은 의료·사례별 faithfulness 검증이
+없으며, 검증이 정확한 방법(probe)은 자연어가 없다:
+
+| | activation 직접 입력 | 자유 자연어 출력 | 의료 학습 | 사례별 faithfulness 검증 |
+|---|:---:|:---:|:---:|:---:|
+| CoT | X | O | (모델별) | X — 2.1의 결과 |
+| Linear probe | O | X | O (본 연구 선행) | 제한적 (closed label) |
+| SAE / Transcoder | O | X | X | X |
+| Patchscope / SelfIE | O | O | X | X |
+| 공개 NLA / LatentQA / AO | O | O | X | 일반-domain만 |
+| **Medical-NLA (제안)** | O | O | O | **본 논문의 검증 대상** |
+
+마지막 행의 마지막 칸은 주장이 아니라 3.2의 RQ1–RQ3가 판정할 빈칸이다. 이 교차점 —
+행동 감사의 질문을 hidden-state 판독으로 측정하는 의료 방법 — 이 현재 문헌에서 비어
+있는 자리다.
 
 ## 3. Methodology
 
